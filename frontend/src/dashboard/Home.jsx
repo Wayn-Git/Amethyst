@@ -89,12 +89,12 @@ export default function Home() {
     }
   }
   function toggleWidget(id) { const widgets = layoutRef.current.widgets; persist({ widgets: widgets.some(w => w.id === id) ? widgets.filter(w => w.id !== id) : [...widgets, { id, size: manifests.find(m => m.id === id).sizes.includes('m') ? 'm' : 's', height: 3 }] }) }
-  const openWidget = (id, mode) => setDrawer({ id, mode })
+  const openWidget = id => setDrawer(SYSTEM_WIDGETS.includes(id) ? { type: 'settings' } : { id })
   const selected = drawer?.id && manifests.find(m => m.id === drawer.id)
   const renderWidget = (position, full = false, tile = false) => {
     const manifest = manifests.find(m => m.id === position.id)
     if (!manifest) return null
-    return <WidgetBoundary key={manifest.id} id={manifest.id} onRetry={refreshAll}><WidgetFrame manifest={manifest} position={position} quiet={quiet} refreshVersion={refreshVersion} onData={onData} editing={(editing || drawer?.mode === 'size') && layout.widgets.some(w => w.id === manifest.id)} move={move} resize={resize} grip={grip} tile={tile} full={full} /></WidgetBoundary>
+    return <WidgetBoundary key={manifest.id} id={manifest.id} onRetry={refreshAll}><WidgetFrame manifest={manifest} position={position} quiet={quiet} refreshVersion={refreshVersion} onData={onData} editing={editing && layout.widgets.some(w => w.id === manifest.id)} move={move} resize={resize} grip={grip} tile={tile} full={full} /></WidgetBoundary>
   }
   const homePositions = positions.filter(w => !SYSTEM_WIDGETS.includes(w.id))
   const glance = homePositions.filter(w => GLANCE_WIDGETS.includes(w.id))

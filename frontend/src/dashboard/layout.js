@@ -35,7 +35,7 @@ export function previewRows(payload) {
     if (!value || typeof value !== 'object') return value
     if (Array.isArray(value)) return value.map(visit)
     return Object.fromEntries(Object.entries(value).map(([key, list]) => {
-      if (!['items', 'history', 'shortcuts'].includes(key) || !Array.isArray(list)) return [key, visit(list)]
+      if (!['items', 'history', 'shortcuts', 'hours', 'branches', 'remotes'].includes(key) || !Array.isArray(list)) return [key, visit(list)]
       if (key === 'items' && list.some(item => Array.isArray(item.items))) return [key, list.map(visit).filter(item => item.items.length)]
       count += list.length
       const selected = list.slice(0, remaining)
@@ -43,7 +43,8 @@ export function previewRows(payload) {
       return [key, selected]
     }))
   }
-  return { payload: visit(payload), get count() { return count } }
+  const preview = visit(payload)
+  return { payload: preview, count }
 }
 
 export const SYSTEM_WIDGETS = ['dash.sync', 'dash.quiet', 'dash.shortcuts', 'dash.gallery']

@@ -30,6 +30,10 @@ await page.route('**/api/**', async route => {
 })
 try {
   await page.goto(new URL('/today', process.env.BASE || 'http://127.0.0.1:5177').href, { waitUntil: 'domcontentloaded' })
+  if (id.startsWith('need.')) {
+    await page.getByLabel('Menu Needs you', { exact: true }).click()
+    await page.getByRole('button', { name: id, exact: true }).click()
+  }
   const widget = page.locator(`[data-widget="${id}"]`)
   if (id === 'need.drafts') {
     await widget.getByRole('button', { name: 'Approve', exact: true }).click()

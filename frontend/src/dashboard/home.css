@@ -1,3 +1,6 @@
+@font-face { font-family: 'Space Grotesk'; src: url('/fonts/HomeSpaceGrotesk.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('/fonts/HomeInter.woff2') format('woff2'); font-weight: 400 600; font-display: swap; }
+@font-face { font-family: 'JetBrains Mono'; src: url('/fonts/HomeJetBrainsMono.woff2') format('woff2'); font-weight: 400; font-display: swap; }
 .widget-home { --home-heading-font: 'Space Grotesk', var(--font-display); --home-body-font: 'Inter', var(--font-body); --home-mono-font: 'JetBrains Mono', var(--font-mono); padding: var(--space-xl); color: var(--text); background: var(--canvas-deep); font-family: var(--home-body-font); }
 .widget-home h1 { font: 600 28px/1.2 var(--home-heading-font); margin: 8px 0; }
 .widget-home h2 { font: 600 14px/1.4 var(--home-heading-font); margin: 0; }
@@ -32,8 +35,8 @@
 .widget-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; min-width: 0; }
 .widget-title h2 { overflow-wrap: anywhere; }
 .widget-chip { border: 1px solid var(--hairline); border-radius: 4px; padding: 2px 5px; text-transform: uppercase; }
-.state-stale { color: var(--warning, var(--text)); }
-.state-error { color: var(--danger, var(--text)); }
+.state-stale { color: var(--confirm); }
+.state-error { color: var(--stop); }
 .widget-actions { flex-wrap: wrap; }
 .widget-content { min-width: 0; font-size: var(--text-sm); overflow-wrap: anywhere; }
 .widget-content pre { white-space: pre-wrap; }
@@ -81,7 +84,7 @@ li:hover .widget-row-menu summary, li:focus-within .widget-row-menu summary { op
 .widget-skeleton span { display: block; height: 24px; background: var(--hairline); border-radius: 4px; }
 .widget-skeleton span:last-child { width: 60%; }
 .home-drawer { position: fixed; inset: 0 0 0 auto; margin: 0; width: min(560px,100%); max-width: 100%; height: 100dvh; max-height: 100dvh; box-sizing: border-box; border: 0; border-left: 1px solid var(--hairline-strong); overflow-y: auto; overscroll-behavior: contain; }
-.home-drawer::backdrop { background: var(--overlay-bg, var(--canvas-deep)); opacity: .8; }
+.home-drawer::backdrop { background: var(--scrim); opacity: .8; }
 .home-drawer .home-widget { margin-block: 16px; }
 .home-drawer .widget-refresh { opacity: 1; }
 .home-settings { display: grid; gap: 16px; }
@@ -101,3 +104,6 @@ li:hover .widget-row-menu summary, li:focus-within .widget-row-menu summary { op
   .home-clock, .glance-value { font-size: 22px; }
 }
 @media (prefers-reduced-motion: reduce) { .widget-home button { transition: none; } }
+
+.widget-home .widget-inline-add { display: flex; gap: 8px; }
+.widget-inline-add input { flex: 1; }

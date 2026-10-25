@@ -17,6 +17,7 @@ function countdown(due, now) {
 export default function Items({ data, widgetId }) {
   const [now, setNow] = useState(Date.now)
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(timer) }, [])
+  const [title, setTitle] = useState('')
   const [editing, setEditing] = useState(null)
   const [draft, setDraft] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -49,7 +50,7 @@ export default function Items({ data, widgetId }) {
         <label>Title<input required maxLength={500} value={editing.title} onChange={event => setEditing({ ...editing, title: event.target.value })} /></label>
         {widgetId !== 'dev.recovery' && <label>Due<input type="datetime-local" required={['task.deadlines', 'task.reminders'].includes(widgetId)} value={editing.due} onChange={event => setEditing({ ...editing, due: event.target.value })} /></label>}
         <div className="widget-buttons"><button disabled={busy} type="submit">Review change</button><button disabled={busy} type="button" onClick={() => setEditing(null)}>Cancel</button></div>
-      </form> : <button disabled={busy} onClick={() => setEditing({ title: '', due: '' })}>Add item</button>}
+      </form> : <form className="widget-inline-add" onSubmit={event => { event.preventDefault(); setEditing({ title, due: '' }); setTitle('') }}><input aria-label="New item title" placeholder="Add a task…" maxLength={500} value={title} onChange={event => setTitle(event.target.value)} /><button disabled={busy}>Add item</button></form>}
       <ul className="widget-list">{(data?.items || []).map(item => <li key={item.id}>
         <div><strong>{item.title}</strong>{widgetId === 'task.backlog' && <p>Idle {item.idle_days} {item.idle_days === 1 ? 'day' : 'days'}</p>}{item.due_at && <p>{new Date(item.due_at).getTime() <= now ? 'Overdue' : 'Due'} · {new Date(item.due_at).toLocaleString()}</p>}{widgetId === 'task.deadlines' && <p>{countdown(item.due_at, now)}</p>}</div>
         {item.editable ? <details className="widget-row-menu"><summary aria-label={`Actions ${item.title}`}>Actions</summary><div className="widget-buttons">
