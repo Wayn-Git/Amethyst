@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import shutil
 import subprocess
+import sys
+from pathlib import Path
 from typing import Any
 
 
@@ -93,12 +97,14 @@ def list_sinks() -> list[dict[str, Any]]:
                     display_name = f"HDMI Output ({name.split('__')[-1].replace('__sink', '')})"
                 elif "Headphone" in name:
                     display_name = "Headphones"
-                sinks.append({
-                    "id": sink_id,
-                    "name": name,
-                    "display_name": display_name,
-                    "driver": parts[2] if len(parts) > 2 else "PulseAudio",
-                })
+                sinks.append(
+                    {
+                        "id": sink_id,
+                        "name": name,
+                        "display_name": display_name,
+                        "driver": parts[2] if len(parts) > 2 else "PulseAudio",
+                    }
+                )
     except Exception:
         pass
     return sinks
@@ -118,28 +124,128 @@ def set_default_sink(sink_name: str) -> dict[str, Any]:
         return {"ok": False, "error": str(e)}
 
 
+def _busctl(*arguments):
+    env = os.environ.copy()
+    if not env.get("DBUS_SESSION_BUS_ADDRESS") and sys.platform.startswith("linux"):
+        bus = Path(f"/run/user/{os.getuid()}/bus")
+        if bus.exists():
+            env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={bus}"
+    return subprocess.run(
+        ["busctl", "--user", *arguments],
+        capture_output=True,
+        text=True,
+        timeout=2,
+        check=True,
+        env=env,
+    ).stdout
+
+
 def _get_mpris_players() -> list[str]:
-    """Find active MPRIS media players on user session DBus."""
-    players = []
+    """Find named media players on the current user's session bus."""
     try:
-        out = subprocess.run(
-            ["busctl", "--user", "list"],
-            capture_output=True,
-            text=True,
-            timeout=2,
-        ).stdout
-        for line in out.splitlines():
-            line = line.strip()
-            if line.startswith("org.mpris.MediaPlayer2."):
-                players.append(line.split()[0])
-    except Exception:
-        pass
-    return players
+        return sorted(
+            line.split()[0]
+            for line in _busctl("list").splitlines()
+            if line.startswith("org.mpris.MediaPlayer2.")
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
 
 
-def media_control(action: str) -> dict[str, Any]:
-    """Send playback command to active media players."""
-    valid_actions = {
+def _dbus_value(value):
+    if isinstance(value, dict):
+        if set(value) == {"type", "data"}:
+            return _dbus_value(value["data"])
+        return {key: _dbus_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_dbus_value(item) for item in value]
+    return value
+
+
+def get_playback_status() -> dict[str, Any]:
+    """Prefer a playing session, retaining paused sessions for resume controls."""
+    supported = sys.platform.startswith("linux") and bool(shutil.which("busctl"))
+    idle = {
+        "supported": supported,
+        "active_player": None,
+        "player_id": None,
+        "status": "Stopped",
+        "controls": {},
+    }
+    if not supported:
+        return idle
+    sessions = []
+    for player in _get_mpris_players():
+        try:
+            values = _dbus_value(
+                json.loads(
+                    _busctl(
+                        "--json=short",
+                        "call",
+                        player,
+                        "/org/mpris/MediaPlayer2",
+                        "org.freedesktop.DBus.Properties",
+                        "GetAll",
+                        "s",
+                        "org.mpris.MediaPlayer2.Player",
+                    )
+                )
+            )[0]
+            metadata = values.get("Metadata", {})
+            status = values.get("PlaybackStatus", "Stopped")
+            artists = metadata.get("xesam:artist", [])
+            if not isinstance(artists, list):
+                artists = [artists]
+            artists = [artist for artist in artists if isinstance(artist, str)]
+            if status not in ("Playing", "Paused", "Stopped"):
+                continue
+            if not all(
+                isinstance(metadata.get(key, ""), str)
+                for key in ("xesam:title", "xesam:album", "mpris:trackid")
+            ):
+                continue
+            controllable = values.get("CanControl", False) is True
+            sessions.append(
+                {
+                    "supported": True,
+                    "active_player": player.removeprefix("org.mpris.MediaPlayer2."),
+                    "player_id": player,
+                    "status": status,
+                    "title": metadata.get("xesam:title", ""),
+                    "artists": artists,
+                    "album": metadata.get("xesam:album", ""),
+                    "track_id": metadata.get("mpris:trackid", ""),
+                    "controls": {
+                        action: controllable and values.get(prop, False) is True
+                        for action, prop in (
+                            ("previous", "CanGoPrevious"),
+                            ("next", "CanGoNext"),
+                            ("play", "CanPlay"),
+                            ("pause", "CanPause"),
+                        )
+                    },
+                }
+            )
+        except (
+            OSError,
+            subprocess.SubprocessError,
+            ValueError,
+            KeyError,
+            IndexError,
+            TypeError,
+            AttributeError,
+        ):
+            continue
+    return (
+        min(sessions, key=lambda item: {"Playing": 0, "Paused": 1}.get(item["status"], 2))
+        if sessions
+        else idle
+    )
+
+
+def media_control(action: str, player: str | None = None) -> dict[str, Any]:
+    """Control exactly one session; never broadcast across desktop players."""
+    methods = {
         "play-pause": "PlayPause",
         "play": "Play",
         "pause": "Pause",
@@ -147,98 +253,34 @@ def media_control(action: str) -> dict[str, Any]:
         "previous": "Previous",
         "stop": "Stop",
     }
-    method = valid_actions.get(action.lower().replace("_", "-"))
+    method = methods.get(action.lower().replace("_", "-"))
     if not method:
         return {"ok": False, "error": f"Invalid action: {action}"}
-
-    # Try playerctl first if installed
-    if shutil.which("playerctl"):
-        cmd_map = {
-            "PlayPause": "play-pause",
-            "Play": "play",
-            "Pause": "pause",
-            "Next": "next",
-            "Previous": "previous",
-            "Stop": "stop",
-        }
-        res = subprocess.run(
-            ["playerctl", cmd_map.get(method, "play-pause")],
-            capture_output=True,
-            text=True,
-            timeout=2,
-        )
-        if res.returncode == 0:
-            return {"ok": True, "action": action}
-
-    # Fallback to direct DBus calls via busctl
-    players = _get_mpris_players()
-    if not players:
+    player = player or get_playback_status().get("player_id")
+    if not player or player not in _get_mpris_players():
         return {"ok": False, "error": "No active media player found"}
-
-    success = False
-    for player in players:
-        res = subprocess.run(
-            [
-                "busctl",
-                "--user",
-                "call",
-                player,
-                "/org/mpris/MediaPlayer2",
-                "org.mpris.MediaPlayer2.Player",
-                method,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=2,
-        )
-        if res.returncode == 0:
-            success = True
-
-    return {"ok": success, "action": action, "players": players}
+    try:
+        _busctl("call", player, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", method)
+        return {"ok": True, "action": action, "players": [player]}
+    except (OSError, subprocess.SubprocessError):
+        return {"ok": False, "error": "The desktop player could not accept this command"}
 
 
 def get_media_status() -> dict[str, Any]:
-    """Get current volume, mute state, sinks, and now playing metadata."""
-    vol = get_volume()
-    muted = get_mute()
-    sinks = list_sinks()
-
-    # Query track metadata from MPRIS if player exists
-    now_playing: dict[str, Any] | None = None
-    players = _get_mpris_players()
-    for player in players:
-        try:
-            out = subprocess.run(
-                [
-                    "busctl",
-                    "--user",
-                    "get-property",
-                    player,
-                    "/org/mpris/MediaPlayer2",
-                    "org.mpris.MediaPlayer2.Player",
-                    "Metadata",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=2,
-            ).stdout
-            title_match = re.search(r'"xesam:title"\s+s\s+"([^"]+)"', out)
-            artist_match = re.search(r'"xesam:artist"\s+as\s+\d+\s+"([^"]+)"', out)
-            album_match = re.search(r'"xesam:album"\s+s\s+"([^"]+)"', out)
-            if title_match:
-                now_playing = {
-                    "player": player.replace("org.mpris.MediaPlayer2.", ""),
-                    "title": title_match.group(1),
-                    "artist": artist_match.group(1) if artist_match else "",
-                    "album": album_match.group(1) if album_match else "",
-                }
-                break
-        except Exception:
-            continue
-
+    """Keep the remote audio contract while sharing the selected playback session."""
+    playback = get_playback_status()
     return {
-        "volume": vol,
-        "muted": muted,
-        "sinks": sinks,
-        "now_playing": now_playing,
+        "volume": get_volume(),
+        "muted": get_mute(),
+        "sinks": list_sinks(),
+        **playback,
+        "artist": ", ".join(playback.get("artists", [])),
+        "now_playing": {
+            "player": playback["active_player"],
+            "title": playback.get("title", ""),
+            "artist": ", ".join(playback.get("artists", [])),
+            "album": playback.get("album", ""),
+        }
+        if playback["active_player"]
+        else None,
     }

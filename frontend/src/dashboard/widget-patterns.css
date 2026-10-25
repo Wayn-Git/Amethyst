@@ -173,3 +173,24 @@
   min-height: 28px !important; color: var(--ui-muted) !important;
 }
 .widget-home .widget-card .widget-show-all:hover { color: var(--ui-text) !important; }
+
+/* Desktop transport uses the same component in the glance strip and full view. */
+.widget-home .desktop-music { display: grid; gap: var(--ui-space-3); min-width: 0; }
+.widget-home .music-track { display: flex; align-items: center; gap: var(--ui-space-3); min-width: 0; }
+.widget-home .music-art { display: grid; place-items: center; flex: none; width: 48px; height: 48px; border-radius: var(--ui-radius); background: var(--ui-raised); color: var(--ui-muted); }
+.widget-home .music-track > div { min-width: 0; }
+.widget-home .music-track strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 13px/20px var(--ui-font); }
+.widget-home .music-track p { margin: 0; font: 400 12px/18px var(--ui-font); color: var(--ui-muted); }
+.widget-home .music-transport { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--ui-space-2); }
+.widget-home .music-player { font: 400 11px/16px var(--ui-font); color: var(--ui-muted); overflow-wrap: anywhere; }
+.widget-home .music-controls { display: flex; align-items: center; gap: var(--ui-space-1); }
+.widget-home .music-controls .ui-button { height: auto; min-height: 28px; padding: var(--ui-space-1) var(--ui-space-2); border-radius: var(--ui-radius); background: var(--ui-raised); color: var(--ui-text); box-shadow: none; }
+.widget-home .music-controls .ui-button[data-variant='primary'] { background: var(--ui-accent); border-color: var(--ui-accent); color: var(--ui-on-accent); }
+.widget-home .music-review p { margin: 0 0 var(--ui-space-2); }
+@container widget (max-width: 239px) {
+  .widget-home .music-art { display: none; }
+  .widget-home .music-transport { gap: var(--ui-space-1); }
+  .widget-home .music-track p { display: none; }
+}
+.widget-home .music-review .music-controls { flex-wrap: wrap; }
+.widget-home .music-track p, .widget-home .music-player { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

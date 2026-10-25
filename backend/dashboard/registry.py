@@ -199,11 +199,13 @@ MANIFESTS = [
         "empty": "Add a feed. No default feeds are installed.",
     },
     {
-        **manifest("glance.music", "Now playing and last played", ["m", "l"]),
-        "source": {"type": "composio", "toolkit": "spotify"},
-        "requires": ["connector:spotify"],
-        "refresh": {"mode": "poll", "interval_s": 60},
-        "empty": "Nothing playing or recently played.",
+        **manifest("glance.music", "Desktop music", ["m", "l"]),
+        "refresh": {"mode": "poll", "interval_s": 10},
+        "actions": [
+            dict(id=a, label=a.title(), gate=True)
+            for a in ("play", "pause", "previous", "next")
+        ],
+        "empty": "Open a desktop music player to start listening.",
     },
     {
         **manifest("glance.air", "Air quality", ["s", "m", "l"]),

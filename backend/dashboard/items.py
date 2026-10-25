@@ -261,6 +261,7 @@ async def decide(widget_id, draft_id, approved):
             if not claimed.rowcount:
                 raise HTTPException(409, "Draft already decided")
             if allowed and widget_id not in (
+                "glance.music",
                 "lib.capture",
                 "lib.readlater",
                 "lib.highlights",
@@ -283,6 +284,12 @@ async def decide(widget_id, draft_id, approved):
             await library_apply(widget_id, action, body)
             with transaction() as conn:
                 conn.execute("UPDATE widget_cache SET state='stale' WHERE widget_id LIKE 'lib.%'")
+        if allowed and widget_id == "glance.music":
+            from backend.dashboard.music import apply as music_apply
+            from backend.dashboard.service import refresh
+
+            await music_apply(action, body)
+            await refresh(widget_id)
         if allowed and widget_id == "lib.capture":
             from backend.library.service import LibraryService
 

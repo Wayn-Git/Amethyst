@@ -184,7 +184,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | glance.sun | Sunrise and sunset | api | MVP | [x] |
 | glance.air | Air quality | api | MVP | [x] |
 | glance.next-event | Next event with countdown | cmp:googlecalendar | MVP | [x] |
-| glance.music | Now playing and last played | cmp:spotify | MVP | [x] |
+| glance.music | Desktop music and playback controls | local:MPRIS | MVP | [x] |
 | glance.travel | Travel time to next event | cmp:googlemaps | v2 | [x] |
 | glance.listen-stats | Listening stats | cmp:spotify | v2 | [ ] |
 

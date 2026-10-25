@@ -86,7 +86,7 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [ ] `glance.air` — owned by the widgets session.
 - [x] `glance.clock` — pilot visuals; see `ui-widget-patterns.md`.
 - [ ] `glance.listen-stats` — owned by the widgets session.
-- [ ] `glance.music` — owned by the widgets session.
+- [x] `glance.music` — local desktop player, gated transport controls and responsive widget content.
 - [ ] `glance.next-event` — owned by the widgets session.
 - [ ] `glance.sun` — owned by the widgets session.
 - [ ] `glance.travel` — owned by the widgets session.

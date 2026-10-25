@@ -126,3 +126,27 @@ now also exercise the actual glance strip at 1440, 1024, 768 and 360 px, plus
 isolated clock slots at 148, 180, 220 and 280 px; these establish layout and
 behavior, not a visual-fidelity verdict.
 No live accounts, backend changes, contract changes or new dependencies.
+
+
+## Desktop music — glance.music
+
+This widget reads the local Linux MPRIS session, without Spotify/Composio/MCP.
+It prefers a playing player, keeps paused players available for resume, and polls
+through the existing widget hook every ten seconds. Desktop media support must
+be enabled by the player; not every application exposes a session. No playback
+history is invented or fetched from a remote account.
+
+Use the same Music component in the glance strip and drawer. A quiet music icon
+sits beside the real track title and artists, with the selected player/status and
+previous, play/pause and next controls beneath. Disabled controls reflect the
+player's capabilities. Below 240 px omit the decorative icon and secondary
+artist text; keep the title, status and controls. Playback errors retain alert
+semantics, and no active player uses the shared empty state rather than a Connect
+Spotify prompt. Review buttons wrap at narrow widths.
+
+Transport commands use the existing dashboard draft/approval gate and trace.
+The draft pins the selected player, track and playback status. If those change
+before approval, reject the command and request a new review. Commands target
+one named session, never every player. Refresh the shared widget cache after an
+approved command. No account auth, dependencies, shell command interpolation,
+remote album-art fetch, arbitrary media opening or audio capture is added.

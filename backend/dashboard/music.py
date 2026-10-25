@@ -1,37 +1,67 @@
-"""Read-only Spotify projections via the audited Composio reader."""
+"""The local desktop playback session; no connector or playback history cache."""
 
-from urllib.parse import urlparse
+import asyncio
 
-from backend.dashboard.connectors import read
+from fastapi import HTTPException
+from pydantic import Field
 
-
-def track(raw):
-    if not isinstance(raw, dict) or not raw.get("name"):
-        return None
-    url = raw.get("external_urls", {}).get("spotify")
-    parsed = urlparse(url or "")
-    return {
-        "title": raw["name"],
-        "artists": [a["name"] for a in raw.get("artists", []) if a.get("name")],
-        "url": url if parsed.scheme == "https" and parsed.hostname == "open.spotify.com" else None,
-    }
+from backend.dashboard import items
+from backend.dashboard.models import StrictModel
+from backend.remote import media
 
 
-def unwrap(raw):
-    if not isinstance(raw, dict):
-        raise ValueError("Invalid Spotify response")
-    return raw.get("data", raw)
+class MusicInput(StrictModel):
+    player: str = Field(pattern=r"^org\.mpris\.MediaPlayer2\.[A-Za-z0-9_.-]+$", max_length=255)
+    track_id: str = Field(default="", max_length=2048)
 
 
 async def provide(widget_id):
-    current = unwrap(await read(widget_id, "spotify", "SPOTIFY_GET_CURRENTLY_PLAYING_TRACK", {}))
-    recent = unwrap(
-        await read(widget_id, "spotify", "SPOTIFY_GET_RECENTLY_PLAYED_TRACKS", {"limit": 10})
+    state = await asyncio.to_thread(media.get_playback_status)
+    return {
+        **state,
+        "items": [
+            {
+                "title": state.get("title") or state["active_player"],
+                "artists": state.get("artists", []),
+            }
+        ]
+        if state["active_player"]
+        else [],
+    }
+
+
+def draft(action, body):
+    if action not in ("play", "pause", "previous", "next"):
+        raise HTTPException(404, "Unknown playback action")
+    state = media.get_playback_status()
+    if state["player_id"] != body.player or state.get("track_id", "") != body.track_id:
+        raise HTTPException(409, "The desktop player changed. Refresh and try again.")
+    if not state["controls"].get(action):
+        raise HTTPException(409, "This player does not support that control.")
+    return items.save_draft(
+        "glance.music",
+        action,
+        body,
+        {
+            **body.model_dump(),
+            "status": state["status"],
+        },
     )
-    history = []
-    for row in recent.get("items", [])[:10]:
-        item = track(row.get("track"))
-        if item:
-            history.append({**item, "played_at": row.get("played_at")})
-    now = track(current.get("item")) if current.get("is_playing") else None
-    return {"items": [now] if now else [], "history": history}
+
+
+async def apply(action, body):
+    def execute():
+        state = media.get_playback_status()
+        if (
+            state["player_id"] != body["player"]
+            or state.get("track_id", "") != body["track_id"]
+            or state["status"] != body["status"]
+        ):
+            raise HTTPException(409, "Playback changed. Review a new command.")
+        if action not in ("play", "pause", "previous", "next") or not state["controls"].get(action):
+            raise HTTPException(409, "This player does not support that control.")
+        result = media.media_control(action, body["player"])
+        if not result["ok"]:
+            raise HTTPException(503, result["error"])
+
+    await asyncio.to_thread(execute)

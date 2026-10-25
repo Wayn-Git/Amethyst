@@ -60,18 +60,7 @@ function Glance({ manifest, data, now, settings }) {
     </div>
   </div>
 
-  return <div className="glance-music-face">
-    <div className="glance-record" aria-hidden="true">
-      <Icon name="music" size={24} />
-    </div>
-    <div>
-      <span className="glance-caption">Now playing
-        {item?.title && <span className="glance-soundwave" aria-hidden="true"><span /><span /><span /><span /></span>}
-      </span>
-      <strong className="glance-value">{item?.title || 'Nothing playing'}</strong>
-      <p>{item?.artists?.join(', ') || 'Play something on your connected account.'}</p>
-    </div>
-  </div>
+  return null
 }
 
 export const PREVIEW_FIXTURES = {
@@ -113,7 +102,7 @@ export default function WidgetFrame({ manifest, position, quiet, refreshVersion,
       {!preview && <button className="widget-refresh" disabled={busy || data.refreshing} onClick={refresh} aria-label={`Refresh ${manifest.title}`}><Icon name="refresh" size={18} /></button>}
       {!preview && <details className="widget-menu"><summary aria-label={`Menu ${manifest.title}`}>···</summary><div><button disabled={busy || data.refreshing} onClick={refresh}>Refresh</button>{!full && <button onClick={settings}>Settings</button>}{!full && <button onClick={event => { event.currentTarget.closest('details').open = false; setEditing(true) }}>Size</button>}{added && <button onClick={() => removeWidget(manifest.id)}>Remove</button>}</div></details>}
     </WidgetHeader>
-    <div className="widget-content">{data.state === 'not-connected' && !full && !preview ? <>{tile && <div className="glance-offline-art" aria-hidden="true"><Icon name={manifest.id === 'glance.music' ? 'music' : 'calendar'} size={40} /></div>}<ConnectionRow manifest={manifest} remove={() => removeWidget(manifest.id)} /></> : tile && !full && manifest.id !== 'glance.travel' && !['loading', 'error'].includes(data.state) ? <Glance manifest={manifest} data={data.payload} now={now} settings={settings} /> : content(full ? data.payload : previewData.payload)}{data.state === 'empty' && !tile && !full && !preview && <button onClick={settings}>Open widget</button>}{data.state === 'error' && !preview && <button disabled={busy} onClick={refresh}>Retry</button>}</div>
+    <div className="widget-content">{data.state === 'not-connected' && !full && !preview ? <>{tile && <div className="glance-offline-art" aria-hidden="true"><Icon name={manifest.id === 'glance.music' ? 'music' : 'calendar'} size={40} /></div>}<ConnectionRow manifest={manifest} remove={() => removeWidget(manifest.id)} /></> : tile && !full && !['glance.travel', 'glance.music'].includes(manifest.id) && !['loading', 'error'].includes(data.state) ? <Glance manifest={manifest} data={data.payload} now={now} settings={settings} /> : content(full ? data.payload : previewData.payload)}{data.state === 'empty' && !tile && !full && !preview && <button onClick={settings}>Open widget</button>}{data.state === 'error' && !preview && <button disabled={busy} onClick={refresh}>Retry</button>}</div>
     {!full && !preview && previewData.count > 5 && <button className="widget-show-all" onClick={() => setExpanded(true)}>Show all ({previewData.count})</button>}
     {!preview && editing && <div className="widget-edit"><label>Size<select aria-label={`Size ${manifest.title}`} value={position.size} onChange={e => resize(manifest.id, { size: e.target.value })}>{manifest.sizes.map(size => <option key={size} value={size}>{size.toUpperCase()}</option>)}</select></label><label>Height<input aria-label={`Height ${manifest.title}`} type="number" min={2} max={8} value={position.height} onChange={e => resize(manifest.id, { height: Math.max(2, Math.min(8, Number(e.target.value) || 2)) })} /></label><button {...grip('resize', manifest.id)} aria-label={`Resize ${manifest.title}`} title="Drag to resize; size and height fields also work"><Icon name="expand" size={18} /></button></div>}
     {!preview && expanded && <Drawer title={manifest.title} onClose={() => setExpanded(false)}>{content(data.payload)}</Drawer>}

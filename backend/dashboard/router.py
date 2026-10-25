@@ -215,6 +215,11 @@ class DraftDecision(StrictModel):
 async def item_action(widget_id: str, action: str, body: dict):
     enabled(widget_id)
     try:
+        if widget_id == "glance.music":
+            from backend.dashboard.music import MusicInput
+            from backend.dashboard.music import draft as music_draft
+
+            return await asyncio.to_thread(music_draft, action, MusicInput.model_validate(body))
         if widget_id == "task.habits":
             from backend.dashboard.habits import HabitInput
             from backend.dashboard.habits import draft as habit_draft
