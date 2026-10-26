@@ -171,3 +171,13 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-26 · UI Glance group · glance.next-event: shared compact/full real-minute countdown; focused theme/state/control checks passed.
 - 2026-10-26 · UI Glance group · glance.music: dark transport tile; existing approval controls preserved; focused theme/state/control checks passed.
 - 2026-10-26 · UI Glance group · glance.travel: route summary and house location controls; no numeric inference; focused theme/state/control checks passed.
+- 2026-10-26 · UI Needs you group · need.inbox: retained ranked inbox pilot; focused theme/state/gate checks passed.
+- 2026-10-26 · UI Needs you group · need.drafts: recipient list, composer disclosure and gated local review; focused theme/state/gate checks passed.
+- 2026-10-26 · UI Needs you group · need.waiting: correspondence list, nudge review and settings disclosure; focused theme/state/gate checks passed.
+- 2026-10-26 · UI Needs you group · need.mentions: source-initial badges and existing source links; focused theme/state/gate checks passed.
+- 2026-10-26 · UI Needs you group · need.overdue: dated warning list with source and status; focused theme/state/gate checks passed.
+- 2026-10-26 · UI Needs you group · need.decisions: house answer controls with ordered question payloads; focused theme/state/gate checks passed.
+- 2026-10-26 · UI Needs you group · need.snoozed: dated return-state list with clock badges; focused theme/state/gate checks passed.
+- 2026-10-26 · UI Needs you group · need.approvals: accent review tile and house permission controls; focused theme/state/gate checks passed.
+- 2026-10-26 · UI Needs you group · need.lor-slack: dark correspondence list with source/person initials; focused theme/state/gate checks passed.
+- 2026-10-26 · Verification limit: dashboard-pilots.mjs stops at the task.today add-item approval step (outside these groups); focused Glance/Needs you checks and dashboard-director.mjs pass.

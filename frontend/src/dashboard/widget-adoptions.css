@@ -50,6 +50,15 @@
 .bento-foundation .home-widget.widget-adoption .music-controls .ui-button { border-radius: 999px; }
 .bento-foundation .home-widget.widget-adoption .music-track p { display: block; white-space: normal; }
 .bento-foundation .home-widget.widget-adoption .music-player { display: flex; align-items: center; gap: var(--tile-space-2); font: var(--tile-label); white-space: normal; }
+.bento-foundation .home-widget.widget-adoption[data-widget^='need.'] .widget-content { min-height: 320px; }
+.bento-foundation .home-widget.widget-adoption[data-widget^='need.'] .widget-skeleton { min-height: 320px; }
+.bento-foundation .home-widget.widget-adoption .adoption-people > li { display: flex; align-items: flex-start; gap: var(--tile-space-3); }
+.bento-foundation .home-widget.widget-adoption .adoption-people > li > div { min-width: 0; flex: 1; }
+.bento-foundation .home-widget.widget-adoption .adoption-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--tile-space-2); color: var(--tile-muted); font: var(--tile-label); margin-block: var(--tile-space-2); }
+.bento-foundation .home-widget.widget-adoption .widget-buttons { display: flex; flex-wrap: wrap; gap: var(--tile-space-2); margin-top: var(--tile-space-3); }
+.bento-foundation .home-widget.widget-adoption .adoption-review { padding: var(--tile-space-4); border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-raised); }
+.bento-foundation .home-widget.widget-adoption .adoption-review p { white-space: pre-wrap; }
+.bento-foundation .home-widget.widget-adoption .widget-content pre { max-width: 100%; padding: var(--tile-space-3); border-radius: var(--ui-radius); background: var(--ui-raised); color: var(--tile-fg); font: var(--tile-label); white-space: pre-wrap; overflow-wrap: anywhere; }
 @container tile (width < 390px) {
   .bento-foundation .home-widget.widget-adoption { padding: var(--tile-space-4); }
   .bento-foundation .home-widget.widget-adoption .adoption-time { font-size: 32px; }

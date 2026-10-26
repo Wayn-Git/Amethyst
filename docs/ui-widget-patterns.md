@@ -61,3 +61,15 @@ All seven implemented Glance widgets use the existing grid and tone tokens. Cloc
 **Route summary — glance.travel.** Light tile with event title, prominent provider-supplied driving estimate and zoned event start. The provider supplies a text estimate, so do not parse it into chart data. Location settings use the house Input and violet primary Button; setup opens the form. No list bullets. Preserve the existing Composio source disclosure.
 
 Scoped styles live in widget-adoptions.css and also cover these widgets in settings/detail drawers. Focused proof: `node frontend/tests/dashboard-adoptions.mjs glance` (synthetic payloads, all states, zero/missing readings, wall times in a different browser timezone, controls, nine themes at 1440/390 and reduced motion), plus dashboard-music.mjs for playback approval and narrow review layout. No screenshots or hardware frame-time claims.
+
+## Needs you group adoption
+
+All nine implemented IDs are adopted. need.inbox keeps the ranked-list pilot. need.lor-social remains blocked by the existing lack of an official personal-account API; no substitute is added. Preview order, five-record limit and Show all remain owned by the shell. Group shells use the existing manifest icons, tone tokens, quiet freshness and status pills. Loading reserves 320 px for the new list patterns; the inbox retains its pilot reservation.
+
+**Correspondence list — need.drafts, need.waiting, need.mentions, need.lor-slack.** Use circular recipient/source initials, a prominent subject/title, quiet metadata and supplied status. Mentions and Slack preserve existing HTTPS source links. Slack uses a dark tile; the others use light. Draft and waiting composers live in disclosures, open for empty lists or editing; an active review/nudge stays visible. Local-draft limits and waiting configuration/source details appear once. Draft approval and waiting add/complete/nudge still use their existing gated review and rejection flow. No send action is enabled and no reply capability is invented.
+
+**Dated list — need.overdue, need.snoozed.** Light list with a circular warning/clock badge, title, source, a small supplied-state chip and mono date. No completion control for source-owned items. Do not reinterpret snooze return state or calculate progress from deadlines.
+
+**Decision review — need.decisions, need.approvals.** Light question tile / accent permission tile. Keep question/options or action details and arguments readable, with house inputs and violet Answer/Approve actions alongside secondary Dismiss/Deny. Preserve encoded IDs, question answer ordering and existing endpoints; approval history remains separate. No implied execution status or synthetic urgency score.
+
+Proof: `node frontend/tests/dashboard-adoptions.mjs needs` exercises all nine IDs with synthetic payloads, approval/denial, ordered question answers, draft/nudge review and rejection, disabled Send, all shell states, nine themes at 1440/390 and reduced motion. dashboard-director.mjs covers pending-question/permission actions and expired requests.

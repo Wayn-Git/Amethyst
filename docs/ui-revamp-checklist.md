@@ -142,16 +142,16 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [ ] `life.screen` — bento adoption pending.
 - [ ] `life.shopping` — bento adoption pending.
 - [ ] `life.trips` — bento adoption pending.
-- [ ] `need.approvals` — bento adoption pending.
-- [ ] `need.decisions` — bento adoption pending.
-- [ ] `need.drafts` — bento adoption pending.
+- [x] `need.approvals` — group adoption; see ui-widget-patterns.md.
+- [x] `need.decisions` — group adoption; see ui-widget-patterns.md.
+- [x] `need.drafts` — group adoption; see ui-widget-patterns.md.
 - [x] `need.inbox` — session 4 pilot; see ui-widget-patterns.md.
-- [ ] `need.lor-slack` — bento adoption pending.
+- [x] `need.lor-slack` — group adoption; see ui-widget-patterns.md.
 - [ ] `need.lor-social` — bento adoption pending.
-- [ ] `need.mentions` — bento adoption pending.
-- [ ] `need.overdue` — bento adoption pending.
-- [ ] `need.snoozed` — bento adoption pending.
-- [ ] `need.waiting` — bento adoption pending.
+- [x] `need.mentions` — group adoption; see ui-widget-patterns.md.
+- [x] `need.overdue` — group adoption; see ui-widget-patterns.md.
+- [x] `need.snoozed` — group adoption; see ui-widget-patterns.md.
+- [x] `need.waiting` — group adoption; see ui-widget-patterns.md.
 - [ ] `pro.anomaly` — bento adoption pending.
 - [ ] `pro.away` — bento adoption pending.
 - [ ] `pro.context` — bento adoption pending.

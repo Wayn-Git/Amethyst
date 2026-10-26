@@ -15,6 +15,17 @@ const fixtures = {
   'glance.music': { active_player: 'Fixture player', status: 'Playing', player_id: 'fixture', controls: { pause: true }, items: [{ id: 'track', title: 'Fixture track', artists: ['Fixture artist'] }] },
   'glance.travel': { timezone: 'Asia/Kolkata', items: [{ id: 'route', title: 'Route fixture', detail: '12 minutes driving from home', start: '2026-10-26T07:00:00Z' }] },
  },
+ needs: {
+  'need.inbox': { items: [{ id: 'mail', from: 'Ada Lovelace', subject: 'Inbox fixture', unread: true, date: '2026-10-26', reason: 'Fixture reason' }] },
+  'need.drafts': { items: [{ id: 1, subject: 'Draft fixture', recipient: 'ada@example.com', status: 'draft', snippet: 'Saved draft text' }] },
+  'need.waiting': { days: 3, items: [{ id: 'waiting', manual_id: 1, subject: 'Waiting fixture', recipient: 'ada@example.com', source: 'manual', date: '2026-10-25' }] },
+  'need.mentions': { items: [{ id: 'mention', title: 'Mention fixture', source: 'Slack', url: 'https://slack.com/fixture', at: '2026-10-26T05:00:00Z' }] },
+  'need.overdue': { items: [{ id: 'overdue', title: 'Overdue fixture', source: 'tasks', due_at: '2026-10-25T05:00:00Z' }] },
+  'need.decisions': { items: [{ id: 'question', title: 'Decision fixture', detail: 'A pending question', questions: [{ question: 'Which fixture?', options: [{ label: 'First', description: 'Fixture option' }] }] }] },
+  'need.snoozed': { items: [{ id: 'snoozed', title: 'Snoozed fixture', source: 'tasks', until: '2026-10-26T05:00:00Z', return_state: 'ready' }] },
+  'need.approvals': { items: [{ id: 'approval', title: 'Approval fixture', detail: 'Permission request', arguments: '{"fixture": true}' }], history: [{ id: 'past', title: 'Past decision', detail: 'Rejected fixture' }] },
+  'need.lor-slack': { limited: true, items: [{ id: 'slack', title: 'Slack fixture', source: 'Slack', person: 'Grace Hopper', summary: 'Unanswered message', url: 'https://slack.com/dm' }] },
+ },
 }
 assert(fixtures[group], `Unknown group ${group}`)
 const cache = join(process.env.HOME, '.cache/ms-playwright')
@@ -85,6 +96,38 @@ try {
   assert.deepEqual(requests.find(r => r.path === '/api/widgets/glance.weather/settings' && r.body).body, { latitude: 0, longitude: 0 })
   await widget('glance.weather').getByText('Weather data and attribution', { exact: true }).click()
   assert.equal(await widget('glance.weather').getByRole('link', { name: 'Weather data by Open-Meteo' }).count(), 1)
+ }
+
+ if (group === 'needs') {
+  assert.equal(await widget('need.inbox').getByRole('img', { name: 'Ada Lovelace' }).innerText(), 'AL')
+  assert.equal(await widget('need.mentions').getByRole('link', { name: 'Mention fixture' }).getAttribute('href'), 'https://slack.com/fixture')
+  assert.equal(await widget('need.snoozed').getByText('Ready now', { exact: true }).count(), 1)
+  assert.equal(await widget('need.overdue').getByText('Overdue', { exact: true }).count(), 1)
+  await widget('need.approvals').getByRole('button', { name: 'Deny', exact: true }).click()
+  assert.deepEqual(requests.find(r => r.path === '/api/confirmations/approval').body, { allow: false })
+  await widget('need.decisions').getByLabel('Which fixture?', { exact: true }).fill('Fixture answer')
+  await widget('need.decisions').getByRole('button', { name: 'Answer', exact: true }).click()
+  assert.deepEqual(requests.find(r => r.path === '/api/questions/question').body, { answers: ['Fixture answer'] })
+  await widget('need.drafts').getByRole('button', { name: 'Approve', exact: true }).click()
+  await widget('need.drafts').getByRole('button', { name: 'Reject change', exact: true }).waitFor()
+  assert.equal(requests.filter(r => r.path.includes('/drafts/fixture')).length, 0)
+  await widget('need.drafts').getByRole('button', { name: 'Reject change', exact: true }).click()
+  assert.deepEqual(requests.find(r => r.path === '/api/widgets/need.drafts/drafts/fixture').body, { approved: false })
+  await widget('need.drafts').getByText('About local drafts', { exact: true }).click()
+  assert.equal(await widget('need.drafts').getByRole('button', { name: 'Send (send scope disabled)' }).isDisabled(), true)
+  await widget('need.drafts').getByText('New draft', { exact: true }).click()
+  await widget('need.drafts').getByLabel('Recipient', { exact: true }).fill('fixture@example.com')
+  await widget('need.drafts').getByLabel('Subject', { exact: true }).fill('New fixture')
+  await widget('need.drafts').getByLabel('Draft text', { exact: true }).fill('Local text')
+  await widget('need.drafts').getByRole('button', { name: 'Review new draft', exact: true }).click()
+  await widget('need.drafts').getByRole('button', { name: 'Approve local change', exact: true }).click()
+  assert.deepEqual(requests.find(r => r.path === '/api/widgets/need.drafts/actions/add').body, { recipient: 'fixture@example.com', subject: 'New fixture', text: 'Local text' })
+  await widget('need.waiting').getByRole('button', { name: 'Draft nudge', exact: true }).click()
+  assert.equal(await widget('need.waiting').getByLabel('Nudge text', { exact: true }).inputValue(), 'Following up on Waiting fixture.')
+  await widget('need.waiting').getByRole('button', { name: 'Review nudge draft', exact: true }).click()
+  await widget('need.waiting').getByRole('button', { name: 'Reject change', exact: true }).click()
+  assert.deepEqual(requests.find(r => r.path === '/api/widgets/need.waiting/drafts/fixture').body, { approved: false })
+  assert.equal(requests.some(r => /\/send\b/.test(r.path)), false)
  }
 
  await page.mouse.move(0, 0)

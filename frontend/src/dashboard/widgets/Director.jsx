@@ -1,6 +1,7 @@
 import { WidgetRow, StateView } from '../primitives.jsx'
 import { useState } from 'react'
 import { request } from '../api'
+import { Button, Input } from '../../components/ui/bento/index.jsx'
 
 export default function Director({ data, widgetId, refresh }) {
   const [busy, setBusy] = useState(false)
@@ -21,15 +22,15 @@ export default function Director({ data, widgetId, refresh }) {
         {item.questions.map((question, index) => <label key={index}>
           {question.question}
           {question.options?.length > 0 && <p>{question.options.map(option => `${option.label}${option.description ? `: ${option.description}` : ''}`).join(' · ')}</p>}
-          <input name={`answer-${index}`} aria-label={question.question} required disabled={busy} />
+          <Input name={`answer-${index}`} aria-label={question.question} required disabled={busy} />
         </label>)}
-        <button disabled={busy} type="submit">Answer</button>
-        <button disabled={busy} type="button" onClick={() => act(`/questions/${encodeURIComponent(item.id)}/reject`)}>Dismiss</button>
+        <div className="widget-buttons"><Button variant="primary" loading={busy} type="submit">Answer</Button>
+        <Button disabled={busy} onClick={() => act(`/questions/${encodeURIComponent(item.id)}/reject`)}>Dismiss</Button></div>
       </form>}
       {item.arguments && <pre>{item.arguments}</pre>}
-      {widgetId === 'need.approvals' && <div>
-        <button disabled={busy} onClick={() => act(`/confirmations/${encodeURIComponent(item.id)}`, { allow: true })}>Approve</button>
-        <button disabled={busy} onClick={() => act(`/confirmations/${encodeURIComponent(item.id)}`, { allow: false })}>Deny</button>
+      {widgetId === 'need.approvals' && <div className="widget-buttons">
+        <Button variant="primary" loading={busy} onClick={() => act(`/confirmations/${encodeURIComponent(item.id)}`, { allow: true })}>Approve</Button>
+        <Button disabled={busy} onClick={() => act(`/confirmations/${encodeURIComponent(item.id)}`, { allow: false })}>Deny</Button>
       </div>}
       {widgetId === 'agent.running' && <button disabled={busy} onClick={() => act(`/conversations/${encodeURIComponent(item.conversation_id)}/turn/stop`)}>Stop</button>}
     </div>
