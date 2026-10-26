@@ -54,7 +54,7 @@ export default memo(function WidgetFrame({ manifest, position, size = position?.
   const [retry, setRetry] = useState(0)
   const [expanded, setExpanded] = useState(false)
   const Content = WIDGETS[manifest.id]
-  const adopted = /^(glance|need)\./.test(manifest.id)
+  const adopted = /^(glance|need|comm)\./.test(manifest.id)
 
   const previewData = previewRows(data.payload)
   const source = (Array.isArray(manifest.source) ? manifest.source : [manifest.source]).map(source => source?.toolkit || source?.type || 'local').join(', ')
@@ -72,6 +72,6 @@ export default memo(function WidgetFrame({ manifest, position, size = position?.
     <div className="widget-content">{data.state === 'not-connected' && !full && !preview ? <>{tile && <div className="glance-offline-art" aria-hidden="true"><Icon name={manifest.id === 'glance.music' ? 'music' : 'calendar'} size={40} /></div>}<ConnectionRow manifest={manifest} remove={() => removeWidget(manifest.id)} /></> : tile && !full && !['glance.travel', 'glance.music'].includes(manifest.id) && !['loading', 'error'].includes(data.state) ? <Glance manifest={manifest} data={data.payload} now={now} settings={settings} /> : content(full ? data.payload : previewData.payload)}{data.state === 'empty' && !tile && !full && !preview && <button onClick={settings}>Open widget</button>}{data.state === 'error' && !preview && <button disabled={busy} onClick={refresh}>Retry</button>}</div>
     {!full && !preview && previewData.count > 5 && <button className="widget-show-all" onClick={() => setExpanded(true)}>Show all ({previewData.count})</button>}
     {!preview && editing && <div className="widget-edit"><label>Size<select aria-label={`Size ${manifest.title}`} value={size} onChange={e => resize(manifest.id, { size: e.target.value })}>{manifest.sizes.map(size => <option key={size} value={size}>{size.toUpperCase()}</option>)}</select></label><label>Height<input aria-label={`Height ${manifest.title}`} type="number" min={2} max={8} value={position.height} onChange={e => resize(manifest.id, { height: Math.max(2, Math.min(8, Number(e.target.value) || 2)) })} /></label><button {...grip('resize', manifest.id)} aria-label={`Resize ${manifest.title}`} title="Drag to resize; size and height fields also work"><Icon name="expand" size={18} /></button></div>}
-    {!preview && expanded && <Drawer title={manifest.title} onClose={() => setExpanded(false)}>{content(data.payload)}</Drawer>}
+    {!preview && expanded && <Drawer title={manifest.title} onClose={() => setExpanded(false)}>{adopted ? <div className="widget-home"><WidgetCard className="home-widget widget-adoption" data-widget={manifest.id} data-tone={widgetTone(manifest.id)}><div className="widget-content">{content(data.payload)}</div></WidgetCard></div> : content(data.payload)}</Drawer>}
   </WidgetCard>
 })

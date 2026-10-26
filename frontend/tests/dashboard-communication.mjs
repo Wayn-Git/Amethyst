@@ -62,6 +62,7 @@ try {
     ReactDOM.createRoot(host).render(React.createElement(Component, { widgetId: 'comm.contacts', data: { items: [{ id: 'c', title: 'Contact fixture', person: 'them@example.org', at: '2026-10-01', threads: ['https://slack.com/thread'] }] } }))
   })
   await page.getByText(/Last contact:/).waitFor()
+  await page.getByText('Shared threads', { exact: true }).click()
   assert.equal(await page.getByRole('link', { name: 'Shared thread', exact: true }).getAttribute('href'), 'https://slack.com/thread')
   await page.evaluate(async () => {
     const { default: React } = await import('/node_modules/.vite/deps/react.js')

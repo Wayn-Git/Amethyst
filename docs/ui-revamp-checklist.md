@@ -71,15 +71,15 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [ ] `agent.usage` — bento adoption pending.
 - [ ] `agent.watchers` — bento adoption pending.
 - [ ] `agent.weekly` — bento adoption pending.
-- [ ] `comm.contacts` — bento adoption pending.
-- [ ] `comm.meeting` — bento adoption pending.
-- [ ] `comm.newsletters` — bento adoption pending.
-- [ ] `comm.reachout` — bento adoption pending.
-- [ ] `comm.schedule-send` — bento adoption pending.
-- [ ] `comm.templates` — bento adoption pending.
-- [ ] `comm.thread-summary` — bento adoption pending.
-- [ ] `comm.tone` — bento adoption pending.
-- [ ] `comm.unread` — bento adoption pending.
+- [x] `comm.contacts` — group adoption; see ui-widget-patterns.md.
+- [ ] `comm.meeting` — no shipped widget/provider; requires separate feature scope.
+- [x] `comm.newsletters` — group adoption; see ui-widget-patterns.md.
+- [x] `comm.reachout` — group adoption; see ui-widget-patterns.md.
+- [ ] `comm.schedule-send` — no shipped widget/provider; requires backend and permission scope.
+- [x] `comm.templates` — group adoption; see ui-widget-patterns.md.
+- [x] `comm.thread-summary` — group adoption; see ui-widget-patterns.md.
+- [x] `comm.tone` — group adoption; see ui-widget-patterns.md.
+- [x] `comm.unread` — group adoption; see ui-widget-patterns.md.
 - [ ] `dash.gallery` — bento adoption pending.
 - [ ] `dash.modes` — bento adoption pending.
 - [ ] `dash.palette` — bento adoption pending.
@@ -114,7 +114,7 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [ ] `feed.watchlater` — bento adoption pending.
 - [x] `glance.air` — group adoption; see ui-widget-patterns.md.
 - [x] `glance.clock` — session 4 pilot; see ui-widget-patterns.md.
-- [ ] `glance.listen-stats` — bento adoption pending.
+- [ ] `glance.listen-stats` — no shipped widget/provider; requires separate feature scope.
 - [x] `glance.music` — group adoption; see ui-widget-patterns.md.
 - [x] `glance.next-event` — group adoption; see ui-widget-patterns.md.
 - [x] `glance.sun` — group adoption; see ui-widget-patterns.md.
@@ -147,7 +147,7 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [x] `need.drafts` — group adoption; see ui-widget-patterns.md.
 - [x] `need.inbox` — session 4 pilot; see ui-widget-patterns.md.
 - [x] `need.lor-slack` — group adoption; see ui-widget-patterns.md.
-- [ ] `need.lor-social` — bento adoption pending.
+- [ ] `need.lor-social` — blocked: no official personal-account API.
 - [x] `need.mentions` — group adoption; see ui-widget-patterns.md.
 - [x] `need.overdue` — group adoption; see ui-widget-patterns.md.
 - [x] `need.snoozed` — group adoption; see ui-widget-patterns.md.
@@ -196,3 +196,13 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [ ] Focus pause/resume: no existing API/storage support; requires backend scope.
 - [x] Token-based motion, reduced motion, bounded-preview loading reservation and text pattern guide.
 - [ ] Daily completion history: current Today payload contains open tasks only; current-list ring is explicitly labelled.
+
+## Glance / Needs you / Communication group adoption
+
+- [x] All 23 shipped IDs reviewed against the pattern guide; existing clock/weather/inbox pilots retained.
+- [x] Real environmental readings and event countdown; textual route estimate without inferred chart values.
+- [x] Correspondence, dated-list, decision-review, grouped-unread and draft-composer patterns.
+- [x] Group-scoped light/dark/accent tones, house controls, disclosures and expanded-list presentation.
+- [x] Focused synthetic state/action checks, nine themes at 1440/390, reduced motion and integrated Home proof.
+- [ ] Four unimplemented IDs remain outside UI-only scope: glance.listen-stats, need.lor-social, comm.schedule-send, comm.meeting.
+- [ ] Existing dashboard-pilots.mjs stops at task.today add-item approval; Tasks are outside these groups.

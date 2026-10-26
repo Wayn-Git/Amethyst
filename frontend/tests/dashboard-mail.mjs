@@ -56,7 +56,10 @@ try {
     assert.equal(await widget.getByLabel('Rewritten draft', { exact: true }).inputValue(), 'Rewritten fixture')
     await widget.getByRole('button', { name: 'Review rewrite', exact: true }).click()
     await widget.getByRole('button', { name: 'Approve rewrite', exact: true }).waitFor()
-  } else if (id === 'comm.unread') await widget.getByText('Sender · 1 unread').waitFor()
+  } else if (id === 'comm.unread') {
+    await widget.getByText('Sender', { exact: true }).waitFor()
+    await widget.getByText('1 unread shown', { exact: true }).waitFor()
+  }
   else await widget.getByText('Why: Direct question').waitFor()
   if (!['need.waiting', 'comm.tone'].includes(id)) assert.equal(await widget.getByText('Fixture snippet').count(), 1)
   assert.equal(calls.some(path => /composio|send/.test(path)), false)

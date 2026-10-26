@@ -181,3 +181,11 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-26 · UI Needs you group · need.approvals: accent review tile and house permission controls; focused theme/state/gate checks passed.
 - 2026-10-26 · UI Needs you group · need.lor-slack: dark correspondence list with source/person initials; focused theme/state/gate checks passed.
 - 2026-10-26 · Verification limit: dashboard-pilots.mjs stops at the task.today add-item approval step (outside these groups); focused Glance/Needs you checks and dashboard-director.mjs pass.
+- 2026-10-26 · UI Communication group · comm.unread: grouped sender initials and honest preview-count chips; focused theme/state/action checks passed.
+- 2026-10-26 · UI Communication group · comm.thread-summary: digest list and house optional-model control; focused theme/state/action checks passed.
+- 2026-10-26 · UI Communication group · comm.newsletters: accent digest and text-only source suggestions; focused theme/state/action checks passed.
+- 2026-10-26 · UI Communication group · comm.contacts: dark contact list and shared-thread disclosure; focused theme/state/action checks passed.
+- 2026-10-26 · UI Communication group · comm.reachout: contact list, birthday/settings disclosure and gated review; focused theme/state/action checks passed.
+- 2026-10-26 · UI Communication group · comm.templates: template list, house composer and preserved local gate; focused theme/state/action checks passed.
+- 2026-10-26 · UI Communication group · comm.tone: accent rewrite composer, house selects and gated review; focused theme/state/action checks passed.
+- 2026-10-26 · UI group verification: all 23 shipped Glance/Needs you/Communication IDs adopted, group checklist updated; four unimplemented IDs remain pending. Integrated Home and mocked mail regressions pass; expanded lists inherit group presentation. No backend/contracts/screenshots changed.
