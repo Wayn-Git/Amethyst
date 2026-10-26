@@ -9,7 +9,7 @@ export function ClockFace({ now }) {
   const period = parts.find(part => part.type === 'dayPeriod')?.value
   return <Tile className="glance-clock-face">
     <span className="clock-date">{now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-    <time className="home-clock" dateTime={now.toISOString()}><span className="clock-digits">{parts.filter(part => part.type !== 'dayPeriod').map(part => part.value).join('').trim()}</span>{period && <small className="clock-period">{period}</small>}</time>
+    <time className="home-clock" dateTime={now.toISOString()}><span key={parts.filter(part => part.type !== 'second').map(part => part.value).join('')} className="clock-digits pilot-number">{parts.filter(part => part.type !== 'dayPeriod').map(part => part.value).join('').trim()}</span>{period && <small className="clock-period">{period}</small>}</time>
     <span className="clock-zone">{Intl.DateTimeFormat().resolvedOptions().timeZone.replaceAll('_', ' ')}</span>
   </Tile>
 }

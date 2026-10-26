@@ -3,6 +3,8 @@ import Icon from '../components/Icon.jsx'
 import { useWidget } from './useWidget.js'
 import { WIDGETS } from './registry.js'
 import Drawer from './Drawer.jsx'
+import './widget-pilots.css'
+import { WeatherFace } from './widgets/Weather.jsx'
 import { ClockFace } from './widgets/Clock.jsx'
 import { useDashboard } from './context.js'
 import { previewRows, WIDGET_ICONS } from './layout.js'
@@ -37,12 +39,7 @@ function Glance({ manifest, data, now, settings }) {
   const item = data?.items?.[0]
   if (manifest.id === 'glance.clock') return <ClockFace now={now} />
 
-  if (manifest.id === 'glance.weather') return data?.set_location ? <div className="glance-setup"><Icon name="cloud" size={40} /><p>Weather, where you are.</p><button onClick={settings}>Set location<Icon name="arrow-up-right" size={16} /></button></div> : <div className="glance-weather-face">
-    <Icon name="cloud" size={38} />
-    <strong className="glance-value">{data?.temperature ?? 'Unavailable'}<span className="glance-unit"> °C</span></strong>
-    <p>{data?.timezone?.replaceAll('_', ' ')}</p>
-    {data?.rain_alert && <p className="glance-alert-pill">Rain likely in the next 12 hours</p>}
-  </div>
+  if (manifest.id === 'glance.weather') return data?.set_location ? <div className="glance-setup"><Icon name="cloud" size={40} /><p>Weather, where you are.</p><button onClick={settings}>Set location<Icon name="arrow-up-right" size={16} /></button></div> : <WeatherFace data={data} />
 
   if (manifest.id === 'glance.next-event') return <div className="glance-event-face">
     {item?.start && <div className="glance-date" aria-hidden="true">
@@ -71,9 +68,9 @@ export default memo(function WidgetFrame({ manifest, position, size = position?.
   const added = Array.isArray(layout?.widgets) && layout.widgets.some(w => w.id === manifest.id)
   const sourceManaged = data.payload?.items?.some(item => item.editable === false)
   const settings = () => { if (full || preview) return; openWidget(manifest.id) }
-  const content = payload => <WidgetBoundary key={retry} resetKey={JSON.stringify(data.payload)} id={manifest.id} onRetry={() => { setRetry(n => n + 1); refresh() }}><WidgetState data={data} empty={manifest.empty} disconnected={['task.agenda', 'glance.travel'].includes(manifest.id)} editable={!preview && (['glance.travel', 'agent.rules', 'agent.watchers', 'agent.research', 'agent.delegated', 'agent.jobs', 'agent.brief', 'agent.next', 'comm.thread-summary', 'comm.newsletters', 'comm.reachout'].includes(manifest.id) || manifest.id.startsWith('task.') || ['feed.news', 'feed.rss', 'need.mentions', 'need.inbox', 'comm.templates', 'comm.tone', 'need.waiting', 'need.drafts', 'lib.capture', 'lib.search', 'lib.ask', 'lib.readlater', 'lib.highlights', 'lib.daily', 'lib.collections', 'dev.appeal', 'dev.recovery', 'dev.backup', 'dev.unpushed'].includes(manifest.id))}><Suspense fallback={<Skeleton />}>{data.refreshing && (['lib.ask', 'lib.readlater'].includes(manifest.id) || (manifest.id === 'comm.thread-summary' && payload?.model_enabled)) && <StateView role="status">Generating…</StateView>}{Content ? <Content data={payload} refresh={refresh} widgetId={manifest.id} /> : <StateView role="alert">Widget component unavailable.</StateView>}</Suspense></WidgetState></WidgetBoundary>
-  if (data.state === 'not-connected' && !full && !preview) return <ConnectTile className="home-connect" size="s" source={manifest.title} onConnect={connectSource} />
-  return <WidgetCard className={`home-widget${tile ? ' home-tile' : ''}${data.state === 'not-connected' && !preview ? ' is-disconnected' : ''}${preview ? ' is-preview' : ''}`} data-widget={manifest.id} data-size={size} aria-label={manifest.title}>
+  const content = payload => <WidgetBoundary key={retry} resetKey={JSON.stringify(data.payload)} id={manifest.id} onRetry={() => { setRetry(n => n + 1); refresh() }}><WidgetState data={data} empty={manifest.empty} disconnected={['task.agenda', 'glance.travel'].includes(manifest.id)} editable={!preview && (['glance.travel', 'agent.rules', 'agent.watchers', 'agent.research', 'agent.delegated', 'agent.jobs', 'agent.brief', 'agent.next', 'comm.thread-summary', 'comm.newsletters', 'comm.reachout'].includes(manifest.id) || manifest.id.startsWith('task.') || ['feed.news', 'feed.rss', 'need.mentions', 'need.inbox', 'comm.templates', 'comm.tone', 'need.waiting', 'need.drafts', 'lib.capture', 'lib.search', 'lib.ask', 'lib.readlater', 'lib.highlights', 'lib.daily', 'lib.collections', 'dev.appeal', 'dev.recovery', 'dev.backup', 'dev.unpushed'].includes(manifest.id))}><Suspense fallback={<Skeleton />}>{data.refreshing && (['lib.ask', 'lib.readlater'].includes(manifest.id) || (manifest.id === 'comm.thread-summary' && payload?.model_enabled)) && <StateView role="status">Generating…</StateView>}{Content ? <Content summaryData={data.payload} data={payload} refresh={refresh} widgetId={manifest.id} /> : <StateView role="alert">Widget component unavailable.</StateView>}</Suspense></WidgetState></WidgetBoundary>
+  if (data.state === 'not-connected' && !full && !preview) return <ConnectTile className="home-connect" size="s" source={manifest.id === 'dev.prs' ? 'GitHub' : manifest.title} onConnect={connectSource} />
+  return <WidgetCard className={`home-widget${['glance.clock', 'glance.weather', 'need.inbox', 'task.today', 'task.focus', 'agent.feed', 'task.deadlines', 'dev.prs'].includes(manifest.id) ? ' widget-pilot' : ''}${tile ? ' home-tile' : ''}${data.state === 'not-connected' && !preview ? ' is-disconnected' : ''}${preview ? ' is-preview' : ''}`} data-widget={manifest.id} data-size={size} aria-label={manifest.title}>
     <WidgetHeader icon={WIDGET_ICONS[manifest.id] || WIDGET_ICONS[manifest.id.split('.')[0]]} title={manifest.title} count={previewData.count} source={sourceManaged ? `${data.payload?.items?.some(item => item.editable) ? 'local · ' : ''}connected source` : source} data={data} now={now}>
       {!preview && editing && <button {...grip('move', manifest.id)} onKeyDown={event => { if (['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'].includes(event.key)) { event.preventDefault(); move(manifest.id, ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 1) } }} aria-label={`Move ${manifest.title}`} title="Drag to move; arrow keys also work"><Icon name="grid" size={18} /></button>}
       {!preview && <button className="widget-refresh" disabled={busy || data.refreshing} onClick={refresh} aria-label={`Refresh ${manifest.title}`}><Icon name="refresh" size={18} /></button>}

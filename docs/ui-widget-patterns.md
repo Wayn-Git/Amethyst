@@ -1,152 +1,49 @@
-# Home widget patterns
+# Widget patterns — session 4
 
-Pilot on `ui-redesign`: `glance.clock`, `need.inbox`, `task.today`, `agent.feed`.
-The three supplied references are collages of compact instruments and cards.
-Borrow their strong value hierarchy, rounded silhouettes and restrained metadata;
-retain Amethyst's existing palette, fonts, controls and real data. No additional
-pattern or widget is implied by a decorative chart or image in a collage.
+Use the session 1 foundation and session 2 Home grid. Paper is the baseline; all other palettes inherit the same light, dark and accent tone tokens. No backend, permission or payload changes are introduced by these patterns. Pilot selectors live in `frontend/src/dashboard/widget-pilots.css`; widgets keep their existing providers and actions.
 
-## Shared frame and states
+## Shared anatomy and states
 
-Use `WidgetCard`, `CardHeader`/`WidgetHeader`, `WidgetRow`, `Tile`, `WidgetChip`,
-`Skeleton` and `StateView` from `frontend/src/dashboard/primitives.jsx`.
-`WidgetState` owns loading, empty, error and disconnected messages;
-`ConnectionRow` in `WidgetFrame.jsx` owns the connect link and dismiss action.
-There are no separate EmptyState or ErrorState components to duplicate.
-The widget styles live in `frontend/src/dashboard/widget-patterns.css`, after
-the legacy widget and shell CSS. It overrides legacy form sizing where that
-would otherwise shrink the shared controls; control implementations and tokens
-are unchanged.
+Each tile has one title, a 40 px circular house icon badge, quiet mono freshness and hover/focus chrome. Primary actions are violet. Small status chips use current tone foreground and a faint solid fill. Space Grotesk owns titles and values, Inter owns body text, JetBrains Mono owns labels. Use 24 px corners and 16 px grid gutters; light tiles alone cast shadows. Retain the DOM reading order and the existing Show all drawer after five preview records.
 
-Cards use the panel fill, a transparent border, 12 px panel radius, 16 px padding
-and 12 px header/body gap. No gradients, decorative shadows or hover translation.
-The clock tile uses the text token as its contrasting surface and the panel token
-for its foreground, so the contrast follows each palette without fixed colors.
-Header anatomy: unboxed 20 px icon, 14/20 display heading, optional count,
-freshness, refresh and menu. Omit the redundant source chip visually except in
-the combined Needs you region; keep source explanations and connected-source
-editing restrictions in their existing content. Body text is 13/20; descriptions
-12/18; short dates and freshness 11/16 mono. Never infer a status from a title.
-Chips use raised fill, border, 8 px radius and 11/16 text in sentence case.
-Only an existing warning/error condition gets confirm/stop color.
+Loading reserves the same content footprint as the normal preview: 128 px for glance heroes, 480 px for Today, 360 px for Focus, 400 px for other list pilots. Skeletons are static. Long real content and expanded forms may grow; do not clip content to keep these minimums. These reservations prevent shifts for ordinary bounded previews, not arbitrarily long provider text. Empty states use explicit source copy; editable empty states retain their controls. Error states retain Retry. Stale remains a small freshness label. Disconnected sources use Connect rather than a blank chart. Do not replace unknown numbers with zero.
 
-At less than 320 px container width hide source and direct refresh; Refresh
-remains in the existing menu. Keep freshness and the menu reachable. List
-previews still use the existing five-row cap and Show all drawer. Content never
-creates a scrolling region. Long titles wrap or clamp visually; DOM text and
-accessible names retain the full value. Forms, open explanations and unusually
-long metadata may grow the card instead of clipping controls or hiding data.
+Rings animate their numeric stroke over 250 ms. Hero value changes enter over 200 ms with opacity and a two-pixel translation; tabular figures keep digit widths stable. Checkbox presses scale briefly; checked state changes only after the approved data refresh. Ranking switches retain their controlled server-backed value. All these motions are removed for reduced motion. No decorative bars or graphs: bars in later adoptions must use actual numeric values and the same motion tokens.
 
-Reserve body minima across loading, empty, error and normal rendering:
-Glance tiles share a 192 px total height; inbox 464 px body; Today 360 px body; timeline 300 px
-body. These are five-row preview bounds, not fixed-height content clips. Other
-widgets receive shared primitive styling but need their own height calibration
-when adopted. Skeletons use three static raised bars; no pulsing decoration.
-Stale content stays visible with its stale chip and last-sync description.
-Empty editable widgets retain their add form. Error messages retain alert
-semantics and the existing retry action. Disconnected widgets retain Connect
-and Dismiss. Do not fabricate sample content or connection success.
+## Hero stat — glance.clock, glance.weather
 
-## Instrument tile — glance.clock
+Compact S tile. Clock uses the dark tone, weather uses accent. The shell badge identifies the widget; do not duplicate a large illustration inside it. Clock stacks small local date, large time with quiet day period, then local timezone. Weather has a large temperature with small °C unit and a muted timezone label; rain alerts are chips based on the existing flag. No weather-code inference or invented conditions. Unavailable temperature is text without a unit.
 
-Use `ClockFace` for both the Home tile and the clock settings content. Stack a
-short local date, the time, and a quiet timezone label, with 8 px gaps. Time is
-Space Grotesk with tabular numerals, scaling from 28 to 48 px with the actual
-slot width. Keep the localized day period separately at 12/18 so AM/PM does not
-compete with the digits. The date and timezone are 11/16 mono; the timezone sits
-in a quiet inset on the contrasting tile. The time is the dominant mark, without
-a background illustration or synthetic clock face. The tile header omits the
-icon badge and uses a quiet 11/16 title. Below 240 px hide the secondary timezone
-text. Keep the date and real time legible.
+The clock settings view retains saved world clocks and its timezone form. Weather settings retains explicit coordinates, hourly observations, rain probabilities and attribution links; a sparkline appears only when the supplied hourly temperatures are all finite numbers. Neither hero uses a fabricated gauge.
 
-The tile retains refresh/menu access and its stable height. The full view
-retains world timezone rows, Remove and the timezone add form. Validation,
-four-zone limit and settings requests retain existing behavior. No extra
-seconds display, countdown, progress bar or invented location is introduced.
+## Ranked list — need.inbox
 
-## Read-only list — need.inbox
+Light M tile, five preview rows. Each row has a circular sender-initials badge, sender, small Mail/Unread kind chip, mono date, one-line subject and supplied ranking reason. Preserve provider order; the UI never calculates importance. Unknown sender is explicitly named. The single widget action is the Rank with model switch; busy disables it. Model-off/unavailable copy explains unread/recent fallback. Source/privacy details appear once in the footer disclosure. No fabricated reply action or external message URL.
 
-Rows use the full width, without horizontal dividers, and 8 px block padding. Each row has a sender/date metadata line (sender left, supplied date
-right), a 13/20 subject, an optional snippet, and the supplied ranking reason.
-Clamp the subject to one line; never parse or rewrite the provider's date.
-Above 360 px container width show the snippet and ranking reason together in
-one context row, with the reason retaining readable width. At narrower widths
-omit the snippet and allow sender/date to stack. Ranking reasons remain visible
-at every width, using ordinary text rather than a colored tile or accent rule.
+## Checklist — task.today
 
-Keep the model-ranking control above the list, using the shared small ghost button.
-Fallback copy remains visible when ranking is off or unavailable. Generating
-and failed setting changes keep their status/alert semantics. Move the existing
-source/privacy explanation into an expandable “About this inbox” after the
-list. There are no new row actions, avatars, badges or unread counts. The
-combined Needs you region still opens this widget through the existing drawer.
+Light M/L tile. A compact ring and label sit above inline title input and Add item. Rows pair an accessible round checkbox with title and a small due chip; secondary edit/delete actions remain in their disclosure. Connected rows have no local checkbox and source ownership is stated by the shell, not repeated visibly in every row.
 
-## Editable list — task.today
+Inline add creates a draft directly. Checkbox, edit and delete still open the existing approval review; rejection cannot change the source. Completion does not imply support for un-completing a task. The ring uses the complete supplied list, not the five-row preview. **Contract limit:** the current provider returns open tasks only, so this is labelled “completed in current list”, normally zero; it is not daily completion history. Do not invent a daily completion percentage. Zero tasks displays text without a ring.
 
-Keep the inline Add item form first, in a raised 8 px rounded inset with a
-36 px input and shared small submit button. Each row has a 28 px completion
-action with a circular outline, a wrapping task title with optional due metadata
-underneath, and an Actions disclosure at the trailing edge. Use 12 px gaps and
-8 px row padding, without horizontal table dividers. A
-completed title is struck through; its completion mark uses accent/on-accent.
-Due metadata uses the actual due condition and confirm/stop text without an
-extra badge fill or border.
-Do not invent categories, progress percentages or counts beyond the provider.
+## Ring timer — task.focus
 
-Actions opens a bordered opaque menu of the existing Edit, Complete and Delete
-buttons. It remains the same disclosure at narrow widths, without crowding the
-row with extra buttons. Source-managed rows show “Edit in connected source.”
-and have no local completion/edit/delete controls. The note may wrap at narrow
-widths. Add, edit, complete and delete retain the existing review draft and
-Approve/Reject flow; no click applies a source change directly. The edit form
-and draft review can expand the card. Shared Items consumers keep those same
-handlers and adopt the existing shared Input/Button controls.
+Light M tile. A 200 px ring surrounds a stable-width MM:SS reading. The existing saved start timestamp and duration determine remaining seconds; clamp between zero and duration. A small Ready/Focusing/Break chip sits below. Start focus is primary; Start break and Stop timer are secondary. Settings and session history live in disclosures. Start, stop and configure preserve the LocalReview approval gate and server conflict checks. Invalid duration displays Unavailable without geometry.
+
+**Blocked requirement:** pause/resume is absent from the existing focus actions and storage. The tile explicitly says pause is unavailable. A browser-only pause would misrepresent the running persisted timer and its notification, so this UI-only session does not implement one. Completing pause requires a separately authorized backend/data-contract change.
 
 ## Timeline — agent.feed
 
-Use the provider's order and existing title/detail fields. A 24 px leading lane
-contains a small point and a 1 px vertical connector; omit the connector after
-the last item. Only the first point uses accent, indicating list position rather
-than fabricated success or live status. Rows have no horizontal dividers.
+Dark M tile. Five events form one vertical rail: muted circular nodes, first node accented, hairline connectors ending before the final item. Each event has its existing title and a small mono detail line. Keep actual provider order. The provider supplies call counts, not event timestamps or status; do not manufacture either, parse timestamps out of prose or imply a live-running state. No per-event action is added. Empty/error/freshness use the shell states.
 
-A two-line 13/20 title leads, with the provider's tool/model-call detail at
-12/18 underneath. Never synthesize timestamps, event categories, success icons
-or elapsed durations. Five preview rows, then the existing Show all drawer.
-The feed has no new row actions. Empty/loading/error/disconnected/stale states
-use the shared frame exactly as other read-only lists.
+## Split counts — task.deadlines
 
-## Pilot validation
+Light M tile. Two equal cells separated by a subtle rule show Overdue and Today · upcoming as large numerals. Counts use the full payload. Overdue means due at or before now; Today means still upcoming on the user's local calendar date, so the columns never double-count. Later deadlines remain in the existing list underneath, with countdowns and existing review actions. No deadlines means two real zero counts. Count summaries do not truncate the underlying data or replace the Show all drawer.
 
-Existing primitive and inbox browser tests pass without test changes. Isolated
-synthetic-fixture browser checks cover task review approval/rejection,
-source-managed restrictions, all five states, equal loading/populated heights,
-and no card overflow in graphite and paper at 1440, 768 and 360 px. The first pass used two 1440 px reference captures (graphite and paper). No
-additional screenshots were taken for this revision. Full Home fixture checks
-now also exercise the actual glance strip at 1440, 1024, 768 and 360 px, plus
-isolated clock slots at 148, 180, 220 and 280 px; these establish layout and
-behavior, not a visual-fidelity verdict.
-No live accounts, backend changes, contract changes or new dependencies.
+## Compact connection — dev.prs
 
+Light S tile until connected. The shared ConnectTile displays Connect GitHub and one violet Connect action opening the existing connection panel. No synthetic PR count, runtime “nothing to show” copy or decorative chart. Connected PR rows keep the existing repository links, source/status chips and data contract. Source errors remain errors, not connection requests.
 
-## Desktop music — glance.music
+## Adoption boundary and verification
 
-This widget reads the local Linux MPRIS session, without Spotify/Composio/MCP.
-It prefers a playing player, keeps paused players available for resume, and polls
-through the existing widget hook every ten seconds. Desktop media support must
-be enabled by the player; not every application exposes a session. No playback
-history is invented or fetched from a remote account.
-
-Use the same Music component in the glance strip and drawer. A quiet music icon
-sits beside the real track title and artists, with the selected player/status and
-previous, play/pause and next controls beneath. Disabled controls reflect the
-player's capabilities. Below 240 px omit the decorative icon and secondary
-artist text; keep the title, status and controls. Playback errors retain alert
-semantics, and no active player uses the shared empty state rather than a Connect
-Spotify prompt. Review buttons wrap at narrow widths.
-
-Transport commands use the existing dashboard draft/approval gate and trace.
-The draft pins the selected player, track and playback status. If those change
-before approval, reject the command and request a new review. Commands target
-one named session, never every player. Refresh the shared widget cache after an
-approved command. No account auth, dependencies, shell command interpolation,
-remote album-art fetch, arbitrary media opening or audio capture is added.
+These eight IDs are the pilot set; other widgets await review. Reuse the pattern that fits actual data and actions, not a new per-widget abstraction. Weather air/sun/travel redesigns and other session work remain out of scope. Browser proof: `frontend/tests/dashboard-pilots.mjs` covers synthetic numeric payloads, gated actions, switch, Connect, all nine theme modes at 1440/390, loading footprint and reduced motion. `home-revamp.mjs` covers the integrated Home grid. No screenshots are required. Hardware frame timing is not established.

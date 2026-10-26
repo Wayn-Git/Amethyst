@@ -58,7 +58,7 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [ ] `agent.brief` — bento adoption pending.
 - [ ] `agent.delegated` — bento adoption pending.
 - [ ] `agent.errors` — bento adoption pending.
-- [ ] `agent.feed` — bento adoption pending.
+- [x] `agent.feed` — session 4 pilot; see ui-widget-patterns.md.
 - [ ] `agent.jobs` — bento adoption pending.
 - [ ] `agent.knows` — bento adoption pending.
 - [ ] `agent.next` — bento adoption pending.
@@ -94,7 +94,7 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [ ] `dev.backup` — bento adoption pending.
 - [ ] `dev.ci` — bento adoption pending.
 - [ ] `dev.issues` — bento adoption pending.
-- [ ] `dev.prs` — bento adoption pending.
+- [x] `dev.prs` — session 4 pilot; see ui-widget-patterns.md.
 - [ ] `dev.recovery` — bento adoption pending.
 - [ ] `dev.release` — bento adoption pending.
 - [ ] `dev.security` — bento adoption pending.
@@ -113,13 +113,13 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [ ] `feed.sports` — bento adoption pending.
 - [ ] `feed.watchlater` — bento adoption pending.
 - [ ] `glance.air` — bento adoption pending.
-- [ ] `glance.clock` — bento adoption pending.
+- [x] `glance.clock` — session 4 pilot; see ui-widget-patterns.md.
 - [ ] `glance.listen-stats` — bento adoption pending.
 - [ ] `glance.music` — bento adoption pending.
 - [ ] `glance.next-event` — bento adoption pending.
 - [ ] `glance.sun` — bento adoption pending.
 - [ ] `glance.travel` — bento adoption pending.
-- [ ] `glance.weather` — bento adoption pending.
+- [x] `glance.weather` — session 4 pilot; see ui-widget-patterns.md.
 - [ ] `lib.ask` — bento adoption pending.
 - [ ] `lib.capture` — bento adoption pending.
 - [ ] `lib.collections` — bento adoption pending.
@@ -145,7 +145,7 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [ ] `need.approvals` — bento adoption pending.
 - [ ] `need.decisions` — bento adoption pending.
 - [ ] `need.drafts` — bento adoption pending.
-- [ ] `need.inbox` — bento adoption pending.
+- [x] `need.inbox` — session 4 pilot; see ui-widget-patterns.md.
 - [ ] `need.lor-slack` — bento adoption pending.
 - [ ] `need.lor-social` — bento adoption pending.
 - [ ] `need.mentions` — bento adoption pending.
@@ -178,8 +178,8 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [ ] `task.agenda` — bento adoption pending.
 - [ ] `task.backlog` — bento adoption pending.
 - [ ] `task.conflicts` — bento adoption pending.
-- [ ] `task.deadlines` — bento adoption pending.
-- [ ] `task.focus` — bento adoption pending.
+- [x] `task.deadlines` — session 4 pilot; see ui-widget-patterns.md.
+- [ ] `task.focus` — ring/start/stop pilot complete; pause/resume blocked by existing backend contract.
 - [ ] `task.free` — bento adoption pending.
 - [ ] `task.goals` — bento adoption pending.
 - [ ] `task.habits` — bento adoption pending.
@@ -187,4 +187,12 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [ ] `task.plan` — bento adoption pending.
 - [ ] `task.reminders` — bento adoption pending.
 - [ ] `task.risk` — bento adoption pending.
-- [ ] `task.today` — bento adoption pending.
+- [x] `task.today` — session 4 pilot; see ui-widget-patterns.md.
+
+## Session 4 widget pilot
+
+- [x] Hero stats, ranked inbox, checklist, timeline, split deadlines and compact GitHub Connect.
+- [x] Focus ring, settings/history disclosures and gated start/stop.
+- [ ] Focus pause/resume: no existing API/storage support; requires backend scope.
+- [x] Token-based motion, reduced motion, bounded-preview loading reservation and text pattern guide.
+- [ ] Daily completion history: current Today payload contains open tasks only; current-list ring is explicitly labelled.

@@ -155,3 +155,12 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-26 · UI session 2: Home bento structure, compact connections, quiet chrome, isolated reorder renders, snap resize/undo and settings/catalog drawers; frontend-only, existing navigation and contracts retained.
 
 - 2026-10-26 · UI session 3 `dash.gallery`: responsive Add widget cards with tone silhouettes, 80 distinct manifest icons/descriptions, sizes, connector links, On Home/Remove, entrance/highlight and modal-accessible undo; additive manifest metadata only, source and permission contracts retained.
+
+- 2026-10-26 · UI session 4 · glance.clock: dark hero time, stable tabular digits and reduced-motion-aware value entrance.
+- 2026-10-26 · UI session 4 · glance.weather: accent hero, rain chip, shared full-view stat and real hourly sparkline.
+- 2026-10-26 · UI session 4 · need.inbox: sender initials, kind chips and server-backed ranking switch.
+- 2026-10-26 · UI session 4 · task.today: inline draft add, gated checkbox and explicitly labelled current-list ring; completed-history data unavailable.
+- 2026-10-26 · UI session 4 · task.focus: saved-session ring and gated start/stop; pause/resume blocked by unchanged API.
+- 2026-10-26 · UI session 4 · agent.feed: dark timeline rail, nodes and mono source details.
+- 2026-10-26 · UI session 4 · task.deadlines: full-payload overdue/upcoming-today split counts with existing list actions.
+- 2026-10-26 · UI session 4 · dev.prs: compact GitHub Connect tile using existing connection panel.

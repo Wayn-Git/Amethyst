@@ -27,6 +27,7 @@ await page.route('**/local-widget-test', route => route.fulfill({ contentType: '
 try {
   await page.goto((process.env.BASE || 'http://127.0.0.1:5177') + '/local-widget-test')
   if (widget === 'task.focus') {
+    await page.getByText('Timer settings', { exact: true }).click()
     await page.getByLabel('Focus minutes', { exact: true }).fill('1')
     await page.getByRole('button', { name: 'Save settings', exact: true }).click()
     await page.getByRole('button', { name: 'Approve change', exact: true }).click()
@@ -36,9 +37,10 @@ try {
     await page.getByRole('button', { name: 'Start break', exact: true }).click()
     await page.getByRole('button', { name: 'Approve change', exact: true }).click()
     await page.reload()
-    assert.equal(await page.getByLabel('Seconds remaining', {exact:true}).innerText(), '300')
+    assert.equal(await page.getByLabel('Time remaining', {exact:true}).innerText(), '05:00')
     await page.getByRole('button', { name: 'Stop timer', exact: true }).click()
     await page.getByRole('button', { name: 'Approve change', exact: true }).click()
+    await page.getByText('Session history', { exact: true }).click()
     await page.getByText(/Stopped/).first().waitFor()
   }
   if (widget === 'task.habits') {

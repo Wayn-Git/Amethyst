@@ -1,7 +1,7 @@
 import { WidgetRow, WidgetChip, StateView } from '../primitives.jsx'
 import { useEffect, useState } from 'react'
 import { request } from '../api.js'
-import Icon from '../../components/Icon.jsx'
+import { Checkbox, Ring, Stat } from '../../components/ui/bento/index.jsx'
 import Button from '../../components/ui/AppButton.jsx'
 import { Input } from '../../components/ui/input.tsx'
 
@@ -18,7 +18,7 @@ function countdown(due, now) {
   return seconds <= 0 ? `${duration} overdue` : `${duration} remaining`
 }
 
-export default function Items({ data, widgetId }) {
+export default function Items({ data, summaryData = data, widgetId }) {
   const [now, setNow] = useState(Date.now)
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(timer) }, [])
   const [title, setTitle] = useState('')
@@ -41,7 +41,13 @@ export default function Items({ data, widgetId }) {
       else if (approved) setError('Permission denied. No item changed.')
     } catch (e) { setError(e.message); setDraft(null) } finally { setBusy(false) }
   }
+  const all = summaryData?.items || []
+  const completed = all.filter(item => item.completed || item.status === 'done' || item.state === 'done').length
+  const overdue = all.filter(item => item.due_at && new Date(item.due_at).getTime() <= now).length
+  const today = all.filter(item => item.due_at && new Date(item.due_at).getTime() > now && new Date(item.due_at).toDateString() === new Date(now).toDateString()).length
   return <div className={widgetId === 'task.today' ? 'widget-tasks' : undefined}>
+    {widgetId === 'task.today' && <div className="pilot-progress">{all.length > 0 && <Ring value={completed} max={all.length} label="Completed in current list" />}<span>{all.length ? `${completed} of ${all.length} completed in current list` : 'No tasks in this list'}</span></div>}
+    {widgetId === 'task.deadlines' && <div className="ui-split pilot-deadlines"><Stat value={overdue} label="Overdue" /><Stat value={today} label="Today · upcoming" /></div>}
     {widgetId === 'dev.recovery' && <p>Track mirror, local clone and export recovery steps.</p>}
     {widgetId === 'task.reminders' && <p>Due state only. Notifications are not enabled.</p>}
     {error && <StateView role="alert">{error}</StateView>}
@@ -54,23 +60,14 @@ export default function Items({ data, widgetId }) {
         <label>Title<Input required maxLength={500} value={editing.title} onChange={event => setEditing({ ...editing, title: event.target.value })} /></label>
         {widgetId !== 'dev.recovery' && <label>Due<Input type="datetime-local" required={['task.deadlines', 'task.reminders'].includes(widgetId)} value={editing.due} onChange={event => setEditing({ ...editing, due: event.target.value })} /></label>}
         <div className="widget-buttons"><Button size="small" disabled={busy} type="submit">Review change</Button><Button size="small" disabled={busy} type="button" onClick={() => setEditing(null)}>Cancel</Button></div>
-      </form> : <form className="widget-inline-add" onSubmit={event => { event.preventDefault(); setEditing({ title, due: '' }); setTitle('') }}><Input aria-label="New item title" placeholder="Add a task…" maxLength={500} value={title} onChange={event => setTitle(event.target.value)} /><Button size="small" type="submit" disabled={busy}>Add item</Button></form>}
+      </form> : <form className="widget-inline-add" onSubmit={event => { event.preventDefault(); if (!title.trim()) return; if (widgetId === 'task.today') propose('add', { title: title.trim(), due_at: null }); else setEditing({ title, due: '' }); setTitle('') }}><Input required aria-label="New item title" placeholder="Add a task…" maxLength={500} value={title} onChange={event => setTitle(event.target.value)} /><Button variant="primary" size="small" type="submit" disabled={busy}>Add item</Button></form>}
       <ul className="widget-list">{(data?.items || []).map(item => {
         const isOverdue = item.due_at && new Date(item.due_at).getTime() <= now
         const isCompleted = item.completed || item.status === 'done' || item.state === 'done'
         return <WidgetRow key={item.id} className="task-item-row">
           <div className="task-content-wrap">
             {widgetId === 'task.today' && item.editable && (
-              <Button size="small"
-                type="button"
-                className={`task-check-button${isCompleted ? ' is-completed' : ''}`}
-                disabled={busy}
-                aria-label={`Toggle complete ${item.title}`}
-                onClick={() => propose('complete', { id: item.id })}
-                title="Complete task"
-              >
-                {isCompleted && <Icon name="check-simple" size={13} />}
-              </Button>
+              <Checkbox checked={Boolean(isCompleted)} disabled={busy || Boolean(isCompleted)} aria-label={`Toggle complete ${item.title}`} onCheckedChange={() => propose('complete', { id: item.id })} />
             )}
             <div className={`task-label-wrap${isCompleted ? ' is-completed' : ''}`}>
               <strong>{item.title}</strong>
