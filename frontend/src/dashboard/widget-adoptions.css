@@ -136,3 +136,8 @@
 .bento-foundation .home-widget.widget-adoption .music-transport .music-controls .ui-button { min-width: 44px; min-height: 44px; }
 .bento-foundation .home-widget.widget-adoption .music-transport .music-controls .ui-button[data-variant='primary'] { min-width: 52px; min-height: 52px; }
 @container tile (width < 240px) { .bento-foundation .home-widget.widget-adoption .music-art { width: 48px; height: 48px; } }
+
+.bento-foundation .home-widget.widget-adoption .music-art { overflow: hidden; }
+.bento-foundation .home-widget.widget-adoption .music-art img { width: 100%; height: 100%; object-fit: cover; }
+.bento-foundation .home-widget.widget-adoption .music-player-picker { display: grid; gap: var(--tile-space-2); }
+.bento-foundation .home-widget.widget-adoption .music-player-picker select { min-height: 44px; }

@@ -172,3 +172,7 @@
 }
 .widget-home .music-review .music-controls { flex-wrap: wrap; }
 .widget-home .music-track p, .widget-home .music-player { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.widget-home .music-player-picker { display: grid; gap: var(--ui-space-2); min-width: 0; }
+.widget-home .music-player-picker .ui-select { width: 100%; min-width: 0; max-width: 100%; }
+.widget-home .music-art { flex: none; overflow: hidden; }
+.widget-home .music-art img { display: block; width: 72px; height: 72px; object-fit: cover; }

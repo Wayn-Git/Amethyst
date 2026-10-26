@@ -13,6 +13,9 @@ try {
   const calls = []
   let state = 'ok', fail = false
   const payload = { player_id: 'org.mpris.MediaPlayer2.spotify', active_player: 'spotify', album: 'Fixture album', track_id: '/track/1', status: 'Playing', items: [{ title: 'Desktop fixture', artists: ['Fixture artist'] }], controls: { play: true, pause: true, next: true, previous: false } }
+  payload.artwork_url = 'https://artwork.test/cover.png'
+  payload.players = [{ ...payload, title: 'Desktop fixture' }, { player_id: 'org.mpris.MediaPlayer2.browser', active_player: 'Browser', track_id: '/video/2', title: 'YouTube fixture', status: 'Paused', artists: ['Video fixture'], controls: { play: true } }]
+  await page.route('https://artwork.test/cover.png', route => route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jPZkAAAAASUVORK5CYII=', 'base64') }))
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname
     const body = route.request().postDataJSON()
@@ -42,6 +45,8 @@ try {
   })
   const widget = page.locator('[data-widget="glance.music"]')
   await widget.getByText('Desktop fixture', { exact: true }).waitFor()
+  await widget.locator('.music-art img').waitFor()
+  await page.waitForFunction(() => document.querySelector('.music-art img')?.naturalWidth > 0)
   assert.equal(await widget.getByText('Fixture album', { exact: true }).count(), 1)
   assert.equal(await widget.getByRole('link', { name: /Connect/ }).count(), 0)
   assert.equal(await widget.getByLabel('Previous track', { exact: true }).isDisabled(), true)
@@ -59,6 +64,17 @@ try {
   await widget.getByRole('button', { name: 'Cancel', exact: true }).click()
   await widget.getByLabel('Play music', { exact: true }).waitFor()
   assert.equal(calls.filter(c => c.path.includes('/drafts/')).at(-1).body.approved, false)
+  await widget.getByLabel('Media player', { exact: true }).selectOption('org.mpris.MediaPlayer2.browser')
+  await widget.getByText('YouTube fixture', { exact: true }).waitFor()
+  await widget.getByLabel('Play music', { exact: true }).click()
+  assert.deepEqual(calls.filter(c => c.path.includes('/actions/')).at(-1).body, { player: 'org.mpris.MediaPlayer2.browser', track_id: '/video/2' })
+  assert.equal(await widget.getByLabel('Media player', { exact: true }).isDisabled(), true)
+  await widget.getByRole('button', { name: 'Cancel', exact: true }).click()
+  payload.players = payload.players.slice(0, 1)
+  await widget.getByLabel('Refresh Desktop music', { exact: true }).click()
+  await widget.getByText('This player is no longer available. Choose another player above.', { exact: true }).waitFor()
+  assert.equal(await widget.getByLabel('Play music', { exact: true }).count(), 0)
+  await widget.getByLabel('Media player', { exact: true }).selectOption('')
   fail = true
   await widget.getByLabel('Play music', { exact: true }).click()
   await widget.getByRole('alert').filter({ hasText: 'Player closed' }).waitFor()

@@ -33,7 +33,7 @@ async def provide(widget_id):
 def draft(action, body):
     if action not in ("play", "pause", "previous", "next"):
         raise HTTPException(404, "Unknown playback action")
-    state = media.get_playback_status()
+    state = media.get_playback_status(body.player)
     if state["player_id"] != body.player or state.get("track_id", "") != body.track_id:
         raise HTTPException(409, "The desktop player changed. Refresh and try again.")
     if not state["controls"].get(action):
@@ -51,7 +51,7 @@ def draft(action, body):
 
 async def apply(action, body):
     def execute():
-        state = media.get_playback_status()
+        state = media.get_playback_status(body["player"])
         if (
             state["player_id"] != body["player"]
             or state.get("track_id", "") != body["track_id"]

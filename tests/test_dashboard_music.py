@@ -19,7 +19,7 @@ def playback(monkeypatch):
         "track_id": "/track/1",
         "controls": {action: True for action in ("play", "pause", "previous", "next")},
     }
-    monkeypatch.setattr(music.media, "get_playback_status", lambda: state.copy())
+    monkeypatch.setattr(music.media, "get_playback_status", lambda player=None: state.copy())
     return state
 
 
@@ -114,3 +114,14 @@ def test_invalid_and_unsupported_commands(client, playback, monkeypatch):
         ).status_code
         == 503
     )
+
+
+def test_non_dominant_player_is_reviewed_and_controlled(client, playback, monkeypatch):
+    selected = {**playback, "player_id": "org.mpris.MediaPlayer2.browser", "status": "Paused"}
+    calls = []
+    monkeypatch.setattr(music.media, "get_playback_status", lambda player=None: selected if player == selected["player_id"] else playback)
+    monkeypatch.setattr(music.media, "media_control", lambda action, player: calls.append((action, player)) or {"ok": True})
+    draft = propose(client, selected, "play").json()["draft_id"]
+    assert calls == []
+    assert client.post(f"/api/widgets/glance.music/drafts/{draft}", json={"approved": True}).json()["state"] == "applied"
+    assert calls == [("play", selected["player_id"])]

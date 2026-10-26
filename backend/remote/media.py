@@ -10,6 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote, unquote, urlsplit
 
 
 def get_volume() -> int:
@@ -162,8 +163,24 @@ def _dbus_value(value):
     return value
 
 
-def get_playback_status() -> dict[str, Any]:
-    """Prefer a playing session, retaining paused sessions for resume controls."""
+def artwork_url(value) -> str | None:
+    if not isinstance(value, str) or len(value) > 8192:
+        return None
+    try:
+        url = urlsplit(value)
+        if url.scheme == "https" and url.hostname and not url.username and not url.password:
+            return value
+        if url.scheme == "file" and url.netloc in ("", "localhost"):
+            path = unquote(url.path)
+            if Path(path).is_absolute() and Path(path).suffix.lower() in (".png", ".jpg", ".jpeg", ".webp", ".gif"):
+                return "/api/media/local?path=" + quote(path, safe="")
+    except ValueError:
+        pass
+    return None
+
+
+def get_playback_status(player: str | None = None) -> dict[str, Any]:
+    """Expose all sessions; an explicit selection never falls back to another player."""
     supported = sys.platform.startswith("linux") and bool(shutil.which("busctl"))
     idle = {
         "supported": supported,
@@ -171,18 +188,19 @@ def get_playback_status() -> dict[str, Any]:
         "player_id": None,
         "status": "Stopped",
         "controls": {},
+        "players": [],
     }
     if not supported:
         return idle
     sessions = []
-    for player in _get_mpris_players():
+    for player_id in _get_mpris_players():
         try:
             values = _dbus_value(
                 json.loads(
                     _busctl(
                         "--json=short",
                         "call",
-                        player,
+                        player_id,
                         "/org/mpris/MediaPlayer2",
                         "org.freedesktop.DBus.Properties",
                         "GetAll",
@@ -208,12 +226,13 @@ def get_playback_status() -> dict[str, Any]:
             sessions.append(
                 {
                     "supported": True,
-                    "active_player": player.removeprefix("org.mpris.MediaPlayer2."),
-                    "player_id": player,
+                    "active_player": player_id.removeprefix("org.mpris.MediaPlayer2."),
+                    "player_id": player_id,
                     "status": status,
                     "title": metadata.get("xesam:title", ""),
                     "artists": artists,
                     "album": metadata.get("xesam:album", ""),
+                    "artwork_url": artwork_url(metadata.get("mpris:artUrl")),
                     "track_id": metadata.get("mpris:trackid", ""),
                     "controls": {
                         action: controllable and values.get(prop, False) is True
@@ -236,11 +255,11 @@ def get_playback_status() -> dict[str, Any]:
             AttributeError,
         ):
             continue
-    return (
-        min(sessions, key=lambda item: {"Playing": 0, "Paused": 1}.get(item["status"], 2))
-        if sessions
-        else idle
+    selected = next((session for session in sessions if session["player_id"] == player), None) if player else (
+        min(sessions, key=lambda item: {"Playing": 0, "Paused": 1}.get(item["status"], 2)) if sessions else None
     )
+    return {**(selected or idle), "players": sessions}
+
 
 
 def media_control(action: str, player: str | None = None) -> dict[str, Any]:

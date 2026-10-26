@@ -14,3 +14,13 @@ Direction: quiet neutral canvas, white and charcoal cards, soft depth, restraine
 - [x] glance.music: album metadata, music symbol and familiar transport controls.
 
 Verification: 23 adopted widget fixtures cover source states, real values and reviewed actions across nine themes. Production desktop checks cover 1440/1024/768/390px, location changes, fit/undo, 44px shell controls and reduced motion. Playback review tests, focused JSX lint and production build pass. Screenshots and live connector/OS checks omitted; existing bundle-size/import warnings remain.
+
+## Usability corrections · 2026-10-27
+
+[design-pipeline]
+0. laws-of-ux → Common Region: bounded card previews and separate editing sheets; Proximity: 24px card insets and 8px control gaps; Similarity: one connection state shared by Home and Integrations; Hick: choose a widget before size/options; Fitts: 44px controls; Doherty: preserve content during refresh and cancel superseded layout animations. Typography changes are deferred at the owner's request.
+
+- [x] glance.music: artwork and explicit player selection with unchanged approval gates.
+- [ ] sys.connectors / dash.sync: shared account truth, refresh on return, actionable disconnected states.
+- [ ] dash.gallery / glance.clock: stable card bounds, gallery selection, settings and padding.
+- [ ] need.drafts / need.waiting: composers and reviews in sheets instead of expanding cards.

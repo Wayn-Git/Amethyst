@@ -47,6 +47,9 @@ def test_selects_playing_player_and_preserves_metadata(monkeypatch):
     assert state["artists"] == ["One", "Two"]
     assert state["controls"]["pause"] is True
     assert state["controls"]["next"] is False
+    assert [s["player_id"] for s in state["players"]] == players
+    assert media.get_playback_status(players[0])["status"] == "Paused"
+    assert media.get_playback_status("org.mpris.MediaPlayer2.closed")["player_id"] is None
 
 
 def test_control_targets_exactly_one_player(monkeypatch):
@@ -78,3 +81,10 @@ def test_missing_bus_and_malformed_player_are_idle(monkeypatch):
     assert media.get_playback_status()["active_player"] is None
     monkeypatch.setattr(media.shutil, "which", lambda name: None)
     assert media.get_playback_status()["supported"] is False
+
+
+def test_artwork_accepts_remote_images_and_local_raster_files():
+    assert media.artwork_url("https://example.com/cover.jpg") == "https://example.com/cover.jpg"
+    assert media.artwork_url("file:///tmp/album%20cover.png") == "/api/media/local?path=%2Ftmp%2Falbum%20cover.png"
+    for value in (None, 7, "javascript:alert(1)", "file:///etc/passwd", "file://remote/cover.png", "https://user:password@example.com/cover.jpg", "file:///tmp/cover.svg"):
+        assert media.artwork_url(value) is None
