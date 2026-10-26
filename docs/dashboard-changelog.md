@@ -164,3 +164,10 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-26 · UI session 4 · agent.feed: dark timeline rail, nodes and mono source details.
 - 2026-10-26 · UI session 4 · task.deadlines: full-payload overdue/upcoming-today split counts with existing list actions.
 - 2026-10-26 · UI session 4 · dev.prs: compact GitHub Connect tile using existing connection panel.
+- 2026-10-26 · UI Glance group · glance.clock: retained dark hero and world-clock settings; focused theme/state/control checks passed.
+- 2026-10-26 · UI Glance group · glance.weather: retained accent hero; forecast/settings/attribution disclosures; focused theme/state/control checks passed.
+- 2026-10-26 · UI Glance group · glance.air: real AQI hero and split particulate readings; missing values explicit; focused theme/state/control checks passed.
+- 2026-10-26 · UI Glance group · glance.sun: accent sunrise/sunset split with honest local wall times; focused theme/state/control checks passed.
+- 2026-10-26 · UI Glance group · glance.next-event: shared compact/full real-minute countdown; focused theme/state/control checks passed.
+- 2026-10-26 · UI Glance group · glance.music: dark transport tile; existing approval controls preserved; focused theme/state/control checks passed.
+- 2026-10-26 · UI Glance group · glance.travel: route summary and house location controls; no numeric inference; focused theme/state/control checks passed.

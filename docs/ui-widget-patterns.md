@@ -46,4 +46,18 @@ Light S tile until connected. The shared ConnectTile displays Connect GitHub and
 
 ## Adoption boundary and verification
 
-These eight IDs are the pilot set; other widgets await review. Reuse the pattern that fits actual data and actions, not a new per-widget abstraction. Weather air/sun/travel redesigns and other session work remain out of scope. Browser proof: `frontend/tests/dashboard-pilots.mjs` covers synthetic numeric payloads, gated actions, switch, Connect, all nine theme modes at 1440/390, loading footprint and reduced motion. `home-revamp.mjs` covers the integrated Home grid. No screenshots are required. Hardware frame timing is not established.
+These eight IDs are the pilot set; other widgets await review. Reuse the pattern that fits actual data and actions, not a new per-widget abstraction. Subsequent group adoptions are recorded below; other groups remain out of scope. Browser proof: `frontend/tests/dashboard-pilots.mjs` covers synthetic numeric payloads, gated actions, switch, Connect, all nine theme modes at 1440/390, loading footprint and reduced motion. `home-revamp.mjs` covers the integrated Home grid. No screenshots are required. Hardware frame timing is not established.
+
+## Glance group adoption
+
+All seven implemented Glance widgets use the existing grid and tone tokens. Clock and weather retain their hero patterns. Listening stats has no shipped component or data contract and remains pending.
+
+**Environmental readings — glance.air, glance.sun.** Air uses a light hero stat for the supplied European AQI, then equal split cells for PM2.5 and PM10 with units only for finite readings. Zero is valid; missing values say Unavailable. No maximum is supplied, so no gauge or inferred air-quality category is shown. Sun uses an accent split of sunrise/sunset local wall times and the supplied timezone. Preserve the API's local time without converting through the browser timezone. Missing times say Unavailable; there are no placeholder bars. Location settings and required data attribution remain in disclosures.
+
+**Event countdown — glance.next-event.** Light hero with the actual minutes until the supplied start, event title, zoned start time and calendar scope. Starting events clamp to zero; invalid start times say unavailable and all-day events use a chip. Compact and full views share this presentation. No progress ring without an event duration.
+
+**Playback — glance.music.** Dark compact tile with track title, artist, player/status chip and circular transport buttons. No duplicate artwork badge, listening history or fabricated progress. Capability-disabled controls and the existing playback approval/rejection flow stay intact.
+
+**Route summary — glance.travel.** Light tile with event title, prominent provider-supplied driving estimate and zoned event start. The provider supplies a text estimate, so do not parse it into chart data. Location settings use the house Input and violet primary Button; setup opens the form. No list bullets. Preserve the existing Composio source disclosure.
+
+Scoped styles live in widget-adoptions.css and also cover these widgets in settings/detail drawers. Focused proof: `node frontend/tests/dashboard-adoptions.mjs glance` (synthetic payloads, all states, zero/missing readings, wall times in a different browser timezone, controls, nine themes at 1440/390 and reduced motion), plus dashboard-music.mjs for playback approval and narrow review layout. No screenshots or hardware frame-time claims.

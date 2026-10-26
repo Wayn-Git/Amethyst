@@ -44,7 +44,7 @@
 - [ ] Show all/detail drawer; widget settings; source connection panels.
 - [ ] Command palette; confirmation dialogs; menus; tooltips; global toast host.
 - [ ] All forms/buttons adopt foundation controls; verify keyboard and loading states.
-- [ ] Air quality structured display; sunrise/sunset honest numbers; travel form.
+- [x] Air quality structured display; sunrise/sunset honest numbers; travel form.
 - [ ] Stale chips; source note once; lighter widget chrome; violet primary buttons.
 - [ ] Real-number-only data visuals; no decorative/fake charts.
 - [ ] Mobile reading order, no nested scrolling, bounded previews, refresh stability.
@@ -112,13 +112,13 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [ ] `feed.social` — bento adoption pending.
 - [ ] `feed.sports` — bento adoption pending.
 - [ ] `feed.watchlater` — bento adoption pending.
-- [ ] `glance.air` — bento adoption pending.
+- [x] `glance.air` — group adoption; see ui-widget-patterns.md.
 - [x] `glance.clock` — session 4 pilot; see ui-widget-patterns.md.
 - [ ] `glance.listen-stats` — bento adoption pending.
-- [ ] `glance.music` — bento adoption pending.
-- [ ] `glance.next-event` — bento adoption pending.
-- [ ] `glance.sun` — bento adoption pending.
-- [ ] `glance.travel` — bento adoption pending.
+- [x] `glance.music` — group adoption; see ui-widget-patterns.md.
+- [x] `glance.next-event` — group adoption; see ui-widget-patterns.md.
+- [x] `glance.sun` — group adoption; see ui-widget-patterns.md.
+- [x] `glance.travel` — group adoption; see ui-widget-patterns.md.
 - [x] `glance.weather` — session 4 pilot; see ui-widget-patterns.md.
 - [ ] `lib.ask` — bento adoption pending.
 - [ ] `lib.capture` — bento adoption pending.

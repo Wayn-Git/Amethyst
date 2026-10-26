@@ -80,4 +80,4 @@ export const WIDGET_ICONS = {
   agent: 'sparkle', task: 'tasks', dev: 'github', lib: 'bookmark', feed: 'globe', sys: 'settings', need: 'mail', comm: 'chat',
 }
 
-export const widgetTone = id => ['glance.clock', 'agent.feed'].includes(id) ? 'dark' : ['glance.weather', 'agent.brief'].includes(id) ? 'accent' : 'light'
+export const widgetTone = id => ['glance.clock', 'glance.music', 'agent.feed'].includes(id) ? 'dark' : ['glance.weather', 'glance.sun', 'agent.brief'].includes(id) ? 'accent' : 'light'
