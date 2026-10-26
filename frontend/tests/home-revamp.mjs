@@ -2,6 +2,15 @@ import assert from 'node:assert/strict'
 import { chromium } from 'playwright-core'
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { morningLayout, resizeWidget } from '../src/dashboard/layout.js'
+assert.equal(resizeWidget({ size: 'm', height: 3 }, ['s', 'm', 'l'], 0, 152, 1200).size, 'l')
+assert.equal(resizeWidget({ size: 'l', height: 3 }, ['s', 'm', 'l'], 5000, 0, 1200).size, 'l')
+const custom = { widgets: [{ id: 'glance.weather', size: 'm', height: 3 }] }
+assert.equal(morningLayout(custom), custom)
+const morningIds = ['glance.clock', 'glance.weather', 'glance.next-event', 'glance.music', 'need.inbox', 'need.drafts', 'need.waiting', 'need.mentions', 'need.overdue', 'agent.brief', 'agent.feed', 'task.today', 'dev.prs', 'lib.resurface', 'feed.news']
+const morning = morningLayout({ widgets: morningIds.map((id, i) => ({ id, height: 3, size: i === 0 || i === 2 ? 's' : 'm' })) })
+assert.deepEqual(morning.widgets.slice(0, 4).map(w => w.size), ['s', 'm', 's', 'm'])
+assert(morning.widgets.some(w => w.size === 'l'))
 const base = process.env.BASE || 'http://127.0.0.1:5177'
 const cache = join(process.env.HOME, '.cache/ms-playwright')
 const executablePath = readdirSync(cache).filter(n => n.startsWith('chromium-')).sort().reverse().map(n => join(cache, n, 'chrome-linux64/chrome')).find(existsSync)
@@ -20,8 +29,18 @@ try {
   let json = {}
   if (path === '/api/widgets') json = { widgets: catalogIds.map(id => ({ enabled: true, manifest: { id, title: titleFor(id), group: id.startsWith('glance') ? 'glance' : id.startsWith('task') ? 'tasks' : id.startsWith('dash') ? 'dashboard' : id.startsWith('need') ? 'needs-you' : id.startsWith('lib') ? 'library' : id.startsWith('dev') ? 'developer' : id.startsWith('feed') ? 'feed' : 'agent', sizes: ['s','m','l'], source: { type: 'local' }, refresh: { mode: 'manual' }, requires: [], empty: 'No fixture items.' } })) }
   if (path === '/api/layout') { if (route.request().method() === 'PUT') { layout = route.request().postDataJSON(); saves.push(layout) }; json = layout }
-  if (/\/(data|refresh)$/.test(path)) json = { state: 'empty', payload: { items: [] }, synced_at: new Date().toISOString() }
+  if (/\/(data|refresh)$/.test(path)) json = { state: path.includes('dev.prs') ? 'not-connected' : path.includes('task.today') ? 'stale' : 'empty', payload: { items: [] }, synced_at: new Date().toISOString() }
   return route.fulfill({ json })
+ })
+ await page.route('**/src/dashboard/WidgetFrame.jsx*', async route => {
+  const response = await route.fetch()
+  const body = (await response.text()).replace('const { data, busy, refresh } = useWidget(', 'window.__widgetRenders ||= {}; window.__widgetRenders[manifest.id] = (window.__widgetRenders[manifest.id] || 0) + 1; const { data, busy, refresh } = useWidget(')
+  await route.fulfill({ response, body })
+ })
+ await page.route('**/src/dashboard/WidgetSlot.jsx*', async route => {
+  const response = await route.fetch()
+  const body = (await response.text()).replace('const [collapsed, setCollapsed]', 'window.__slotRenders ||= {}; window.__slotRenders[id] = (window.__slotRenders[id] || 0) + 1; const [collapsed, setCollapsed]')
+  await route.fulfill({ response, body })
  })
  await page.route('**/__home_proof__', route => route.fulfill({ contentType: 'text/html', body: '<div id="proof"></div>' }))
  await page.goto(`${base}/__home_proof__`)
@@ -46,18 +65,14 @@ try {
  for (const width of [360,390,768,1024,1440,2560]) {
   await page.setViewportSize({ width, height: 1000 })
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflow at ${width}`)
-  const boxes = await page.locator('.home-layout-grid > *').evaluateAll(nodes => nodes.map(n => { const b = n.getBoundingClientRect(); return { width: b.width, x: b.x, y: b.y, right: b.right, bottom: b.bottom } }))
+  const boxes = await page.locator('.home-layout-grid .bento-grid > *').evaluateAll(nodes => nodes.map(n => { const b = n.getBoundingClientRect(); return { width: b.width, x: b.x, y: b.y, right: b.right, bottom: b.bottom } }))
+  assert.equal(await page.locator('.home-layout-grid .bento-grid').evaluate(n => getComputedStyle(n).gap), '16px')
+  const nestedScrolls = await page.locator('.today-slot-body *').evaluateAll(nodes => nodes.filter(n => ['auto','scroll'].includes(getComputedStyle(n).overflowY) && n.scrollHeight > n.clientHeight + 1).length)
+  assert.equal(nestedScrolls, 0, `nested scrolling at ${width}`)
   assert(boxes.every(b => b.width >= 250), `minimum width at ${width}`)
   for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
    const a = boxes[i], b = boxes[j]
    assert(a.right <= b.x + 1 || b.right <= a.x + 1 || a.bottom <= b.y + 1 || b.bottom <= a.y + 1, `overlap at ${width}`)
-  }
- }
- if (process.env.HOME_UI_SCREENSHOTS === '1') {
-  await page.evaluate(() => { document.documentElement.dataset.theme = 'graphite'; document.documentElement.dataset.themeMode = 'dark' })
-  for (const width of [1440,1024,768,390]) {
-   await page.setViewportSize({ width, height: 1100 })
-   await page.screenshot({ path: `/tmp/amethyst-today-review-${width}.png`, fullPage: false, animations: 'disabled' })
   }
  }
  for (const theme of ['graphite','ink','nocturne','nvidia','paper','sand','claude','cursor']) {
@@ -70,13 +85,30 @@ try {
   assert.equal(colors.home, colors.root, `theme inheritance ${theme}`)
  }
  await page.setViewportSize({ width: 1440, height: 1000 })
+ assert.equal(await page.locator('.home-connect').count(), 1)
+ assert.equal(await page.locator('.state-stale').textContent(), 'Stale')
+ const tileStyle = await page.locator('[data-slot-id="glance.clock"]').evaluate(n => { const card = n.querySelector('.home-widget'), icon = card.querySelector('.widget-heading-icon'); return { radius: getComputedStyle(n).borderRadius, surface: getComputedStyle(card).backgroundColor, slot: getComputedStyle(n).backgroundColor, title: getComputedStyle(card.querySelector('h2')).fontSize, badge: getComputedStyle(icon).width } })
+ assert.equal(tileStyle.radius, '24px')
+ assert.equal(tileStyle.surface, tileStyle.slot)
+ assert.equal(tileStyle.title, '16px')
+ assert.equal(tileStyle.badge, '40px')
+ const glanceRows = await page.locator('[data-slot-id^="glance."]').evaluateAll(nodes => nodes.map(n => n.getBoundingClientRect().y))
+ assert.equal(new Set(glanceRows).size, 1, 'four compact glance tiles share the first row')
  const originalAgentIndex = layout.widgets.findIndex(w => w.id === 'agent.feed')
  await page.getByRole('button', { name: 'Edit layout', exact: true }).click()
  await page.getByRole('button', { name: 'Move Agent activity', exact: true }).focus()
+ await page.waitForLoadState('networkidle')
+ const beforeSlots = await page.evaluate(() => ({ ...window.__slotRenders }))
+ assert(beforeSlots['task.today'] > 0, 'slot instrumentation active')
+ const beforeRenders = await page.evaluate(() => ({ ...window.__widgetRenders }))
+ assert(beforeRenders['task.today'] > 0, 'render instrumentation active')
  await page.keyboard.press('ArrowDown')
  await page.waitForFunction(() => document.querySelector('.home-save-status').textContent === 'Layout saved')
+ assert.deepEqual(await page.evaluate(() => window.__slotRenders), beforeSlots, 'moving a tile does not re-render its peers')
  assert(saves.length > 0)
+ assert.equal(await page.locator('.home-layout-grid .bento-grid').evaluate(n => getComputedStyle(n).gap), '16px')
  assert.equal(layout.widgets[originalAgentIndex + 1].id, 'agent.feed')
+ assert.deepEqual(await page.evaluate(() => window.__widgetRenders), beforeRenders, 'moving a tile does not re-render widget content')
  await page.getByRole('button', { name: 'Undo', exact: true }).click()
  await page.waitForFunction(() => document.querySelector('.home-save-status').textContent === 'Layout saved')
  assert.equal(layout.widgets[originalAgentIndex].id, 'agent.feed')
@@ -91,6 +123,8 @@ try {
  assert.equal(await page.evaluate(() => !!document.activeElement.closest('dialog')), true)
  await page.getByLabel('Search widgets').fill('agent.feed')
  assert.equal(await page.locator('.home-catalog-row').count(), 1)
+ assert.equal(await page.locator('.today-catalog-copy p').textContent(), 'Agent activity from local.')
+ assert.equal(await page.locator('.today-catalog-icon').evaluate(n => getComputedStyle(n).borderRadius), '50%')
  await page.keyboard.press('Escape')
  await page.getByRole('dialog').waitFor({ state: 'hidden' })
  assert.equal(await page.evaluate(() => document.activeElement.textContent), 'Add widget')
@@ -106,6 +140,27 @@ try {
  await page.keyboard.press('Escape')
  await page.mouse.up()
  assert.deepEqual(layout.widgets.map(w => w.id), beforeDrag)
+ await page.setViewportSize({ width: 1440, height: 2600 })
+ await page.locator('.today-widget-slot').evaluateAll(nodes => Promise.all(nodes.flatMap(n => n.getAnimations()).map(a => a.finished.catch(() => {}))))
+ await page.getByRole('button', { name: 'Move Agent activity', exact: true }).scrollIntoViewIfNeeded()
+ const dragFrom = await page.getByRole('button', { name: 'Move Agent activity', exact: true }).boundingBox()
+ const dragTo = await page.locator('[data-slot-id="task.today"]').boundingBox()
+ await page.mouse.move(dragFrom.x + 20, dragFrom.y + 15)
+ await page.mouse.down()
+ await page.mouse.move(dragTo.x + dragTo.width / 2, dragTo.y + 60)
+ assert.equal(await page.locator('.today-drop-placeholder').count(), 1)
+ await page.mouse.up()
+ await page.waitForFunction(() => document.querySelector('.home-save-status').textContent === 'Layout saved')
+ assert.notDeepEqual(layout.widgets.map(w => w.id), beforeDrag, 'pointer reorder persisted')
+ await page.getByRole('button', { name: 'Resize Agent activity', exact: true }).scrollIntoViewIfNeeded()
+ const resizeHandle = await page.getByRole('button', { name: 'Resize Agent activity', exact: true }).boundingBox()
+ await page.mouse.move(resizeHandle.x + 10, resizeHandle.y + 10)
+ await page.mouse.down()
+ await page.mouse.move(resizeHandle.x + 10, resizeHandle.y + 170)
+ assert.equal(await page.locator('[data-slot-id="agent.feed"]').getAttribute('data-size'), 'l', 'resize reflows before release')
+ await page.mouse.up()
+ await page.waitForFunction(() => document.querySelector('.home-save-status').textContent === 'Layout saved')
+ assert.equal(layout.widgets.find(w => w.id === 'agent.feed').size, 'l')
  await page.setViewportSize({ width: 390, height: 1000 })
  assert.equal(await page.getByRole('button', { name: 'Move Agent activity', exact: true }).isVisible(), false)
  await page.getByRole('button', { name: 'Move Agent activity up', exact: true }).click()
@@ -127,5 +182,5 @@ try {
  await page.emulateMedia({ reducedMotion: 'reduce' })
  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ui-layout').trim()), '0ms')
  assert.deepEqual(errors, [])
- console.log('PASS: Today 360–2560 without overlap, themes, edit/undo, catalog add, settings tabs, focus/Escape, mobile and reduced motion')
+ console.log('PASS: Home 360–2560, tones/radius/gutters, no nested scroll, peer render isolation, pointer reorder/resize/cancel, keyboard/undo, catalog/settings, focus/Escape and reduced motion')
 } finally { await browser.close() }

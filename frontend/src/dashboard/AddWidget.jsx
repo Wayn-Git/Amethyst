@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useDashboard } from './context.js'
-import { SYSTEM_WIDGETS } from './layout.js'
+import { SYSTEM_WIDGETS, WIDGET_ICONS } from './layout.js'
 import Button from '../components/ui/AppButton.jsx'
 import { Input } from '../components/ui/input.tsx'
 import Select from '../components/ui/NativeSelect.jsx'
@@ -24,10 +24,10 @@ export default function AddWidget({ compact = false }) {
       <label className="today-catalog-mobile-category">Category<Select aria-label="Widget category" value={category} onChange={event => setCategory(event.target.value)}>{categories.map(([id, title]) => <option key={id} value={id}>{title}</option>)}</Select></label>
       <div className="today-catalog-results">
         <div className="today-catalog-results-heading"><h3>{categories.find(([id]) => id === category)?.[1]}</h3><span>{matches.length} available</span></div>
-        {availableGroups.filter(([group]) => matches.some(m => categoryOf(m) === group)).map(([group, title, icon]) => <section className="today-catalog-group" key={group} aria-label={title}>{category === 'all' && <h4>{title}</h4>}{matches.filter(m => categoryOf(m) === group).map(m => {
+        {availableGroups.filter(([group]) => matches.some(m => categoryOf(m) === group)).map(([group, title]) => <section className="today-catalog-group" key={group} aria-label={title}>{category === 'all' && <h4>{title}</h4>}{matches.filter(m => categoryOf(m) === group).map(m => {
           const added = layout.widgets.some(item => item.id === m.id)
           const system = SYSTEM_WIDGETS.includes(m.id)
-          return <div className="today-catalog-row home-catalog-row" key={m.id}><span className="today-catalog-icon"><Icon name={icon} size={20} /></span><div className="today-catalog-copy"><strong>{m.title}</strong><p>{m.description || m.empty}</p><small>{sourceOf(m)}<span aria-hidden="true"> · </span>{m.sizes.map(size => ({ s: 'Small', m: 'Medium', l: 'Large' })[size]).join(', ')}</small></div><Button size="small" variant={added ? 'ghost' : 'secondary'} disabled={added && !system} onClick={() => system ? openWidget(m.id) : addWidget(m.id)}>{system ? 'Open' : added ? <><Icon name="check-simple" size={14} />Added</> : <><Icon name="plus" size={14} />Add</>}</Button></div>
+          return <div className="today-catalog-row home-catalog-row" key={m.id}><span className="today-catalog-icon"><Icon name={WIDGET_ICONS[m.id] || WIDGET_ICONS[m.id.split('.')[0]] || 'grid'} size={20} /></span><div className="today-catalog-copy"><strong>{m.title}</strong><p>{m.description || `${m.title} from ${sourceOf(m) || "your workspace"}.`}</p><small>{sourceOf(m)}<span aria-hidden="true"> · </span>{m.sizes.map(size => ({ s: 'Small', m: 'Medium', l: 'Large', wide: 'Wide', tall: 'Tall' })[size]).join(', ')}</small></div><Button size="small" variant={added ? 'ghost' : 'secondary'} disabled={added && !system} onClick={() => system ? openWidget(m.id) : addWidget(m.id)}>{system ? 'Open' : added ? <><Icon name="check-simple" size={14} />Added</> : <><Icon name="plus" size={14} />Add</>}</Button></div>
         })}</section>)}
         {!matches.length && <div className="today-catalog-empty" role="status"><Icon name="search" size={24} /><strong>No matching widgets</strong><p>Try another name or category.</p><Button size="small" onClick={() => { setQuery(''); setCategory('all') }}>Clear filters</Button></div>}
       </div>

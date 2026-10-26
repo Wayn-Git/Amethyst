@@ -1,0 +1,65 @@
+/* Home composition adapts legacy widget contents to the shared tile surface. */
+.today-dashboard.bento-foundation { background: var(--tile-canvas); --today-gap: var(--tile-gutter); }
+.today-page { max-width: var(--ui-max-width); }
+.today-page > .today-widgets { display: block; }
+.home-layout-grid .bento-grid { align-items: stretch; }
+.home-layout-grid .today-widget-slot.ui-tile { padding: 0; gap: 0; align-self: stretch; transition: transform var(--tile-fast) var(--tile-ease); }
+.home-layout-grid .today-widget-slot.ui-tile:hover { transform: translateY(-2px); }
+.home-layout-grid.is-editing .today-widget-slot.ui-tile:hover { transform: none; }
+.home-layout-grid .today-slot-body { flex: 1; }
+.home-layout-grid .today-slot-body[hidden] { display: none; }
+.home-layout-grid .today-slot-body > .home-widget,
+.home-layout-grid .today-slot-body > .home-connect {
+  --ui-panel: var(--tile-bg); --ui-text: var(--tile-fg); --ui-muted: var(--tile-muted); --ui-faint: var(--tile-muted);
+  --ui-raised: color-mix(in srgb, var(--tile-fg) 6%, var(--tile-bg));
+  --ui-border: color-mix(in srgb, var(--tile-fg) 12%, transparent);
+  --text: var(--tile-fg); --text-dim: var(--tile-muted); --text-faint: var(--tile-muted);
+  --canvas: var(--tile-bg); --surface: var(--ui-raised); --hairline: var(--ui-border);
+  background: var(--tile-bg); color: var(--tile-fg); border: 0; box-shadow: none; transform: none;
+  padding: var(--tile-space-6); border-radius: var(--tile-radius); height: auto; min-height: 100%; max-height: none;
+  flex: 1; overflow: visible; gap: var(--tile-space-4);
+}
+.home-layout-grid .today-slot-body .home-widget .widget-content { min-height: 0; overflow: visible; max-height: none; }
+.home-layout-grid .widget-header { align-items: flex-start; position: relative; padding-bottom: var(--tile-space-2); }
+.home-layout-grid .widget-title { flex-wrap: wrap; }
+.home-layout-grid .today-slot-body .home-widget .widget-title h2 { color: var(--tile-fg); font: var(--tile-title); white-space: normal; }
+.home-layout-grid .today-slot-body .home-widget .widget-heading-icon { display: inline-grid; width: 40px; height: 40px; border-radius: 50%; color: var(--tile-fg); background: color-mix(in srgb, currentColor 9%, transparent); }
+.home-layout-grid .today-slot-body .home-widget .widget-heading-icon svg { width: 20px; height: 20px; }
+.home-layout-grid .widget-actions { flex-wrap: wrap; justify-content: flex-end; }
+.home-layout-grid .widget-freshness { color: var(--tile-muted); font: var(--tile-label); }
+.home-layout-grid .today-slot-body .home-widget .widget-actions > :is(button, details) { opacity: 0; pointer-events: none; transition: opacity var(--tile-fast) var(--tile-ease); }
+.home-layout-grid .today-slot-body .home-widget:is(:hover,:focus-within) .widget-actions > :is(button,details),
+.home-layout-grid .widget-menu[open] { opacity: 1; pointer-events: auto; }
+.home-layout-grid .state-stale { background: transparent; border: 0; color: var(--tile-muted); padding: 0; font: var(--tile-label); }
+.home-layout-grid .state-stale::before { content: ''; width: 4px; height: 4px; border-radius: 50%; background: currentColor; margin-right: var(--tile-space-1); }
+.home-layout-grid .today-slot-body .home-widget .widget-state { background: transparent; padding: 0; border: 0; }
+.home-layout-grid .today-slot-body .home-widget .widget-skeleton { min-height: 0; }
+.home-layout-grid .today-slot-body .home-widget .widget-source { display: none; }
+.home-layout-grid .today-slot-body .home-widget:has(.task-source-note) .widget-source { display: inline-flex; }
+.home-layout-grid .task-source-note { display: none; }
+.home-layout-grid .today-slot-body .home-widget .glance-value { font: var(--tile-number); color: var(--tile-fg); letter-spacing: -.04em; }
+.home-layout-grid .today-slot-body .home-widget[data-widget='glance.next-event'] .glance-value { font: var(--tile-title); }
+.home-layout-grid .today-slot-body .home-widget .clock-digits { font: var(--tile-number); color: var(--tile-fg); }
+.home-layout-grid .today-slot-body .home-widget .clock-date, .home-layout-grid .today-slot-body .home-widget .clock-zone { color: var(--tile-muted); font: var(--tile-label); }
+.home-layout-grid .today-slot-body .home-widget .glance-clock-face { gap: var(--tile-space-2); }
+.home-layout-grid .today-widget-slot:has(.home-connect), .home-layout-grid .today-widget-slot[data-collapsed] { grid-row: span 1; }
+.home-layout-grid .home-connect .ui-state { align-content: center; justify-content: space-between; width: 100%; }
+.home-layout-grid .home-connect .ui-state p { font: var(--tile-title); }
+.home-layout-grid .today-slot-toolbar.is-editing { background: var(--tile-bg); color: var(--tile-fg); border: 0; margin: var(--tile-space-2); }
+.home-layout-grid .today-slot-toolbar .ui-button { background: var(--tile-bg); color: var(--tile-fg); }
+.home-layout-grid .today-drop-placeholder { position: absolute; inset: var(--tile-space-2); display: grid; place-items: center; border: 2px dashed var(--tile-action); border-radius: var(--tile-radius); color: var(--tile-fg); font: var(--tile-label); pointer-events: none; }
+.home-layout-grid .is-drag-target .today-slot-body { opacity: .15; }
+.home-layout-grid .is-drag-target { outline: none; }
+.today-catalog-icon { border-radius: 50%; }
+@container bento (width >= 1024px) { .home-layout-grid .ui-tile[data-size='s'] { grid-column: span 3; } }
+@container tile (width < 390px) {
+  .home-layout-grid .today-slot-body > .home-widget, .home-layout-grid .today-slot-body > .home-connect { padding: var(--tile-space-4); }
+  .home-layout-grid .widget-header { flex-wrap: wrap; }
+}
+@container tile (width < 240px) {
+  .home-layout-grid .today-slot-body .home-widget .glance-value, .home-layout-grid .today-slot-body .home-widget .clock-digits { font-size: 40px; }
+}
+@media (hover: none) { .home-layout-grid .today-slot-body .home-widget .widget-actions > :is(button,details) { opacity: 1; pointer-events: auto; } }
+@media (prefers-reduced-motion: reduce) { .home-layout-grid .today-widget-slot.ui-tile:hover { transform: none; } }
+.today-dashboard.bento-foundation .ui-button:active:not(:disabled),
+.today-drawer.bento-foundation .ui-button:active:not(:disabled) { transform: scale(.98); }

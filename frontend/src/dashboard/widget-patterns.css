@@ -51,28 +51,6 @@
 }
 .widget-home .widget-skeleton { min-height: 160px; align-content: start; padding: var(--ui-space-4) 0; gap: var(--ui-space-4); }
 .widget-home .widget-skeleton span { height: 32px; background: var(--ui-raised); border-radius: var(--ui-radius); }
-/* Reserve the same five-row preview slot for empty, loading, and populated pilots. */
-.widget-home .widget-card:is([data-widget='task.today'], [data-widget='need.inbox'], [data-widget='agent.feed']) > .widget-content { min-height: 300px; }
-.widget-home .widget-card[data-widget='need.inbox'] > .widget-content { min-height: 464px; }
-.widget-home .widget-card[data-widget='task.today'] > .widget-content { min-height: 360px; }
-.widget-home .widget-card.home-tile { height: 192px; min-height: 192px; max-height: none; }
-.widget-home .widget-card.home-tile[data-widget='glance.clock'] {
-  background: var(--ui-text); color: var(--ui-panel);
-  padding: var(--ui-space-4); gap: var(--ui-space-2);
-}
-.widget-home .widget-card.home-tile[data-widget='glance.clock'] .widget-heading-icon { display: none; }
-.widget-home .widget-card.home-tile[data-widget='glance.clock'] :is(.widget-title h2, .widget-freshness) {
-  color: color-mix(in srgb, var(--ui-panel) 70%, transparent); font: 400 11px/16px var(--ui-font);
-}
-.widget-home .widget-card.home-tile[data-widget='glance.clock'] :is(.widget-refresh, .widget-menu > summary) { color: var(--ui-panel); background: transparent; }
-.widget-home .widget-card.home-tile[data-widget='glance.clock'] :is(.home-clock, .clock-date, .clock-zone) { color: var(--ui-panel); }
-.widget-home .widget-card.home-tile[data-widget='glance.clock'] .clock-zone {
-  justify-self: start; padding: var(--ui-space-1) var(--ui-space-2); border-radius: var(--ui-radius);
-  background: color-mix(in srgb, var(--ui-panel) 10%, transparent);
-}
-.widget-home .widget-card.home-tile[data-widget='glance.clock'] .clock-date { opacity: .7; }
-.widget-home .widget-card.home-tile[data-widget='glance.clock'] .widget-skeleton span { background: color-mix(in srgb, var(--ui-panel) 15%, transparent); }
-.widget-home .widget-card.home-tile[data-widget='glance.clock'] .widget-content { flex: 1; display: flex; justify-content: center; }
 .widget-home .widget-card[data-widget='glance.clock'] .widget-tile { display: grid; gap: var(--ui-space-2); }
 .widget-home .widget-card[data-widget='glance.clock'] .home-clock {
   display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--ui-space-2);

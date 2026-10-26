@@ -151,3 +151,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-26 — Today reference revamp: isolated compact frame, 7/5 main/side packing, integrated edit controls, category catalog and tabbed Home settings; focused browser checks cover addition, settings navigation, mobile controls, themes and reduced motion.
 
 - 2026-10-26 — UI session 1 foundation: Paper-first three-tone tokens for nine modes, isolated bento grid/primitives and controls, dev-only /dev/ui, text design system/checklist; extended Manifest.sizes and Position.size with wide/tall (no registered widget or Home content changes); reused raw-control lint warning.
+
+- 2026-10-26 · UI session 2: Home bento structure, compact connections, quiet chrome, isolated reorder renders, snap resize/undo and settings/catalog drawers; frontend-only, existing navigation and contracts retained.

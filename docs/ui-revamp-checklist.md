@@ -13,13 +13,24 @@
 - [x] Raw native-control lint warnings.
 - [x] Text design-system specification.
 
+## Session 2 Home structure
+
+- [x] Shared BentoGrid/Tile surfaces; four compact glance tiles then M/L mixes in the Morning default.
+- [x] 24 px radii, 16 px gutters, bounded ultrawide canvas, 360–2560 px without page overflow.
+- [x] Drag placeholder/live reflow, transform movement, snap sizes, arrow keys, mobile move buttons, undo.
+- [x] Reordering preserves both peer slot and widget-content render counts.
+- [x] Compact Connect tiles, hover/focus chrome, mono freshness and subtle stale dot/label.
+- [x] Settings drawer owns refresh, quiet hours, shortcuts and gallery; native modal focus/Escape retained.
+- [x] No tile scrolling; hover lift, press response and reduced motion.
+- [x] Existing app navigation, permissions, APIs and manifest sizes preserved.
+
 ## Later sessions — existing implementations require target review
 
-- [ ] Home header/date/greeting/capture; existing navigation integration.
+- [x] Home header/date/greeting/capture; existing navigation integration.
 - [ ] Glance strip; Needs you; Agent activity; Today; Dev; Library; Feed sections.
-- [ ] Home grid adoption, edit/drag/resize/collapse, persistence/undo.
-- [ ] Add widget drawer: distinct icons, descriptions, categories, search, Add/Added.
-- [ ] Home settings drawer: Refresh status, Quiet hours, Keyboard shortcuts, Widget gallery.
+- [x] Home grid adoption, edit/drag/resize/collapse, persistence/undo.
+- [x] Add widget drawer: distinct icons, descriptions, categories, search, Add/Added.
+- [x] Home settings drawer: Refresh status, Quiet hours, Keyboard shortcuts, Widget gallery.
 - [ ] Show all/detail drawer; widget settings; source connection panels.
 - [ ] Command palette; confirmation dialogs; menus; tooltips; global toast host.
 - [ ] All forms/buttons adopt foundation controls; verify keyboard and loading states.

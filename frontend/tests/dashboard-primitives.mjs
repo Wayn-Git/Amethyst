@@ -48,7 +48,7 @@ try {
   for (const state of ['empty', 'ok', 'stale', 'empty']) {
     await page.evaluate(state => window.renderPrimitives(state, { editable: true }), state)
     if (state === 'empty') await card.getByText('No items.', { exact: true }).waitFor()
-    else if (state === 'stale') await card.getByText('Stale data.', { exact: true }).waitFor()
+    else if (state === 'stale') await card.getByText('Stale', { exact: true }).waitFor()
     else await card.getByText('No items.', { exact: true }).waitFor({ state: 'hidden' })
     assert.equal(await card.getByLabel('Draft').inputValue(), 'Keep this draft')
   }

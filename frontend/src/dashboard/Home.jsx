@@ -1,13 +1,14 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Icon from '../components/Icon.jsx'
 import WidgetFrame, { WidgetBoundary } from './WidgetFrame.jsx'
 import { DashboardContext } from './context.js'
 import { cached, remember, request } from './api.js'
-import { GLANCE_WIDGETS, NEED_WIDGETS, SYSTEM_WIDGETS, moveWidget, quietNow, resizeWidget } from './layout.js'
+import { GLANCE_WIDGETS, NEED_WIDGETS, SYSTEM_WIDGETS, morningLayout, moveWidget, quietNow, resizeWidget } from './layout.js'
 import { useApp } from '../store.jsx'
 import Drawer from './Drawer.jsx'
 import HomeSettings from './HomeSettings.jsx'
-import NeedsYou from './NeedsYou.jsx'
+import { BentoGrid } from '../components/ui/bento/index.jsx'
 import SourceItem from './SourceItem.jsx'
 import Button from '../components/ui/AppButton.jsx'
 import Kbd from '../components/ui/Kbd.jsx'
@@ -17,16 +18,19 @@ import { toast } from 'sonner'
 import './home.css'
 import './home-shell.css'
 import './widget-patterns.css'
+import './home-bento.css'
 
 const WidgetView = memo(function WidgetView({ context, ...props }) {
   return <DashboardContext.Provider value={context}><WidgetBoundary id={props.manifest.id} onRetry={context.refreshAll}><WidgetFrame {...props} /></WidgetBoundary></DashboardContext.Provider>
 })
 
 export default function Home() {
+  const navigate = useNavigate()
+  const connectSource = useCallback(() => navigate('/capabilities'), [navigate])
   const { setOverlay } = useApp()
   const [drawer, setDrawer] = useState(null)
   const [entries, setEntries] = useState(() => cached('manifests') || [])
-  const [layout, setLayout] = useState(() => (cached('layout')?.widgets ? cached('layout') : { widgets: [] }))
+  const [layout, setLayout] = useState(() => (cached('layout')?.widgets ? morningLayout(cached('layout')) : { widgets: [] }))
   const [quietSettings, setQuietSettings] = useState(() => cached('quiet') || {})
   const [records, setRecords] = useState({})
   const [editing, setEditing] = useState(false)
@@ -55,9 +59,9 @@ export default function Home() {
     mounted.current = true
     // Separate reads: a layout or settings failure does not discard working manifests.
     request('/widgets').then(value => { if (mounted.current) { const list = Array.isArray(value?.widgets) ? value.widgets : []; setEntries(list); remember('manifests', list) } }).catch(err => { if (mounted.current) setError(err.message) })
-    request('/layout?mode=default').then(value => { if (mounted.current && !dirty.current) { const nextLayout = value && Array.isArray(value.widgets) ? value : { widgets: [] }; setLayout(nextLayout); layoutRef.current = nextLayout; remember('layout', nextLayout) } }).catch(err => { if (mounted.current) setError(err.message) }).finally(() => { if (mounted.current) setLoaded(true) })
+    request('/layout?mode=default').then(value => { if (mounted.current && !dirty.current) { const nextLayout = value && Array.isArray(value.widgets) ? morningLayout(value) : { widgets: [] }; setLayout(nextLayout); layoutRef.current = nextLayout; remember('layout', nextLayout) } }).catch(err => { if (mounted.current) setError(err.message) }).finally(() => { if (mounted.current) setLoaded(true) })
     request('/widgets/dash.quiet/settings').then(value => { if (mounted.current) { setQuietSettings(value || {}); remember('quiet', value || {}) } }).catch(() => {})
-    const timer = setInterval(() => setNow(new Date()), 1000)
+    const timer = setInterval(() => setNow(new Date()), 60000)
     return () => { mounted.current = false; clearInterval(timer) }
   }, [])
   function persist(next, undo = true) {
@@ -84,14 +88,15 @@ export default function Home() {
   function resize(id, patch) { const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []; persist({ widgets: widgets.map(w => w.id === id ? { ...w, ...patch } : w) }); setAnnouncement(`${id} resized to ${patch.size || 'custom height'}`) }
   function grip(kind, id) {
     return {
-      onPointerDown(event) { if (event.button !== 0) return; event.preventDefault(); gesture.current = { kind, id, x: event.clientX, y: event.clientY, original: layoutRef.current }; event.currentTarget.setPointerCapture(event.pointerId); setDragging(id) },
+      onPointerDown(event) { if (event.button !== 0) return; event.preventDefault(); gesture.current = { kind, id, x: event.clientX, y: event.clientY, original: layoutRef.current }; grid.current.setPointerCapture(event.pointerId); setDragging(id) },
       onPointerCancel() { if (gesture.current?.original) { setLayout(gesture.current.original); layoutRef.current = gesture.current.original }; gesture.current = null; setDragging(false) },
       onPointerMove(event) {
         const start = gesture.current
         if (!start) return
+        const { id } = start
         if (start.kind === 'resize') {
           const item = start.original.widgets.find(w => w.id === id), manifest = manifests.find(m => m.id === id)
-          const patch = resizeWidget(item, manifest?.sizes || ['m'], event.clientX - start.x, 0, grid.current.clientWidth)
+          const patch = resizeWidget(item, manifest?.sizes || ['m'], event.clientX - start.x, event.clientY - start.y, grid.current.clientWidth, parseFloat(getComputedStyle(grid.current.querySelector('.bento-grid')).gridAutoRows) || 152)
           const next = { widgets: start.original.widgets.map(w => w.id === id ? patch : w) }; layoutRef.current = next; setLayout(next); return
         }
         const target = document.elementsFromPoint(event.clientX, event.clientY).map(el => el.closest('[data-slot-id]')).find(Boolean)?.dataset.slotId
@@ -100,11 +105,12 @@ export default function Home() {
       onPointerUp(event) {
         const start = gesture.current; setDragging(false)
         if (!start) return
+        const { id } = start
         if (start.kind === 'move') {
           if (layoutRef.current !== start.original) persist(layoutRef.current)
         } else {
           const item = start.original.widgets.find(w => w.id === id), manifest = manifests.find(m => m.id === id)
-          const row = 100
+          const row = parseFloat(getComputedStyle(grid.current.querySelector('.bento-grid')).gridAutoRows) || 152
           resize(id, resizeWidget(item, manifest?.sizes || ['m'], event.clientX - start.x, event.clientY - start.y, grid.current.clientWidth, row))
         }
         gesture.current = null
@@ -127,28 +133,21 @@ export default function Home() {
   const actions = useRef({})
   useLayoutEffect(() => { actions.current = { removeWidget, openWidget, move, resize, grip } })
   const stable = useMemo(() => Object.fromEntries(['removeWidget', 'openWidget', 'move', 'resize', 'grip'].map(key => [key, (...args) => actions.current[key](...args)])), [])
-  const frameContext = useMemo(() => ({ now, quiet, setEditing, refreshAll, ...stable, layout: { widgets: membership.split('|').map(id => ({ id })) } }), [now, quiet, refreshAll, stable, membership])
-  const renderWidget = (position, full = false, tile = false) => {
+  const frameContext = useMemo(() => ({ now, quiet, setEditing, connectSource, refreshAll, ...stable, layout: { widgets: membership.split('|').map(id => ({ id })) } }), [now, quiet, connectSource, refreshAll, stable, membership])
+  const sizeKey = positions.map(p => `${p.id}:${p.size}`).sort().join('|')
+  // Size/membership encode content dependencies; order changes only move existing slots.
+  // oxlint-disable react-hooks/exhaustive-deps
+  const views = useMemo(() => new Map(positions.map(position => {
+    const manifest = manifests.find(m => m.id === position.id)
+    return [position.id, manifest && <WidgetView key={manifest.id} context={frameContext} manifest={manifest} size={position.size} quiet={quiet} refreshVersion={refreshVersion} onData={onData} editing={false} tile={GLANCE_WIDGETS.includes(position.id)} full={false} />]
+  })), [manifests, frameContext, quiet, refreshVersion, onData, sizeKey])
+  // oxlint-enable react-hooks/exhaustive-deps
+  const renderWidget = (position, full = false) => {
     const manifest = manifests.find(m => m.id === position.id)
     if (!manifest) return null
-    const view = <WidgetView context={frameContext} manifest={manifest} position={position} quiet={quiet} refreshVersion={refreshVersion} onData={onData} editing={false} tile={tile} full={full} />
-    return full ? view : <WidgetSlot key={manifest.id} id={manifest.id} title={manifest.title} size={position.size} sizes={manifest.sizes} lane={['task.', 'dev.', 'lib.', 'feed.'].some(prefix => manifest.id.startsWith(prefix)) ? 'side' : 'main'} editing={editing} dragging={dragging === manifest.id} move={stable.move} resize={stable.resize} grip={stable.grip}>{view}</WidgetSlot>
+    if (full) return <WidgetView context={frameContext} manifest={manifest} size={position.size} quiet={quiet} refreshVersion={refreshVersion} onData={onData} editing={false} full />
+    return <WidgetSlot key={manifest.id} id={manifest.id} title={manifest.title} size={position.size} displaySize={GLANCE_WIDGETS.includes(position.id) && position.size === 'm' ? 's' : position.size} sizes={manifest.sizes} editing={editing} dragging={dragging === manifest.id} move={stable.move} resize={stable.resize} grip={stable.grip}>{views.get(position.id)}</WidgetSlot>
   }
-  useLayoutEffect(() => {
-    const container = grid.current?.querySelector('.today-content-grid')
-    if (!container) return
-    const styles = getComputedStyle(container)
-    const gap = parseFloat(styles.rowGap), row = parseFloat(styles.gridAutoRows)
-    const pack = nodes => {
-      const spans = nodes.map(node => [node, Math.max(1, Math.ceil((node.getBoundingClientRect().height + gap) / (row + gap)))])
-      for (const [node, span] of spans) node.style.gridRowEnd = `span ${span}`
-    }
-    const observer = new ResizeObserver(entries => pack(entries.map(entry => entry.target)))
-    const nodes = [...container.children]
-    pack(nodes)
-    for (const node of nodes) observer.observe(node)
-    return () => observer.disconnect()
-  }, [membership, editing, entries])
   const previousRects = useRef(new Map())
   useLayoutEffect(() => {
     const nodes = grid.current?.querySelectorAll('[data-slot-id]') || []
@@ -161,9 +160,6 @@ export default function Home() {
     previousRects.current = next
   }, [layout, editing])
   const homePositions = positions.filter(w => !SYSTEM_WIDGETS.includes(w.id))
-  const glance = homePositions.filter(w => GLANCE_WIDGETS.includes(w.id))
-  const needs = homePositions.filter(w => NEED_WIDGETS.includes(w.id)).map(w => manifests.find(m => m.id === w.id)).filter(Boolean)
-  const content = homePositions.filter(w => !GLANCE_WIDGETS.includes(w.id) && !NEED_WIDGETS.includes(w.id))
   const requestedSystem = SYSTEM_WIDGETS.includes(requested) && manifests.find(m => m.id === requested)
   const settingsId = drawer?.settingsId || (drawer === null && requestedSystem ? requested : null)
   useEffect(() => {
@@ -184,8 +180,8 @@ export default function Home() {
       setDrawer({ type: 'closed' })
     }
   }
-  return <DashboardContext.Provider value={{ manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, addWidget, removeWidget, now, openWidget }}>
-    <div className="view today-dashboard home-shell">
+  return <>
+    <div className="view today-dashboard home-shell bento-foundation">
       <div className="today-page">
         <header className="today-heading">
           <div className="today-greeting">
@@ -200,7 +196,7 @@ export default function Home() {
         </header>
         <div className="today-command-row">
           <Button variant="ghost" className="today-capture" onClick={() => setOverlay('palette')}><Icon name="search" size={16} /><span>Search or capture a thought…</span><Kbd>⌘K / Ctrl+K</Kbd></Button>
-          <span className="today-layout-label">{homePositions.length} widgets{quiet ? ' · Refresh paused' : ''}</span>
+          <span className="today-layout-label">Home · {homePositions.length} widgets{quiet ? ' · Refresh paused' : ''}</span>
         </div>
         {editing && <div className="today-edit-bar"><span className="today-edit-icon"><Icon name="grid" size={18} /></span><div><strong>Arrange your workspace</strong><p>Drag to reorder. Choose a size to resize. Changes save automatically.</p></div><Button size="small" variant="ghost" onClick={() => setDrawer({ type: 'add' })}><Icon name="plus" size={14} />Add widget</Button></div>}
         <SourceItem />
@@ -210,20 +206,18 @@ export default function Home() {
         {saveState.startsWith('Layout not saved') && <p className="today-message" role="alert">{saveState}</p>}
         {entries.filter(e => !e.enabled).map(e => <p key={e.manifest.id} role="alert">{e.manifest.title}: {e.error}</p>)}
         {!loaded && !layout.widgets.length && <div className="today-layout-loading" role="status" aria-label="Loading layout"><span /><span /><span /><span /></div>}
-        <div ref={grid} className="widget-home today-widgets">
-          {glance.length > 0 && <div className="today-glance" aria-label="At a glance">{glance.map(p => renderWidget(p, false, true))}</div>}
-          <div className={`today-content-grid home-layout-grid${editing ? ' is-editing' : ''}`} data-dragging={dragging || undefined}>
-            {editing ? homePositions.filter(w => !GLANCE_WIDGETS.includes(w.id)).map(p => renderWidget(p)) : <>
-              {needs.length > 0 && <section className="today-needs-slot" aria-label="Needs you"><NeedsYou manifests={needs} quiet={quiet} refreshVersion={refreshVersion} onData={onData} /></section>}
-              {content.map(p => renderWidget(p))}
-            </>}
-          </div>
+        <div ref={grid} className="widget-home today-widgets" onPointerMove={grip().onPointerMove} onPointerUp={grip().onPointerUp} onPointerCancel={grip().onPointerCancel}>
+          <BentoGrid className={`home-layout-grid${editing ? ' is-editing' : ''}`} data-dragging={dragging || undefined}>
+            {homePositions.map(p => renderWidget(p))}
+          </BentoGrid>
         </div>
         {loaded && !homePositions.length && <section className="today-empty-layout"><span><Icon name="grid" size={28} /></span><h2>Make room for your day</h2><p>Add the widgets you want to see here.</p><Button variant="primary" onClick={() => setDrawer({ type: 'add' })}><Icon name="plus" size={16} />Add widget</Button></section>}
       </div>
     </div>
+    <DashboardContext.Provider value={{ manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, addWidget, removeWidget, now, openWidget }}>
     {(drawer?.type === 'settings' || settingsId) && <Drawer title="Home settings" description="Refresh, quiet hours, and keyboard shortcuts." onClose={closeDrawer}><HomeSettings key={settingsId || 'settings'} settingsId={settingsId} /></Drawer>}
     {drawer?.type === 'add' && <Drawer title="Add widget" description="Choose what belongs in your day." onClose={closeDrawer} className="today-catalog-drawer"><AddWidget /></Drawer>}
     {selected && <Drawer title={selected.title} onClose={closeDrawer}><div className="widget-home today-widgets">{renderWidget(layout.widgets.find(w => w.id === selected.id) || { id: selected.id, size: selected.sizes[0], height: 3 }, true)}</div></Drawer>}
-  </DashboardContext.Provider>
+    </DashboardContext.Provider>
+  </>
 }

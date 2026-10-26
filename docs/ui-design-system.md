@@ -1,6 +1,6 @@
 # Amethyst bento foundation — session 1
 
-This is the current design target; it supersedes earlier shell styling notes and the visual values in home-ui-brief.md. Implementation lives in `frontend/src/components/ui/bento/`. Home and widget content are deliberately not migrated in this session. Wrap future surfaces in `bento-foundation` and import the shared primitives. `/dev/ui` is a development-only route, loaded outside the app store so sample controls never call connectors or write user data. All showcase numbers are explicitly labelled samples.
+This is the current design target; it supersedes earlier shell styling notes and the visual values in home-ui-brief.md. Implementation lives in `frontend/src/components/ui/bento/`. Home adopts the foundation in session 2; individual widget content remains under review. Wrap future surfaces in `bento-foundation` and import the shared primitives. `/dev/ui` is a development-only route, loaded outside the app store so sample controls never call connectors or write user data. All showcase numbers are explicitly labelled samples.
 
 ## Composition
 
@@ -38,7 +38,7 @@ BentoGrid owns an inline-size container and a twelve-column dense CSS grid. Equa
 | 390–767 | 12×1 | 12×1 | 12×1 | 12×1 | 12×1 |
 | below 390 | 12×1 | 12×1 | 12×1 | 12×1 | 12×1 |
 
-Spans are columns × rows. Container breakpoints account for app navigation and embedded surfaces, not just the viewport. Each Tile establishes a separate `tile` container for its contents. Existing Home grid remains unchanged until its session. Manifest and Position now accept `wide` and `tall`; no existing widget advertises these sizes yet, so layout validation continues to enforce each manifest's allowed sizes.
+Spans are columns × rows. Container breakpoints account for app navigation and embedded surfaces, not just the viewport. Each Tile establishes a separate `tile` container for its contents. Home uses this grid with four compact glance tiles once the content container reaches 1024 px, so the opening row packs on desktop with app navigation present. Existing weather/music manifest size `m` is presented as a compact glance tile; stored sizes stay valid. The untouched legacy Morning layout gains L tiles for the brief and Today; custom layouts retain their order and sizes. Manifest and Position now accept `wide` and `tall`; no existing widget advertises these sizes yet, so layout validation continues to enforce each manifest's allowed sizes.
 
 ## Primitives and ownership
 
@@ -57,3 +57,7 @@ Motion tokens: fast 150 ms, normal 200 ms, slow 250 ms; easing cubic-bezier(.2,.
 ## Enforcement and proof
 
 Existing `amethyst-ui/no-raw-controls` Oxlint warning covers JSX button/input/select/textarea outside primitive directories. Shared bento primitives live under the existing exemption. `node frontend/tests/ui-control-lint.mjs` verifies all four warnings. `frontend/tests/bento-foundation.mjs` checks nine modes across six widths, overflow, radius/gutters, real keyboard interactions, disabled/loading and reduced motion. No screenshots are required; `/dev/ui` permits direct inspection. Hardware frame timing is not established by these tests.
+
+## Home structure — session 2
+
+Home separates layout controls from memoized widget content. Reordering keeps peer slots and widget content stable; transforms animate placement with reduced-motion support. Resize selects manifest-supported sizes and never persists free-form geometry. The settings/catalog context lives beside the grid so layout saves do not propagate into tile consumers. Compact Connect tiles occupy one row. Chrome appears on hover/focus (always on touch), with freshness in mono and stale shown as a small dot/label. Tiles grow for content without internal scrolling. System controls live in the modal Home settings drawer. Paper composition and all palettes reuse the foundation tokens; no backend, source contracts or navigation changes.
