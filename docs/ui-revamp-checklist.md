@@ -1,161 +1,169 @@
-# Home revamp checklist
+# UI revamp checklist
 
-## Shell and controls
+## Session 1 foundation
 
-- [x] Existing app navigation retained; no second navigation.
-- [x] Theme aliases for all nine modes (system plus eight palettes).
-- [x] Header: date, greeting, capture, Edit layout, Add widget, Home settings.
-- [x] Glance strip container; existing Morning layout reused.
-- [x] Dense twelve-column grid, seven-column main/five-column side hierarchy, shared gutter, responsive spans, centered 1480 px maximum width.
-- [x] Outer edit controls: drag/live reflow, keyboard movement and resize, mobile up/down.
-- [x] Serialized instant layout persistence and undo toast; save-status live region.
-- [x] Outer collapse/expand preserving mounted content.
-- [x] Home settings drawer: four keyboard-accessible tabs for Refresh status, Quiet hours, Keyboard shortcuts, Widget gallery.
-- [x] Add widget drawer: category sidebar, mobile category select, search, descriptions/source/sizes, Add/Added/Open actions, live Home count.
-- [x] Widget detail/Show all drawer retains existing content and focus management.
-- [x] Command palette surface and shared button adoption; existing search retained.
-- [x] Existing confirmation dialogs, menus, tooltips, toasts receive shared panel tokens.
-- [x] Button variants/sizes/icon/loading; Input; Select; Checkbox; Switch; Tabs; Menu; Drawer; Dialog; Tooltip; Toast; Kbd.
-- [x] Warning lint rule for raw button/input/select/textarea outside primitives.
-- [ ] Hardware frame-time profiling for sustained 60 fps.
-- [ ] Widget session: per-widget min/max heights, no loading/refresh shift, no nested scroll, inner container-query adaptations and narrow action menus.
-- [ ] Widget session: remove existing decorative widget gradients, hard-coded colors, and inner content styling conflicting with brief.
+- [x] Paper-first tokens; all nine modes with light/dark/accent tones.
+- [x] Spacing, typography, radii, shadows, motion and reduced motion.
+- [x] Bento grid S/M/L/wide/tall; responsive spans and container queries.
+- [x] Manifest/Position size vocabulary; existing sizes preserved.
+- [x] Tile, TileHeader, Stat, Ring, Gauge, Sparkline, SegmentedBar, Chip, Row.
+- [x] IconBadge, Initials, SplitTile, Skeleton, EmptyState, ConnectTile, ErrorState, Toast.
+- [x] Button, IconButton, Input, Select, Checkbox, Switch, Segmented, Menu, Tooltip, Kbd.
+- [x] Dev-only /dev/ui with labelled samples, tones/sizes, interactive and disabled/loading states.
+- [x] Raw native-control lint warnings.
+- [x] Text design-system specification.
+
+## Later sessions — existing implementations require target review
+
+- [ ] Home header/date/greeting/capture; existing navigation integration.
+- [ ] Glance strip; Needs you; Agent activity; Today; Dev; Library; Feed sections.
+- [ ] Home grid adoption, edit/drag/resize/collapse, persistence/undo.
+- [ ] Add widget drawer: distinct icons, descriptions, categories, search, Add/Added.
+- [ ] Home settings drawer: Refresh status, Quiet hours, Keyboard shortcuts, Widget gallery.
+- [ ] Show all/detail drawer; widget settings; source connection panels.
+- [ ] Command palette; confirmation dialogs; menus; tooltips; global toast host.
+- [ ] All forms/buttons adopt foundation controls; verify keyboard and loading states.
+- [ ] Air quality structured display; sunrise/sunset honest numbers; travel form.
+- [ ] Stale chips; source note once; lighter widget chrome; violet primary buttons.
+- [ ] Real-number-only data visuals; no decorative/fake charts.
+- [ ] Mobile reading order, no nested scrolling, bounded previews, refresh stability.
+- [ ] Hardware frame-time profiling.
 
 ## Widget ownership
 
 Pilot widget visuals are checked below; remaining IDs still await adoption of `docs/ui-widget-patterns.md`.
 
-- [ ] `agent.audit` — owned by the widgets session.
-- [ ] `agent.brief` — owned by the widgets session.
-- [ ] `agent.delegated` — owned by the widgets session.
-- [ ] `agent.errors` — owned by the widgets session.
-- [x] `agent.feed` — pilot visuals; see `ui-widget-patterns.md`.
-- [ ] `agent.jobs` — owned by the widgets session.
-- [ ] `agent.knows` — owned by the widgets session.
-- [ ] `agent.next` — owned by the widgets session.
-- [ ] `agent.prompts` — owned by the widgets session.
-- [ ] `agent.research` — owned by the widgets session.
-- [ ] `agent.rules` — owned by the widgets session.
-- [ ] `agent.running` — owned by the widgets session.
-- [ ] `agent.skills` — owned by the widgets session.
-- [ ] `agent.suggest` — owned by the widgets session.
-- [ ] `agent.usage` — owned by the widgets session.
-- [ ] `agent.watchers` — owned by the widgets session.
-- [ ] `agent.weekly` — owned by the widgets session.
-- [ ] `comm.contacts` — owned by the widgets session.
-- [ ] `comm.meeting` — owned by the widgets session.
-- [ ] `comm.newsletters` — owned by the widgets session.
-- [ ] `comm.reachout` — owned by the widgets session.
-- [ ] `comm.schedule-send` — owned by the widgets session.
-- [ ] `comm.templates` — owned by the widgets session.
-- [ ] `comm.thread-summary` — owned by the widgets session.
-- [ ] `comm.tone` — owned by the widgets session.
-- [ ] `comm.unread` — owned by the widgets session.
-- [ ] `dash.gallery` — owned by the widgets session.
-- [ ] `dash.modes` — owned by the widgets session.
-- [ ] `dash.palette` — owned by the widgets session.
-- [ ] `dash.phone` — owned by the widgets session.
-- [ ] `dash.pin` — owned by the widgets session.
-- [ ] `dash.quiet` — owned by the widgets session.
-- [ ] `dash.shortcuts` — owned by the widgets session.
-- [ ] `dash.skill-widgets` — owned by the widgets session.
-- [ ] `dash.sync` — owned by the widgets session.
-- [ ] `dash.theme-mode` — owned by the widgets session.
-- [ ] `dev.appeal` — owned by the widgets session.
-- [ ] `dev.backup` — owned by the widgets session.
-- [ ] `dev.ci` — owned by the widgets session.
-- [ ] `dev.issues` — owned by the widgets session.
-- [ ] `dev.prs` — owned by the widgets session.
-- [ ] `dev.recovery` — owned by the widgets session.
-- [ ] `dev.release` — owned by the widgets session.
-- [ ] `dev.security` — owned by the widgets session.
-- [ ] `dev.services` — owned by the widgets session.
-- [ ] `dev.streak` — owned by the widgets session.
-- [ ] `dev.team` — owned by the widgets session.
-- [ ] `dev.unpushed` — owned by the widgets session.
-- [ ] `feed.arxiv` — owned by the widgets session.
-- [ ] `feed.events` — owned by the widgets session.
-- [ ] `feed.markets` — owned by the widgets session.
-- [ ] `feed.news` — owned by the widgets session.
-- [ ] `feed.podcasts` — owned by the widgets session.
-- [ ] `feed.releases` — owned by the widgets session.
-- [ ] `feed.rss` — owned by the widgets session.
-- [ ] `feed.social` — owned by the widgets session.
-- [ ] `feed.sports` — owned by the widgets session.
-- [ ] `feed.watchlater` — owned by the widgets session.
-- [ ] `glance.air` — owned by the widgets session.
-- [x] `glance.clock` — pilot visuals; see `ui-widget-patterns.md`.
-- [ ] `glance.listen-stats` — owned by the widgets session.
-- [x] `glance.music` — local desktop player, gated transport controls and responsive widget content.
-- [ ] `glance.next-event` — owned by the widgets session.
-- [ ] `glance.sun` — owned by the widgets session.
-- [ ] `glance.travel` — owned by the widgets session.
-- [ ] `glance.weather` — owned by the widgets session.
-- [ ] `lib.ask` — owned by the widgets session.
-- [ ] `lib.capture` — owned by the widgets session.
-- [ ] `lib.collections` — owned by the widgets session.
-- [ ] `lib.daily` — owned by the widgets session.
-- [ ] `lib.dupes` — owned by the widgets session.
-- [ ] `lib.flashcards` — owned by the widgets session.
-- [ ] `lib.graph` — owned by the widgets session.
-- [ ] `lib.highlights` — owned by the widgets session.
-- [ ] `lib.inbox` — owned by the widgets session.
-- [ ] `lib.readlater` — owned by the widgets session.
-- [ ] `lib.recent` — owned by the widgets session.
-- [ ] `lib.resurface` — owned by the widgets session.
-- [ ] `lib.search` — owned by the widgets session.
-- [ ] `life.bills` — owned by the widgets session.
-- [ ] `life.expenses` — owned by the widgets session.
-- [ ] `life.health` — owned by the widgets session.
-- [ ] `life.meals` — owned by the widgets session.
-- [ ] `life.mood` — owned by the widgets session.
-- [ ] `life.packages` — owned by the widgets session.
-- [ ] `life.screen` — owned by the widgets session.
-- [ ] `life.shopping` — owned by the widgets session.
-- [ ] `life.trips` — owned by the widgets session.
-- [ ] `need.approvals` — owned by the widgets session.
-- [ ] `need.decisions` — owned by the widgets session.
-- [ ] `need.drafts` — owned by the widgets session.
-- [x] `need.inbox` — pilot visuals; see `ui-widget-patterns.md`.
-- [ ] `need.lor-slack` — owned by the widgets session.
-- [ ] `need.lor-social` — owned by the widgets session.
-- [ ] `need.mentions` — owned by the widgets session.
-- [ ] `need.overdue` — owned by the widgets session.
-- [ ] `need.snoozed` — owned by the widgets session.
-- [ ] `need.waiting` — owned by the widgets session.
-- [ ] `pro.anomaly` — owned by the widgets session.
-- [ ] `pro.away` — owned by the widgets session.
-- [ ] `pro.context` — owned by the widgets session.
-- [ ] `pro.nudges` — owned by the widgets session.
-- [ ] `pro.standing` — owned by the widgets session.
-- [ ] `pro.triage` — owned by the widgets session.
-- [ ] `stu.assignments` — owned by the widgets session.
-- [ ] `stu.exams` — owned by the widgets session.
-- [ ] `stu.papers` — owned by the widgets session.
-- [ ] `stu.planner` — owned by the widgets session.
-- [ ] `stu.syllabus` — owned by the widgets session.
-- [ ] `stu.timetable` — owned by the widgets session.
-- [ ] `sys.backups` — owned by the widgets session.
-- [ ] `sys.connectors` — owned by the widgets session.
-- [ ] `sys.logs` — owned by the widgets session.
-- [ ] `sys.model` — owned by the widgets session.
-- [ ] `sys.notify` — owned by the widgets session.
-- [ ] `sys.phones` — owned by the widgets session.
-- [ ] `sys.privacy` — owned by the widgets session.
-- [ ] `sys.resources` — owned by the widgets session.
-- [ ] `sys.sync` — owned by the widgets session.
-- [ ] `sys.updates` — owned by the widgets session.
-- [ ] `sys.vault` — owned by the widgets session.
-- [ ] `task.agenda` — owned by the widgets session.
-- [ ] `task.backlog` — owned by the widgets session.
-- [ ] `task.conflicts` — owned by the widgets session.
-- [ ] `task.deadlines` — owned by the widgets session.
-- [ ] `task.focus` — owned by the widgets session.
-- [ ] `task.free` — owned by the widgets session.
-- [ ] `task.goals` — owned by the widgets session.
-- [ ] `task.habits` — owned by the widgets session.
-- [ ] `task.kanban` — owned by the widgets session.
-- [ ] `task.plan` — owned by the widgets session.
-- [ ] `task.reminders` — owned by the widgets session.
-- [ ] `task.risk` — owned by the widgets session.
-- [x] `task.today` — pilot visuals; see `ui-widget-patterns.md`.
+- [ ] `agent.audit` — bento adoption pending.
+- [ ] `agent.brief` — bento adoption pending.
+- [ ] `agent.delegated` — bento adoption pending.
+- [ ] `agent.errors` — bento adoption pending.
+- [ ] `agent.feed` — bento adoption pending.
+- [ ] `agent.jobs` — bento adoption pending.
+- [ ] `agent.knows` — bento adoption pending.
+- [ ] `agent.next` — bento adoption pending.
+- [ ] `agent.prompts` — bento adoption pending.
+- [ ] `agent.research` — bento adoption pending.
+- [ ] `agent.rules` — bento adoption pending.
+- [ ] `agent.running` — bento adoption pending.
+- [ ] `agent.skills` — bento adoption pending.
+- [ ] `agent.suggest` — bento adoption pending.
+- [ ] `agent.usage` — bento adoption pending.
+- [ ] `agent.watchers` — bento adoption pending.
+- [ ] `agent.weekly` — bento adoption pending.
+- [ ] `comm.contacts` — bento adoption pending.
+- [ ] `comm.meeting` — bento adoption pending.
+- [ ] `comm.newsletters` — bento adoption pending.
+- [ ] `comm.reachout` — bento adoption pending.
+- [ ] `comm.schedule-send` — bento adoption pending.
+- [ ] `comm.templates` — bento adoption pending.
+- [ ] `comm.thread-summary` — bento adoption pending.
+- [ ] `comm.tone` — bento adoption pending.
+- [ ] `comm.unread` — bento adoption pending.
+- [ ] `dash.gallery` — bento adoption pending.
+- [ ] `dash.modes` — bento adoption pending.
+- [ ] `dash.palette` — bento adoption pending.
+- [ ] `dash.phone` — bento adoption pending.
+- [ ] `dash.pin` — bento adoption pending.
+- [ ] `dash.quiet` — bento adoption pending.
+- [ ] `dash.shortcuts` — bento adoption pending.
+- [ ] `dash.skill-widgets` — bento adoption pending.
+- [ ] `dash.sync` — bento adoption pending.
+- [ ] `dash.theme-mode` — bento adoption pending.
+- [ ] `dev.appeal` — bento adoption pending.
+- [ ] `dev.backup` — bento adoption pending.
+- [ ] `dev.ci` — bento adoption pending.
+- [ ] `dev.issues` — bento adoption pending.
+- [ ] `dev.prs` — bento adoption pending.
+- [ ] `dev.recovery` — bento adoption pending.
+- [ ] `dev.release` — bento adoption pending.
+- [ ] `dev.security` — bento adoption pending.
+- [ ] `dev.services` — bento adoption pending.
+- [ ] `dev.streak` — bento adoption pending.
+- [ ] `dev.team` — bento adoption pending.
+- [ ] `dev.unpushed` — bento adoption pending.
+- [ ] `feed.arxiv` — bento adoption pending.
+- [ ] `feed.events` — bento adoption pending.
+- [ ] `feed.markets` — bento adoption pending.
+- [ ] `feed.news` — bento adoption pending.
+- [ ] `feed.podcasts` — bento adoption pending.
+- [ ] `feed.releases` — bento adoption pending.
+- [ ] `feed.rss` — bento adoption pending.
+- [ ] `feed.social` — bento adoption pending.
+- [ ] `feed.sports` — bento adoption pending.
+- [ ] `feed.watchlater` — bento adoption pending.
+- [ ] `glance.air` — bento adoption pending.
+- [ ] `glance.clock` — bento adoption pending.
+- [ ] `glance.listen-stats` — bento adoption pending.
+- [ ] `glance.music` — bento adoption pending.
+- [ ] `glance.next-event` — bento adoption pending.
+- [ ] `glance.sun` — bento adoption pending.
+- [ ] `glance.travel` — bento adoption pending.
+- [ ] `glance.weather` — bento adoption pending.
+- [ ] `lib.ask` — bento adoption pending.
+- [ ] `lib.capture` — bento adoption pending.
+- [ ] `lib.collections` — bento adoption pending.
+- [ ] `lib.daily` — bento adoption pending.
+- [ ] `lib.dupes` — bento adoption pending.
+- [ ] `lib.flashcards` — bento adoption pending.
+- [ ] `lib.graph` — bento adoption pending.
+- [ ] `lib.highlights` — bento adoption pending.
+- [ ] `lib.inbox` — bento adoption pending.
+- [ ] `lib.readlater` — bento adoption pending.
+- [ ] `lib.recent` — bento adoption pending.
+- [ ] `lib.resurface` — bento adoption pending.
+- [ ] `lib.search` — bento adoption pending.
+- [ ] `life.bills` — bento adoption pending.
+- [ ] `life.expenses` — bento adoption pending.
+- [ ] `life.health` — bento adoption pending.
+- [ ] `life.meals` — bento adoption pending.
+- [ ] `life.mood` — bento adoption pending.
+- [ ] `life.packages` — bento adoption pending.
+- [ ] `life.screen` — bento adoption pending.
+- [ ] `life.shopping` — bento adoption pending.
+- [ ] `life.trips` — bento adoption pending.
+- [ ] `need.approvals` — bento adoption pending.
+- [ ] `need.decisions` — bento adoption pending.
+- [ ] `need.drafts` — bento adoption pending.
+- [ ] `need.inbox` — bento adoption pending.
+- [ ] `need.lor-slack` — bento adoption pending.
+- [ ] `need.lor-social` — bento adoption pending.
+- [ ] `need.mentions` — bento adoption pending.
+- [ ] `need.overdue` — bento adoption pending.
+- [ ] `need.snoozed` — bento adoption pending.
+- [ ] `need.waiting` — bento adoption pending.
+- [ ] `pro.anomaly` — bento adoption pending.
+- [ ] `pro.away` — bento adoption pending.
+- [ ] `pro.context` — bento adoption pending.
+- [ ] `pro.nudges` — bento adoption pending.
+- [ ] `pro.standing` — bento adoption pending.
+- [ ] `pro.triage` — bento adoption pending.
+- [ ] `stu.assignments` — bento adoption pending.
+- [ ] `stu.exams` — bento adoption pending.
+- [ ] `stu.papers` — bento adoption pending.
+- [ ] `stu.planner` — bento adoption pending.
+- [ ] `stu.syllabus` — bento adoption pending.
+- [ ] `stu.timetable` — bento adoption pending.
+- [ ] `sys.backups` — bento adoption pending.
+- [ ] `sys.connectors` — bento adoption pending.
+- [ ] `sys.logs` — bento adoption pending.
+- [ ] `sys.model` — bento adoption pending.
+- [ ] `sys.notify` — bento adoption pending.
+- [ ] `sys.phones` — bento adoption pending.
+- [ ] `sys.privacy` — bento adoption pending.
+- [ ] `sys.resources` — bento adoption pending.
+- [ ] `sys.sync` — bento adoption pending.
+- [ ] `sys.updates` — bento adoption pending.
+- [ ] `sys.vault` — bento adoption pending.
+- [ ] `task.agenda` — bento adoption pending.
+- [ ] `task.backlog` — bento adoption pending.
+- [ ] `task.conflicts` — bento adoption pending.
+- [ ] `task.deadlines` — bento adoption pending.
+- [ ] `task.focus` — bento adoption pending.
+- [ ] `task.free` — bento adoption pending.
+- [ ] `task.goals` — bento adoption pending.
+- [ ] `task.habits` — bento adoption pending.
+- [ ] `task.kanban` — bento adoption pending.
+- [ ] `task.plan` — bento adoption pending.
+- [ ] `task.reminders` — bento adoption pending.
+- [ ] `task.risk` — bento adoption pending.
+- [ ] `task.today` — bento adoption pending.

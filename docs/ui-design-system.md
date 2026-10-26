@@ -1,255 +1,59 @@
-# Home UI design system
+# Amethyst bento foundation — session 1
 
-Scope: UI shell and controls on `ui-redesign`. Existing navigation remains the only app navigation. Widget content and card primitives belong to the widgets session. Never infer connector data from reference images.
+This is the current design target; it supersedes earlier shell styling notes and the visual values in home-ui-brief.md. Implementation lives in `frontend/src/components/ui/bento/`. Home and widget content are deliberately not migrated in this session. Wrap future surfaces in `bento-foundation` and import the shared primitives. `/dev/ui` is a development-only route, loaded outside the app store so sample controls never call connectors or write user data. All showcase numbers are explicitly labelled samples.
 
-## Structure
+## Composition
 
-Centered canvas, maximum 1480 px including padding. Today has its own frame, separate from the legacy widget scope. Header has date above greeting, capture trigger, Edit layout, Add widget, Home settings. Glance is four equal compact slots; two per row below 1024 px. Below it is a dense twelve-column grid. Needs you and agent widgets use the seven-column main lane; Today, Dev, Library and Feed use the five-column side lane. Large widgets span all twelve columns. Needs you is one combined ranked region; widget order remains saved by the existing layout API. No extra timer, gauge, calendar placeholder, or navigation is introduced.
+Soft neutral canvas, rounded rectangular tiles, flat light/dark/lavender color blocks. One primary value or visual per tile. Titles sit at the top; large values occupy the center or bottom; supporting metadata is quiet. No decorative imagery, gradients, glow, glass, emoji, or charts without numeric input. Circular badges are 40 px with 20 px icons. SplitTile divides two paired items with a subtle vertical rule. Chip is a small pill. Only light tiles cast a soft shadow.
 
-The server already supplies Morning: glance.clock, glance.weather, glance.next-event, glance.music, need.inbox, need.drafts, need.waiting, need.mentions, need.overdue, agent.brief, agent.feed, task.today, dev.prs, lib.resurface, feed.news. Preserve explicit saved layouts, including empty ones. System widgets stay in Home settings.
+## Tokens
 
-## Exact tokens
+Fonts: bundled Space Grotesk for titles and numerals, Inter for body and controls, JetBrains Mono for labels and timestamps. `--tile-title`: 600 16px/22px; `--tile-number`: 600 56px/1, tracking -.04em; body: 400 14px/20px; label: 400 11px/16px. Numerals reduce to 40 px below a 240 px content container. Existing control type is 500 13px/20px. Spacing scale: 4, 8, 12, 16, 24, 32 px (`--tile-space-1/2/3/4/6/8`). Tile radius 24 px, control radius 8 px, chip/segmented radius 999 px. Tile padding 24 px, 16 px below 390 px container width. Equal grid gutters 16 px. Light shadow: `0 4px 16px rgb(25 23 31 / .06)`; dark/accent shadow: none.
 
-Fonts are bundled: Space Grotesk headings, Inter controls/body, JetBrains Mono dates/shortcuts. Type: greeting 26/32 weight 600 (24/30 below 768 px), section 14/20 weight 600, body/control 13/20 weight 500, description 12/18 weight 400, metadata/keyboard 11/16 weight 400. Greeting tracking -0.035em; other tracking normal.
+Paper is the baseline. All palettes have three tones with shared readable foregrounds. Nine selectable modes means eight named palettes plus System; System follows Paper for light OS mode and Graphite for dark OS mode. Existing app theme colors outside the foundation are unchanged.
 
-Spacing: 4, 8, 12, 16, 24, 32 px. Grid gutter 16 px everywhere. Canvas padding 32 px at 1024+, 24 px at 768–1023, 16 px below 768. Control radius 8 px, panel 12 px, checkbox/keyboard 4 px. Borders 1 px; focus outline 2 px with 2 px offset. Icons use the existing Icon adapter, 14–18 px in controls; no emoji icons. No decorative shadows, gradients, glow or blur in the shell.
+| Mode | Canvas | Light | Dark | Accent |
+|---|---|---|---|---|
+| Paper | #f1f0f3 | #ffffff | #211e29 | #ded2fa |
+| Graphite | #17151c | #eeeaf4 | #27232e | #c9b4ef |
+| Ink | #08080b | #f5f3f9 | #1b1921 | #d7c1ff |
+| Nocturne | #111326 | #eef0fa | #23263e | #c9c2ff |
+| Nvidia | #111214 | #eff0f3 | #242429 | #d0bbf4 |
+| Sand | #eae6e2 | #fffcf8 | #302832 | #dfcdef |
+| Claude | #efebe4 | #fffdf8 | #302a32 | #e2cfee |
+| Cursor | #eeede7 | #fffffb | #29282e | #d9d0f3 |
+| System | OS resolved | OS resolved | OS resolved | OS resolved |
 
-| Viewport | S span | M span | L span | Glance columns |
-|---|---:|---:|---:|---:|
-| 1440+ | 3 | main 7 / side 5; edit 6 | 12 | 4 |
-| 1024–1439 | 4 | main 7 / side 5; edit 6 | 12 | 4 |
-| 768–1023 | 6 | 12 | 12 | 2 |
-| 360–767 | 12 | 12 | 12 | 2 |
+Light foreground/muted: #19171f / #655f70. Dark: #faf8ff / #c0b8cd. Accent: #2c164e / #624881. Primary action: #7132d6, hover #5b25b1, white text, including Nvidia. Tones use `--tile-light/dark/accent`, corresponding `-text/-muted` variables, and tile-local `--tile-bg/fg/muted`. Dividers mix currentColor 12–15% with transparent; badges/chips mix 9%. Chart tracks use currentColor at .12 opacity. Semantic error colors still use existing theme status tokens with text labels.
 
-The grid also observes its own available width: S uses 4 columns below 1120 px of canvas, 6 below 900 px; both main and side lanes use 12 below 900 px; all sizes use 12 below 600 px. This preserves widths beside the existing navigation.
+## Grid contract
 
-Slots establish `container: widget / inline-size`. Card content must implement its own width adaptation in the widgets session: secondary tile text hidden below 240 px, second row line shown above 360 px, trailing actions moved into the menu below 320 px. These content rules are a handoff, not implemented by shell selectors. Cards must use their five-row preview and Show all drawer, not nested scrolling. Loading/data-refresh height guarantees likewise require widget-owned content bounds.
+BentoGrid owns an inline-size container and a twelve-column dense CSS grid. Equal width tracks use minmax(0,1fr); dense placement backfills available holes without adding empty filler tiles. DOM order remains reading and keyboard order; callers should keep important controls in logical order. A final incomplete row is allowed. Rows are minimum 160 px (152 px below viewport 1440), growing for real content rather than clipping or adding internal scrollbars.
 
-## Themes
+| Available container width | S | M | L | wide | tall |
+|---|---|---|---|---|---|
+| 1440+ | 3×1 | 6×2 | 6×3 | 6×1 | 3×3 |
+| 1024–1439 | 4×1 | 6×2 | 6×3 | 8×1 | 4×3 |
+| 768–1023 | 6×1 | 6×2 | 12×3 | 12×1 | 6×3 |
+| 390–767 | 12×1 | 12×1 | 12×1 | 12×1 | 12×1 |
+| below 390 | 12×1 | 12×1 | 12×1 | 12×1 | 12×1 |
 
-Nine selectable modes: system plus eight palettes. System resolves to graphite in dark OS mode and paper in light OS mode. The table below records the existing exact palette values. Shell tokens `--ui-bg`, `--ui-panel`, `--ui-raised`, `--ui-text`, `--ui-muted`, `--ui-border`, `--ui-accent`, `--ui-on-accent` alias canvas-deep, canvas, surface, text, text-dim, hairline, accent, on-accent at the root in light mode. Dark mode uses surface for ui-panel and surface-2 for ui-raised, keeping a visible step above the page canvas. Home must not force light or dark colors independently of this mapping.
+Spans are columns × rows. Container breakpoints account for app navigation and embedded surfaces, not just the viewport. Each Tile establishes a separate `tile` container for its contents. Existing Home grid remains unchanged until its session. Manifest and Position now accept `wide` and `tall`; no existing widget advertises these sizes yet, so layout validation continues to enforce each manifest's allowed sizes.
 
-### graphite
+## Primitives and ownership
 
-| Token | Value |
-|---|---|
-| `--canvas-deep` | `#080706` |
-| `--canvas` | `#0c0a09` |
-| `--surface` | `#1c1917` |
-| `--surface-2` | `#292524` |
-| `--surface-3` | `#181615` |
-| `--text` | `#fafaf9` |
-| `--text-dim` | `#a8a29e` |
-| `--text-faint` | `#78716c` |
-| `--hairline` | `rgba(255, 255, 255, 0.08)` |
-| `--hairline-strong` | `rgba(255, 255, 255, 0.16)` |
-| `--accent` | `#8b5cf6` |
-| `--accent-hover` | `#9d71f7` |
-| `--on-accent` | `#ffffff` |
-| `--live` | `#2fc888` |
-| `--confirm` | `#e9b451` |
-| `--stop` | `#ff6b7d` |
-| `--on-stop` | `#1b0c0e` |
-| `--scrim` | `rgba(0, 0, 0, 0.65)` |
+Exports: BentoGrid; Tile(tone,size); TileHeader(title); Stat(value,label,unit); Ring(value,max,label); Gauge(value,max,label); Sparkline(values,label); SegmentedBar(value,max,label,segments); Chip; Row(trailing); IconBadge(label); Initials(name); SplitTile; Skeleton; EmptyState(message,action); ConnectTile(source,onConnect); ErrorState(message,onRetry); Toast(children,action).
 
-### ink
+Ring and gauge clamp geometry to 0–max while their accessible labels preserve the supplied reading. Invalid/missing values and nonpositive max render explicit empty states. Sparkline supports constant, negative and single-value series; invalid series render no graph. SegmentedBar uses a bounded 1–50 segment count (default 10). Numeric visuals accept numbers only; never coerce missing data to zero. Consumers must supply meaningful labels. Skeleton is static and labelled; refresh never fabricates numbers. Toast is a status announcement; use the existing Sonner host for application-level timed notifications.
 
-| Token | Value |
-|---|---|
-| `--canvas-deep` | `#000000` |
-| `--canvas` | `#000000` |
-| `--surface` | `#0a0a0a` |
-| `--surface-2` | `#121212` |
-| `--surface-3` | `#181818` |
-| `--text` | `#ffffff` |
-| `--text-dim` | `#a1a1aa` |
-| `--text-faint` | `#71717a` |
-| `--hairline` | `#212327` |
-| `--hairline-strong` | `#3a3a3f` |
-| `--accent` | `#a855f7` |
-| `--accent-hover` | `#b975f9` |
-| `--on-accent` | `#ffffff` |
-| `--live` | `#30d088` |
-| `--confirm` | `#edb84a` |
-| `--stop` | `#ff6878` |
-| `--on-stop` | `#1b0c0e` |
-| `--scrim` | `rgba(0, 0, 0, 0.75)` |
+## Controls
 
-### nocturne
+Reuse AppButton, NativeSelect, Base UI Input/Checkbox/Menu/Tooltip, existing Switch and Kbd. Foundation exports Button, IconButton(label), Input, Select, Checkbox, Switch, Segmented, Menu, Tooltip, Kbd. Segmented uses Base UI radio-group semantics, roving focus and arrow keys. All controls require visible labels or accessible names. Native inputs/selects retain native keyboard behavior. Menus retain Escape and focus restoration. Tooltip content is supplemental, never the only accessible name. Kbd and tooltip content are display-only; they do not have fake loading/pressed states.
 
-| Token | Value |
-|---|---|
-| `--canvas-deep` | `#000014` |
-| `--canvas` | `#010120` |
-| `--surface` | `#0a0d2a` |
-| `--surface-2` | `#141838` |
-| `--surface-3` | `#06081c` |
-| `--text` | `#f1f5ff` |
-| `--text-dim` | `#94a9c4` |
-| `--text-faint` | `#657b98` |
-| `--hairline` | `rgba(241, 245, 255, 0.09)` |
-| `--hairline-strong` | `rgba(241, 245, 255, 0.18)` |
-| `--accent` | `#635bff` |
-| `--accent-hover` | `#7a73ff` |
-| `--on-accent` | `#ffffff` |
-| `--live` | `#00d66f` |
-| `--confirm` | `#e8b048` |
-| `--stop` | `#f06878` |
-| `--on-stop` | `#1b0c0e` |
-| `--scrim` | `rgba(0, 0, 0, 0.7)` |
+Button variants: primary, secondary, ghost, destructive. Heights: small 28, medium 36, large 44 px; icon 36 px square. Loading disables actions and exposes aria-busy; inputs/selects/checks/switches/segments/menu triggers also support loading and disabled. Disabled opacity .45. Hover strengthens the border; primary fills violet-hover; press translates 1 px. Focus-visible is a 2 px accent outline with 2 px offset. Checked and selected states use accent fill. Errors use aria-invalid and a meaningful accompanying label supplied by the caller. Native Select options remain OS-rendered.
 
-### nvidia
+Motion tokens: fast 150 ms, normal 200 ms, slow 250 ms; easing cubic-bezier(.2,.8,.2,1). Controls transition color and transform. No automatic data-refresh layout animation. No springs in the foundation; reserve springs for future drag interactions only. Reduced motion sets all foundation durations to 0 ms. No skeleton shimmer.
 
-| Token | Value |
-|---|---|
-| `--canvas-deep` | `#000000` |
-| `--canvas` | `#000000` |
-| `--surface` | `#111111` |
-| `--surface-2` | `#1a1a1a` |
-| `--surface-3` | `#0a0a0a` |
-| `--text` | `#ffffff` |
-| `--text-dim` | `#a7a7a7` |
-| `--text-faint` | `#757575` |
-| `--hairline` | `#2b2b2b` |
-| `--hairline-strong` | `#5e5e5e` |
-| `--accent` | `#76b900` |
-| `--accent-hover` | `#8dd405` |
-| `--on-accent` | `#000000` |
-| `--live` | `#76b900` |
-| `--confirm` | `#df6500` |
-| `--stop` | `#e52020` |
-| `--on-stop` | `#ffffff` |
-| `--scrim` | `rgba(0, 0, 0, 0.7)` |
+## Enforcement and proof
 
-### paper
-
-| Token | Value |
-|---|---|
-| `--canvas-deep` | `#f6f6f9` |
-| `--canvas` | `#ffffff` |
-| `--surface` | `#f2f2f6` |
-| `--surface-2` | `#ededf2` |
-| `--surface-3` | `#ebebf1` |
-| `--text` | `#101114` |
-| `--text-dim` | `#686b82` |
-| `--text-faint` | `#9497a9` |
-| `--hairline` | `#dedee5` |
-| `--hairline-strong` | `#c5c5d1` |
-| `--accent` | `#7132f5` |
-| `--accent-hover` | `#5b1ecf` |
-| `--on-accent` | `#ffffff` |
-| `--live` | `#149e61` |
-| `--confirm` | `#d4940a` |
-| `--stop` | `#d9363e` |
-| `--on-stop` | `#ffffff` |
-| `--scrim` | `rgba(0, 0, 0, 0.35)` |
-
-### sand
-
-| Token | Value |
-|---|---|
-| `--canvas-deep` | `#eae7e5` |
-| `--canvas` | `#f5f5f5` |
-| `--surface` | `#f0efed` |
-| `--surface-2` | `#e7e5e4` |
-| `--surface-3` | `#dedad6` |
-| `--text` | `#0c0a09` |
-| `--text-dim` | `#777169` |
-| `--text-faint` | `#a8a29e` |
-| `--hairline` | `#e7e5e4` |
-| `--hairline-strong` | `#d6d3d1` |
-| `--accent` | `#d97706` |
-| `--accent-hover` | `#b45309` |
-| `--on-accent` | `#ffffff` |
-| `--live` | `#16a34a` |
-| `--confirm` | `#d97706` |
-| `--stop` | `#dc2626` |
-| `--on-stop` | `#ffffff` |
-| `--scrim` | `rgba(0, 0, 0, 0.35)` |
-
-### claude
-
-| Token | Value |
-|---|---|
-| `--canvas-deep` | `#f3f1ea` |
-| `--canvas` | `#faf9f5` |
-| `--surface` | `#f5f0e8` |
-| `--surface-2` | `#efe9de` |
-| `--surface-3` | `#e8e0d2` |
-| `--text` | `#141413` |
-| `--text-dim` | `#6c6a64` |
-| `--text-faint` | `#8e8b82` |
-| `--hairline` | `#e6dfd8` |
-| `--hairline-strong` | `#cfcac0` |
-| `--accent` | `#cc785c` |
-| `--accent-hover` | `#a9583e` |
-| `--on-accent` | `#ffffff` |
-| `--live` | `#5db872` |
-| `--confirm` | `#d4a017` |
-| `--stop` | `#c64545` |
-| `--on-stop` | `#ffffff` |
-| `--scrim` | `rgba(20, 20, 19, 0.35)` |
-
-### cursor
-
-| Token | Value |
-|---|---|
-| `--canvas-deep` | `#efeee8` |
-| `--canvas` | `#f7f7f4` |
-| `--surface` | `#ffffff` |
-| `--surface-2` | `#fafaf7` |
-| `--surface-3` | `#f0efe8` |
-| `--text` | `#26251e` |
-| `--text-dim` | `#5a5852` |
-| `--text-faint` | `#807d72` |
-| `--hairline` | `#e6e5e0` |
-| `--hairline-strong` | `#cfcdc4` |
-| `--accent` | `#f54e00` |
-| `--accent-hover` | `#d04200` |
-| `--on-accent` | `#ffffff` |
-| `--live` | `#1f8a65` |
-| `--confirm` | `#c08532` |
-| `--stop` | `#cf2d56` |
-| `--on-stop` | `#ffffff` |
-| `--scrim` | `rgba(38, 37, 30, 0.35)` |
-
-## Controls and interactions
-
-Use AppButton for Home controls; preserve the existing Base UI components for Input, Checkbox, Tabs, Menu (dropdown-menu), Dialog, Select and Tooltip. NativeSelect is the native size selector. Switch.jsx retains the existing controlled on/onChange API. Kbd.jsx is display-only. Toast uses the existing Sonner host and action API.
-
-| Control | Appearance and behavior |
-|---|---|
-| Button | Primary accent fill/on-accent text; secondary raised fill/border; ghost transparent; destructive stop fill/on-stop text. Sizes small 28 px, medium 36 px, large 44 px; icon 36 px square with accessible name. Hover strengthens border; primary uses accent-hover. Press translates 1 px. Disabled opacity .45 and no action. Loading disables, sets aria-busy and retains label/width. |
-| Input / Select | Raised fill, 1 px border, 8 px radius, 36 px minimum; Input labels supplied by caller; invalid state retained from Base UI. NativeSelect loading sets aria-busy and disables. Native keyboard selection; Base UI Select keeps its popup keyboard semantics. |
-| Checkbox / Switch | Accent fill for checked/on; visible label or aria-label required; Space toggles; disabled .45 opacity. |
-| Tabs | Surface-2 track, surface-3 selected tab; Base UI roving focus and arrow keys; disabled tabs skipped. |
-| Menu | Bordered opaque panel; highlighted item surface-3; Base UI keyboard navigation, Escape and focus restoration. |
-| Drawer | Right edge with 12 px outside margin and 12 px radius; width min(520 px, viewport minus 24 px), height viewport minus 24 px; catalog width up to 760 px. At mobile widths, full viewport with no outer margin or radius. Header/body padding 24 px, 16 px on mobile; native modal dialog traps focus, Escape closes, restores opener; only drawer itself scrolls. |
-| Dialog | Existing Base UI/modal implementation; opaque themed panel, 12 px radius, border; retain focus trap, Esc, labels and destructive confirmation behavior. |
-| Tooltip | Opaque bordered panel; existing hover/focus and Escape semantics; never the only accessible label. |
-| Toast | Existing Sonner region, themed border/panel; layout change uses a single replaceable toast with Undo. Save errors remain in the Home live region. |
-| Kbd | Mono 11/16, 2×4 px padding, surface-2, 1 px border, 4 px radius; no interaction state. |
-
-All interactive controls use focus-visible outline, disabled behavior and pressed feedback. Loading applies to asynchronous actions, not display-only Kbd or tooltip text; do not fabricate asynchronous behavior for a checkbox or tab.
-
-Edit mode exposes drag and size controls. Arrow keys move/resize by a step; at mobile widths use explicit up/down controls. Pointer moves reflow the actual grid; Escape/cancel restores the pre-gesture layout. Save is serialized through the existing layout API, with undo captured before each gesture. Collapsing preserves mounted widget content. Moving changes outer placement without changing the memoized widget view props/context; periodic clock/data updates remain independent.
-
-Motion: 150 ms controls, 200 ms layout/drawer, cubic-bezier(.2,.8,.2,1). Layout uses transform-only Web Animations. Reduced-motion disables layout animation and drawer slide. 60 fps is a hardware profiling target, not established by functional tests.
-
-Palette: existing command/search behavior and navigation preserved, opaque themed surface and shared buttons. System widgets remain reachable through existing search results.
-
-## Enforcement
-
-`frontend/lint/ui-controls.js` defines warning `amethyst-ui/no-raw-controls` for JSX button/input/select/textarea outside the shared UI/base/modal/notification primitive directories and dashboard primitives. This is advisory; it does not change runtime behavior. Never change widget data contracts to satisfy UI rules.
-
-## Today reference revamp — 2026-10-26
-
-The compact date/greeting header keeps Edit layout, Add widget and an icon-only Home settings action on the right. A bordered capture trigger sits below with the keyboard shortcut. The frame has no extra navigation, duplicate section labels or permanent control rows above widgets. Collapse appears on hover/focus. In edit mode a single instruction bar and card-level movement/size controls become visible; non-editing card content stays under its widget owner's stylesheet.
-
-Add widget uses a bordered, opaque side sheet with a fixed heading and search field. A 164 px category column sits beside the scrollable results. Rows have a source-category icon, title, one-line description, source/sizes and an Add/Added/Open action. Mobile replaces the category column with a labelled Select. The footer reports the actual Home widget count. Home system tools open their settings panel instead of being added as content.
-
-Home settings has four keyboard-accessible tabs: Refresh status, Quiet hours, Keyboard shortcuts, Widget gallery. Each panel uses existing widget behavior; hidden panels remain outside the tab order. The gallery reuses the same catalog surface. Search-field Escape closes the sheet immediately, including when the browser would otherwise consume Escape to clear native search input.
-
-The root Today frame and drawers no longer use the legacy `widget-home` class. That class is confined to existing widget bodies, where theme aliases resolve at the root. This keeps old widget styling from changing the header, action buttons, catalog or drawer dimensions.
-
-Grid packing uses 4 px auto rows and the shared 16 px gutter. A ResizeObserver measures natural outer slot heights and assigns row spans using ceil((height + gutter) / (row + gutter)); it reads the batch before writing spans. This avoids stretching a short card to match a tall neighbor and keeps placement in the existing twelve-column grid. Widget content bounds remain widget-owned.
+Existing `amethyst-ui/no-raw-controls` Oxlint warning covers JSX button/input/select/textarea outside primitive directories. Shared bento primitives live under the existing exemption. `node frontend/tests/ui-control-lint.mjs` verifies all four warnings. `frontend/tests/bento-foundation.mjs` checks nine modes across six widths, overflow, radius/gutters, real keyboard interactions, disabled/loading and reduced motion. No screenshots are required; `/dev/ui` permits direct inspection. Hardware frame timing is not established by these tests.
