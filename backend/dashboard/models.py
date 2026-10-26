@@ -34,6 +34,8 @@ class Action(StrictModel):
 class Manifest(StrictModel):
     id: str = Field(pattern=r"^[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*$")
     title: str = Field(min_length=1, max_length=100)
+    description: str = Field(default="", max_length=200)
+    icon: str = Field(default="grid", pattern=r"^[a-z][a-z0-9-]*$", max_length=60)
     group: Literal[
         "dashboard",
         "glance",

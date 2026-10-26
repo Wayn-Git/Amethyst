@@ -1,5 +1,8 @@
 import {
   Aperture,
+  Wind,
+  Flag,
+  Command,
   Archive,
   ArrowCircleUp,
   ArrowClockwise,
@@ -172,6 +175,9 @@ function ThreadsLogo({ size = 18, weight, ...rest }) {
 }
 
 const MARKS = {
+  wind: Wind,
+  flag: Flag,
+  command: Command,
   alert: WarningCircle,
   // The spotlight's two error states ask for this name. It was not in the map,
   // so a failed web or video search drew an empty box where the icon should be

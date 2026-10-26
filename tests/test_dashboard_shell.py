@@ -35,6 +35,21 @@ def test_manifest_schema_disables_invalid_entries_without_crashing():
     assert not validate_registry([MANIFESTS[0], MANIFESTS[0]])["glance.clock"]["enabled"]
 
 
+
+def test_catalog_metadata_is_complete_and_independent_of_runtime_state():
+    icons = set()
+    for entry in REGISTRY.values():
+        assert entry["enabled"]
+        manifest = entry["manifest"]
+        assert manifest["description"] and manifest["description"] != manifest["empty"]
+        assert "Nothing to show" not in manifest["description"]
+        assert "Set location" not in manifest["description"]
+        assert manifest["icon"] not in icons
+        icons.add(manifest["icon"])
+    # Legacy custom manifests keep working with additive catalog fields.
+    legacy = {k: v for k, v in MANIFESTS[0].items() if k not in {"description", "icon"}}
+    assert validate_registry([legacy])[legacy["id"]]["enabled"]
+
 def test_registry_contains_shipped_local_widgets(client):
     response = client.get("/api/widgets").json()
     assert {entry["manifest"]["id"] for entry in response["widgets"]} == {

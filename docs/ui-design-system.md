@@ -61,3 +61,9 @@ Existing `amethyst-ui/no-raw-controls` Oxlint warning covers JSX button/input/se
 ## Home structure — session 2
 
 Home separates layout controls from memoized widget content. Reordering keeps peer slots and widget content stable; transforms animate placement with reduced-motion support. Resize selects manifest-supported sizes and never persists free-form geometry. The settings/catalog context lives beside the grid so layout saves do not propagate into tile consumers. Compact Connect tiles occupy one row. Chrome appears on hover/focus (always on touch), with freshness in mono and stale shown as a small dot/label. Tiles grow for content without internal scrolling. System controls live in the modal Home settings drawer. Paper composition and all palettes reuse the foundation tokens; no backend, source contracts or navigation changes.
+
+## Add widget — session 3
+
+The catalog uses a right drawer on desktop and a bottom sheet at mobile widths, including 390 px. Search matches capability descriptions and source names; categories show total widget counts. The two-column card grid becomes one column below 440 px of results space. Each card has a primitive layout silhouette in the same tone as its Home tile, a distinct house icon, capability copy, manifest-supported sizes, connector chips and connection links. Silhouettes contain no measurements or runtime data. Added widgets show On Home and Remove; settings-only utilities keep Open. Add uses the existing serialized layout save and undo path, with a 250 ms entrance/highlight skipped for reduced motion. Undo notifications render within the native modal so their actions remain accessible.
+
+Manifest `description` and `icon` are additive catalog metadata; existing custom manifests retain compatible defaults. All shipped manifests supply explicit descriptions and distinct icon names. Runtime empty-state copy stays separate from catalog descriptions. No source behavior or permission contracts changed.

@@ -79,3 +79,5 @@ export const WIDGET_ICONS = {
   'feed.news': 'globe', 'feed.rss': 'list', 'feed.podcasts': 'mic', 'dash.sync': 'refresh', 'dash.quiet': 'moon', 'dash.shortcuts': 'keyboard', 'dash.gallery': 'grid',
   agent: 'sparkle', task: 'tasks', dev: 'github', lib: 'bookmark', feed: 'globe', sys: 'settings', need: 'mail', comm: 'chat',
 }
+
+export const widgetTone = id => ['glance.clock', 'agent.feed'].includes(id) ? 'dark' : ['glance.weather', 'agent.brief'].includes(id) ? 'accent' : 'light'

@@ -27,7 +27,7 @@ try {
  await page.route('**/api/**', route => {
   const path = new URL(route.request().url()).pathname
   let json = {}
-  if (path === '/api/widgets') json = { widgets: catalogIds.map(id => ({ enabled: true, manifest: { id, title: titleFor(id), group: id.startsWith('glance') ? 'glance' : id.startsWith('task') ? 'tasks' : id.startsWith('dash') ? 'dashboard' : id.startsWith('need') ? 'needs-you' : id.startsWith('lib') ? 'library' : id.startsWith('dev') ? 'developer' : id.startsWith('feed') ? 'feed' : 'agent', sizes: ['s','m','l'], source: { type: 'local' }, refresh: { mode: 'manual' }, requires: [], empty: 'No fixture items.' } })) }
+  if (path === '/api/widgets') json = { widgets: catalogIds.map(id => ({ enabled: true, manifest: { id, title: titleFor(id), description: `Description for ${titleFor(id)}.`, icon: id === 'agent.feed' ? 'menu' : 'clock', group: id.startsWith('glance') ? 'glance' : id.startsWith('task') ? 'tasks' : id.startsWith('dash') ? 'dashboard' : id.startsWith('need') ? 'needs-you' : id.startsWith('lib') ? 'library' : id.startsWith('dev') ? 'developer' : id.startsWith('feed') ? 'feed' : 'agent', sizes: ['s','m','l'], source: id === 'dev.prs' ? { type: 'composio', toolkit: 'github' } : { type: 'local' }, refresh: { mode: 'manual' }, requires: id === 'dev.prs' ? ['connector:github'] : [], empty: 'No fixture items.' } })) }
   if (path === '/api/layout') { if (route.request().method() === 'PUT') { layout = route.request().postDataJSON(); saves.push(layout) }; json = layout }
   if (/\/(data|refresh)$/.test(path)) json = { state: path.includes('dev.prs') ? 'not-connected' : path.includes('task.today') ? 'stale' : 'empty', payload: { items: [] }, synced_at: new Date().toISOString() }
   return route.fulfill({ json })
@@ -123,8 +123,58 @@ try {
  assert.equal(await page.evaluate(() => !!document.activeElement.closest('dialog')), true)
  await page.getByLabel('Search widgets').fill('agent.feed')
  assert.equal(await page.locator('.home-catalog-row').count(), 1)
- assert.equal(await page.locator('.today-catalog-copy p').textContent(), 'Agent activity from local.')
- assert.equal(await page.locator('.today-catalog-icon').evaluate(n => getComputedStyle(n).borderRadius), '50%')
+ assert.equal(await page.locator('.today-catalog-copy p').textContent(), 'Description for Agent activity.')
+ assert.equal(await page.locator('.catalog-thumbnail .ui-icon-badge').evaluate(n => getComputedStyle(n).borderRadius), '50%')
+ for (const theme of ['paper', 'graphite', 'ink', 'nocturne', 'nvidia', 'sand', 'claude', 'cursor']) {
+  const style = await page.locator('.home-catalog-row').evaluate((n, theme) => {
+   document.documentElement.dataset.theme = theme
+   const card = getComputedStyle(n), thumb = getComputedStyle(n.querySelector('.catalog-thumbnail'))
+   return { color: card.color, background: card.backgroundColor, radius: card.borderRadius, tone: thumb.backgroundColor }
+  }, theme)
+  assert.equal(style.color, 'rgb(25, 23, 31)')
+  assert.notEqual(style.background, style.color)
+  assert.equal(style.radius, '24px')
+  assert.notEqual(style.tone, style.background)
+ }
+ await page.evaluate(() => { document.documentElement.dataset.theme = 'paper'; document.documentElement.dataset.themeMode = 'light' })
+ await page.evaluate(() => {
+  window.__addAnimations = []
+  const animate = Element.prototype.animate
+  Element.prototype.animate = function(frames, options) { if (this.dataset.slotId) window.__addAnimations.push({ id: this.dataset.slotId, frames, options }); return animate.call(this, frames, options) }
+ })
+ await page.getByLabel('Search widgets').fill('task.backlog')
+ const backlogCard = page.getByRole('article', { name: 'Backlog', exact: true })
+ await backlogCard.getByRole('radio', { name: 'L', exact: true }).click()
+ assert.equal(await backlogCard.locator('.catalog-thumbnail').getAttribute('data-preview-size'), 'l')
+ await backlogCard.getByRole('button', { name: 'Add', exact: true }).click()
+ await backlogCard.getByText('On Home', { exact: true }).waitFor()
+ await page.waitForFunction(() => document.querySelector('.home-save-status').textContent === 'Layout saved')
+ assert.equal(layout.widgets.find(w => w.id === 'task.backlog').size, 'l')
+ assert(await page.evaluate(() => window.__addAnimations.some(a => a.id === 'task.backlog' && a.frames[0].outline)))
+ await backlogCard.getByRole('button', { name: 'Remove', exact: true }).click()
+ await backlogCard.getByRole('button', { name: 'Add', exact: true }).waitFor()
+ await page.waitForFunction(() => document.querySelector('.home-save-status').textContent === 'Layout saved')
+ assert(!layout.widgets.some(w => w.id === 'task.backlog'))
+ await backlogCard.getByRole('button', { name: 'Add', exact: true }).click()
+ await page.getByRole('dialog').getByRole('button', { name: 'Undo', exact: true }).click()
+ await page.waitForFunction(() => document.querySelector('.home-save-status').textContent === 'Layout saved')
+ assert(!layout.widgets.some(w => w.id === 'task.backlog'))
+ await page.getByLabel('Search widgets').fill('dev.prs')
+ assert.equal(await page.getByRole('link', { name: 'Connect GitHub for Pull requests' }).getAttribute('href'), '/capabilities')
+ assert.equal(await page.locator('.catalog-connectors .ui-chip').count(), 1)
+ await page.getByLabel('Search widgets').fill('no-such-widget')
+ await page.getByText('No matching widgets', { exact: true }).waitFor()
+ await page.getByRole('button', { name: 'Clear filters' }).click()
+ assert.equal(await page.locator('.catalog-card-grid').first().evaluate(n => getComputedStyle(n).gridTemplateColumns.split(' ').length), 2)
+ await page.setViewportSize({ width: 390, height: 844 })
+ await page.getByRole('dialog').evaluate(n => Promise.all(n.getAnimations().map(a => a.finished)))
+ const sheet = await page.getByRole('dialog', { name: 'Add widget', exact: true }).boundingBox()
+ assert.equal(sheet.width, 390)
+ assert(sheet.y > 0 && Math.abs(sheet.y + sheet.height - 844) < 2, JSON.stringify(sheet))
+ assert.equal(await page.locator('.catalog-card-grid').first().evaluate(n => getComputedStyle(n).gridTemplateColumns.split(' ').length), 1)
+ assert.equal(await page.getByRole('dialog').evaluate(n => n.scrollWidth <= n.clientWidth), true)
+ assert((await page.getByLabel('Widget category', { exact: true }).textContent()).includes('Glance (4)'))
+ await page.setViewportSize({ width: 1440, height: 1000 })
  await page.keyboard.press('Escape')
  await page.getByRole('dialog').waitFor({ state: 'hidden' })
  assert.equal(await page.evaluate(() => document.activeElement.textContent), 'Add widget')
@@ -181,6 +231,15 @@ try {
  await settings.waitFor({ state: 'hidden' })
  await page.emulateMedia({ reducedMotion: 'reduce' })
  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ui-layout').trim()), '0ms')
+ await page.getByRole('button', { name: 'Home settings', exact: true }).click()
+ const reducedSettings = page.getByRole('dialog', { name: 'Home settings', exact: true })
+ await reducedSettings.getByRole('tab', { name: 'Widget gallery', exact: true }).click()
+ await reducedSettings.getByLabel('Search widgets').fill('task.backlog')
+ await reducedSettings.getByRole('button', { name: 'Remove', exact: true }).click()
+ await page.evaluate(() => { window.__addAnimations = [] })
+ await reducedSettings.getByRole('button', { name: 'Add', exact: true }).click()
+ assert.equal(await page.evaluate(() => window.__addAnimations.length), 0, 'reduced motion skips add animation')
+ await page.keyboard.press('Escape')
  assert.deepEqual(errors, [])
  console.log('PASS: Home 360–2560, tones/radius/gutters, no nested scroll, peer render isolation, pointer reorder/resize/cancel, keyboard/undo, catalog/settings, focus/Escape and reduced motion')
 } finally { await browser.close() }

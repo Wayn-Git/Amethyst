@@ -19,6 +19,7 @@ import './home.css'
 import './home-shell.css'
 import './widget-patterns.css'
 import './home-bento.css'
+import './catalog.css'
 
 const WidgetView = memo(function WidgetView({ context, ...props }) {
   return <DashboardContext.Provider value={context}><WidgetBoundary id={props.manifest.id} onRetry={context.refreshAll}><WidgetFrame {...props} /></WidgetBoundary></DashboardContext.Provider>
@@ -64,9 +65,9 @@ export default function Home() {
     const timer = setInterval(() => setNow(new Date()), 60000)
     return () => { mounted.current = false; clearInterval(timer) }
   }, [])
-  function persist(next, undo = true) {
+  function persist(next, undo = true, message = 'Layout updated') {
     const previous = gesture.current?.original || layoutRef.current
-    if (undo) toast('Layout updated', { id: 'home-layout', action: { label: 'Undo', onClick: () => persist(previous, false) } })
+    if (undo) toast(message, { id: 'home-layout', toasterId: settingsId || selectedId || ['add', 'settings'].includes(drawer?.type) ? 'home-drawer' : undefined, action: { label: 'Undo', onClick: () => persist(previous, false) } })
     dirty.current = true; layoutRef.current = next; setLayout(next); remember('layout', next); setSaveState('Saving layout…')
     // Serialize saves so a slower earlier request cannot overwrite the last drag.
     saveQueue.current = saveQueue.current.catch(() => {}).then(() => request('/layout?mode=default', 'PUT', next)).then(() => { if (mounted.current && layoutRef.current === next) setSaveState('Layout saved') }).catch(err => { if (mounted.current) setSaveState(`Layout not saved to server: ${err.message}`) })
@@ -123,7 +124,8 @@ export default function Home() {
     const manifest = manifests.find(m => m.id === id)
     const validSizes = manifest?.sizes || ['m']
     const chosenSize = size && validSizes.includes(size) ? size : validSizes.includes('m') ? 'm' : validSizes[0] || 's'
-    persist({ widgets: [...widgets, { id, size: chosenSize, height: chosenSize === 's' ? 3 : chosenSize === 'l' ? 4 : 3 }] })
+    addedTile.current = id
+    persist({ widgets: [...widgets, { id, size: chosenSize, height: chosenSize === 's' ? 3 : chosenSize === 'l' ? 4 : 3 }] }, true, `${manifest?.title || 'Widget'} added to Home`)
   }
   function toggleWidget(id) { const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []; persist({ widgets: widgets.some(w => w.id === id) ? widgets.filter(w => w.id !== id) : [...widgets, { id, size: manifests.find(m => m.id === id)?.sizes?.includes('m') ? 'm' : 's', height: 3 }] }) }
   const openWidget = id => setDrawer(SYSTEM_WIDGETS.includes(id) ? { type: 'settings', settingsId: id } : { id })
@@ -149,14 +151,17 @@ export default function Home() {
     return <WidgetSlot key={manifest.id} id={manifest.id} title={manifest.title} size={position.size} displaySize={GLANCE_WIDGETS.includes(position.id) && position.size === 'm' ? 's' : position.size} sizes={manifest.sizes} editing={editing} dragging={dragging === manifest.id} move={stable.move} resize={stable.resize} grip={stable.grip}>{views.get(position.id)}</WidgetSlot>
   }
   const previousRects = useRef(new Map())
+  const addedTile = useRef(null)
   useLayoutEffect(() => {
     const nodes = grid.current?.querySelectorAll('[data-slot-id]') || []
     const next = new Map()
     for (const node of nodes) next.set(node.dataset.slotId, node.getBoundingClientRect())
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) for (const node of nodes) {
       const before = previousRects.current.get(node.dataset.slotId), after = next.get(node.dataset.slotId)
+      if (!before && node.dataset.slotId === addedTile.current) node.animate([{ opacity: 0, transform: 'translateY(16px) scale(.98)', outline: '2px solid var(--tile-action)' }, { opacity: 1, transform: 'none', outline: '2px solid transparent' }], { duration: 250, easing: 'cubic-bezier(.2,.8,.2,1)' })
       if (before && (before.x !== after.x || before.y !== after.y)) node.animate([{ transform: `translate(${before.x - after.x}px, ${before.y - after.y}px)` }, { transform: 'none' }], { duration: 200, easing: 'cubic-bezier(.2,.8,.2,1)' })
     }
+    addedTile.current = null
     previousRects.current = next
   }, [layout, editing])
   const homePositions = positions.filter(w => !SYSTEM_WIDGETS.includes(w.id))

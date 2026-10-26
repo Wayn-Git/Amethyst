@@ -2,10 +2,11 @@ import { memo, useState } from 'react'
 import Button from '../components/ui/AppButton.jsx'
 import Select from '../components/ui/NativeSelect.jsx'
 import Icon from '../components/Icon.jsx'
+import { widgetTone } from './layout.js'
 
 export default memo(function WidgetSlot({ id, title, size, displaySize = size, sizes, lane, editing, dragging, move, resize, grip, children }) {
   const [collapsed, setCollapsed] = useState(false)
-  return <section className={`today-widget-slot home-slot ui-tile${dragging ? ' is-drag-target' : ''}`} data-tone={id === 'glance.clock' || id === 'agent.feed' ? 'dark' : id === 'glance.weather' || id === 'agent.brief' ? 'accent' : 'light'} data-slot-id={id} data-lane={lane} data-size={displaySize} data-collapsed={collapsed || undefined} aria-label={`${title} slot`}>
+  return <section className={`today-widget-slot home-slot ui-tile${dragging ? ' is-drag-target' : ''}`} data-tone={widgetTone(id)} data-slot-id={id} data-lane={lane} data-size={displaySize} data-collapsed={collapsed || undefined} aria-label={`${title} slot`}>
     <div className={`today-slot-toolbar${editing ? ' is-editing' : ''}`}>
       {editing && <>
         <Button className="today-drag" size="small" variant="ghost" {...grip('move', id)} onKeyDown={event => { if (event.key.startsWith('Arrow')) { event.preventDefault(); move(id, ['ArrowUp', 'ArrowLeft'].includes(event.key) ? -1 : 1) } }} aria-label={`Move ${title}`} title="Drag or use arrow keys"><Icon name="dots-six" size={16} /><span>{title}</span></Button>

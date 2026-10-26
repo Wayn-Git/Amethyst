@@ -24,6 +24,16 @@
 - [x] No tile scrolling; hover lift, press response and reduced motion.
 - [x] Existing app navigation, permissions, APIs and manifest sizes preserved.
 
+## Session 3 Add widget
+
+- [x] Right drawer on desktop; bottom sheet at 390 px.
+- [x] Search, category counts, empty search and responsive card grid.
+- [x] Layout silhouettes in tile tones; distinct manifest icons and capability descriptions for all 80 widgets.
+- [x] Manifest-supported size picker; connector chips and Connect links.
+- [x] Add, On Home and Remove; settings-only utilities retain Open.
+- [x] Tile entrance/highlight, modal-accessible undo toast and reduced motion.
+- [x] Focused manifest and browser regression checks; changelog and commit.
+
 ## Later sessions — existing implementations require target review
 
 - [x] Home header/date/greeting/capture; existing navigation integration.

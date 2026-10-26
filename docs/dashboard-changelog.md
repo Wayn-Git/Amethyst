@@ -153,3 +153,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-26 — UI session 1 foundation: Paper-first three-tone tokens for nine modes, isolated bento grid/primitives and controls, dev-only /dev/ui, text design system/checklist; extended Manifest.sizes and Position.size with wide/tall (no registered widget or Home content changes); reused raw-control lint warning.
 
 - 2026-10-26 · UI session 2: Home bento structure, compact connections, quiet chrome, isolated reorder renders, snap resize/undo and settings/catalog drawers; frontend-only, existing navigation and contracts retained.
+
+- 2026-10-26 · UI session 3 `dash.gallery`: responsive Add widget cards with tone silhouettes, 80 distinct manifest icons/descriptions, sizes, connector links, On Home/Remove, entrance/highlight and modal-accessible undo; additive manifest metadata only, source and permission contracts retained.
