@@ -1,0 +1,13 @@
+body:has(.ui-showcase) { overflow: auto; background: var(--tile-canvas); }
+.ui-showcase { max-width: 1536px; margin: auto; padding: 32px; color: var(--ui-text); }
+.ui-showcase > header { margin-bottom: 32px; }
+.ui-showcase > header > p:first-child { font: var(--tile-label); letter-spacing: .1em; }
+.ui-showcase h1 { font: 600 48px/1.1 var(--ui-display); letter-spacing: -.04em; margin: 16px 0; }
+.ui-showcase > h2 { font: 600 24px/32px var(--ui-display); margin: 32px 0 16px; }
+.ui-control-specimen { padding: 24px; margin: 16px 0; border: 1px solid var(--ui-border); border-radius: var(--tile-radius); background: var(--ui-panel); }
+.ui-control-specimen h3 { font: var(--tile-label); margin-bottom: 16px; }
+.ui-control-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.ui-control-row input { width: 180px; }
+.ui-control-row label { display: inline-flex; gap: 8px; align-items: center; }
+@media(max-width:767px) { .ui-showcase { padding: 16px; } .ui-showcase h1 { font-size: 36px; } }
+@media(max-width:389px) { .ui-showcase { padding: 12px; } }

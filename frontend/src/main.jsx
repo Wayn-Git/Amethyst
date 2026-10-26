@@ -1,4 +1,4 @@
-import { StrictMode } from 'react'
+import { StrictMode, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 /* The faces are bundled, not fetched.
@@ -33,6 +33,9 @@ import { AppProvider } from './store.jsx'
 
    The window behind it is transparent so the card keeps its rounded corners,
    which means this page must not paint a background of its own. */
+const DevUI = import.meta.env.DEV ? lazy(() => import('./dev/UI.jsx')) : null
+const isDevUI = import.meta.env.DEV && window.location.pathname === '/dev/ui'
+
 const params = new URLSearchParams(window.location.search)
 const SPOTLIGHT = params.get('spotlight') === '1'
 
@@ -49,11 +52,11 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     {/* Outside AppProvider: the store reads useNavigate/useLocation to make
         the URL the source of truth for which view is open. */}
-    <BrowserRouter>
+    {isDevUI ? <Suspense fallback={null}><DevUI /></Suspense> : <BrowserRouter>
       <AppProvider>
         {SPOTLIGHT ? <CommandPalette bare /> : <App />}
       </AppProvider>
-    </BrowserRouter>
+    </BrowserRouter>}
   </StrictMode>,
 )
 
