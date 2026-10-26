@@ -50,7 +50,7 @@ class Manifest(StrictModel):
         "proactive",
     ]
     tier: Literal["mvp", "v2", "later"]
-    sizes: list[Literal["s", "m", "l"]] = Field(min_length=1, max_length=3)
+    sizes: list[Literal["s", "m", "l", "wide", "tall"]] = Field(min_length=1, max_length=5)
     source: Source | list[Source]
     refresh: Refresh
     requires: list[str] = Field(default_factory=list)
@@ -60,7 +60,7 @@ class Manifest(StrictModel):
 
 class Position(StrictModel):
     id: str
-    size: Literal["s", "m", "l"]
+    size: Literal["s", "m", "l", "wide", "tall"]
     height: int = Field(default=3, ge=2, le=8)
 
 
