@@ -345,7 +345,7 @@ export default function LibraryVideoPlayer({
           </AnimatePresence>
 
           {/* Synchronized Closed Captions / Subtitles Overlay */}
-          {showCaptions && activeCaption && (isPlaying || !hasStartedPlaying) && (
+          {showCaptions && activeCaption && isPlaying && (
             <div className="lib-player-caption-banner">
               <span>{activeCaption}</span>
             </div>

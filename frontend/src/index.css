@@ -6040,6 +6040,130 @@ html:has(.palette--bar) body {
   transform: translateY(-1px);
 }
 
+/* Damon Launcher Proportions & Quick Capture Styling */
+.palette.damon-spotlight:not(.palette--bar) {
+  width: min(840px, calc(100vw - 32px));
+  min-height: 480px;
+  max-height: min(640px, 85vh);
+}
+
+.damon-quick-capture-bar.widget-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 6px 16px 8px 16px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.damon-quick-capture-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill, 9999px);
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 120ms ease-out;
+}
+
+.damon-quick-capture-btn:hover {
+  background: var(--surface-3);
+  color: var(--text);
+  border-color: var(--hairline-strong);
+}
+
+.damon-quick-capture-panel {
+  margin: 10px 16px;
+  padding: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-md, 10px);
+  box-shadow: var(--lift);
+  animation: damon-fade 120ms ease-out forwards;
+}
+
+.damon-quick-capture-panel form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.damon-quick-capture-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-faint);
+}
+
+.damon-quick-capture-panel input,
+.damon-quick-capture-panel textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface-1);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.damon-quick-capture-panel input:focus,
+.damon-quick-capture-panel textarea:focus {
+  border-color: var(--accent);
+}
+
+.damon-quick-capture-panel textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.damon-quick-capture-panel button[type="submit"] {
+  align-self: flex-start;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
+  border: none;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.palette-item .palette-keys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.palette-item .palette-keys .kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 0 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 4px;
+  line-height: 20px;
+  box-shadow: none;
+}
+
 /* Web Results Layout */
 .damon-web-list {
   display: flex;

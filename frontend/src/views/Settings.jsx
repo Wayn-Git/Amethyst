@@ -28,6 +28,7 @@ const SECTIONS = [
   { id: 'usage', label: 'Usage', icon: 'dash', group: 'You' },
   { id: 'activity', label: 'Activity', icon: 'logs', group: 'You' },
   { id: 'general', label: 'General', icon: 'sliders', group: 'App' },
+  { id: 'shortcuts', label: 'Shortcuts', icon: 'command', group: 'App' },
   { id: 'appearance', label: 'Appearance', icon: 'palette', group: 'App' },
   { id: 'models', label: 'Models', icon: 'cpu', group: 'App' },
   { id: 'integrations', label: 'Integrations', icon: 'layers', group: 'App' },
@@ -4526,9 +4527,183 @@ function Devices() {
   )
 }
 
+/* ==========================================================================
+   SHORTCUTS VIEW (Desktop Hotkey & Keyboard Controls)
+   ========================================================================== */
+
+function Shortcuts() {
+  const { toast } = useApp()
+  const [hotkeyDraft, setHotkeyDraft] = useState('<ctrl>+<alt>+<space>')
+
+  useEffect(() => {
+    api.settings()
+      .then((s) => {
+        if (s.hotkey) setHotkeyDraft(s.hotkey)
+      })
+      .catch(() => {})
+  }, [])
+
+  const handleSaveHotkeyExplicit = async (val) => {
+    try {
+      await api.updateSettings({ hotkey: val })
+      toast(`Global launcher shortcut set to ${val}`, 'ok')
+    } catch (err) {
+      toast(err.message, 'bad')
+    }
+  }
+
+  const handleSaveHotkey = () => {
+    if (hotkeyDraft.trim()) {
+      handleSaveHotkeyExplicit(hotkeyDraft.trim())
+    }
+  }
+
+  return (
+    <div className="set-panel">
+      {/* 1. Global Desktop Launcher Chord */}
+      <div className="set-section-label">Global Desktop Launcher</div>
+      <div className="set-box">
+        <div className="set-box-row">
+          <div className="set-row-text">
+            <span className="set-row-title">Global Summon Shortcut</span>
+            <span className="set-row-desc">
+              Global system chord to summon or toggle the Amethyst Damon launcher from any app.
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <HouseInput
+              type="text"
+              value={hotkeyDraft}
+              onChange={(e) => setHotkeyDraft(e.target.value)}
+              placeholder="<ctrl>+<alt>+<space>"
+              style={{ width: 190, fontFamily: 'var(--font-mono)', fontSize: '13px' }}
+            />
+            <HouseButton
+              type="button"
+              className="set-btn-sm"
+              onClick={handleSaveHotkey}
+            >
+              Save
+            </HouseButton>
+          </div>
+        </div>
+
+        <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+          <div className="set-row-text">
+            <span className="set-row-title">Quick Presets</span>
+            <span className="set-row-desc">Standard chords for system-wide spotlight launchers:</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Ctrl+Alt+Space (Default)', chord: '<ctrl>+<alt>+<space>' },
+              { label: 'Ctrl+Space', chord: '<ctrl>+<space>' },
+              { label: 'Super+Space (Win/Linux)', chord: '<super>+<space>' },
+              { label: 'Alt+Space', chord: '<alt>+<space>' },
+            ].map((p) => (
+              <HouseButton
+                key={p.chord}
+                type="button"
+                className={`set-btn-sm${hotkeyDraft === p.chord ? ' is-active' : ''}`}
+                onClick={() => {
+                  setHotkeyDraft(p.chord)
+                  handleSaveHotkeyExplicit(p.chord)
+                }}
+              >
+                {p.label}
+              </HouseButton>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Launcher Navigation & Actions */}
+      <div className="set-section-label">Damon Launcher & Action Panel</div>
+      <div className="set-box">
+        <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+          <div className="set-row-text">
+            <span className="set-row-title">Auto-Assigned Launcher Shortcuts</span>
+            <span className="set-row-desc">These shortcuts are automatically assigned and active while Damon is open:</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
+            {[
+              { name: 'Primary Action (Open / Focus / Run)', key: '↵ Enter' },
+              { name: 'Toggle Action Panel', key: '⌘K / Ctrl+K' },
+              { name: 'Direct Launch Items 1–9', key: '⌘1 – ⌘9 / Alt+1 – 9' },
+              { name: 'Filter Mode (Web / Video / Apps / etc.)', key: 'Tab / ⇧Tab' },
+              { name: 'Dismiss Action Panel → Clear → Close', key: 'Esc' },
+              { name: 'Copy Result Text or Path', key: '⌘C (in Action Panel)' },
+              { name: 'Reveal File in File Manager', key: '⌘O (in Action Panel)' },
+              { name: 'Ask Amethyst Assistant', key: '⌘⇧A (in Action Panel)' },
+            ].map((s) => (
+              <div
+                key={s.name}
+                style={{
+                  padding: '10px 14px',
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--hairline)',
+                  borderRadius: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                }}
+              >
+                <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{s.name}</span>
+                <kbd className="kbd" style={{ background: 'var(--surface-1)', border: '1px solid var(--hairline-strong)', padding: '2px 8px', fontSize: 11 }}>{s.key}</kbd>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Global App Shortcuts Catalog */}
+      <div className="set-section-label">Application Navigation Shortcuts</div>
+      <div className="set-box">
+        <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+          <div className="set-row-text">
+            <span className="set-row-title">Workspace Hotkeys</span>
+            <span className="set-row-desc">Quick navigation chords across views and composer:</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
+            {[
+              { name: 'Open Command Palette', key: '⌘K / Ctrl+K' },
+              { name: 'Start New Conversation', key: '⌘⇧O / Ctrl+Shift+O' },
+              { name: 'Focus Composer', key: '⌘L / Ctrl+L' },
+              { name: 'Go to Chat', key: 'Ctrl+1' },
+              { name: 'Go to Today Dashboard', key: 'Ctrl+0' },
+              { name: 'Go to Tasks', key: 'Ctrl+2' },
+              { name: 'Go to Email', key: 'Ctrl+3' },
+              { name: 'Go to Library', key: 'Ctrl+9' },
+              { name: 'Open Settings', key: '⌘, / Ctrl+,' },
+            ].map((s) => (
+              <div
+                key={s.name}
+                style={{
+                  padding: '10px 14px',
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--hairline)',
+                  borderRadius: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                }}
+              >
+                <span style={{ fontSize: 13, color: 'var(--text)' }}>{s.name}</span>
+                <kbd className="kbd" style={{ background: 'var(--surface-1)', border: '1px solid var(--hairline-strong)', padding: '2px 8px', fontSize: 11 }}>{s.key}</kbd>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const PANELS = {
   profile: Profile,
   general: General,
+  shortcuts: Shortcuts,
   appearance: Appearance,
   models: Models,
   integrations: Integrations,

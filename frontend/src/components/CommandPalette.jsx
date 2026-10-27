@@ -1215,8 +1215,22 @@ export default function CommandPalette({ bare = false }) {
         onSelectMode={handleSelectMode}
       />
 
-      <div className="widget-buttons"><Button onClick={() => setCapturing(value => !value)}>{capturing ? 'Close quick capture' : 'Quick capture'}</Button></div>
-      {capturing && <section aria-label="Quick capture"><Capture refresh={() => {}} /></section>}
+      {/* Quick capture drawer (tested by dashboard-palette) */}
+      <div className="damon-quick-capture-bar widget-buttons">
+        <Button
+          type="button"
+          className="damon-quick-capture-btn"
+          onClick={() => setCapturing((value) => !value)}
+        >
+          <Icon name={capturing ? 'x' : 'edit-3'} size={12} />
+          <span>{capturing ? 'Close quick capture' : 'Quick capture'}</span>
+        </Button>
+      </div>
+      {capturing && (
+        <section aria-label="Quick capture" className="damon-quick-capture-panel">
+          <Capture refresh={() => {}} />
+        </section>
+      )}
       {activeMode === 'all' && localStatus && <p role="status">{localStatus}</p>}
       {/* Results Container */}
       {/* Keyed by mode, so switching modes is a fade into the new list
@@ -1461,13 +1475,15 @@ export default function CommandPalette({ bare = false }) {
                   )}
                   {command.binding ? (
                     <span className="palette-keys">
-                      {pretty(command.binding).map((k, n) => (
-                        <kbd key={n} className="kbd">{k}</kbd>
-                      ))}
+                      <kbd className="kbd">
+                        {pretty(command.binding).join(typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.userAgent) ? '' : '+')}
+                      </kbd>
                     </span>
                   ) : i < 9 ? (
                     <span className="palette-keys">
-                      <kbd className="kbd">⌘{i + 1}</kbd>
+                      <kbd className="kbd">
+                        {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.userAgent) ? `⌘${i + 1}` : `Ctrl+${i + 1}`}
+                      </kbd>
                     </span>
                   ) : null}
                   <ChevronRight className="size-4 opacity-0 group-hover/item:opacity-70 transition-opacity ml-auto text-faint flex-shrink-0" />

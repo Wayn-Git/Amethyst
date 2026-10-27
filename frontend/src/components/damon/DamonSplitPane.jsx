@@ -6,11 +6,7 @@ export default function DamonSplitPane({
   onAction,
   children,
 }) {
-  const hasPreview = Boolean(
-    activeItem &&
-    activeItem.preview_type &&
-    activeItem.preview_type !== 'none'
-  )
+  const hasPreview = Boolean(activeItem)
 
   return (
     <div className={`damon-split-pane ${hasPreview ? 'has-preview' : 'no-preview'}`}>
