@@ -88,4 +88,4 @@ export const WIDGET_ICONS = {
   agent: 'sparkle', task: 'tasks', dev: 'github', lib: 'bookmark', feed: 'globe', sys: 'settings', need: 'mail', comm: 'chat',
 }
 
-export const widgetTone = id => ['glance.clock', 'glance.music', 'need.lor-slack', 'comm.contacts', 'agent.feed'].includes(id) ? 'dark' : ['glance.weather', 'glance.sun', 'need.approvals', 'comm.newsletters', 'comm.tone', 'agent.brief'].includes(id) ? 'accent' : 'light'
+export const widgetTone = id => ['glance.clock', 'glance.music', 'need.lor-slack', 'comm.contacts', 'agent.feed', 'agent.usage', 'task.focus', 'dev.unpushed', 'feed.rss', 'sys.vault', 'dash.quiet'].includes(id) ? 'dark' : ['glance.weather', 'glance.sun', 'need.approvals', 'comm.newsletters', 'comm.tone', 'agent.brief', 'lib.daily', 'lib.capture', 'task.goals', 'dash.palette'].includes(id) ? 'accent' : 'light'

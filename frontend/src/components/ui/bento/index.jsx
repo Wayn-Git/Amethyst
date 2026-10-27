@@ -57,3 +57,7 @@ export function Switch({ loading, disabled, ...props }) { return <span aria-busy
 export function Segmented({ options, loading, disabled, ...props }) { return <RadioGroup className="ui-segmented" disabled={disabled || loading} aria-busy={loading || undefined} {...props}>{options.map(option => <Radio.Root key={option.value} value={option.value}>{option.label}</Radio.Root>)}</RadioGroup> }
 export function Menu({ label = 'Options', items, loading, disabled }) { return <DropdownMenu><DropdownMenuTrigger render={<Button disabled={disabled || loading} loading={loading}/>}>{label}</DropdownMenuTrigger><DropdownMenuContent>{items.map(item => <DropdownMenuItem key={item.label} disabled={item.disabled} onClick={item.onClick}>{item.label}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu> }
 export function Tooltip({ children, label }) { return <TooltipProvider><BaseTooltip><TooltipTrigger render={children}/><TooltipContent>{label}</TooltipContent></BaseTooltip></TooltipProvider> }
+
+export function Textarea({ loading, disabled, className = '', ...props }) {
+  return <textarea className={`ui-textarea ${className}`} disabled={disabled || loading} aria-busy={loading || undefined} {...props} />
+}

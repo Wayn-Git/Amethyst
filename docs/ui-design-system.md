@@ -75,3 +75,7 @@ The desktop backend serves `frontend/dist`, not the Vite source tree. After UI c
 Clock, air quality and next event prefer S when their manifests support it. Other catalog defaults retain M or the first supported size. Sunrise/sunset stored as M displays as a wide split tile without changing the stored contract. Edit layout → Fit widgets applies these supported sizes through the existing serialized save and Undo path; membership, order and other fields are preserved. Custom layouts are never automatically fitted.
 
 `frontend/tests/dashboard-desktop.mjs` checks the served production app with mocked APIs and device location, including location controls, shared refresh, fit/undo, catalog icons, nine themes, mobile overflow and reduced motion. It takes no screenshots and does not establish live OS location or connector availability.
+
+## Reference redesign — 2026-10-27
+
+The reference atlas in ui-reference-analysis.md now governs Home. Existing tile tokens remain shared; filled controls use a 12 px control radius and 44 px targets, action buttons are pills, and native date/time/number/select behaviors are preserved. Added paired positive lime, waiting orange and urgent coral tokens with readable light/dark variants. The same bento controls are used by the development gallery. Textarea is a shared primitive. Native form submit semantics are explicit during migration. No new data contracts or actions.

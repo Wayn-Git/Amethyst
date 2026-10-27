@@ -1,5 +1,5 @@
 :root {
-  --tile-radius: 24px; --tile-gutter: 16px; --tile-row: 160px;
+  --tile-radius: 24px; --tile-control-radius: 12px; --tile-positive: #476300; --tile-positive-bright: #c8f36b; --tile-waiting: #9a4600; --tile-waiting-bright: #ffbc80; --tile-urgent: #b8293e; --tile-urgent-bright: #ff9baa; --tile-gutter: 16px; --tile-row: 160px;
   --tile-space-1: 4px; --tile-space-2: 8px; --tile-space-3: 12px; --tile-space-4: 16px; --tile-space-6: 24px; --tile-space-8: 32px;
   --tile-fast: 150ms; --tile-motion: 200ms; --tile-slow: 250ms; --tile-ease: cubic-bezier(.2,.8,.2,1);
   --tile-title: 600 16px/22px var(--ui-display); --tile-number: 600 56px/1 var(--ui-display); --tile-body: 400 14px/20px var(--ui-font); --tile-label: 400 11px/16px var(--ui-mono);

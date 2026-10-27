@@ -32,6 +32,15 @@
       "rules": {
         "amethyst-ui/no-raw-controls": "off"
       }
+    },
+    {
+      "files": [
+        "src/dashboard/**",
+        "src/dev/Widgets.jsx"
+      ],
+      "rules": {
+        "amethyst-ui/no-raw-controls": "error"
+      }
     }
   ]
 }

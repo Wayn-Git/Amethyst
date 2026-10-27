@@ -1,3 +1,4 @@
+import './dev/widgets/transport.js'
 import { StrictMode, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
@@ -34,6 +35,8 @@ import { AppProvider } from './store.jsx'
    The window behind it is transparent so the card keeps its rounded corners,
    which means this page must not paint a background of its own. */
 const DevUI = import.meta.env.DEV ? lazy(() => import('./dev/UI.jsx')) : null
+const DevWidgets = import.meta.env.DEV ? lazy(() => import('./dev/Widgets.jsx')) : null
+const isDevWidgets = import.meta.env.DEV && window.location.pathname === '/dev/widgets'
 const isDevUI = import.meta.env.DEV && window.location.pathname === '/dev/ui'
 
 const params = new URLSearchParams(window.location.search)
@@ -52,7 +55,7 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     {/* Outside AppProvider: the store reads useNavigate/useLocation to make
         the URL the source of truth for which view is open. */}
-    {isDevUI ? <Suspense fallback={null}><DevUI /></Suspense> : <BrowserRouter>
+    {isDevWidgets ? <Suspense fallback={null}><DevWidgets /></Suspense> : isDevUI ? <Suspense fallback={null}><DevUI /></Suspense> : <BrowserRouter>
       <AppProvider>
         {SPOTLIGHT ? <CommandPalette bare /> : <App />}
       </AppProvider>

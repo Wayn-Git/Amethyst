@@ -1,3 +1,4 @@
+import { Button } from '../components/ui/bento/index.jsx'
 import { useState } from 'react'
 import { request } from './api.js'
 
@@ -19,5 +20,5 @@ export default function PinToHome({ conversationId, messageId }) {
     } catch (e) { setError(e.message); setDraft(null) } finally { setBusy(false) }
   }
   if (!conversationId || !messageId) return null
-  return <div className="widget-buttons">{error && <p role="alert">{error}</p>}{status && <p role="status">{status}</p>}{draft ? <section aria-label="Review Home pin"><p>Pin this answer as an offline snapshot? Scripts, external resources and live data are disabled.</p><button disabled={busy} onClick={() => decide(true)}>Approve pin</button><button disabled={busy} onClick={() => decide(false)}>Cancel pin</button></section> : <button type="button" className="response-action-btn" disabled={busy} onClick={pin}>Pin to Home</button>}</div>
+  return <div className="widget-buttons">{error && <p role="alert">{error}</p>}{status && <p role="status">{status}</p>}{draft ? <section aria-label="Review Home pin"><p>Pin this answer as an offline snapshot? Scripts, external resources and live data are disabled.</p><Button type="submit" disabled={busy} onClick={() => decide(true)}>Approve pin</Button><Button type="submit" disabled={busy} onClick={() => decide(false)}>Cancel pin</Button></section> : <Button type="button" className="response-action-btn" disabled={busy} onClick={pin}>Pin to Home</Button>}</div>
 }

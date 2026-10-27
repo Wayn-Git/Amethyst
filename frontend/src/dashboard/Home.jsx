@@ -30,6 +30,7 @@ export default function Home() {
   const navigate = useNavigate()
   const { setOverlay, setCapabilitiesTab } = useApp()
   const connections = useConnections()
+  const openPalette = useCallback(() => setOverlay('palette'), [setOverlay])
   const manageConnections = useCallback(() => { setCapabilitiesTab('connectors'); navigate('/capabilities') }, [navigate, setCapabilitiesTab])
   const connectSource = useCallback(() => setDrawer({ type: 'settings', settingsId: 'sys.connectors' }), [])
   const [drawer, setDrawer] = useState(null)
@@ -149,7 +150,7 @@ export default function Home() {
   const actions = useRef({})
   useLayoutEffect(() => { actions.current = { removeWidget, openWidget, move, resize, grip } })
   const stable = useMemo(() => Object.fromEntries(['removeWidget', 'openWidget', 'move', 'resize', 'grip'].map(key => [key, (...args) => actions.current[key](...args)])), [])
-  const frameContext = useMemo(() => ({ now, quiet, setEditing, connectSource, connectionHealth: connections.data, refreshAll, ...stable, layout: { widgets: membership.split('|').map(id => ({ id })) } }), [now, quiet, connectSource, connections.data, refreshAll, stable, membership])
+  const frameContext = useMemo(() => ({ now, quiet, openPalette, setEditing, connectSource, connectionHealth: connections.data, refreshAll, ...stable, layout: { widgets: membership.split('|').map(id => ({ id })) } }), [now, quiet, openPalette, connectSource, connections.data, refreshAll, stable, membership])
   const sizeKey = positions.map(p => `${p.id}:${p.size}`).sort().join('|')
   // Size/membership encode content dependencies; order changes only move existing slots.
   // oxlint-disable react-hooks/exhaustive-deps
@@ -234,7 +235,7 @@ export default function Home() {
         {loaded && !homePositions.length && <section className="today-empty-layout"><span><Icon name="grid" size={28} /></span><h2>Make room for your day</h2><p>Add the widgets you want to see here.</p><Button variant="primary" onClick={() => setDrawer({ type: 'add' })}><Icon name="plus" size={16} />Add widget</Button></section>}
       </div>
     </div>
-    <DashboardContext.Provider value={{ manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, addWidget, removeWidget, now, openWidget, connectSource, manageConnections, connections }}>
+    <DashboardContext.Provider value={{ openPalette, manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, addWidget, removeWidget, now, openWidget, connectSource, manageConnections, connections }}>
     {(drawer?.type === 'settings' || settingsId) && <Drawer title="Home settings" description="Refresh, quiet hours, and keyboard shortcuts." onClose={closeDrawer}><HomeSettings key={settingsId || 'settings'} settingsId={settingsId} /></Drawer>}
     {drawer?.type === 'add' && <Drawer title="Add widget" description="Choose what belongs in your day." onClose={closeDrawer} className="today-catalog-drawer"><AddWidget /></Drawer>}
     {selected && <Drawer title={selected.title} onClose={closeDrawer}><div className="widget-home today-widgets">{renderWidget(layout.widgets.find(w => w.id === selected.id) || { id: selected.id, size: selected.sizes[0], height: 3 }, true)}</div></Drawer>}
