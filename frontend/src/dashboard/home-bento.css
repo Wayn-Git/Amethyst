@@ -45,7 +45,7 @@
 .home-layout-grid .today-slot-body .home-widget .clock-digits { font: 500 24px/1.2 var(--ui-font); color: var(--tile-fg); }
 .home-layout-grid .today-slot-body .home-widget .clock-date, .home-layout-grid .today-slot-body .home-widget .clock-zone { color: var(--tile-muted); font: var(--tile-label); }
 .home-layout-grid .today-slot-body .home-widget .glance-clock-face { gap: var(--tile-space-2); }
-.home-layout-grid .today-widget-slot:has(.home-connect), .home-layout-grid .today-widget-slot[data-collapsed] { grid-row: span 1; }
+.home-layout-grid .today-widget-slot[data-collapsed] { grid-row: span 1; }
 .home-layout-grid .home-connect .ui-state { align-content: center; justify-content: space-between; width: 100%; }
 .home-layout-grid .home-connect .ui-state p { font: var(--tile-title); }
 .home-layout-grid .today-slot-toolbar.is-editing { background: var(--tile-bg); color: var(--tile-fg); border: 0; margin: var(--tile-space-2); }
@@ -93,3 +93,16 @@
   .today-dashboard.bento-foundation .today-page { padding-block: var(--tile-space-6); }
   .today-dashboard.bento-foundation .today-greeting h1 { font-size: 28px; }
 }
+
+/* Fixed tracks isolate loading, details and long lists from neighboring cards. */
+.home-layout-grid .bento-grid { grid-auto-rows: calc(var(--tile-row) + var(--tile-space-8)); grid-auto-flow: row; }
+.home-layout-grid .today-widget-slot.ui-tile[data-size] { grid-row: span 2; min-height: 0; }
+.home-layout-grid .today-widget-slot.ui-tile:is([data-size='l'],[data-size='tall']) { grid-row: span 3; }
+.home-layout-grid .today-widget-slot.ui-tile[data-collapsed] { grid-row: span 1; align-self: start; }
+.home-layout-grid .today-slot-body { min-height: 0; }
+.home-layout-grid .today-slot-body > .home-widget { height: 100%; min-height: 0; --pilot-height: 0px; }
+.home-layout-grid .today-slot-body .home-widget .widget-content { min-height: 0 !important; flex: 1; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.home-layout-grid .widget-header, .home-layout-grid .widget-show-all { flex-shrink: 0; }
+.home-layout-grid .today-widget-slot[data-drop-target] { outline: 2px solid var(--tile-action); outline-offset: 3px; }
+.home-layout-grid .today-slot-body .home-widget .clock-dial { width: 144px; }
+.home-layout-grid .today-slot-body .home-widget .glance-clock-face { padding-block: var(--tile-space-2); }

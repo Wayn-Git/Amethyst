@@ -45,6 +45,7 @@ export default function Home() {
   const [now, setNow] = useState(new Date())
   const [loaded, setLoaded] = useState(false)
   const [dragging, setDragging] = useState(false)
+  const [dropTarget, setDropTarget] = useState(null)
   const layoutRef = useRef(layout)
   const dirty = useRef(false)
   const saveQueue = useRef(Promise.resolve())
@@ -79,7 +80,7 @@ export default function Home() {
   useEffect(() => {
     function key(event) {
       if (event.target.closest('input,select,textarea,[contenteditable=true]')) return
-      if (event.key === 'Escape') { if (gesture.current?.original) { setLayout(gesture.current.original); layoutRef.current = gesture.current.original }; gesture.current = null; setDragging(false); return }
+      if (event.key === 'Escape') { if (gesture.current?.original) { setLayout(gesture.current.original); layoutRef.current = gesture.current.original }; gesture.current = null; setDragging(false); setDropTarget(null); return }
       if (!event.altKey || event.ctrlKey || event.metaKey) return
       if (event.key.toLowerCase() === 'r') { event.preventDefault(); refreshAll() }
       if (event.key.toLowerCase() === 'e') { event.preventDefault(); setEditing(value => !value) }
@@ -101,7 +102,7 @@ export default function Home() {
   function grip(kind, id) {
     return {
       onPointerDown(event) { if (event.button !== 0) return; event.preventDefault(); gesture.current = { kind, id, x: event.clientX, y: event.clientY, original: layoutRef.current }; grid.current.setPointerCapture(event.pointerId); setDragging(id) },
-      onPointerCancel() { if (gesture.current?.original) { setLayout(gesture.current.original); layoutRef.current = gesture.current.original }; gesture.current = null; setDragging(false) },
+      onPointerCancel() { if (gesture.current?.original) { setLayout(gesture.current.original); layoutRef.current = gesture.current.original }; gesture.current = null; setDragging(false); setDropTarget(null) },
       onPointerMove(event) {
         const start = gesture.current
         if (!start) return
@@ -109,17 +110,19 @@ export default function Home() {
         if (start.kind === 'resize') {
           const item = start.original.widgets.find(w => w.id === id), manifest = manifests.find(m => m.id === id)
           const patch = resizeWidget(item, manifest?.sizes || ['m'], event.clientX - start.x, event.clientY - start.y, grid.current.clientWidth, parseFloat(getComputedStyle(grid.current.querySelector('.bento-grid')).gridAutoRows) || 152)
+          if (layoutRef.current.widgets.find(w => w.id === id)?.size === patch.size) return
           const next = { widgets: start.original.widgets.map(w => w.id === id ? patch : w) }; layoutRef.current = next; setLayout(next); return
         }
         const target = document.elementsFromPoint(event.clientX, event.clientY).map(el => el.closest('[data-slot-id]')).find(Boolean)?.dataset.slotId
-        if (target && target !== id) { const next = { widgets: moveWidget(layoutRef.current.widgets, id, target) }; layoutRef.current = next; setLayout(next) }
+        start.target = target && target !== id ? target : null
+        setDropTarget(start.target)
       },
       onPointerUp(event) {
-        const start = gesture.current; setDragging(false)
+        const start = gesture.current; setDragging(false); setDropTarget(null)
         if (!start) return
         const { id } = start
         if (start.kind === 'move') {
-          if (layoutRef.current !== start.original) persist(layoutRef.current)
+          if (start.target) persist({ ...start.original, widgets: moveWidget(start.original.widgets, id, start.target) })
         } else {
           const item = start.original.widgets.find(w => w.id === id), manifest = manifests.find(m => m.id === id)
           const row = parseFloat(getComputedStyle(grid.current.querySelector('.bento-grid')).gridAutoRows) || 152
@@ -159,22 +162,23 @@ export default function Home() {
     const manifest = manifests.find(m => m.id === position.id)
     if (!manifest) return null
     if (full) return <WidgetView context={frameContext} manifest={manifest} size={position.size} quiet={quiet} refreshVersion={refreshVersion} onData={onData} editing={false} full />
-    return <WidgetSlot key={manifest.id} id={manifest.id} title={manifest.title} size={position.size} displaySize={widgetDisplaySize(position.id, position.size)} sizes={manifest.sizes} editing={editing} dragging={dragging === manifest.id} move={stable.move} resize={stable.resize} grip={stable.grip}>{views.get(position.id)}</WidgetSlot>
+    return <WidgetSlot key={manifest.id} id={manifest.id} title={manifest.title} size={position.size} displaySize={widgetDisplaySize(position.id, position.size)} sizes={manifest.sizes} editing={editing} dragging={dragging === manifest.id} dropTarget={dropTarget === manifest.id} move={stable.move} resize={stable.resize} grip={stable.grip}>{views.get(position.id)}</WidgetSlot>
   }
   const previousRects = useRef(new Map())
   const addedTile = useRef(null)
   useLayoutEffect(() => {
     const nodes = grid.current?.querySelectorAll('[data-slot-id]') || []
     const next = new Map()
+    for (const node of nodes) for (const animation of node.getAnimations()) animation.cancel()
     for (const node of nodes) next.set(node.dataset.slotId, node.getBoundingClientRect())
-    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) for (const node of nodes) {
+    if (!dragging && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) for (const node of nodes) {
       const before = previousRects.current.get(node.dataset.slotId), after = next.get(node.dataset.slotId)
       if (!before && node.dataset.slotId === addedTile.current) node.animate([{ opacity: 0, transform: 'translateY(16px) scale(.98)', outline: '2px solid var(--tile-action)' }, { opacity: 1, transform: 'none', outline: '2px solid transparent' }], { duration: 250, easing: 'cubic-bezier(.2,.8,.2,1)' })
       if (before && (before.x !== after.x || before.y !== after.y)) node.animate([{ transform: `translate(${before.x - after.x}px, ${before.y - after.y}px)` }, { transform: 'none' }], { duration: 200, easing: 'cubic-bezier(.2,.8,.2,1)' })
     }
     addedTile.current = null
     previousRects.current = next
-  }, [layout, editing])
+  }, [layout, editing, dragging])
   const homePositions = positions.filter(w => !SYSTEM_WIDGETS.includes(w.id))
   const requestedSystem = SYSTEM_WIDGETS.includes(requested) && manifests.find(m => m.id === requested)
   const settingsId = drawer?.settingsId || (drawer === null && requestedSystem ? requested : null)

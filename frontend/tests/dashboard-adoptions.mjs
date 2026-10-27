@@ -161,6 +161,10 @@ try {
   await page.getByRole('dialog', { name: 'Edit mail draft', exact: true }).getByLabel('Recipient', { exact: true }).fill('fixture@example.com')
   await page.getByRole('dialog', { name: 'Edit mail draft', exact: true }).getByLabel('Subject', { exact: true }).fill('New fixture')
   await page.getByRole('dialog', { name: 'Edit mail draft', exact: true }).getByLabel('Draft text', { exact: true }).fill('Local text')
+  await page.keyboard.press('Escape')
+  assert.equal(await widget('need.drafts').locator('form').count(), 0)
+  await widget('need.drafts').getByRole('button', { name: 'New draft', exact: true }).click()
+  assert.equal(await page.getByRole('dialog', { name: 'Edit mail draft', exact: true }).getByLabel('Draft text', { exact: true }).inputValue(), 'Local text')
   await page.getByRole('dialog', { name: 'Edit mail draft', exact: true }).getByRole('button', { name: 'Review new draft', exact: true }).click()
   await page.getByRole('dialog', { name: 'Edit mail draft', exact: true }).getByRole('button', { name: 'Approve local change', exact: true }).click()
   assert.deepEqual(requests.find(r => r.path === '/api/widgets/need.drafts/actions/add').body, { recipient: 'fixture@example.com', subject: 'New fixture', text: 'Local text' })
@@ -231,6 +235,7 @@ try {
   await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme)
   for (const width of [1440, 390]) {
    await page.setViewportSize({ width, height: 1000 })
+   assert.deepEqual(await page.locator('.home-layout-grid .widget-content, .home-layout-grid .widget-show-all').evaluateAll(nodes => nodes.filter(n => n.getBoundingClientRect().bottom > n.closest('[data-slot-id]').getBoundingClientRect().bottom + 1).map(n => n.closest('[data-widget]').dataset.widget)), [], `${theme} content containment at ${width}`)
    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${theme} page overflow at ${width}`)
    assert.deepEqual(await page.locator('.widget-adoption').evaluateAll(nodes => nodes.filter(n => n.scrollWidth > n.clientWidth + 1).map(n => ({ id: n.dataset.widget, width: n.clientWidth, children: [...n.querySelectorAll('*')].filter(el => el.scrollWidth > el.clientWidth + 1 || el.getBoundingClientRect().right > n.getBoundingClientRect().right).map(el => [el.tagName, el.className, el.clientWidth, el.scrollWidth]) }))), [], `${theme} tile overflow at ${width}`)
   }

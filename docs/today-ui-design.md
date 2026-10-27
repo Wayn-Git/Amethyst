@@ -22,5 +22,7 @@ Verification: 23 adopted widget fixtures cover source states, real values and re
 
 - [x] glance.music: artwork and explicit player selection with unchanged approval gates.
 - [x] sys.connectors / dash.sync: shared account truth, refresh on return, actionable disconnected states.
-- [ ] dash.gallery / glance.clock: stable card bounds, gallery selection, settings and padding.
+- [x] dash.gallery / glance.clock: stable card bounds, gallery selection, settings and padding.
 - [x] need.drafts / need.waiting: composers and reviews in sheets instead of expanding cards.
+
+Usability verification: 43 connector/fast-lane backend tests pass. Needs and Glance browser fixtures cover retained draft text, approval/rejection, source states, content containment, nine themes and reduced motion. Production preview covers connection transitions, gallery selection/add/remove, drag/drop/undo and card bounds at 1440/1024/768/390px. Frontend rebuilt; existing raw-control lint and bundle/import warnings remain. Desktop backend was unavailable on port 8000; live OAuth and OS playback were not checked.

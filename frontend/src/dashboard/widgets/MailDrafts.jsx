@@ -25,7 +25,7 @@ export default function MailDrafts({ data, refresh }) {
     {gate ? <section className="adoption-review" aria-label="Review mail change"><p>{gate.action}: {gate.item.subject || form.subject}</p>{gate.item.text && <p>{gate.item.text}</p>}<div className="widget-buttons"><Button variant="primary" loading={busy} onClick={() => decide(true)}>Approve local change</Button><Button disabled={busy} onClick={() => decide(false)}>Reject change</Button></div></section> : <form onSubmit={e => { e.preventDefault(); propose(form.id ? 'edit' : 'add', form) }}>
       <label>Recipient<Input type="email" required value={form.recipient} onChange={e => setForm({ ...form, recipient: e.target.value })} /></label>
       <label>Subject<Input required maxLength={500} value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} /></label>
-      <label>Draft text<textarea required maxLength={20000} value={form.text} onChange={e => setForm({ ...form, text: e.target.value })} /></label>
+      <label>Draft text<textarea aria-label="Draft text" required maxLength={20000} value={form.text} onChange={e => setForm({ ...form, text: e.target.value })} /></label>
       <div className="widget-buttons"><Button variant="primary" type="submit" loading={busy}>{form.id ? 'Review edit' : 'Review new draft'}</Button>{form.id && <Button onClick={() => setForm({ recipient: '', subject: '', text: '' })}>New draft</Button>}</div>
     </form>}
     </div></div></Drawer>}

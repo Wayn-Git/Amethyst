@@ -36,3 +36,10 @@
 }
 @keyframes catalog-sheet-enter { from { transform: translateY(32px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .today-catalog-drawer[open] { animation: none; } }
+
+.today-catalog .catalog-thumbnail.ui-tile { height: auto; min-height: 112px; align-items: flex-start; text-align: left; width: 100%; }
+.catalog-thumbnail .catalog-silhouette { pointer-events: none; }
+.catalog-options { display: grid; gap: var(--tile-space-3); }
+.catalog-options[hidden] { display: none; }
+.catalog-added { display: flex; align-items: center; gap: var(--tile-space-1); color: var(--tile-light-muted); }
+.today-catalog-row:has(.catalog-thumbnail[aria-expanded='true']) { outline: 2px solid var(--tile-action); outline-offset: 2px; }
