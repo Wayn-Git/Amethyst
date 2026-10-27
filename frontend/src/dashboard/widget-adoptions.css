@@ -4,7 +4,7 @@
   --ui-panel: var(--tile-bg); --ui-text: var(--tile-fg); --ui-muted: var(--tile-muted); --ui-faint: var(--tile-muted);
   --ui-raised: color-mix(in srgb, var(--tile-fg) 6%, var(--tile-bg));
   --ui-border: color-mix(in srgb, var(--tile-fg) 12%, transparent);
-  --text: var(--tile-fg); --text-dim: var(--tile-muted); --text-faint: var(--tile-muted);
+  --home-muted: var(--tile-muted); --home-ink: var(--tile-fg); --text: var(--tile-fg); --text-dim: var(--tile-muted); --text-faint: var(--tile-muted);
   --canvas: var(--tile-bg); --surface: var(--ui-raised); --hairline: var(--ui-border);
   color: var(--tile-fg); background: var(--tile-bg); border: 0; border-radius: var(--tile-radius);
   padding: var(--tile-space-6); font: var(--tile-body); gap: var(--tile-space-4); overflow-wrap: anywhere;
@@ -19,7 +19,7 @@
 .bento-foundation .home-widget.widget-adoption[data-widget] .widget-chip { border: 0; border-radius: 999px; background: color-mix(in srgb, currentColor 9%, transparent); color: var(--tile-muted); font: var(--tile-label); }
 .bento-foundation .home-widget.widget-adoption[data-widget] .state-stale { background: transparent; padding: 0; }
 .bento-foundation .home-widget.widget-adoption[data-widget] .widget-content :is(ul,ol) { list-style: none; margin: 0; padding: 0; }
-.bento-foundation .home-widget.widget-adoption[data-widget] .widget-content p { margin-block: var(--tile-space-2); }
+.bento-foundation .home-widget.widget-adoption[data-widget] .widget-content p { margin-block: var(--tile-space-2); color: var(--tile-muted); }
 .bento-foundation .home-widget.widget-adoption[data-widget] .widget-list > li { padding-block: var(--tile-space-3); border-color: var(--ui-border); min-width: 0; }
 .bento-foundation .home-widget.widget-adoption[data-widget] .widget-list strong { color: var(--tile-fg); font: var(--tile-title); }
 .bento-foundation .home-widget.widget-adoption[data-widget] .widget-list p { color: var(--tile-muted); font: var(--tile-body); }
@@ -66,7 +66,7 @@
 .home-layout-grid .ui-tile[data-slot-id='glance.weather'],
 .bento-foundation .home-widget.widget-adoption[data-widget][data-widget='glance.weather'] {
   --tile-bg: var(--tile-weather); --tile-fg: var(--tile-weather-text); --tile-muted: var(--tile-weather-muted);
-  background: linear-gradient(155deg, var(--tile-weather), var(--tile-weather-horizon));
+  background: var(--tile-weather); background-image: linear-gradient(155deg, var(--tile-weather), var(--tile-weather-horizon));
 }
 .bento-foundation .home-widget.widget-adoption[data-widget] .weather-reading { display: flex; align-items: start; justify-content: space-between; gap: var(--tile-space-3); }
 .bento-foundation .home-widget.widget-adoption[data-widget] .weather-reading .pilot-number { min-width: 0; }
@@ -224,3 +224,5 @@
 .bento-foundation .home-widget.widget-adoption[data-widget] .home-library-list .widget-row { display: flex; align-items: flex-start; gap: var(--tile-space-4); }
 .bento-foundation .home-widget.widget-adoption[data-widget] .home-library-cover { display: grid; place-items: center; width: 48px; height: 48px; flex: none; border-radius: 50%; }
 .bento-foundation .home-widget.widget-adoption[data-widget] .home-library-copy { flex: 1; min-width: 0; }
+
+.bento-foundation .home-widget.widget-adoption[data-widget] .task-due-chip.is-due { color: var(--widget-waiting); }

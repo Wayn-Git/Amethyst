@@ -2,13 +2,17 @@
 
 Branch: ui-redesign. Shipped inventory: 80 widgets. Updated 2026-10-27.
 
-- [x] Phase 0: measured reference atlas and explicit assumptions.
-- [x] Phase 1: full widget map and executable inventory check.
-- [x] Phase 2: shared field/control language, preserving form semantics.
-- [ ] Phase 3: Glance, Needs you, Communication, Agent, Library, Tasks, Developer, Feed, System, Dashboard.
-- [ ] Phase 4: product consistency review.
-- [ ] Phase 5: browser sweep, raw-control enforcement and production build.
+- [x] Phase 0: reference atlas with measurements and explicit assumptions.
+- [x] Phase 1: all 80 manifest IDs mapped; inventory/snapshot/registry check passes.
+- [x] Phase 2: shared controls and field patterns; native validation/submission retained.
+- [ ] Phase 3: final per-group captures and verification receipts below.
+- [x] Phase 4: Home, Library, Coding Agents, Skills, Connectors and Settings reviewed with isolated empty fixtures.
+- [ ] Phase 5: final all-state contrast, responsiveness and production-exclusion checks in progress.
 
-Current proof: inventory check passes for 80 IDs; Glance, Needs you and Communication action/state suites pass across nine themes. New fixture action checks pass native form submission, proposal-before-approval, rejection, keyboard switches/segments and numeric progress. All groups have produced first-pass screenshots. Remaining: finish isolation/overflow sweep (latest run timed out entering System), inspect final contact sheets, product pages, production bundle exclusion and commits per group.
+Implementation is applied to all 80 shipped widgets. Final checks cover all manifest sizes, six states, nine themes, 360–2560 px, keyboard controls, reduced motion, draft approval/rejection, pin sandboxing and Home drag/resize/undo. The product-wide JSX raw-control rule is now an error; primitive implementations remain exempt. A syntax audit verified all props and native submit defaults for 1,187 migrated controls across 136 product files. No navigation routes or backend contracts were changed.
 
-Shared field language is applied in Home only; legacy controls elsewhere in the app keep their existing styling and warning severity so navigation is unchanged. Home and its new gallery reject raw controls as lint errors. Full-product raw-control migration remains outside this Home pass.
+Common implementation commits: 6f8e400 (atlas/map), 08d0609 (controls/gallery), cc22029 (widget adoption, combined by the concurrent workflow), 7859870 (product control enforcement). Existing concurrent commits are preserved; group-specific commits below record completion evidence rather than rewriting that history.
+
+Remaining verification: finish captures and expanded contrast sweep, update group receipts, final build/exclusion check. Known fidelity and validation limits are in ui-open-questions.md. No live account/OAuth or hardware profiling is claimed.
+
+## Group completion receipts

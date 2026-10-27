@@ -4,7 +4,7 @@
 
 ## Common geometry
 
-Square tile: 200 × 200, radius 28–36 (14–18% width), padding 20 (10%). Our responsive product translation uses the existing 24 px radius, 16/24 px padding and 16 px gutters. Wide tiles are 2:1; islands 3–6:1 with fully rounded ends. Titles 14–16/20–22, body 13–14/20, supporting labels 11/16, hero numbers 48–64/1 with −.04em tracking. Use bundled Space Grotesk for hero values, Inter for prose, existing mono only for timestamps. Source images have compact chrome; actions stay in keyboard-accessible hover menus. All patterns retain visible focus and reduced motion. Still images establish no animation timing: use existing 150 ms response tokens, no inferred automatic animation.
+Square tile: 200 × 200, radius 28–36 (14–18% width), padding 20 (10%). Our responsive product translation uses the existing 24 px radius, 16/24 px padding and 16 px gutters. Wide tiles are 2:1; islands 3–6:1 with fully rounded ends. Titles 14–16/20–22, body 13–14/20, supporting labels 11/16, hero numbers 48–64/1 with −.04em tracking. Use the existing --ui-display and --ui-font tokens (currently OpenAI Sans), with the existing mono token for timestamps; do not hardcode a second font family. Source images have compact chrome; actions stay in keyboard-accessible hover menus. All patterns retain visible focus and reduced motion. Still images establish no animation timing: use existing 150 ms response tokens, no inferred automatic animation.
 
 | Stable pattern | Reference / tone | Layout and exact elements | Interaction / motion |
 |---|---|---|---|

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Stat, Chip } from '../../components/ui/bento/index.jsx'
+import { Stat, Chip, Button } from '../../components/ui/bento/index.jsx'
 
 export default function NextEvent({ data }) {
   const [now, setNow] = useState(() => Date.now())
@@ -12,13 +12,13 @@ export default function NextEvent({ data }) {
     return (
       <div className="adoption-stack" style={{ alignItems: 'center', justifyContent: 'center', padding: '16px 8px', textAlign: 'center' }}>
         <p className="adoption-label" style={{ margin: '0 0 8px' }}>No upcoming events</p>
-        <button
+        <Button
           type="button"
           className="widget-button"
           onClick={() => window.dispatchEvent(new CustomEvent('amethyst:open-connectors', { detail: 'googlecalendar' }))}
         >
           Connect Google Calendar
-        </button>
+        </Button>
       </div>
     )
   }

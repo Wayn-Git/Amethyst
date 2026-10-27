@@ -1,4 +1,5 @@
 // Read-only visual consistency review with empty API fixtures.
+import assert from 'node:assert/strict'
 import { chromium } from 'playwright-core'
 import { existsSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -12,7 +13,8 @@ try {
  await page.route('**/api/**', route => {
   const path = new URL(route.request().url()).pathname
   let json = {}
-  if (path.endsWith('/health')) json = { status:'ok', providers:[], capabilities:[], mcp_servers:[], tools:0, skills:0 }
+  if (path.startsWith('/api/skills')) json = { skills:[],errors:[],error:null }
+  else if (path.endsWith('/health')) json = { status:'ok', providers:[], capabilities:[], mcp_servers:[], tools:0, skills:0 }
   else if (['/conversations','/confirmations','/models','/providers','/journal','/mcp/servers','/skills','/tools','/agents'].some(p => path.endsWith(p))) json = []
   else if (path.includes('/library')) json = { items:[],total:0,tags:[],kinds:[] }
   else if (path === '/api/widgets' || path === '/api/layout') json = { widgets:[] }
@@ -27,7 +29,14 @@ try {
   const observation = await page.evaluate(() => ({ title:document.title, headings:[...document.querySelectorAll('h1,h2')].map(e => e.textContent).slice(0,12), buttons:document.querySelectorAll('button').length, font:getComputedStyle(document.body).fontFamily, overflow:document.documentElement.scrollWidth > innerWidth }))
   await page.screenshot({ path:`../ui-review/product-${path.slice(1)}.png`, fullPage:true })
   results.push({ path,...observation,errors })
+  if (path === '/capabilities') {
+   await page.getByRole('tab', { name:'Connectors', exact:true }).click()
+   await page.waitForTimeout(500)
+   await page.screenshot({ path:'../ui-review/product-connectors.png', fullPage:true })
+   assert.equal(await page.getByText('That view stopped rendering.', { exact:true }).count(),0)
+  }
  }
- console.log(JSON.stringify(results,null,2))
+ assert(results.every(r => !r.overflow && !r.errors.length && !r.headings.includes('That view stopped rendering.')), JSON.stringify(results))
+ console.log('PASS: Home, Library, Coding Agents, Skills, Connectors and Settings render with empty fixtures; navigation unchanged')
  writeFileSync('../ui-review/product-review.json',JSON.stringify(results,null,2))
 } finally { await browser.close() }

@@ -68,7 +68,7 @@ Scoped styles live in widget-adoptions.css and also cover these widgets in setti
 
 ## Needs you group adoption
 
-All nine implemented IDs are adopted. need.inbox keeps the ranked-list pilot. need.lor-social remains blocked by the existing lack of an official personal-account API; no substitute is added. Preview order, five-record limit and Show all remain owned by the shell. Group shells use the existing manifest icons, tone tokens, quiet freshness and status pills. Loading reserves 320 px for the new list patterns; the inbox retains its pilot reservation.
+All nine implemented IDs are adopted. need.inbox keeps the ranked-list pilot. need.lor-social remains blocked by the existing lack of an official personal-account API; no substitute is added. Preview order, five-record limit and Show all remain owned by the shell. Group shells use the existing manifest icons, tone tokens, quiet freshness and status pills. Loading reserves 184 px for the new list patterns; the inbox retains its pilot reservation.
 
 **Correspondence list — need.drafts, need.waiting, need.mentions, need.lor-slack.** Use circular recipient/source initials, a prominent subject/title, quiet metadata and supplied status. Mentions and Slack preserve existing HTTPS source links. Slack uses a dark tile; the others use light. Draft and waiting composers live in disclosures, open for empty lists or editing; an active review/nudge stays visible. Local-draft limits and waiting configuration/source details appear once. Draft approval and waiting add/complete/nudge still use their existing gated review and rejection flow. No send action is enabled and no reply capability is invented.
 
@@ -80,7 +80,7 @@ Proof: `node frontend/tests/dashboard-adoptions.mjs needs` exercises all nine ID
 
 ## Communication group adoption
 
-All seven shipped Communication IDs are adopted; comm.schedule-send and comm.meeting have no shipped component/provider and stay pending. No scheduling or sending behavior is added. New lists reserve 320 px during loading, use five-record previews and retain the shell's full-data Show all drawer. Expanded lists and settings reuse the same tone and content controls.
+All seven shipped Communication IDs are adopted; comm.schedule-send and comm.meeting have no shipped component/provider and stay pending. No scheduling or sending behavior is added. New lists reserve 184 px during loading, use five-record previews and retain the shell's full-data Show all drawer. Expanded lists and settings reuse the same tone and content controls.
 
 **Contact / digest list — comm.contacts, comm.thread-summary, comm.newsletters, comm.reachout.** Reuse the correspondence pattern with circular person/source initials, title, quiet metadata and source chip. Contacts use a dark tone and disclose existing HTTPS shared-thread links. Thread summaries use light; newsletters use accent. Optional model controls keep their server-backed state and partial-snippet disclosure; unsubscribe suggestions remain text. Reach-out uses a light list of supplied reasons and last-contact dates. Birthday and interval configuration live in a disclosure, open for empty lists, with the existing local approval/rejection review.
 
@@ -89,3 +89,10 @@ All seven shipped Communication IDs are adopted; comm.schedule-send and comm.mee
 **Draft composer — comm.templates, comm.tone.** Templates use a light list with circular copy badges, subject/snippet and existing Edit/Use/Review delete actions. The new/edit composer stays in its disclosure. Tone uses an accent tile with native house selects for the saved draft and tone, optional generation and an editable rewrite. Primary controls are violet; cancellation/rejection remains secondary. Review content preserves line breaks, and all local changes retain the existing draft gate. No synthetic charts or outbound send controls.
 
 Proof: `node frontend/tests/dashboard-adoptions.mjs communication` checks all seven IDs, model settings, HTTPS shared-thread filtering, birthday configuration, template use/edit and tone rewriting with gated approval/rejection; all groups also exercise styled Show all drawers, shell states, nine themes, mobile/desktop overflow and reduced motion. The comm.templates/comm.tone/comm.unread cases in dashboard-mail.mjs pass against mocked APIs. home-revamp.mjs passes the integrated 360–2560 px layout, focus, drag/resize/undo and reduced-motion checks. The older dashboard-pilots.mjs stops at the task.today add-item approval step; it is outside these three groups. Live connectors and hardware frame timing were not checked.
+
+
+## All shipped groups — final reference adoption
+
+The manifest-complete pattern/state/field mapping lives in ui-widget-map.md. All WidgetFrame presentations inherit shared field, surface, text and semantic accent tokens; Home settings and the isolated development gallery use the same ownership. Content paragraphs and menu chrome inherit their tile tone, including dark and violet surfaces. Muted violet text is darkened to meet AA on the darkest accent surface and its inset fields.
+
+House controls are mandatory across the product. Preserve native submit intent explicitly when replacing a raw button, along with refs, labels, event handlers and validation attributes. Do not infer charts from text or fabricate trend history. Compact/list loading reservations reduce ordinary movement but do not promise fixed height for unbounded provider prose or expanded forms.
