@@ -2,7 +2,7 @@ import { WidgetRow, StateView } from '../primitives.jsx'
 import { useState } from 'react'
 import { request } from '../api.js'
 import Icon from '../../components/Icon.jsx'
-import { Button, Input, IconBadge } from '../../components/ui/bento/index.jsx'
+import { Button, Input, IconBadge, Textarea } from '../../components/ui/bento/index.jsx'
 
 export default function Templates({ data, refresh }) {
   const empty = { title: '', subject: '', text: '' }
@@ -24,7 +24,7 @@ export default function Templates({ data, refresh }) {
       <form onSubmit={e => { e.preventDefault(); propose(form.id ? 'edit' : 'add', form) }}>
         <label>Template name<Input required maxLength={500} value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></label>
         <label>Template subject<Input required maxLength={500} value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} /></label>
-        <label>Template text<textarea aria-label="Template text" required maxLength={20000} value={form.text} onChange={e => setForm({ ...form, text: e.target.value })} /></label>
+        <label>Template text<Textarea aria-label="Template text" required maxLength={20000} value={form.text} onChange={e => setForm({ ...form, text: e.target.value })} /></label>
         <div className="widget-buttons"><Button variant="primary" type="submit" loading={busy}>{form.id ? 'Review template edit' : 'Review new template'}</Button>{form.id && <Button type="button" onClick={() => { setForm(empty); setOpenForm(false) }}>Cancel</Button>}</div>
       </form>
     </details>}

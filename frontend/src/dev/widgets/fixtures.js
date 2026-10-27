@@ -64,7 +64,7 @@ export const fixtures = {
  'sys.notify': { items: [activity] }, 'sys.vault': { items: [{ ...activity, title: 'Sample: vault ready', detail: 'Local files are available.' }] },
  'dash.shortcuts': { shortcuts: [['⌘K / Ctrl+K', 'Search and capture'], ['Escape', 'Close drawer']] },
  'dash.quiet': {}, 'dash.sync': {}, 'dash.gallery': {}, 'dash.palette': {},
- 'dash.pin': { items: [] },
+ 'dash.pin': { items: [{ id: 1, data: { title: 'Sample saved answer', html: '<h2>Sample saved answer</h2><p>A short offline reference from a conversation.</p>', css: '', initial_height: 240 } }] },
 }
 for (const id of ['lib.inbox', 'lib.recent', 'lib.resurface', 'lib.dupes']) fixtures[id] = { items: [note] }
 for (const id of ['task.risk', 'task.conflicts', 'task.free', 'task.plan']) fixtures[id] = { timezone: 'Asia/Kolkata', items: [{ ...event, detail: 'Sample: calendar-based planning', title: 'Sample: a 30-minute opening' }] }

@@ -1,3 +1,4 @@
+import { Button, Input } from '../../components/ui/bento/index.jsx'
 import { useState } from 'react'
 import { request } from '../api.js'
 import { StateView, WidgetRow } from '../primitives.jsx'
@@ -19,13 +20,13 @@ export default function Planning({ data, widgetId, refresh }) {
   return <div>
     {data?.message && <StateView>{data.message}</StateView>}
     {error && <StateView role="alert">{error}</StateView>}
-    <ul>{(data?.items || []).map(item => <WidgetRow key={item.id}><div><strong>{item.title}</strong><p>{item.detail}</p>{item.start && <p>{format(item.start)} – {format(item.end)}</p>}</div></WidgetRow>)}</ul>
+    <ul className="widget-list widget-timeline">{(data?.items || []).map(item => <WidgetRow key={item.id}><div><strong>{item.title}</strong><p>{item.detail}</p>{item.start && <p>{format(item.start)} – {format(item.end)}</p>}</div></WidgetRow>)}</ul>
     <details><summary>Working hours settings</summary><form onSubmit={save}>
-      <label>Start<input name="start" type="time" required /></label>
-      <label>End<input name="end" type="time" required /></label>
-      <label>Timezone<input name="timezone" required defaultValue={data?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone} /></label>
-      <fieldset><legend>Working days</legend>{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, index) => <label key={day}><input type="checkbox" name="days" value={index} />{day}</label>)}</fieldset>
-      <button>Save working hours</button>
+      <label>Start<Input name="start" type="time" required /></label>
+      <label>End<Input name="end" type="time" required /></label>
+      <label>Timezone<Input name="timezone" required defaultValue={data?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone} /></label>
+      <fieldset><legend>Working days</legend>{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, index) => <label key={day}><Input type="checkbox" name="days" value={index} />{day}</label>)}</fieldset>
+      <Button type="submit">Save working hours</Button>
     </form></details>
   </div>
 }

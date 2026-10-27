@@ -1,3 +1,4 @@
+import { Button, Input } from '../../components/ui/bento/index.jsx'
 import { useMemo, useState } from 'react'
 import { WidgetChip, StateView } from '../primitives.jsx'
 import { useDashboard } from '../context.js'
@@ -63,7 +64,7 @@ function SearchField({ value, onChange }) {
   return (
     <label className="studio-search" htmlFor="gallery-search-input">
       <Icon name="search" size={14} className="studio-search-icon" />
-      <input
+      <Input
         id="gallery-search-input"
         type="search"
         aria-label="Search widgets"
@@ -74,15 +75,15 @@ function SearchField({ value, onChange }) {
         autoComplete="off"
       />
       {value && (
-        <button type="button" className="studio-search-clear" onClick={() => onChange('')} aria-label="Clear search">
+        <Button type="button" className="studio-search-clear" onClick={() => onChange('')} aria-label="Clear search">
           <Icon name="x" size={12} />
-        </button>
+        </Button>
       )}
     </label>
   )
 }
 
-export default function Gallery({ compact = false }) {
+export default function Gallery({ compact = false, widgetId, full = false }) {
   const { manifests, layout, toggleWidget, addWidget, openWidget } = useDashboard()
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
@@ -112,13 +113,14 @@ export default function Gallery({ compact = false }) {
     else toggleWidget(manifest.id)
   }
 
-  if (compact) {
+  const tilePreview = widgetId === 'dash.gallery' && !full
+  if (compact || tilePreview) {
     return (
       <div className="gallery-compact">
         <SearchField value={search} onChange={setSearch} />
         <div className="gallery-compact-list">
           {!matches.length && <StateView role="status" className="gallery-empty">No matching widgets found.</StateView>}
-          {matches.map(manifest => {
+          {(tilePreview ? matches.slice(0, 5) : matches).map(manifest => {
             const isAdded = added(manifest.id)
             const system = SYSTEM_WIDGETS.includes(manifest.id)
             return (
@@ -128,17 +130,18 @@ export default function Gallery({ compact = false }) {
                   <strong>{manifest.title}</strong>
                   <small>{sourceOf(manifest)} · {cadenceOf(manifest)}</small>
                 </span>
-                <button
+                <Button
                   type="button"
                   disabled={!system && isAdded}
                   onClick={() => system ? openWidget(manifest.id) : isAdded ? toggleWidget(manifest.id) : handleAdd(manifest, defaultSize(manifest))}
                 >
                   {system ? 'Open' : isAdded ? 'Added' : 'Add'}
-                </button>
+                </Button>
               </div>
             )
           })}
         </div>
+        {tilePreview && <Button onClick={() => openWidget('dash.gallery')}>Browse all {manifests.length} widgets</Button>}
       </div>
     )
   }
@@ -149,7 +152,7 @@ export default function Gallery({ compact = false }) {
         <SearchField value={search} onChange={setSearch} />
         <nav className="studio-categories">
           {CATEGORIES.map(([id, label, icon]) => (
-            <button
+            <Button
               key={id}
               type="button"
               className={`studio-category${selectedCategory === id ? ' is-active' : ''}`}
@@ -159,7 +162,7 @@ export default function Gallery({ compact = false }) {
               <Icon name={icon} size={14} />
               <span>{label}</span>
               <span className="studio-category-count">{counts[id]}</span>
-            </button>
+            </Button>
           ))}
         </nav>
         <p className="studio-rail-count">{matches.length} of {manifests.length} widgets</p>
@@ -181,7 +184,7 @@ export default function Gallery({ compact = false }) {
                 {rows.map(manifest => {
                   const isAdded = added(manifest.id)
                   return (
-                    <button
+                    <Button
                       key={manifest.id}
                       type="button"
                       className={`studio-item${active?.id === manifest.id ? ' is-active' : ''}`}
@@ -194,7 +197,7 @@ export default function Gallery({ compact = false }) {
                         <small>{sourceOf(manifest)} · {cadenceOf(manifest)}</small>
                       </span>
                       {isAdded && <span className="studio-item-added" title="On Home"><Icon name="check-simple" size={12} /></span>}
-                    </button>
+                    </Button>
                   )
                 })}
               </section>
@@ -226,7 +229,7 @@ export default function Gallery({ compact = false }) {
               <span>Size</span>
               <div className="studio-size-pills">
                 {['s', 'm', 'l'].map(sizeKey => (
-                  <button
+                  <Button
                     key={sizeKey}
                     type="button"
                     className={`studio-size-pill${activeSize === sizeKey ? ' is-active' : ''}`}
@@ -235,13 +238,13 @@ export default function Gallery({ compact = false }) {
                     aria-label={`Size ${sizeKey.toUpperCase()} for ${active.title}`}
                   >
                     {sizeKey.toUpperCase()}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
             <footer className="studio-preview-foot">
               <span>{active.sizes.map(size => size.toUpperCase()).join(' · ')}</span>
-              <button
+              <Button
                 type="button"
                 className="studio-add"
                 disabled={!activeSystem && activeAdded}
@@ -250,7 +253,7 @@ export default function Gallery({ compact = false }) {
               >
                 <Icon name={activeAdded && !activeSystem ? 'check-simple' : 'plus'} size={13} />
                 <span>{activeSystem ? 'Open settings' : activeAdded ? 'Added' : 'Add to Home'}</span>
-              </button>
+              </Button>
             </footer>
           </>
         ) : (

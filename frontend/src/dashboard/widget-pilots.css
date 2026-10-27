@@ -1,7 +1,7 @@
 /* Pilot anatomy shares the foundation's tone, type and motion tokens. */
-.bento-foundation .widget-pilot { --pilot-height: 400px; }
+.bento-foundation .widget-pilot { --pilot-height: 184px; }
 .bento-foundation .widget-pilot[data-widget^='glance.'] { --pilot-height: 128px; }
-.bento-foundation .widget-pilot[data-widget='task.today'] { --pilot-height: 480px; }
+.bento-foundation .widget-pilot[data-widget='task.today'] { --pilot-height: 240px; }
 .bento-foundation .widget-pilot[data-widget='task.focus'] { --pilot-height: 360px; }
 .bento-foundation .widget-pilot .widget-content { min-height: var(--pilot-height) !important; }
 .bento-foundation .widget-pilot .widget-skeleton { min-height: var(--pilot-height) !important; padding: 0; }

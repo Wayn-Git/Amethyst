@@ -22,7 +22,7 @@ try {
   for (const theme of ['paper', 'graphite']) for (const width of [1440,390]) {
    await page.setViewportSize({ width, height: 1000 })
    await page.goto(`${process.env.BASE || 'http://127.0.0.1:5178'}/dev/widgets?group=${group}&theme=${theme}`)
-   await page.waitForFunction(n => document.querySelectorAll('.review-example').length === n && !document.querySelector('.widget-skeleton'), expected)
+   await page.waitForFunction(n => document.querySelectorAll('.review-example').length === n && !document.querySelector('.widget-skeleton'), expected).catch(async error => { console.error({ group, theme, width, expected, errors, body: (await page.locator('body').innerText()).slice(0, 2000) }); throw error })
    await page.evaluate(() => document.fonts.ready)
    await page.waitForTimeout(150)
    assert.equal(await page.getByText('This widget could not render.', { exact: true }).count(), 0, `${group}: render error`)
@@ -40,10 +40,10 @@ try {
   }
   console.log(`CHECKED ${group}: ${expected} sizes, 6 states, 2 widths, 2 themes`)
  }
- writeFileSync(`${output}review-results.json`, JSON.stringify(reports,null,2))
+ writeFileSync(`${output}${groups.join("-")}-results.json`, JSON.stringify(reports,null,2))
  assert.deepEqual(errors, [], 'No uncaught render errors')
  assert.deepEqual(apiRequests, [], 'Gallery must never call a real API')
- writeFileSync(`${output}review-results.json`, JSON.stringify(reports,null,2))
+ writeFileSync(`${output}${groups.join("-")}-results.json`, JSON.stringify(reports,null,2))
  const failures = reports.filter(r => r.overflow.length)
  assert.deepEqual(failures, [], 'No tile or page overflow')
  console.log(`PASS: ${groups.length} groups; screenshots in ${output}`)

@@ -1,3 +1,4 @@
+import { Button } from '../../components/ui/bento/index.jsx'
 import { useState } from 'react'
 import { request } from '../api.js'
 import { StateView } from '../primitives.jsx'
@@ -18,5 +19,5 @@ export default function LocalReview({ widgetId, refresh, children }) {
     window.dispatchEvent(new Event('dashboard-items-changed'))
     await refresh()
   })
-  return <div>{error && <StateView role="alert">{error}</StateView>}{draft ? <section aria-label="Review local change"><p>{draft.action}</p><pre>{JSON.stringify(draft.item, null, 2)}</pre><button disabled={busy} onClick={() => decide(true)}>Approve change</button><button disabled={busy} onClick={() => decide(false)}>Reject change</button></section> : <fieldset disabled={busy}>{children(propose)}</fieldset>}</div>
+  return <div>{error && <StateView role="alert">{error}</StateView>}{draft ? <section aria-label="Review local change"><p>{draft.action}</p><pre>{JSON.stringify(draft.item, null, 2)}</pre><Button variant="primary" type="submit" disabled={busy} onClick={() => decide(true)}>Approve change</Button><Button type="submit" disabled={busy} onClick={() => decide(false)}>Reject change</Button></section> : <fieldset disabled={busy}>{children(propose)}</fieldset>}</div>
 }

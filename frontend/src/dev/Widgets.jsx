@@ -32,7 +32,7 @@ export default function Widgets() {
     return () => media.removeEventListener('change', apply)
   }, [theme])
   const report = () => setMessage('Sample action only. Nothing was changed outside this gallery.')
-  const context = { now: new Date(), manifests, layout: { widgets: [] }, records: {}, quiet: false, quietSettings: {}, saveQuiet: report, refreshAll: report, removeWidget: report, setEditing: report, connectSource: report, openWidget: report, openPalette: report, toggleWidget: report, addWidget: report }
+  const context = { now: new Date(), manifests, layout: { widgets: manifests.slice(0, 3).map(({ id }) => ({ id })) }, records: Object.fromEntries(manifests.slice(0, 3).map(({ id }) => [id, { state: 'ready', synced_at: new Date().toISOString() }])), quiet: false, quietSettings: {}, saveQuiet: report, refreshAll: report, removeWidget: report, setEditing: report, connectSource: report, openWidget: report, openPalette: report, toggleWidget: report, addWidget: report }
   return <main className="bento-foundation widget-home widget-review">
     <header className="review-toolbar"><h1>Widget reference gallery</h1><p>Labelled sample data · development only · all manifest sizes</p>
       <div><label>Group<Select aria-label="Group" value={group} onChange={e => setGroup(e.target.value)}>{groups.map(value => <option key={value}>{value}</option>)}</Select></label>

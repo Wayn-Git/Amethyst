@@ -1,3 +1,4 @@
+import { Button } from '../../components/ui/bento/index.jsx'
 import { useState } from 'react'
 import { StateView } from '../primitives.jsx'
 import { request } from '../api.js'
@@ -16,5 +17,5 @@ export default function DailyNote({ data, refresh, widgetId }) {
       }
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
-  return <><p>{data?.day}</p><p>{data?.prompt}</p>{error && <StateView role="alert">{error}</StateView>}{draft ? <section aria-label="Review daily note"><p>Create note for {draft.item.day}?</p><button disabled={busy} onClick={() => create(true)}>Approve create</button><button disabled={busy} onClick={() => create(false)}>Reject create</button></section> : data?.items?.length ? <a href={`/today?source=library&item=${data.items[0].id}`}>Open today's note</a> : <button disabled={busy || !data?.day} onClick={() => create()}>Review create today's note</button>}</>
+  return <><p>{data?.day}</p><p>{data?.prompt}</p>{error && <StateView role="alert">{error}</StateView>}{draft ? <section aria-label="Review daily note"><p>Create note for {draft.item.day}?</p><Button variant="primary" type="submit" disabled={busy} onClick={() => create(true)}>Approve create</Button><Button type="submit" disabled={busy} onClick={() => create(false)}>Reject create</Button></section> : data?.items?.length ? <a href={`/today?source=library&item=${data.items[0].id}`}>Open today's note</a> : <Button type="submit" disabled={busy || !data?.day} onClick={() => create()}>Review create today's note</Button>}</>
 }

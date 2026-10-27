@@ -1,3 +1,4 @@
+import { Button, Textarea } from '../../components/ui/bento/index.jsx'
 import { useState } from 'react'
 import { WidgetRow, StateView } from '../primitives.jsx'
 import { request } from '../api.js'
@@ -18,7 +19,7 @@ export default function Knows({ data, refresh }) {
   }
   return <>
     {error && <StateView role="alert">{error}</StateView>}
-    {draft && <section aria-label="Review memory change"><p>{draft.action}: {draft.item.fact || `Memory ${draft.item.id}`}</p><button disabled={busy} onClick={() => decide(true)}>Approve change</button><button disabled={busy} onClick={() => decide(false)}>Reject change</button></section>}
-    <ul>{(data?.items || []).map(item => <WidgetRow key={item.id}><form onSubmit={e => { e.preventDefault(); propose('edit', { id: item.id, fact: new FormData(e.currentTarget).get('fact') }) }}><p>{item.detail}</p><label>Memory {item.id}<textarea key={item.fact} name="fact" defaultValue={item.fact} required maxLength={10000} /></label><button disabled={busy || !!draft}>Review edit</button><button type="button" disabled={busy || !!draft} onClick={() => propose('delete', { id: item.id })}>Delete memory</button></form></WidgetRow>)}</ul>
+    {draft && <section aria-label="Review memory change"><p>{draft.action}: {draft.item.fact || `Memory ${draft.item.id}`}</p><Button variant="primary" type="submit" disabled={busy} onClick={() => decide(true)}>Approve change</Button><Button type="submit" disabled={busy} onClick={() => decide(false)}>Reject change</Button></section>}
+    <ul>{(data?.items || []).map(item => <WidgetRow key={item.id}><form onSubmit={e => { e.preventDefault(); propose('edit', { id: item.id, fact: new FormData(e.currentTarget).get('fact') }) }}><p>{item.detail}</p><label>Memory {item.id}<Textarea key={item.fact} name="fact" defaultValue={item.fact} required maxLength={10000} /></label><Button type="submit" disabled={busy || !!draft}>Review edit</Button><Button type="button" disabled={busy || !!draft} onClick={() => propose('delete', { id: item.id })}>Delete memory</Button></form></WidgetRow>)}</ul>
   </>
 }

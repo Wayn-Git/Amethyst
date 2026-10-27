@@ -1,3 +1,4 @@
+import { Button } from '../../components/ui/bento/index.jsx'
 import { WidgetCard, CardHeader, WidgetChip } from '../primitives.jsx'
 import { useCallback, useEffect, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
@@ -112,7 +113,7 @@ export default function FocusTimer({ onComplete }) {
         </div>
         <div className="bento-timer-presets" role="radiogroup" aria-label="Timer presets">
           {PRESETS.map(p => (
-            <button
+            <Button
               key={p.label}
               type="button"
               className={`bento-preset-btn${preset === p.seconds ? ' is-active' : ''}`}
@@ -120,7 +121,7 @@ export default function FocusTimer({ onComplete }) {
               disabled={isActive}
             >
               {p.label}
-            </button>
+            </Button>
           ))}
         </div>
       </CardHeader>
@@ -131,7 +132,7 @@ export default function FocusTimer({ onComplete }) {
         </time>
 
         <div className="bento-timer-controls">
-          <button
+          <Button
             type="button"
             className="bento-timer-play-btn"
             onClick={toggle}
@@ -139,9 +140,9 @@ export default function FocusTimer({ onComplete }) {
           >
             <Icon name={isActive ? 'pause' : 'play'} size={22} />
             <span>{isActive ? 'Pause' : 'Start'}</span>
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
             className="bento-timer-secondary-btn"
             onClick={() => addTime(300)}
@@ -149,9 +150,9 @@ export default function FocusTimer({ onComplete }) {
             aria-label="Add 5 minutes"
           >
             +5m
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
             className="bento-timer-secondary-btn"
             onClick={reset}
@@ -159,7 +160,7 @@ export default function FocusTimer({ onComplete }) {
             aria-label="Reset timer"
           >
             <Icon name="refresh" size={16} />
-          </button>
+          </Button>
         </div>
       </div>
     </WidgetCard>

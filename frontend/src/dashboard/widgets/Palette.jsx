@@ -1,6 +1,7 @@
-import { useApp } from '../../store.jsx'
+import { Button } from '../../components/ui/bento/index.jsx'
+import { useDashboard } from '../context.js'
 
 export default function Palette() {
-  const { setOverlay } = useApp()
-  return <><p>Search Library, widgets, tasks and actions. Capture a note with approval.</p><button onClick={() => setOverlay('palette')}>Open command palette</button><p>⌘K / Ctrl+K</p></>
+  const { openPalette } = useDashboard()
+  return <><p>Search Library, widgets, tasks and actions. Capture a note with approval.</p><Button type="submit" onClick={openPalette}>Open command palette</Button><p>⌘K / Ctrl+K</p></>
 }

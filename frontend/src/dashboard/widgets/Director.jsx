@@ -12,8 +12,8 @@ export default function Director({ data, widgetId, refresh }) {
     catch (e) { setError(e.message) }
     finally { setBusy(false) }
   }
-  return <>{error && <StateView role="alert">{error}</StateView>}<ul className={`widget-list${widgetId === 'agent.feed' ? ' widget-timeline' : ''}`}>{(data?.items || []).map(item => <WidgetRow key={item.id} className={widgetId === 'agent.feed' ? 'timeline-row' : undefined}>
-    <div><strong>{item.title}</strong><p className={widgetId === 'agent.feed' ? 'timeline-detail' : undefined}>{item.detail}</p>
+  return <>{error && <StateView role="alert">{error}</StateView>}<ul className={`widget-list${widgetId.startsWith('agent.') ? ' widget-timeline' : ''}`}>{(data?.items || []).map(item => <WidgetRow key={item.id} className={widgetId.startsWith('agent.') ? 'timeline-row' : undefined}>
+    <div><strong>{item.title}</strong><p className={widgetId.startsWith('agent.') ? 'timeline-detail' : undefined}>{item.detail}</p>
       {widgetId === 'need.decisions' && <form onSubmit={event => {
         event.preventDefault()
         const form = new FormData(event.currentTarget)
@@ -32,7 +32,7 @@ export default function Director({ data, widgetId, refresh }) {
         <Button variant="primary" loading={busy} onClick={() => act(`/confirmations/${encodeURIComponent(item.id)}`, { allow: true })}>Approve</Button>
         <Button disabled={busy} onClick={() => act(`/confirmations/${encodeURIComponent(item.id)}`, { allow: false })}>Deny</Button>
       </div>}
-      {widgetId === 'agent.running' && <button disabled={busy} onClick={() => act(`/conversations/${encodeURIComponent(item.conversation_id)}/turn/stop`)}>Stop</button>}
+      {widgetId === 'agent.running' && <Button type="submit" disabled={busy} onClick={() => act(`/conversations/${encodeURIComponent(item.conversation_id)}/turn/stop`)}>Stop</Button>}
     </div>
   </WidgetRow>)}</ul>{data?.history?.length > 0 && <><h3>Approval history</h3><ul className="widget-list">{data.history.map(item => <WidgetRow key={item.id}><div><strong>{item.title}</strong><p>{item.detail}</p></div></WidgetRow>)}</ul></>}</>
 }
