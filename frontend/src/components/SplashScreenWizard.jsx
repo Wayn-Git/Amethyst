@@ -1285,7 +1285,7 @@ function StepCloudflare({ toast, onNext, onSkip }) {
               lineHeight: 1.4,
             }}
           >
-            <strong>Security & Encryption:</strong> Queued links are transmitted and held over Cloudflare HTTPS Workers. Content is pulled and stored into your local SQLite vault as soon as Amethyst is reachable.
+            <strong>Security & Encryption:</strong> Links in transit are encrypted via HTTPS TLS. Queued links held on Cloudflare while your PC is offline are stored unencrypted in your private worker queue until Amethyst pulls them into your local vault.
           </div>
         </div>
       )}
@@ -1323,6 +1323,7 @@ function StepMobileShortcuts({ toast, onNext, onSkip }) {
   const [shareToken, setShareToken] = useState('')
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState(null)
+  const [qrCodeUrl, setQrCodeUrl] = useState('')
 
   const origin = typeof window === 'undefined' ? 'http://127.0.0.1:8000' : window.location.origin
   const shortcutsJsonUrl = `${origin}/api/share/http-shortcuts.json`
@@ -1341,6 +1342,21 @@ function StepMobileShortcuts({ toast, onNext, onSkip }) {
   useEffect(() => {
     loadStatus()
   }, [loadStatus])
+
+  useEffect(() => {
+    let cancelled = false
+    api.converterGenerateQR?.({
+      content: deepLinkUrl,
+      kind: 'png',
+      scale: 4,
+      border: 1,
+    }).then(res => {
+      if (!cancelled && res?.data_url) {
+        setQrCodeUrl(res.data_url)
+      }
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [deepLinkUrl])
 
   const handleCreateToken = async () => {
     try {
@@ -1405,26 +1421,39 @@ function StepMobileShortcuts({ toast, onNext, onSkip }) {
           </button>
         </div>
 
-        {/* 1-Click Import Actions */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-          <a
-            href={deepLinkUrl}
-            className="arc-social-btn"
-            style={{ textDecoration: 'none', justifyContent: 'flex-start' }}
-          >
-            <Icon name="arrow-square-out" size={16} />
-            <span>Import directly into HTTP Shortcuts app (Android) ↗</span>
-          </a>
-
-          <a
-            href={shortcutsJsonUrl}
-            download="amethyst-shortcut.json"
-            className="arc-social-btn"
-            style={{ textDecoration: 'none', justifyContent: 'flex-start' }}
-          >
-            <Icon name="download" size={16} />
-            <span>Download Preconfigured Shortcut (.json)</span>
-          </a>
+        {/* QR Code and 1-Click Import Actions */}
+        <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 14, padding: 12, borderRadius: 12, background: 'var(--color-bg-subtle, #f8fafc)', border: '1px solid var(--color-border, #e2e8f0)' }}>
+          {qrCodeUrl ? (
+            <img src={qrCodeUrl} alt="Scan to import shortcut" style={{ width: 88, height: 88, borderRadius: 8, background: '#fff', padding: 4 }} />
+          ) : (
+            <div style={{ width: 88, height: 88, borderRadius: 8, background: 'var(--color-bg-base, #ffffff)', border: '1px dashed var(--color-border, #cbd5e1)', display: 'grid', placeItems: 'center' }}>
+              <Icon name="qr-code" size={32} />
+            </div>
+          )}
+          <div style={{ flex: 1 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 2 }}>Scan to Import Shortcut</span>
+            <p style={{ margin: '0 0 8px 0', fontSize: 11.5, color: '#64748b', lineHeight: 1.3 }}>
+              Scan with your phone to launch HTTP Shortcuts with your prefilled endpoint and token.
+            </p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <a
+                href={deepLinkUrl}
+                className="arc-social-btn"
+                style={{ textDecoration: 'none', padding: '5px 10px', fontSize: 11.5, width: 'auto' }}
+              >
+                <span>Direct Link ↗</span>
+              </a>
+              <a
+                href={`${shortcutsJsonUrl}?download=1`}
+                download="amethyst-shortcut.json"
+                className="arc-social-btn"
+                style={{ textDecoration: 'none', padding: '5px 10px', fontSize: 11.5, width: 'auto' }}
+              >
+                <Icon name="download" size={13} />
+                <span>Config (.json)</span>
+              </a>
+            </div>
+          </div>
         </div>
 
         {/* Test capture */}
@@ -1467,7 +1496,7 @@ function StepMobileShortcuts({ toast, onNext, onSkip }) {
             lineHeight: 1.4,
           }}
         >
-          <strong>Privacy:</strong> Links and text shared from your phone are sent encrypted directly to your computer's local vault. Never sent to third parties.
+          <strong>Security & Privacy:</strong> Direct LAN requests travel securely over your local Wi-Fi. If using Cloudflare Relay, traffic in transit uses HTTPS TLS, while content queued in Cloudflare while your PC is off is stored unencrypted in your private worker queue until Amethyst fetches it into your local vault.
         </div>
       </div>
 

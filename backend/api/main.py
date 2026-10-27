@@ -2759,34 +2759,24 @@ class VerifyCloudflareRequest(BaseModel):
 @app.post("/api/setup/cloudflare/verify")
 async def verify_cloudflare_token_route(body: VerifyCloudflareRequest) -> dict[str, Any]:
     """Verify Cloudflare API token against Cloudflare API and store in vault if valid."""
-    import httpx
+    from backend.relay_deploy import provision_relay
     from backend.secrets import set_secret
 
     token = body.api_token.strip()
     if not token:
         raise HTTPException(400, "API token is required")
 
-    try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
-            resp = await client.get(
-                "https://api.cloudflare.com/client/v4/user/tokens/verify",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            data = resp.json()
-            if resp.status_code == 200 and data.get("success"):
-                set_secret("amethyst/cloudflare-api-token", token)
-                return {
-                    "ok": True,
-                    "valid": True,
-                    "status": "active",
-                    "message": "Cloudflare API token verified successfully.",
-                }
-            msg = "Invalid token or permissions"
-            if data.get("errors"):
-                msg = data["errors"][0].get("message", msg)
-            return {"ok": False, "valid": False, "message": msg}
-    except Exception as exc:
-        return {"ok": False, "valid": False, "message": f"Connection error: {exc}"}
+    result = await provision_relay(token, body.account_id)
+    if result.get("ok"):
+        set_secret("amethyst/cloudflare-api-token", token)
+        return {
+            "ok": True,
+            "valid": True,
+            "status": "active",
+            "message": result.get("message", "Cloudflare API token verified successfully."),
+            "provisioning": result,
+        }
+    return {"ok": False, "valid": False, "message": result.get("error", "Invalid token or permissions")}
 
 
 @app.get("/api/share/http-shortcuts.json")
