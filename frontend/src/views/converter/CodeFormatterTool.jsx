@@ -1,3 +1,4 @@
+import { Button as HouseButton, Select as HouseSelect, Textarea as HouseTextarea } from '../../components/ui/bento/index.jsx'
 import { useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { useApp } from '../../store.jsx'
@@ -144,14 +145,14 @@ export default function CodeFormatterTool() {
           { id: 'xml', label: 'XML' },
           { id: 'markdown', label: 'Markdown' },
         ].map((tab) => (
-          <button
+          <HouseButton
             key={tab.id}
             type="button"
             className={`fc-cat-tab${lang === tab.id ? ' is-active' : ''}`}
             onClick={() => handleLangChange(tab.id)}
           >
             {tab.label}
-          </button>
+          </HouseButton>
         ))}
       </div>
 
@@ -161,7 +162,7 @@ export default function CodeFormatterTool() {
           {lang === 'json' && (
             <div className="flex items-center gap-1.5 text-xs text-[var(--fc-text-dim)]">
               <span>Indentation:</span>
-              <select
+              <HouseSelect
                 className="fc-select text-xs h-7 py-0"
                 value={indent}
                 onChange={(e) => setIndent(e.target.value)}
@@ -169,7 +170,7 @@ export default function CodeFormatterTool() {
                 <option value="2">2 spaces</option>
                 <option value="4">4 spaces</option>
                 <option value="tab">Tab</option>
-              </select>
+              </HouseSelect>
             </div>
           )}
 
@@ -181,49 +182,49 @@ export default function CodeFormatterTool() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
+          <HouseButton
             type="button"
             className="fc-btn fc-btn-primary text-xs h-8 py-0"
             onClick={formatCode}
           >
             <Icon name="check" size={13} />
             <span>Beautify / Format</span>
-          </button>
+          </HouseButton>
 
-          <button
+          <HouseButton
             type="button"
             className="fc-btn fc-btn-secondary text-xs h-8 py-0"
             onClick={minifyCode}
           >
             <Icon name="compress" size={13} />
             <span>Minify</span>
-          </button>
+          </HouseButton>
 
-          <button
+          <HouseButton
             type="button"
             className="fc-btn fc-btn-secondary text-xs h-8 py-0"
             onClick={copyCode}
           >
             <Icon name={copied ? 'check' : 'copy'} size={13} />
             <span>{copied ? 'Copied' : 'Copy'}</span>
-          </button>
+          </HouseButton>
 
-          <button
+          <HouseButton
             type="button"
             className="fc-btn fc-btn-secondary text-xs h-8 py-0"
             onClick={downloadCode}
           >
             <Icon name="download" size={13} />
             <span>Download</span>
-          </button>
+          </HouseButton>
 
-          <button
+          <HouseButton
             type="button"
             className="fc-btn fc-btn-danger-ghost text-xs h-8 py-0"
             onClick={() => setCode('')}
           >
             Clear
-          </button>
+          </HouseButton>
         </div>
       </div>
 
@@ -238,7 +239,7 @@ export default function CodeFormatterTool() {
       )}
 
       {/* Code Textarea */}
-      <textarea
+      <HouseTextarea
         rows={18}
         className="fc-textarea font-mono text-xs leading-relaxed w-full bg-[var(--fc-surface)] border border-[var(--fc-border)] shadow-sm"
         value={code}

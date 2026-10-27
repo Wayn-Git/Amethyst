@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../ui/bento/index.jsx'
 /**
  * ToolApprovalCard - Inline Craftwork / beUI Tool Approval Component
  * Implements specifications from @UIInspirations/components/newlyadded/approval.md
@@ -73,7 +74,7 @@ export default function ToolApprovalCard({
       {/* Collapsible Details */}
       {(details.command || details.directory || details.path) && (
         <>
-          <button
+          <HouseButton
             type="button"
             className="tool-approval-details-toggle"
             onClick={() => setDetailsOpen((o) => !o)}
@@ -81,7 +82,7 @@ export default function ToolApprovalCard({
           >
             <span>View details</span>
             {detailsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </button>
+          </HouseButton>
 
           {detailsOpen && (
             <div className="tool-approval-details-box">
@@ -110,32 +111,32 @@ export default function ToolApprovalCard({
 
       {/* Actions (44px min targets) */}
       <div className="tool-approval-actions">
-        <button
+        <HouseButton
           type="button"
           disabled={disabled || busy}
           onClick={() => handleDecision(true, false)}
           className="tool-approval-btn-primary"
         >
           Allow once
-        </button>
+        </HouseButton>
 
-        <button
+        <HouseButton
           type="button"
           disabled={disabled || busy}
           onClick={() => handleDecision(true, true)}
           className="tool-approval-btn-secondary"
         >
           Always allow
-        </button>
+        </HouseButton>
 
-        <button
+        <HouseButton
           type="button"
           disabled={disabled || busy}
           onClick={() => handleDecision(false, false)}
           className="tool-approval-btn-ghost"
         >
           Deny
-        </button>
+        </HouseButton>
 
         <span className="tool-approval-revocation-hint">
           Revocable in Settings

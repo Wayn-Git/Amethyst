@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../../components/ui/bento/index.jsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -129,43 +130,43 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
               <Icon name="link" size={16} />
               <span>Capture & Sync Integrations</span>
             </h2>
-            <button
+            <HouseButton
               type="button"
               className="lib-modal-close"
               onClick={onClose}
               aria-label="Close dialog"
             >
               <Icon name="x" size={14} />
-            </button>
+            </HouseButton>
           </div>
 
           {/* Tabs */}
           <div style={{ padding: '16px 20px 0' }}>
             <div className="lib-modal-tabs">
-              <button
+              <HouseButton
                 type="button"
                 className={`lib-modal-tab ${activeTab === 'bookmarklet' ? 'lib-modal-tab--active' : ''}`}
                 onClick={() => setActiveTab('bookmarklet')}
               >
                 <Icon name="bookmark" size={14} />
                 <span>Browser Bookmarklet</span>
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 className={`lib-modal-tab ${activeTab === 'phone' ? 'lib-modal-tab--active' : ''}`}
                 onClick={() => setActiveTab('phone')}
               >
                 <Icon name="link" size={14} />
                 <span>Phone / Shortcuts</span>
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 className={`lib-modal-tab ${activeTab === 'instagram' ? 'lib-modal-tab--active' : ''}`}
                 onClick={() => setActiveTab('instagram')}
               >
                 <Icon name="camera" size={14} />
                 <span>Instagram Relay</span>
-              </button>
+              </HouseButton>
             </div>
           </div>
 
@@ -217,22 +218,22 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
                   </div>
 
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button
+                    <HouseButton
                       type="button"
                       className="lib-btn"
                       onClick={rotateToken}
                     >
                       {shareStatus?.enabled ? 'Rotate Token' : 'Enable & Create Token'}
-                    </button>
+                    </HouseButton>
                     {shareStatus?.enabled && (
-                      <button
+                      <HouseButton
                         type="button"
                         className="lib-btn"
                         style={{ color: '#ef4444' }}
                         onClick={revokeToken}
                       >
                         Revoke
-                      </button>
+                      </HouseButton>
                     )}
                   </div>
                 </div>
@@ -243,14 +244,14 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
                       Your Private Share Token (Copy Now):
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <input
+                      <HouseInput
                         type="text"
                         readOnly
                         value={shareToken}
                         className="lib-form-input"
                         style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
                       />
-                      <button
+                      <HouseButton
                         type="button"
                         className="lib-btn lib-btn--primary"
                         onClick={() => {
@@ -259,7 +260,7 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
                         }}
                       >
                         Copy
-                      </button>
+                      </HouseButton>
                     </div>
                   </div>
                 )}
@@ -282,7 +283,7 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
                     </div>
                   </div>
 
-                  <button
+                  <HouseButton
                     type="button"
                     className="lib-btn"
                     disabled={relaySyncing}
@@ -290,13 +291,13 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
                   >
                     <Icon name="refresh" size={13} />
                     <span>{relaySyncing ? 'Syncing...' : 'Sync Now'}</span>
-                  </button>
+                  </HouseButton>
                 </div>
 
                 <form onSubmit={saveRelay} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div className="lib-form-group">
                     <label className="lib-form-label" htmlFor="lib-relay-url">Relay Endpoint URL</label>
-                    <input
+                    <HouseInput
                       id="lib-relay-url"
                       type="url"
                       className="lib-form-input"
@@ -307,7 +308,7 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
                   </div>
                   <div className="lib-form-group">
                     <label className="lib-form-label" htmlFor="lib-relay-token">Relay Bearer Token</label>
-                    <input
+                    <HouseInput
                       id="lib-relay-token"
                       type="password"
                       className="lib-form-input"
@@ -316,26 +317,26 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
                       onChange={(e) => setRelayForm({ ...relayForm, token: e.target.value })}
                     />
                   </div>
-                  <button
+                  <HouseButton
                     type="submit"
                     className="lib-btn lib-btn--primary"
                     style={{ alignSelf: 'flex-start' }}
                   >
                     Save Relay Connection
-                  </button>
+                  </HouseButton>
                 </form>
               </div>
             )}
           </div>
 
           <div className="lib-modal-footer">
-            <button
+            <HouseButton
               type="button"
               className="lib-btn"
               onClick={onClose}
             >
               Close
-            </button>
+            </HouseButton>
           </div>
         </motion.div>
       </div>

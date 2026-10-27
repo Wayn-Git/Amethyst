@@ -1,3 +1,4 @@
+import { Input as HouseInput, Button as HouseButton, Textarea as HouseTextarea } from '../../components/ui/bento/index.jsx'
 import { useCallback, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { api } from '../../api.js'
@@ -106,7 +107,7 @@ export default function OcrTool() {
               onClick={() => fileInputRef.current?.click()}
             >
               <div className="fc-dropzone-core py-8 flex flex-col items-center gap-3">
-                <input
+                <HouseInput
                   ref={fileInputRef}
                   type="file"
                   accept="image/*,.pdf,.docx,.xlsx,.txt,.csv"
@@ -135,7 +136,7 @@ export default function OcrTool() {
             {file && (
               <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--fc-surface-2)] border border-[var(--fc-border)] text-xs mb-4">
                 <span className="truncate max-w-[220px] font-semibold text-[var(--fc-text)]">{file.name}</span>
-                <button
+                <HouseButton
                   type="button"
                   className="fc-btn fc-btn-danger-ghost text-xs"
                   onClick={() => {
@@ -145,7 +146,7 @@ export default function OcrTool() {
                   }}
                 >
                   Clear
-                </button>
+                </HouseButton>
               </div>
             )}
 
@@ -156,7 +157,7 @@ export default function OcrTool() {
             )}
           </div>
 
-          <button
+          <HouseButton
             type="button"
             className="fc-btn fc-btn-primary w-full mt-4"
             disabled={loading || !file}
@@ -164,7 +165,7 @@ export default function OcrTool() {
           >
             <Icon name="convert" size={16} />
             <span>{loading ? 'Extracting Text Content…' : 'Re-extract Text'}</span>
-          </button>
+          </HouseButton>
         </div>
 
         {/* Right Panel: Extracted Output */}
@@ -174,22 +175,22 @@ export default function OcrTool() {
               <div className="fc-panel-title">Extracted Text</div>
               {extractedText && (
                 <div className="flex items-center gap-2">
-                  <button
+                  <HouseButton
                     type="button"
                     className="fc-btn fc-btn-secondary text-xs h-8 py-0"
                     onClick={handleCopy}
                   >
                     <Icon name={copied ? 'check' : 'copy'} size={14} />
                     <span>{copied ? 'Copied!' : 'Copy'}</span>
-                  </button>
-                  <button
+                  </HouseButton>
+                  <HouseButton
                     type="button"
                     className="fc-btn fc-btn-primary text-xs h-8 py-0"
                     onClick={handleDownload}
                   >
                     <Icon name="download" size={14} />
                     <span>Download .txt</span>
-                  </button>
+                  </HouseButton>
                 </div>
               )}
             </div>
@@ -213,7 +214,7 @@ export default function OcrTool() {
                   </div>
                 </div>
               )}
-              <textarea
+              <HouseTextarea
                 readOnly
                 rows={14}
                 className="fc-textarea font-mono text-xs leading-relaxed w-full"

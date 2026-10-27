@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useState, useEffect, useRef, Component } from 'react'
 import Icon from './Icon.jsx'
 import { JsonViewer } from './arc/json-viewer/json-viewer'
@@ -78,7 +79,7 @@ function SubagentCard({ call, running }) {
 
   return (
     <div className={`subagent-card${running ? ' is-running' : ''}${isDone ? ' is-done' : ''}${isFailed ? ' is-failed' : ''}`}>
-      <button type="button" className="tool-card-head" onClick={() => setOpen(o => !o)} aria-expanded={open}>
+      <HouseButton type="button" className="tool-card-head" onClick={() => setOpen(o => !o)} aria-expanded={open}>
         <div className="subagent-icon-wrapper">
           <Icon name="cpu" size={14} />
           {running && <div className="subagent-pulse" />}
@@ -105,7 +106,7 @@ function SubagentCard({ call, running }) {
         )}
 
         <Icon name="chevron" size={13} style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 160ms ease' }} />
-      </button>
+      </HouseButton>
 
       <div className={`tool-body${open ? ' open' : ''}`}>
         <div>

@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../../components/Icon.jsx'
@@ -229,7 +230,7 @@ export default function LibraryVideoPlayer({
     >
       {/* Corner Quick Theater Toggle Button */}
       {onToggleTheater && (
-        <button
+        <HouseButton
           type="button"
           className={`lib-player-corner-theater-btn ${isTheater ? 'lib-player-corner-theater-btn--active' : ''}`}
           onClick={(e) => {
@@ -241,7 +242,7 @@ export default function LibraryVideoPlayer({
         >
           <Icon name={isTheater ? 'collapse' : 'desktop'} size={13} />
           <span>{isTheater ? 'Exit Theater' : 'Theater'}</span>
-        </button>
+        </HouseButton>
       )}
       {/* 1. Embed mode (fallback embed or user selected web embed) */}
       {((showEmbed || (!currentSrc && !fallbackUrl)) && embedUrl) ? (
@@ -258,7 +259,7 @@ export default function LibraryVideoPlayer({
           </div>
           {(currentSrc || fallbackUrl) && (
             <div className="lib-player-switch-bar">
-              <button
+              <HouseButton
                 type="button"
                 className="lib-player-switch-bar-btn"
                 onClick={() => setShowEmbed(false)}
@@ -266,7 +267,7 @@ export default function LibraryVideoPlayer({
               >
                 <Icon name="play" size={12} />
                 <span>Switch to Native Player</span>
-              </button>
+              </HouseButton>
             </div>
           )}
         </div>
@@ -383,7 +384,7 @@ export default function LibraryVideoPlayer({
             {/* Bottom Button Row */}
             <div className="lib-player-controls-row">
               <div className="lib-player-controls-left">
-                <button
+                <HouseButton
                   type="button"
                   className="lib-player-btn"
                   onClick={togglePlay}
@@ -391,7 +392,7 @@ export default function LibraryVideoPlayer({
                   aria-label={isPlaying ? 'Pause' : 'Play'}
                 >
                   <Icon name={isPlaying ? 'pause' : 'play'} size={15} />
-                </button>
+                </HouseButton>
 
                 <span className="lib-player-time">
                   {formatTime(currentTime)} / {formatTime(duration)}
@@ -400,7 +401,7 @@ export default function LibraryVideoPlayer({
 
               <div className="lib-player-controls-right">
                 {/* Mute toggle */}
-                <button
+                <HouseButton
                   type="button"
                   className="lib-player-btn"
                   onClick={toggleMute}
@@ -408,11 +409,11 @@ export default function LibraryVideoPlayer({
                   aria-label={isMuted ? 'Unmute' : 'Mute'}
                 >
                   <Icon name={isMuted ? 'muted' : 'speaker'} size={14} />
-                </button>
+                </HouseButton>
 
                 {/* Subtitles / Closed Captions Toggle */}
                 {captionSentences.length > 0 && (
-                  <button
+                  <HouseButton
                     type="button"
                     className={`lib-player-btn ${showCaptions ? 'lib-player-btn--active' : ''}`}
                     onClick={(e) => {
@@ -423,12 +424,12 @@ export default function LibraryVideoPlayer({
                     aria-label="Toggle Subtitles"
                   >
                     <span className="lib-player-cc-badge">CC</span>
-                  </button>
+                  </HouseButton>
                 )}
 
                 {/* Aspect Ratio Fit Toggle */}
                 {onToggleFit && (
-                  <button
+                  <HouseButton
                     type="button"
                     className="lib-player-btn"
                     onClick={(e) => {
@@ -439,12 +440,12 @@ export default function LibraryVideoPlayer({
                     aria-label="Toggle fit mode"
                   >
                     <Icon name={imageFitMode === 'contain' ? 'expand' : 'collapse'} size={13} />
-                  </button>
+                  </HouseButton>
                 )}
 
                 {/* Theater Mode Toggle */}
                 {onToggleTheater && (
-                  <button
+                  <HouseButton
                     type="button"
                     className={`lib-player-btn ${isTheater ? 'lib-player-btn--active' : ''}`}
                     onClick={(e) => {
@@ -455,12 +456,12 @@ export default function LibraryVideoPlayer({
                     aria-label="Toggle Theater Mode"
                   >
                     <Icon name={isTheater ? 'collapse' : 'desktop'} size={14} />
-                  </button>
+                  </HouseButton>
                 )}
 
                 {/* Web Embed Switcher if available */}
                 {embedUrl && (
-                  <button
+                  <HouseButton
                     type="button"
                     className="lib-player-btn"
                     onClick={(e) => {
@@ -471,11 +472,11 @@ export default function LibraryVideoPlayer({
                     aria-label="Web Player"
                   >
                     <Icon name="globe" size={13} />
-                  </button>
+                  </HouseButton>
                 )}
 
                 {/* Fullscreen */}
-                <button
+                <HouseButton
                   type="button"
                   className="lib-player-btn"
                   onClick={toggleFullscreen}
@@ -483,7 +484,7 @@ export default function LibraryVideoPlayer({
                   aria-label="Toggle Fullscreen"
                 >
                   <Icon name={isFullscreen ? 'collapse' : 'maximize'} size={13} />
-                </button>
+                </HouseButton>
               </div>
             </div>
           </div>

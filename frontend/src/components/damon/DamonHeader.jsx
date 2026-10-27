@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../ui/bento/index.jsx'
 import Icon from '../Icon.jsx'
 
 export default function DamonHeader({
@@ -51,7 +52,7 @@ export default function DamonHeader({
     <div className="palette-input damon-header">
       <div className="damon-input-leading">
         {badge ? (
-          <button
+          <HouseButton
             type="button"
             className={`damon-badge-tag damon-badge-tag--${badge.tone}`}
             onClick={onClearMode}
@@ -60,13 +61,13 @@ export default function DamonHeader({
             <Icon name={badge.icon} size={12} />
             <span>{badge.label}</span>
             <Icon name="x" size={10} />
-          </button>
+          </HouseButton>
         ) : (
           <Icon name="search" size={18} className="damon-search-icon" />
         )}
       </div>
 
-      <input
+      <HouseInput
         ref={inputRef}
         autoFocus
         value={query}
@@ -80,14 +81,14 @@ export default function DamonHeader({
         {flash ? (
           <span className="palette-flash damon-flash">{flash}</span>
         ) : query ? (
-          <button
+          <HouseButton
             type="button"
             className="damon-clear-btn"
             onClick={() => onChange('')}
             title="Clear search"
           >
             <Icon name="x" size={14} />
-          </button>
+          </HouseButton>
         ) : (
           <div className="damon-esc-hint">
             <kbd className="kbd">Esc</kbd>

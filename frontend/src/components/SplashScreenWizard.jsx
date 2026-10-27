@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput, Select as HouseSelect } from './ui/bento/index.jsx'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import Icon from './Icon.jsx'
@@ -205,7 +206,7 @@ function StepAuth({
 
       {/* Social OAuth Buttons */}
       <div className="arc-social-group">
-        <button
+        <HouseButton
           type="button"
           className="arc-social-btn"
           disabled={busy}
@@ -213,9 +214,9 @@ function StepAuth({
         >
           <GoogleIcon size={17} />
           <span>Sign in with Google</span>
-        </button>
+        </HouseButton>
 
-        <button
+        <HouseButton
           type="button"
           className="arc-social-btn"
           disabled={busy}
@@ -223,9 +224,9 @@ function StepAuth({
         >
           <AppleIcon size={17} />
           <span>Sign in with Apple</span>
-        </button>
+        </HouseButton>
 
-        <button
+        <HouseButton
           type="button"
           className="arc-social-btn"
           disabled={busy}
@@ -233,7 +234,7 @@ function StepAuth({
         >
           <GithubIcon size={17} />
           <span>Sign in with GitHub</span>
-        </button>
+        </HouseButton>
       </div>
 
       {/* Divider */}
@@ -244,7 +245,7 @@ function StepAuth({
         {isSignUp && (
           <div className="arc-field">
             <label className="arc-label">Your Name</label>
-            <input
+            <HouseInput
               type="text"
               className="arc-input"
               placeholder="e.g. Wayne"
@@ -257,7 +258,7 @@ function StepAuth({
 
         <div className="arc-field">
           <label className="arc-label">Email</label>
-          <input
+          <HouseInput
             type="email"
             className="arc-input"
             placeholder="Enter your email"
@@ -272,16 +273,16 @@ function StepAuth({
           <div className="arc-label-row">
             <label className="arc-label">Password</label>
             {!isSignUp && (
-              <button
+              <HouseButton
                 type="button"
                 className="arc-forgot-link"
                 onClick={() => toast('Password reset link dispatched if email registered', 'ok')}
               >
                 Forgot Password?
-              </button>
+              </HouseButton>
             )}
           </div>
-          <input
+          <HouseInput
             type="password"
             className="arc-input"
             placeholder="Enter your password"
@@ -291,26 +292,26 @@ function StepAuth({
           />
         </div>
 
-        <button type="submit" className="arc-btn-primary" disabled={busy}>
+        <HouseButton type="submit" className="arc-btn-primary" disabled={busy}>
           {busy ? <LoaderIcon type="pixels" /> : null}
           <span>{isSignUp ? 'Create Workspace' : 'Sign In'}</span>
           <Icon name="arrow-right" size={14} weight="bold" />
-        </button>
+        </HouseButton>
       </form>
 
       {/* Switch Form Mode or Continue as Guest */}
       <div className="arc-footer-switch">
         <span>
           {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
-          <button
+          <HouseButton
             type="button"
             className="arc-text-btn"
             onClick={() => setIsSignUp(!isSignUp)}
           >
             {isSignUp ? 'Sign In' : 'Create an Account'}
-          </button>
+          </HouseButton>
         </span>
-        <button
+        <HouseButton
           type="button"
           className="arc-text-btn"
           style={{ fontSize: 12, color: '#64748b' }}
@@ -320,7 +321,7 @@ function StepAuth({
           }}
         >
           Or Continue as Guest (Offline Workspace)
-        </button>
+        </HouseButton>
       </div>
 
       {/* System Preflight Readiness */}
@@ -339,7 +340,7 @@ function StepAuth({
             <span className="arc-toggle-title">Run Background Automations</span>
             <span className="arc-toggle-desc">Keep background agents active in system tray when closed.</span>
           </div>
-          <input
+          <HouseInput
             type="checkbox"
             checked={trayEnabled}
             onChange={(e) => {
@@ -645,14 +646,14 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <label className="arc-label" style={{ margin: 0 }}>Detected on your machine</label>
-            <button
+            <HouseButton
               type="button"
               className="arc-forgot-link"
               onClick={scanDetections}
               disabled={detecting}
             >
               {detecting ? 'Scanning…' : 'Re-scan ↺'}
-            </button>
+            </HouseButton>
           </div>
           <div className="arc-providers-list">
             {detectedList.map((item) => {
@@ -702,14 +703,14 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
                         <span>Testing...</span>
                       </div>
                     ) : (
-                      <button
+                      <HouseButton
                         type="button"
                         className="arc-social-btn"
                         style={{ width: 'auto', padding: '5px 12px', fontSize: 12 }}
                         onClick={() => handleUseDetected(item)}
                       >
                         {isFailed ? 'Retry' : 'Use this'}
-                      </button>
+                      </HouseButton>
                     )}
                   </div>
                 </div>
@@ -736,7 +737,7 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
           <div style={{ fontSize: 12, color: '#334155' }}>
             Found key on clipboard: <code>{clipboardKey.slice(0, 7)}...{clipboardKey.slice(-4)}</code>
           </div>
-          <button
+          <HouseButton
             type="button"
             className="arc-text-btn"
             style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent, #7132f5)' }}
@@ -747,13 +748,13 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
             }}
           >
             Use this key
-          </button>
+          </HouseButton>
         </div>
       )}
 
       {/* Tabs */}
       <div className="arc-engine-tabs">
-        <button
+        <HouseButton
           type="button"
           className={`arc-engine-tab ${activeTab === 'free' ? 'is-active' : ''}`}
           onClick={() => {
@@ -764,8 +765,8 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
         >
           <Icon name="sparkle" size={13} />
           <span>Free Cloud AI</span>
-        </button>
-        <button
+        </HouseButton>
+        <HouseButton
           type="button"
           className={`arc-engine-tab ${activeTab === 'ollama' ? 'is-active' : ''}`}
           onClick={() => {
@@ -775,8 +776,8 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
         >
           <Icon name="cpu" size={13} />
           <span>Local (Ollama)</span>
-        </button>
-        <button
+        </HouseButton>
+        <HouseButton
           type="button"
           className={`arc-engine-tab ${activeTab === 'manual' ? 'is-active' : ''}`}
           onClick={() => {
@@ -786,14 +787,14 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
         >
           <Icon name="key" size={13} />
           <span>Custom Key</span>
-        </button>
+        </HouseButton>
       </div>
 
       {/* TAB 1: Free Cloud AI */}
       {activeTab === 'free' && (
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {/* 1-Click OpenRouter Sign In Button */}
-          <button
+          <HouseButton
             type="button"
             className="arc-social-btn"
             style={{ width: '100%', marginBottom: 12, justifyContent: 'center' }}
@@ -811,7 +812,7 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
                 <span>1-Click Sign In with OpenRouter (OAuth)</span>
               </>
             )}
-          </button>
+          </HouseButton>
 
           <div className="arc-providers-list">
             {freePresets.map((preset) => {
@@ -869,7 +870,7 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
                 )}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <input
+                <HouseInput
                   type="password"
                   className="arc-input"
                   placeholder={`Paste ${currentPreset.label} key (validates on paste)...`}
@@ -878,7 +879,7 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
                   onPaste={handleKeyPaste}
                   disabled={verifying}
                 />
-                <button
+                <HouseButton
                   type="button"
                   className="arc-btn-primary"
                   style={{ width: 'auto', whiteSpace: 'nowrap', padding: '0 16px' }}
@@ -886,7 +887,7 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
                   onClick={() => handleVerifyAndSaveWithKey()}
                 >
                   {verifying ? <LoaderIcon type="pixels" /> : 'Verify & Save'}
-                </button>
+                </HouseButton>
               </div>
 
               {verifyResult && (
@@ -953,7 +954,7 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
                   <p style={{ fontSize: 12.5, color: '#64748b', marginBottom: 12 }}>
                     Ollama is running but has no models installed. Download a lightweight recommended model:
                   </p>
-                  <button
+                  <HouseButton
                     type="button"
                     className="arc-btn-primary"
                     disabled={pullingModel}
@@ -965,7 +966,7 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
                         ? pullProgress?.status || 'Downloading llama3.2…'
                         : 'Download Llama 3.2 (2.0 GB)'}
                     </span>
-                  </button>
+                  </HouseButton>
                 </div>
               )}
             </div>
@@ -985,14 +986,14 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
                   <Icon name="arrow-up-right" size={14} />
                   <span>Download Ollama ↗</span>
                 </a>
-                <button
+                <HouseButton
                   type="button"
                   className="arc-social-btn"
                   onClick={() => onRefreshStatus?.()}
                 >
                   <Icon name="arrows-clockwise" size={14} />
                   <span>Check Again</span>
-                </button>
+                </HouseButton>
               </div>
             </div>
           )}
@@ -1016,7 +1017,7 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
                 </a>
               )}
             </div>
-            <select
+            <HouseSelect
               className="arc-input"
               value={selectedSlug}
               onChange={(e) => {
@@ -1029,12 +1030,12 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
                   {p.label} {p.free ? '(Free tier)' : ''}
                 </option>
               ))}
-            </select>
+            </HouseSelect>
           </div>
 
           <div className="arc-field" style={{ marginBottom: 10 }}>
             <label className="arc-label">API Key</label>
-            <input
+            <HouseInput
               type="password"
               className="arc-input"
               placeholder="Paste provider key (validates on paste)..."
@@ -1046,23 +1047,23 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
 
           {/* Advanced Accordion */}
           <div style={{ marginBottom: 14 }}>
-            <button
+            <HouseButton
               type="button"
               className="arc-forgot-link"
               onClick={() => setShowAdvanced(!showAdvanced)}
             >
               {showAdvanced ? '▼ Hide Advanced Endpoints' : '▶ Show Custom Endpoint / Model'}
-            </button>
+            </HouseButton>
             {showAdvanced && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-                <input
+                <HouseInput
                   type="text"
                   className="arc-input"
                   placeholder="Custom Base URL (optional)"
                   value={customBaseUrl}
                   onChange={(e) => setCustomBaseUrl(e.target.value)}
                 />
-                <input
+                <HouseInput
                   type="text"
                   className="arc-input"
                   placeholder="Custom Model Name (optional)"
@@ -1073,14 +1074,14 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
             )}
           </div>
 
-          <button
+          <HouseButton
             type="button"
             className="arc-btn-primary"
             disabled={verifying || !apiKey.trim()}
             onClick={() => handleVerifyAndSaveWithKey()}
           >
             {verifying ? <LoaderIcon type="pixels" /> : 'Verify & Set as Primary'}
-          </button>
+          </HouseButton>
 
           {verifyResult && (
             <div
@@ -1108,7 +1109,7 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
             A model is required to continue. Connect an AI provider above.
           </p>
         )}
-        <button
+        <HouseButton
           type="button"
           className="arc-btn-primary"
           disabled={!hasAnyModel}
@@ -1117,7 +1118,7 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
         >
           <span>Continue to Cloud Sync</span>
           <Icon name="arrow-right" size={14} weight="bold" />
-        </button>
+        </HouseButton>
       </div>
     </div>
   )
@@ -1172,22 +1173,22 @@ function StepCloudflare({ toast, onNext, onSkip }) {
 
       {/* Mode Selector */}
       <div className="arc-engine-tabs" style={{ marginBottom: 14 }}>
-        <button
+        <HouseButton
           type="button"
           className={`arc-engine-tab ${mode === 'lan' ? 'is-active' : ''}`}
           onClick={() => setMode('lan')}
         >
           <Icon name="wifi-high" size={13} />
           <span>Same-Network Only</span>
-        </button>
-        <button
+        </HouseButton>
+        <HouseButton
           type="button"
           className={`arc-engine-tab ${mode === 'relay' ? 'is-active' : ''}`}
           onClick={() => setMode('relay')}
         >
           <Icon name="cloud" size={13} />
           <span>Cloudflare Relay</span>
-        </button>
+        </HouseButton>
       </div>
 
       {mode === 'lan' ? (
@@ -1224,7 +1225,7 @@ function StepCloudflare({ toast, onNext, onSkip }) {
               </a>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <input
+              <HouseInput
                 type="password"
                 className="arc-input"
                 placeholder="Paste Cloudflare API Token..."
@@ -1232,7 +1233,7 @@ function StepCloudflare({ toast, onNext, onSkip }) {
                 onChange={(e) => setCfApiToken(e.target.value)}
                 disabled={verifying}
               />
-              <button
+              <HouseButton
                 type="button"
                 className="arc-btn-primary"
                 style={{ width: 'auto', whiteSpace: 'nowrap', padding: '0 16px' }}
@@ -1240,13 +1241,13 @@ function StepCloudflare({ toast, onNext, onSkip }) {
                 onClick={handleVerifyCloudflare}
               >
                 {verifying ? <LoaderIcon type="pixels" /> : 'Verify'}
-              </button>
+              </HouseButton>
             </div>
           </div>
 
           <div className="arc-field" style={{ marginBottom: 12 }}>
             <label className="arc-label">Account ID (Optional)</label>
-            <input
+            <HouseInput
               type="text"
               className="arc-input"
               placeholder="Find on Cloudflare dashboard overview"
@@ -1292,15 +1293,15 @@ function StepCloudflare({ toast, onNext, onSkip }) {
 
       {/* Buttons */}
       <div style={{ marginTop: 'auto', paddingTop: 14, display: 'flex', gap: 10 }}>
-        <button
+        <HouseButton
           type="button"
           className="arc-social-btn"
           style={{ width: 'auto', padding: '11px 18px' }}
           onClick={onSkip}
         >
           <span>Skip for now</span>
-        </button>
-        <button
+        </HouseButton>
+        <HouseButton
           type="button"
           className="arc-btn-primary"
           style={{ flex: 1 }}
@@ -1308,7 +1309,7 @@ function StepCloudflare({ toast, onNext, onSkip }) {
         >
           <span>Continue to Phone Sharing</span>
           <Icon name="arrow-right" size={14} weight="bold" />
-        </button>
+        </HouseButton>
       </div>
     </div>
   )
@@ -1411,14 +1412,14 @@ function StepMobileShortcuts({ toast, onNext, onSkip }) {
               </p>
             </div>
           </div>
-          <button
+          <HouseButton
             type="button"
             className="arc-social-btn"
             style={{ width: 'auto', padding: '5px 12px', fontSize: 12 }}
             onClick={handleCreateToken}
           >
             {shareStatus?.enabled ? 'Rotate Key' : 'Generate Key'}
-          </button>
+          </HouseButton>
         </div>
 
         {/* QR Code and 1-Click Import Actions */}
@@ -1458,7 +1459,7 @@ function StepMobileShortcuts({ toast, onNext, onSkip }) {
 
         {/* Test capture */}
         <div style={{ marginBottom: 12 }}>
-          <button
+          <HouseButton
             type="button"
             className="arc-social-btn"
             disabled={testing}
@@ -1466,7 +1467,7 @@ function StepMobileShortcuts({ toast, onNext, onSkip }) {
           >
             {testing ? <LoaderIcon type="pixels" /> : <Icon name="paper-plane-tilt" size={14} />}
             <span>Send Test Link to Library</span>
-          </button>
+          </HouseButton>
           {testResult && (
             <div
               style={{
@@ -1502,15 +1503,15 @@ function StepMobileShortcuts({ toast, onNext, onSkip }) {
 
       {/* Buttons */}
       <div style={{ marginTop: 'auto', paddingTop: 14, display: 'flex', gap: 10 }}>
-        <button
+        <HouseButton
           type="button"
           className="arc-social-btn"
           style={{ width: 'auto', padding: '11px 18px' }}
           onClick={onSkip}
         >
           <span>Skip for now</span>
-        </button>
-        <button
+        </HouseButton>
+        <HouseButton
           type="button"
           className="arc-btn-primary"
           style={{ flex: 1 }}
@@ -1518,7 +1519,7 @@ function StepMobileShortcuts({ toast, onNext, onSkip }) {
         >
           <span>Continue to Connected Apps</span>
           <Icon name="arrow-right" size={14} weight="bold" />
-        </button>
+        </HouseButton>
       </div>
     </div>
   )
@@ -1669,7 +1670,7 @@ function StepApps({ toast, onRefreshStatus, onNext, onSkip }) {
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
-          <input
+          <HouseInput
             type="password"
             className="arc-input"
             placeholder={
@@ -1682,7 +1683,7 @@ function StepApps({ toast, onRefreshStatus, onNext, onSkip }) {
             onPaste={handleKeyPaste}
             disabled={savingKey}
           />
-          <button
+          <HouseButton
             type="button"
             className="arc-btn-primary"
             style={{ width: 'auto', whiteSpace: 'nowrap', padding: '0 16px' }}
@@ -1690,7 +1691,7 @@ function StepApps({ toast, onRefreshStatus, onNext, onSkip }) {
             onClick={() => handleValidateAndSaveKey()}
           >
             {savingKey ? <LoaderIcon type="pixels" /> : 'Validate & Save'}
-          </button>
+          </HouseButton>
         </div>
 
         {keyResult && (
@@ -1761,7 +1762,7 @@ function StepApps({ toast, onRefreshStatus, onNext, onSkip }) {
                   Review pending
                 </span>
               ) : (
-                <button
+                <HouseButton
                   type="button"
                   className="arc-text-btn"
                   style={{
@@ -1773,7 +1774,7 @@ function StepApps({ toast, onRefreshStatus, onNext, onSkip }) {
                   onClick={() => handleConnectToolkit(app.slug)}
                 >
                   {isConnecting ? 'Connecting…' : 'Connect'}
-                </button>
+                </HouseButton>
               )}
             </div>
           )
@@ -1782,15 +1783,15 @@ function StepApps({ toast, onRefreshStatus, onNext, onSkip }) {
 
       {/* Buttons */}
       <div style={{ marginTop: 'auto', paddingTop: 14, display: 'flex', gap: 10 }}>
-        <button
+        <HouseButton
           type="button"
           className="arc-social-btn"
           style={{ width: 'auto', padding: '11px 18px' }}
           onClick={onSkip}
         >
           <span>Skip for now</span>
-        </button>
-        <button
+        </HouseButton>
+        <HouseButton
           type="button"
           className="arc-btn-primary"
           style={{ flex: 1 }}
@@ -1798,7 +1799,7 @@ function StepApps({ toast, onRefreshStatus, onNext, onSkip }) {
         >
           <span>Continue to Ready</span>
           <Icon name="arrow-right" size={14} weight="bold" />
-        </button>
+        </HouseButton>
       </div>
     </div>
   )
@@ -1873,7 +1874,7 @@ function StepLaunch({ setupStatus, onFinish, onPickPrompt }) {
         </label>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {starterPrompts.map((p) => (
-            <button
+            <HouseButton
               key={p}
               type="button"
               className="arc-social-btn"
@@ -1884,16 +1885,16 @@ function StepLaunch({ setupStatus, onFinish, onPickPrompt }) {
               }}
             >
               <span>&ldquo;{p}&rdquo;</span>
-            </button>
+            </HouseButton>
           ))}
         </div>
       </div>
 
       <div style={{ marginTop: 'auto' }}>
-        <button type="button" className="arc-btn-primary" onClick={onFinish}>
+        <HouseButton type="button" className="arc-btn-primary" onClick={onFinish}>
           <span>Launch Amethyst</span>
           <Icon name="arrow-up-right" size={14} weight="bold" />
-        </button>
+        </HouseButton>
       </div>
     </div>
   )
@@ -2025,10 +2026,10 @@ export default function SplashScreenWizard() {
             <div className="arc-stepper-header">
               <div className="arc-stepper-left">
                 {step > 0 && (
-                  <button type="button" className="arc-back-btn" onClick={prev}>
+                  <HouseButton type="button" className="arc-back-btn" onClick={prev}>
                     <Icon name="caret-left" size={13} weight="bold" />
                     <span>Back</span>
-                  </button>
+                  </HouseButton>
                 )}
                 <span className="arc-step-counter">
                   {stepLabels[step]} ({step + 1} of 6)
@@ -2045,7 +2046,7 @@ export default function SplashScreenWizard() {
                 ))}
               </div>
 
-              <button
+              <HouseButton
                 type="button"
                 className="arc-skip-btn"
                 disabled={step === 1}
@@ -2058,7 +2059,7 @@ export default function SplashScreenWizard() {
                 }}
               >
                 Skip
-              </button>
+              </HouseButton>
             </div>
 
             {/* Animated Step Content */}
@@ -2084,20 +2085,20 @@ export default function SplashScreenWizard() {
           <div className="arc-wizard-pane-right">
             {/* Ambient Style Toggle Bar */}
             <div className="arc-art-switcher">
-              <button
+              <HouseButton
                 type="button"
                 className={`arc-art-btn ${artMode === 'halftone' ? 'is-active' : ''}`}
                 onClick={() => setArtMode('halftone')}
               >
                 Halftone Wave
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 className={`arc-art-btn ${artMode === 'fluted' ? 'is-active' : ''}`}
                 onClick={() => setArtMode('fluted')}
               >
                 Amber Glass
-              </button>
+              </HouseButton>
             </div>
 
             {artMode === 'halftone' ? (

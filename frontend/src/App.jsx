@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './components/ui/bento/index.jsx'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Routes, Route } from 'react-router-dom'
 import Icon from './components/Icon.jsx'
@@ -238,7 +239,7 @@ function WorkbenchBar() {
         <div className="wb-bar-left">
           {compact && !railOpen && (
             <div className="wb-bar-toggle-group">
-              <button
+              <HouseButton
                 type="button"
                 className="wb-icon-btn wb-sidebar-trigger"
                 onClick={toggleRail}
@@ -246,7 +247,7 @@ function WorkbenchBar() {
                 aria-label="Open navigation"
               >
                 <Icon name="sidebar" size={17} />
-              </button>
+              </HouseButton>
             </div>
           )}
 
@@ -265,7 +266,7 @@ function WorkbenchBar() {
 
         {/* Center: Apple-style Refined Search Bar */}
         <div className="wb-bar-center">
-          <button
+          <HouseButton
             type="button"
             className="wb-search-bar"
             onClick={() => setOverlay((curr) => (curr === 'palette' ? null : 'palette'))}
@@ -275,12 +276,12 @@ function WorkbenchBar() {
             <Icon name="search" size={13} className="wb-search-icon" />
             <span className="wb-search-placeholder">Search or jump to...</span>
             <kbd className="wb-search-kbd">{MOD_LABEL}+K</kbd>
-          </button>
+          </HouseButton>
         </div>
 
         {/* Right Icon Actions: Artifact Panel + Settings */}
         <div className="wb-bar-actions">
-          <button
+          <HouseButton
             type="button"
             className={`wb-icon-btn${panel ? ' is-active' : ''}`}
             onClick={togglePanel}
@@ -289,9 +290,9 @@ function WorkbenchBar() {
             aria-pressed={panel}
           >
             <Icon name="layout" size={15} />
-          </button>
+          </HouseButton>
 
-          <button
+          <HouseButton
             type="button"
             className={`wb-icon-btn${view === 'settings' ? ' is-active' : ''}`}
             onClick={() => setView('settings')}
@@ -299,7 +300,7 @@ function WorkbenchBar() {
             aria-label="Settings"
           >
             <Icon name="sliders" size={15} />
-          </button>
+          </HouseButton>
         </div>
       </header>
     </>
@@ -313,7 +314,7 @@ function WorkbenchBar() {
  * pointer can reach is exactly the thing this pass exists to remove. */
 function RailScrim({ onClose }) {
   return (
-    <button
+    <HouseButton
       type="button"
       className="rail-scrim"
       aria-label="Close navigation"
@@ -701,14 +702,14 @@ export default function App() {
           {compact && panel && (
             <div className="wb-panel-mobile-header">
               <span className="wb-panel-mobile-title">Details & Context</span>
-              <button
+              <HouseButton
                 type="button"
                 className="wb-panel-mobile-close"
                 onClick={togglePanel}
                 aria-label="Close details panel"
               >
                 <Icon name="x" size={16} />
-              </button>
+              </HouseButton>
             </div>
           )}
           <PanelResizer />

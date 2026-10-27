@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 
@@ -86,9 +87,9 @@ export default function SidePanel({
         </div>
         {count > 0 && <span className="wb-panel-count" title={`${count} in this panel`}>{count}</span>}
         {onClose && (
-          <button type="button" className="icon-btn" onClick={onClose} title={label} aria-label={label}>
+          <HouseButton type="button" className="icon-btn" onClick={onClose} title={label} aria-label={label}>
             <Icon name="x" size={14} />
-          </button>
+          </HouseButton>
         )}
       </div>
       {tabs && <div className="wb-panel-tabs" role="tablist">{tabs}</div>}

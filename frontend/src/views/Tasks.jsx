@@ -1,3 +1,4 @@
+import { Button as HouseButton, Textarea as HouseTextarea, Input as HouseInput } from '../components/ui/bento/index.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../components/Icon.jsx'
@@ -198,7 +199,7 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
         <div className="tasks-inspector-head">
           <div className="tasks-inspector-head-left">
             {/* Tactile Checkbox Button */}
-            <button
+            <HouseButton
               type="button"
               className={`tasks-inspector-checkbox${isDone ? ' is-done' : ''}`}
               onClick={toggleDone}
@@ -206,10 +207,10 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
               aria-label="Toggle completion"
             >
               {isDone && <Icon name="check" size={13} />}
-            </button>
+            </HouseButton>
 
             {/* Status indicator badge */}
-            <button
+            <HouseButton
               type="button"
               className={`tasks-status-badge${isDone ? ' is-done' : isProg ? ' is-prog' : ''}`}
               onClick={cycleStatus}
@@ -217,29 +218,29 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
             >
               <span className="tasks-status-dot" />
               <span>{isDone ? 'Completed' : isProg ? 'In Progress' : 'To Do'}</span>
-            </button>
+            </HouseButton>
           </div>
 
           <div className="tasks-inspector-head-actions">
-            <button
+            <HouseButton
               type="button"
               className={`tasks-icon-action-btn${isMyDay ? ' is-active-myday' : ''}`}
               title={isMyDay ? 'In My Day (click to remove)' : 'Add to My Day'}
               onClick={() => onPatch(task, { add_to_my_day: !isMyDay })}
             >
               <Icon name="sun" size={15} />
-            </button>
+            </HouseButton>
 
-            <button
+            <HouseButton
               type="button"
               className={`tasks-icon-action-btn${task.important ? ' is-active-star' : ''}`}
               title={task.important ? 'Important' : 'Mark Important'}
               onClick={() => onPatch(task, { important: !task.important })}
             >
               <Icon name="star" size={15} weight={task.important ? 'fill' : 'regular'} />
-            </button>
+            </HouseButton>
 
-            <button
+            <HouseButton
               type="button"
               className="tasks-icon-action-btn is-delete"
               title="Delete task"
@@ -250,18 +251,18 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
               }}
             >
               <Icon name="trash" size={15} />
-            </button>
+            </HouseButton>
 
             <div className="tasks-inspector-head-divider" />
 
-            <button
+            <HouseButton
               type="button"
               className="tasks-inspector-close"
               onClick={onClose}
               aria-label="Close"
             >
               <Icon name="x" size={15} />
-            </button>
+            </HouseButton>
           </div>
         </div>
 
@@ -269,7 +270,7 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
         <div className="tasks-inspector-body">
           {/* Main Title Input (Seamless, borderless) */}
           <div className="tasks-inspector-title-wrap">
-            <textarea
+            <HouseTextarea
               className={`tasks-inspector-title${isDone ? ' is-done' : ''}`}
               value={title}
               placeholder="Task title…"
@@ -291,7 +292,7 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
 
           {/* Prominent 3-State Status Segmented Bar */}
           <div className="tasks-status-segmented-bar" role="group" aria-label="Task Status">
-            <button
+            <HouseButton
               type="button"
               className={`tasks-status-segment-btn is-todo${!isProg && !isDone ? ' is-active' : ''}`}
               onClick={() => {
@@ -303,9 +304,9 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
             >
               <span className="tasks-status-segment-dot" />
               <span>To Do</span>
-            </button>
+            </HouseButton>
 
-            <button
+            <HouseButton
               type="button"
               className={`tasks-status-segment-btn is-prog${isProg ? ' is-active' : ''}`}
               onClick={() => {
@@ -317,9 +318,9 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
             >
               <Icon name="clock" size={13} />
               <span>In Progress</span>
-            </button>
+            </HouseButton>
 
-            <button
+            <HouseButton
               type="button"
               className={`tasks-status-segment-btn is-done${isDone ? ' is-active' : ''}`}
               onClick={() => {
@@ -331,7 +332,7 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
             >
               <Icon name="check" size={13} />
               <span>Completed</span>
-            </button>
+            </HouseButton>
           </div>
 
           {/* Properties Card (Linear/Apple Reminders Elevated Stack) */}
@@ -343,14 +344,14 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
                 <span>List</span>
               </div>
               <div className="tasks-card-prop-val">
-                <button
+                <HouseButton
                   type="button"
                   className="tasks-custom-prop-btn"
                   onClick={() => setIsListMenuOpen((o) => !o)}
                 >
                   <span>{currentList ? currentList.name : 'Default List'}</span>
                   <Icon name="chevron-down" size={11} className={isListMenuOpen ? 'am-rotate-180' : ''} />
-                </button>
+                </HouseButton>
 
                 <AnimatePresence>
                   {isListMenuOpen && (
@@ -394,7 +395,7 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
                 <span>Due Date</span>
               </div>
               <div className="tasks-card-prop-val">
-                <button
+                <HouseButton
                   type="button"
                   className={`tasks-custom-prop-btn${task.due_at ? ' has-val' : ''}${isLate ? ' is-overdue' : ''}`}
                   onClick={() => setIsDuePickerOpen((o) => !o)}
@@ -414,7 +415,7 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
                   ) : (
                     <Icon name="chevron-down" size={11} className={isDuePickerOpen ? 'am-rotate-180' : ''} />
                   )}
-                </button>
+                </HouseButton>
 
                 <AnimatePresence>
                   {isDuePickerOpen && (
@@ -427,22 +428,22 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
                     >
                       <div className="tasks-popover-menu-title">Due Date Preset</div>
                       <div className="tasks-popover-chips-grid">
-                        <button type="button" className="tasks-picker-chip" onClick={() => setQuickDue('today')}>
+                        <HouseButton type="button" className="tasks-picker-chip" onClick={() => setQuickDue('today')}>
                           <Icon name="sun" size={12} />
                           <span>Today</span>
-                        </button>
-                        <button type="button" className="tasks-picker-chip" onClick={() => setQuickDue('tomorrow')}>
+                        </HouseButton>
+                        <HouseButton type="button" className="tasks-picker-chip" onClick={() => setQuickDue('tomorrow')}>
                           <Icon name="clock" size={12} />
                           <span>Tomorrow</span>
-                        </button>
-                        <button type="button" className="tasks-picker-chip" onClick={() => setQuickDue('next week')}>
+                        </HouseButton>
+                        <HouseButton type="button" className="tasks-picker-chip" onClick={() => setQuickDue('next week')}>
                           <Icon name="calendar" size={12} />
                           <span>Next Week</span>
-                        </button>
+                        </HouseButton>
                       </div>
                       <div className="tasks-popover-custom-date">
                         <span className="tasks-popover-sub-label">Custom Date</span>
-                        <input
+                        <HouseInput
                           type="date"
                           className="tasks-native-date-input"
                           defaultValue={task.due_at ? task.due_at.split(' ')[0] : ''}
@@ -464,7 +465,7 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
                 <span>Reminder</span>
               </div>
               <div className="tasks-card-prop-val">
-                <button
+                <HouseButton
                   type="button"
                   className={`tasks-custom-prop-btn${task.reminder_at ? ' has-val' : ''}`}
                   onClick={() => setIsReminderPickerOpen((o) => !o)}
@@ -484,7 +485,7 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
                   ) : (
                     <Icon name="chevron-down" size={11} className={isReminderPickerOpen ? 'am-rotate-180' : ''} />
                   )}
-                </button>
+                </HouseButton>
 
                 <AnimatePresence>
                   {isReminderPickerOpen && (
@@ -497,18 +498,18 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
                     >
                       <div className="tasks-popover-menu-title">Reminder Preset</div>
                       <div className="tasks-popover-chips-grid">
-                        <button type="button" className="tasks-picker-chip" onClick={() => setQuickReminder('later today')}>
+                        <HouseButton type="button" className="tasks-picker-chip" onClick={() => setQuickReminder('later today')}>
                           <Icon name="clock" size={12} />
                           <span>Later Today</span>
-                        </button>
-                        <button type="button" className="tasks-picker-chip" onClick={() => setQuickReminder('tomorrow 9am')}>
+                        </HouseButton>
+                        <HouseButton type="button" className="tasks-picker-chip" onClick={() => setQuickReminder('tomorrow 9am')}>
                           <Icon name="sun" size={12} />
                           <span>Tomorrow 9am</span>
-                        </button>
-                        <button type="button" className="tasks-picker-chip" onClick={() => setQuickReminder('next monday 9am')}>
+                        </HouseButton>
+                        <HouseButton type="button" className="tasks-picker-chip" onClick={() => setQuickReminder('next monday 9am')}>
                           <Icon name="calendar" size={12} />
                           <span>Next Monday</span>
-                        </button>
+                        </HouseButton>
                       </div>
                     </motion.div>
                   )}
@@ -529,14 +530,14 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
                   {['low', 'medium', 'high'].map((p) => {
                     const isCur = task.priority === p
                     return (
-                      <button
+                      <HouseButton
                         key={p}
                         type="button"
                         className={`tasks-priority-chip ${p}${isCur ? ' is-active' : ''}`}
                         onClick={() => onPatch(task, { priority: isCur ? null : p })}
                       >
                         {p}
-                      </button>
+                      </HouseButton>
                     )
                   })}
                 </div>
@@ -570,25 +571,25 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
             <div className="tasks-checklist-list">
               {steps.map((step) => (
                 <div key={step.id} className="tasks-checklist-item-row">
-                  <button
+                  <HouseButton
                     type="button"
                     className={`tasks-checklist-disc${step.isChecked ? ' is-done' : ''}`}
                     onClick={() => toggleChecklistStep(step.id)}
                     aria-label={step.isChecked ? 'Mark step incomplete' : 'Mark step complete'}
                   >
                     {step.isChecked && <Icon name="check" size={9} />}
-                  </button>
+                  </HouseButton>
                   <span className={`tasks-checklist-text${step.isChecked ? ' is-done' : ''}`}>
                     {step.displayName}
                   </span>
-                  <button
+                  <HouseButton
                     type="button"
                     className="tasks-checklist-del-btn"
                     title="Remove step"
                     onClick={() => deleteChecklistStep(step.id)}
                   >
                     <Icon name="x" size={11} />
-                  </button>
+                  </HouseButton>
                 </div>
               ))}
             </div>
@@ -596,16 +597,16 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
             {/* Add Step Input */}
             <form className="tasks-checklist-add-form" onSubmit={addChecklistStep}>
               <Icon name="plus" size={12} className="tasks-checklist-plus" />
-              <input
+              <HouseInput
                 className="tasks-checklist-add-input"
                 placeholder="Add a subtask…"
                 value={newStepText}
                 onChange={(e) => setNewStepText(e.target.value)}
               />
               {newStepText.trim() && (
-                <button type="submit" className="tasks-checklist-add-submit">
+                <HouseButton type="submit" className="tasks-checklist-add-submit">
                   Add
-                </button>
+                </HouseButton>
               )}
             </form>
           </div>
@@ -616,7 +617,7 @@ function TaskInspector({ task, lists, busy, onPatch, onDrop, onClose }) {
               <Icon name="file-text" size={13} className="tasks-notes-icon" />
               <span className="tasks-notes-label">Notes</span>
             </div>
-            <textarea
+            <HouseTextarea
               className="tasks-inspector-notes"
               value={notes}
               placeholder="Add notes, context, or links…"
@@ -689,7 +690,7 @@ function TaskItemRow({ task, lists, view, busy, onPatch, onSelect }) {
     >
       <div className="task-item-shell">
         {/* Check Disc */}
-        <button
+        <HouseButton
           type="button"
           className={`task-check-disc${isDone ? ' is-checked' : ''}${isProg ? ' is-prog' : ''}`}
           disabled={busy}
@@ -705,7 +706,7 @@ function TaskItemRow({ task, lists, view, busy, onPatch, onSelect }) {
           ) : isProg ? (
             <span className="task-prog-inner-dot" />
           ) : null}
-        </button>
+        </HouseButton>
 
         {/* Content Body */}
         <div className="task-item-core">
@@ -761,18 +762,18 @@ function TaskItemRow({ task, lists, view, busy, onPatch, onSelect }) {
 
           {/* Quick Status Cycle Pill */}
           {!isDone && (
-            <button
+            <HouseButton
               type="button"
               className={`task-quick-prog-toggle${isProg ? ' is-active' : ''}`}
               title={isProg ? 'Mark completed' : 'Mark in progress'}
               onClick={cycleStatus}
             >
               <Icon name="lightning" size={11} />
-            </button>
+            </HouseButton>
           )}
 
           {/* Star Icon */}
-          <button
+          <HouseButton
             type="button"
             className={`task-star-btn${task.important ? ' is-starred' : ''}`}
             disabled={busy}
@@ -784,7 +785,7 @@ function TaskItemRow({ task, lists, view, busy, onPatch, onSelect }) {
             }}
           >
             <Icon name="star" size={13} weight={task.important ? 'fill' : 'regular'} />
-          </button>
+          </HouseButton>
         </div>
       </div>
     </motion.div>
@@ -812,7 +813,7 @@ function BoardCard({ task, busy, onPatch, onSelect }) {
       transition={{ duration: 0.12 }}
     >
       <div className="tasks-board-card-top">
-        <button
+        <HouseButton
           type="button"
           className={`task-check-disc${isDone ? ' is-checked' : ''}${isProg ? ' is-prog' : ''}`}
           disabled={busy}
@@ -822,9 +823,9 @@ function BoardCard({ task, busy, onPatch, onSelect }) {
           }}
         >
           {isDone ? <Icon name="check" size={10} /> : null}
-        </button>
+        </HouseButton>
 
-        <button
+        <HouseButton
           type="button"
           className={`task-star-btn${task.important ? ' is-starred' : ''}`}
           disabled={busy}
@@ -834,7 +835,7 @@ function BoardCard({ task, busy, onPatch, onSelect }) {
           }}
         >
           <Icon name="star" size={13} weight={task.important ? 'fill' : 'regular'} />
-        </button>
+        </HouseButton>
       </div>
 
       <h4 className="tasks-board-card-title">{task.title}</h4>
@@ -1006,9 +1007,9 @@ function TasksEmptyState({ bucket, activeLabel, searchQuery, onAction }) {
         <h3 className="tasks-empty-title">{cfg.title}</h3>
         <p className="tasks-empty-desc">{cfg.desc}</p>
         {cfg.chip && (
-          <button type="button" className="tasks-empty-action-chip" onClick={onAction}>
+          <HouseButton type="button" className="tasks-empty-action-chip" onClick={onAction}>
             <span>{cfg.chip}</span>
-          </button>
+          </HouseButton>
         )}
       </div>
     </div>
@@ -1486,7 +1487,7 @@ export default function Tasks() {
             {/* Custom List Options: Rename and Delete */}
             {activeHeader.isCustom && !activeHeader.list?.is_default && (
               <div className="tasks-list-actions-bar">
-                <button
+                <HouseButton
                   type="button"
                   className="tasks-list-action-pill"
                   onClick={handleRenameCurrentList}
@@ -1494,8 +1495,8 @@ export default function Tasks() {
                 >
                   <Icon name="pencil" size={11} />
                   <span>Rename</span>
-                </button>
-                <button
+                </HouseButton>
+                <HouseButton
                   type="button"
                   className="tasks-list-action-pill is-danger"
                   onClick={handleDeleteCurrentList}
@@ -1503,7 +1504,7 @@ export default function Tasks() {
                 >
                   <Icon name="trash" size={11} />
                   <span>Delete</span>
-                </button>
+                </HouseButton>
               </div>
             )}
           </div>
@@ -1511,7 +1512,7 @@ export default function Tasks() {
           <div className="tasks-top-right">
             <div className="tasks-search-wrap">
               <Icon name="search" size={14} className="tasks-search-icon" />
-              <input
+              <HouseInput
                 type="text"
                 className="tasks-search-input"
                 placeholder="Search tasks…"
@@ -1519,19 +1520,19 @@ export default function Tasks() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
               {searchQuery && (
-                <button
+                <HouseButton
                   type="button"
                   className="tasks-search-clear"
                   onClick={() => setSearchQuery('')}
                   aria-label="Clear search"
                 >
                   <Icon name="x" size={13} />
-                </button>
+                </HouseButton>
               )}
             </div>
 
             <div className="tasks-view-switch">
-              <button
+              <HouseButton
                 type="button"
                 className={`tasks-view-switch-btn${viewMode === 'list' ? ' is-active' : ''}`}
                 onClick={() => setViewMode('list')}
@@ -1539,8 +1540,8 @@ export default function Tasks() {
               >
                 <Icon name="list" size={14} />
                 <span>List</span>
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 className={`tasks-view-switch-btn${viewMode === 'board' ? ' is-active' : ''}`}
                 onClick={() => setViewMode('board')}
@@ -1548,10 +1549,10 @@ export default function Tasks() {
               >
                 <Icon name="layout" size={14} />
                 <span>Board</span>
-              </button>
+              </HouseButton>
             </div>
 
-            <button
+            <HouseButton
               type="button"
               className="tasks-sync-btn"
               disabled={syncing}
@@ -1567,7 +1568,7 @@ export default function Tasks() {
                 className={syncing ? 'am-spin' : ''}
               />
               <span>{syncing ? 'Syncing…' : 'Sync'}</span>
-            </button>
+            </HouseButton>
           </div>
         </div>
 
@@ -1578,7 +1579,7 @@ export default function Tasks() {
               const isActive = !view.listId && view.bucket === bucket.id
               const count = loaded ? counts.buckets?.[bucket.id] ?? 0 : null
               return (
-                <button
+                <HouseButton
                   key={bucket.id}
                   type="button"
                   className={`tasks-tab-btn${isActive ? ' is-active' : ''}`}
@@ -1587,7 +1588,7 @@ export default function Tasks() {
                   <Icon name={bucket.icon} size={15} />
                   <span>{bucket.label}</span>
                   {count != null && <span className="tasks-tab-badge">({count})</span>}
-                </button>
+                </HouseButton>
               )
             })}
 
@@ -1598,7 +1599,7 @@ export default function Tasks() {
             {customLists.map((l) => {
               const isActive = Number(view.listId) === Number(l.id)
               return (
-                <button
+                <HouseButton
                   key={l.id}
                   type="button"
                   className={`tasks-tab-btn tasks-list-tab-btn${isActive ? ' is-active' : ''}`}
@@ -1608,7 +1609,7 @@ export default function Tasks() {
                   <Icon name="folder" size={15} className="tasks-list-tab-icon" />
                   <span>{l.name}</span>
                   {l.open != null && <span className="tasks-tab-badge">({l.open})</span>}
-                </button>
+                </HouseButton>
               )
             })}
 
@@ -1616,7 +1617,7 @@ export default function Tasks() {
             {addingList ? (
               <form className="tasks-new-list-inline-form" onSubmit={handleCreateListSubmit}>
                 <Icon name="folder" size={14} className="tasks-new-list-icon" />
-                <input
+                <HouseInput
                   autoFocus
                   className="tasks-new-list-inline-input"
                   placeholder="New list name…"
@@ -1626,15 +1627,15 @@ export default function Tasks() {
                     if (e.key === 'Escape') setAddingList(false)
                   }}
                 />
-                <button type="submit" className="tasks-new-list-submit-btn" disabled={!newListTitle.trim()}>
+                <HouseButton type="submit" className="tasks-new-list-submit-btn" disabled={!newListTitle.trim()}>
                   Add
-                </button>
-                <button type="button" className="tasks-new-list-cancel-btn" onClick={() => setAddingList(false)}>
+                </HouseButton>
+                <HouseButton type="button" className="tasks-new-list-cancel-btn" onClick={() => setAddingList(false)}>
                   <Icon name="x" size={13} />
-                </button>
+                </HouseButton>
               </form>
             ) : (
-              <button
+              <HouseButton
                 type="button"
                 className="tasks-tab-btn tasks-add-list-tab-btn"
                 onClick={() => setAddingList(true)}
@@ -1642,7 +1643,7 @@ export default function Tasks() {
               >
                 <Icon name="plus" size={14} />
                 <span>New List</span>
-              </button>
+              </HouseButton>
             )}
           </div>
         </div>
@@ -1654,7 +1655,7 @@ export default function Tasks() {
         {view.bucket !== 'completed' && (
           <form className="tasks-quick-bar" onSubmit={handleQuickAdd}>
             <Icon name="plus" size={15} className="tasks-quick-plus" />
-            <input
+            <HouseInput
               ref={quickInputRef}
               className="tasks-quick-input"
               placeholder={`Add task to ${activeHeader.label}…`}
@@ -1662,7 +1663,7 @@ export default function Tasks() {
               onChange={(e) => setQuickTitle(e.target.value)}
             />
             <div className="tasks-quick-actions">
-              <button
+              <HouseButton
                 type="button"
                 className={`tasks-quick-toggle-btn${quickImportant ? ' is-active' : ''}`}
                 onClick={() => setQuickImportant((v) => !v)}
@@ -1670,7 +1671,7 @@ export default function Tasks() {
               >
                 <Icon name="star" size={13} weight={quickImportant ? 'fill' : 'regular'} />
                 <span>Important</span>
-              </button>
+              </HouseButton>
 
               <kbd className="tasks-kbd-hint">Enter</kbd>
             </div>
@@ -1687,7 +1688,7 @@ export default function Tasks() {
               </div>
               <h3 className="tasks-empty-title">Failed to load tasks</h3>
               <p className="tasks-empty-desc">{error}</p>
-              <button
+              <HouseButton
                 type="button"
                 className="tasks-sync-btn"
                 style={{ marginTop: 8 }}
@@ -1695,7 +1696,7 @@ export default function Tasks() {
               >
                 <Icon name="refresh" size={13} />
                 <span>Retry</span>
-              </button>
+              </HouseButton>
             </div>
           </div>
         )}
@@ -1778,7 +1779,7 @@ export default function Tasks() {
                 {/* Collapsible Completed Section in List/MyDay View */}
                 {completedTasks.length > 0 && (
                   <div className="tasks-completed-collapsible-area">
-                    <button
+                    <HouseButton
                       type="button"
                       className="tasks-completed-accordion-btn"
                       onClick={() => setShowDone((s) => !s)}
@@ -1791,7 +1792,7 @@ export default function Tasks() {
                         {view.bucket === 'my_day' ? 'Completed Today' : 'Completed'} (
                         {completedTasks.length})
                       </span>
-                    </button>
+                    </HouseButton>
 
                     <AnimatePresence>
                       {showDone && (

@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../components/ui/bento/index.jsx'
 import { useEffect, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
@@ -42,20 +43,20 @@ export default function Remote({ onUnpair, onDesktop }) {
             pairing code with this device.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <button
+            <HouseButton
               type="button"
               className="pair-go"
               onClick={() => setView('pair')}
             >
               Scan Pairing Code
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className="set-btn-sm"
               onClick={() => setPaired(syncClient.paired())}
             >
               Check Connection
-            </button>
+            </HouseButton>
           </div>
         </div>
       </div>
@@ -116,7 +117,7 @@ export default function Remote({ onUnpair, onDesktop }) {
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={doSync}
@@ -125,16 +126,16 @@ export default function Remote({ onUnpair, onDesktop }) {
             style={{ padding: '6px 10px' }}
           >
             <Icon name="refresh" size={14} />
-          </button>
+          </HouseButton>
           {onUnpair && (
-            <button
+            <HouseButton
               type="button"
               className="set-btn-sm"
               onClick={onUnpair}
               style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.4)', padding: '6px 10px', fontSize: 11 }}
             >
               Unpair
-            </button>
+            </HouseButton>
           )}
         </div>
       </header>
@@ -238,7 +239,7 @@ export default function Remote({ onUnpair, onDesktop }) {
         ].map((tab) => {
           const isActive = activeTab === tab.id
           return (
-            <button
+            <HouseButton
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
@@ -266,7 +267,7 @@ export default function Remote({ onUnpair, onDesktop }) {
               >
                 {tab.label}
               </span>
-            </button>
+            </HouseButton>
           )
         })}
       </nav>

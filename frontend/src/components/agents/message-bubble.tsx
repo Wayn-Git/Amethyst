@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../ui/bento/index.jsx'
 "use client";
 
 import React, {
@@ -194,7 +195,7 @@ export function MessageBubbleCollapsible({
         {children}
       </div>
 
-      <button
+      <HouseButton
         type="button"
         onClick={toggle}
         aria-expanded={isOpen}
@@ -210,7 +211,7 @@ export function MessageBubbleCollapsible({
             isOpen && "rotate-180"
           )}
         />
-      </button>
+      </HouseButton>
     </div>
   );
 }

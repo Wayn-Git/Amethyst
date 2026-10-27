@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../ui/bento/index.jsx'
 "use client";
 
 import * as React from "react";
@@ -681,7 +682,7 @@ function QuestionOption({
   }
 
   return (
-    <button
+    <HouseButton
       type="button"
       role="option"
       aria-selected={isSelected}
@@ -740,7 +741,7 @@ function QuestionOption({
           isSelected && "opacity-100 text-accent",
         )}
       />
-    </button>
+    </HouseButton>
   );
 }
 
@@ -810,7 +811,7 @@ function QuestionOther({
           onCheckedChange={handleOtherToggle}
           className="mx-1.25 size-4.5 shadow-none transition-colors group-hover/row:data-[state=unchecked]:border-ring/50"
         />
-        <input
+        <HouseInput
           type="text"
           value={otherValue}
           placeholder={placeholder}
@@ -849,7 +850,7 @@ function QuestionOther({
           )}
         />
       </span>
-      <input
+      <HouseInput
         type="text"
         data-slot="question-other-input"
         value={otherValue}
@@ -1157,7 +1158,7 @@ function QuestionsCarouselPrev({
   const { index, goPrev } = useQuestionsRoot("QuestionsCarouselPrev");
 
   return (
-    <button
+    <HouseButton
       type="button"
       data-slot="questions-carousel-prev"
       disabled={index <= 0}
@@ -1168,7 +1169,7 @@ function QuestionsCarouselPrev({
       {children ?? (
         <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} className="size-4" />
       )}
-    </button>
+    </HouseButton>
   );
 }
 
@@ -1186,7 +1187,7 @@ function QuestionsCarouselNext({
     !isBlockedByRequired(current, answers);
 
   return (
-    <button
+    <HouseButton
       type="button"
       data-slot="questions-carousel-next"
       disabled={!canGoNext}
@@ -1197,7 +1198,7 @@ function QuestionsCarouselNext({
       {children ?? (
         <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} className="size-4" />
       )}
-    </button>
+    </HouseButton>
   );
 }
 

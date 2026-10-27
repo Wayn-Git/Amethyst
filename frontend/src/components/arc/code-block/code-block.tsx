@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../ui/bento/index.jsx'
 "use client";
 
 import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
@@ -200,7 +201,7 @@ export function CodeBlock({ code = "", filename, language = "tsx", maxLines, cla
         </pre>
       </motion.div>
       {collapsible && (
-        <button
+        <HouseButton
           type="button"
           className={styles.expand}
           aria-expanded={expanded}
@@ -225,7 +226,7 @@ export function CodeBlock({ code = "", filename, language = "tsx", maxLines, cla
           >
             <ChevronDown size={14} strokeWidth={1.75} />
           </motion.span>
-        </button>
+        </HouseButton>
       )}
     </section>
   );

@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import { useState, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../../components/Icon.jsx'
@@ -100,7 +101,7 @@ export default function TodayMailsCard({ toast }) {
         </div>
 
         <div className="today-card-actions">
-          <button
+          <HouseButton
             type="button"
             className="btn btn--small btn--ghost"
             style={{ borderRadius: 9999, padding: '4px 10px', fontSize: 12 }}
@@ -108,7 +109,7 @@ export default function TodayMailsCard({ toast }) {
             title="Refresh inbox"
           >
             <Icon name="refresh" size={13} />
-          </button>
+          </HouseButton>
         </div>
       </div>
 
@@ -126,7 +127,7 @@ export default function TodayMailsCard({ toast }) {
               transition={{ duration: 0.18, ease: 'easeOut' }}
             >
               <div className="today-mail-reader-nav">
-                <button
+                <HouseButton
                   type="button"
                   className="today-mail-reader-back"
                   onClick={() => {
@@ -135,16 +136,16 @@ export default function TodayMailsCard({ toast }) {
                   }}
                 >
                   <Icon name="arrow-left" size={14} /> Back to Mails
-                </button>
+                </HouseButton>
 
-                <button
+                <HouseButton
                   type="button"
                   className="btn btn--small btn--ghost"
                   style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6 }}
                   onClick={(e) => handleDismiss(e, selectedMail)}
                 >
                   <Icon name="trash" size={13} /> Dismiss
-                </button>
+                </HouseButton>
               </div>
 
               <div style={{ marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--hairline)' }}>
@@ -235,7 +236,7 @@ export default function TodayMailsCard({ toast }) {
                     </div>
 
                     {/* Dismiss Button */}
-                    <button
+                    <HouseButton
                       type="button"
                       className="today-mail-dismiss-btn"
                       title="Dismiss mail"
@@ -243,7 +244,7 @@ export default function TodayMailsCard({ toast }) {
                       onClick={(e) => handleDismiss(e, mail)}
                     >
                       <Icon name="x" size={14} />
-                    </button>
+                    </HouseButton>
                   </div>
                 )
               })}

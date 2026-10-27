@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../components/ui/bento/index.jsx'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import BrandMark from '../components/BrandMark.jsx'
@@ -447,7 +448,7 @@ function CopyButton({ text, label = 'Copy' }) {
   const [done, setDone] = useState(false)
   if (!text) return null
   return (
-    <button
+    <HouseButton
       type="button"
       className="msg-copy"
       title={label}
@@ -458,7 +459,7 @@ function CopyButton({ text, label = 'Copy' }) {
       }}
     >
       <Icon name={done === 'ok' ? 'check' : done === 'no' ? 'x' : 'copy'} size={13} />
-    </button>
+    </HouseButton>
   )
 }
 
@@ -485,7 +486,7 @@ function Reasoning({ text, live, ms }) {
 function PinButton({ item, onPin }) {
   if (!item.rowId) return null
   return (
-    <button
+    <HouseButton
       type="button"
       className={`msg-pin${item.pinned ? ' is-pinned' : ''}`}
       title={item.pinned ? 'Unpin' : 'Pin this message'}
@@ -494,7 +495,7 @@ function PinButton({ item, onPin }) {
       onClick={() => onPin(item, !item.pinned)}
     >
       <Icon name="pin" size={13} weight={item.pinned ? 'fill' : 'regular'} />
-    </button>
+    </HouseButton>
   )
 }
 
@@ -698,14 +699,14 @@ const Msg = memo(function Msg({
             it from the transcript -- which is exactly what typing "continue"
             did. One button, in the place the failure is being read. */}
         {item.resumable && (
-          <button
+          <HouseButton
             type="button"
             className="btn btn--small msg-note-action"
             disabled={busy}
             onClick={() => onResume?.()}
           >
             {item.hasPartial ? 'Continue the answer' : 'Retry'}
-          </button>
+          </HouseButton>
         )}
       </div>
     )
@@ -859,7 +860,7 @@ const Msg = memo(function Msg({
           <div className="msg-user-meta">
             {timeStr && <span className="msg-time">{timeStr}</span>}
             <CopyButton text={item.text} label="Copy" />
-            <button
+            <HouseButton
               type="button"
               className="msg-action-btn"
               title="Edit message"
@@ -867,7 +868,7 @@ const Msg = memo(function Msg({
               onClick={() => { setInput(item.text); textareaRef.current?.focus() }}
             >
               <Icon name="edit" size={12} />
-            </button>
+            </HouseButton>
             <PinButton item={item} onPin={onPin} />
           </div>
         </MessageContent>
@@ -2830,7 +2831,7 @@ export default function Chat() {
       {acItems.length > 0 && (
         <div className="ac-menu">
           {acItems.map((item, i) => (
-            <button
+            <HouseButton
               key={item.name}
               type="button"
               className={`ac-item${i === acIndex ? ' active' : ''}`}
@@ -2855,7 +2856,7 @@ export default function Chat() {
                    <span className="ac-desc">{item.description}</span>
                  </>
               )}
-            </button>
+            </HouseButton>
           ))}
         </div>
       )}
@@ -2928,7 +2929,7 @@ export default function Chat() {
                   <MatrixLoader phase={turnPhase} />
                 )}
               </span>
-              <button
+              <HouseButton
                 type="button"
                 className={`thinking-trigger-btn thinking-trigger-btn--${turnPhase}${inspectOpen ? ' is-open' : ''}`}
                 onClick={() => setInspectOpen((o) => !o)}
@@ -2939,7 +2940,7 @@ export default function Chat() {
                 {turnPhase !== 'writing' && (
                   <Icon name="chevron" size={10} className={`thinking-chevron${inspectOpen ? ' is-open' : ''}`} />
                 )}
-              </button>
+              </HouseButton>
               <span className="thinking-status-text">
                 {turnPhase === 'writing' ? (
                   ''
@@ -2952,7 +2953,7 @@ export default function Chat() {
             </div>
             <div className="thinking-bar-right">
               <span className="thinking-timer">{elapsedSec}s</span>
-              <button
+              <HouseButton
                 type="button"
                 className="thinking-pause-btn"
                 onClick={stop}
@@ -2964,7 +2965,7 @@ export default function Chat() {
                   <span />
                   <span />
                 </span>
-              </button>
+              </HouseButton>
             </div>
           </div>
         </div>
@@ -2975,14 +2976,14 @@ export default function Chat() {
         <div className="composer-queue-preview">
           <span className="queue-badge">{queuedMessages.length} queued</span>
           <span className="queue-text">"{queuedMessages[0].text}"</span>
-          <button
+          <HouseButton
             type="button"
             className="queue-cancel-btn"
             onClick={() => setQueuedMessages([])}
             title="Cancel queue"
           >
             <Icon name="x" size={12} />
-          </button>
+          </HouseButton>
         </div>
       )}
 
@@ -3005,7 +3006,7 @@ export default function Chat() {
                 &ldquo;{quotedReference.text}&rdquo;
               </div>
             </div>
-            <button
+            <HouseButton
               type="button"
               className="composer-quote-remove"
               onClick={() => setQuotedReference(null)}
@@ -3013,14 +3014,14 @@ export default function Chat() {
               aria-label="Remove quote"
             >
               <Icon name="x" size={13} />
-            </button>
+            </HouseButton>
           </div>
         )}
 
         {isEmpty ? (
           <div className="hero-composer-single-row">
             {/* Left + Button */}
-            <button
+            <HouseButton
               type="button"
               data-plus-trigger="true"
               className={`hero-plus-btn${plusOpen ? ' is-active' : ''}`}
@@ -3031,7 +3032,7 @@ export default function Chat() {
             >
               <Icon name="plus" size={18} />
               {attachments.length > 0 && <span className="composer-tool-count">{attachments.length}</span>}
-            </button>
+            </HouseButton>
 
             {/* Input Wrap */}
             <div className="hero-composer-input-wrap">
@@ -3043,14 +3044,14 @@ export default function Chat() {
                     <Icon name="grid" size={12} />
                   )}
                   <span className="composer-active-tag-label">{activeTag.label}</span>
-                  <button
+                  <HouseButton
                     type="button"
                     className="composer-active-tag-remove"
                     onClick={() => setActiveTag(null)}
                     aria-label={`Remove ${activeTag.label}`}
                   >
                     <Icon name="x" size={10} />
-                  </button>
+                  </HouseButton>
                 </span>
               )}
               <SmoothTextarea
@@ -3111,7 +3112,7 @@ export default function Chat() {
             <div className="hero-composer-actions">
               {/* Model selector pill */}
               <div className="composer-model-pill-wrap">
-                <button
+                <HouseButton
                   type="button"
                   data-model-trigger="true"
                   className="composer-model-pill hero-composer-model-pill"
@@ -3126,7 +3127,7 @@ export default function Chat() {
                   />
                   <span className="composer-model-name">{shownModel}</span>
                   <Icon name="chevron" size={8} className="composer-model-chevron" />
-                </button>
+                </HouseButton>
                 {modelOpen && (
                   <ModelMenu
                     placement="down"
@@ -3142,7 +3143,7 @@ export default function Chat() {
               {/* Action Button */}
               {turnState === 'running' ? (
                 <>
-                  <button
+                  <HouseButton
                     type="button"
                     className="hero-composer-send-btn is-stop"
                     onClick={stop}
@@ -3151,8 +3152,8 @@ export default function Chat() {
                     aria-label="Stop"
                   >
                     <span className="composer-stop-square" />
-                  </button>
-                  <button
+                  </HouseButton>
+                  <HouseButton
                     type="button"
                     className="composer-queue-btn"
                     onClick={handleQueue}
@@ -3161,10 +3162,10 @@ export default function Chat() {
                   >
                     <span>Queue</span>
                     <span className="composer-queue-symbol">↵</span>
-                  </button>
+                  </HouseButton>
                 </>
               ) : (
-                <button
+                <HouseButton
                   type="button"
                   className={`hero-composer-send-btn${input.trim() || attachments.length > 0 || quotedReference ? ' is-active' : ' is-idle'}`}
                   onClick={() => send()}
@@ -3173,7 +3174,7 @@ export default function Chat() {
                   aria-label="Send"
                 >
                   <Icon name="arrow-up" size={17} weight="bold" />
-                </button>
+                </HouseButton>
               )}
             </div>
           </div>
@@ -3189,14 +3190,14 @@ export default function Chat() {
                     <Icon name="grid" size={12} />
                   )}
                   <span className="composer-active-tag-label">{activeTag.label}</span>
-                  <button
+                  <HouseButton
                     type="button"
                     className="composer-active-tag-remove"
                     onClick={() => setActiveTag(null)}
                     aria-label={`Remove ${activeTag.label}`}
                   >
                     <Icon name="x" size={10} />
-                  </button>
+                  </HouseButton>
                 </span>
               )}
               <SmoothTextarea
@@ -3256,7 +3257,7 @@ export default function Chat() {
             {/* Bottom Tools & Actions Row (Matching Image 1) */}
             <div className="composer-card-bottom-bar">
               <div className="composer-card-tools-left">
-                <button
+                <HouseButton
                   type="button"
                   data-plus-trigger="true"
                   className={`composer-tool-btn${plusOpen ? ' is-active' : ''}`}
@@ -3267,9 +3268,9 @@ export default function Chat() {
                 >
                   <Icon name="plus" size={16} />
                   {attachments.length > 0 && <span className="composer-tool-count">{attachments.length}</span>}
-                </button>
+                </HouseButton>
 
-                <button
+                <HouseButton
                   type="button"
                   className="composer-tool-btn"
                   onClick={() => fileRef.current?.click()}
@@ -3277,9 +3278,9 @@ export default function Chat() {
                   aria-label="Attach documents"
                 >
                   <Icon name="paperclip" size={16} />
-                </button>
+                </HouseButton>
 
-                <button
+                <HouseButton
                   type="button"
                   className="composer-tool-btn"
                   onClick={() => {
@@ -3290,9 +3291,9 @@ export default function Chat() {
                   aria-label="Web search"
                 >
                   <Icon name="globe" size={16} />
-                </button>
+                </HouseButton>
 
-                <button
+                <HouseButton
                   type="button"
                   className={`composer-tool-btn${terminalOpen ? ' is-active' : ''}`}
                   onClick={toggleTerminal}
@@ -3300,13 +3301,13 @@ export default function Chat() {
                   aria-label="Toggle terminal"
                 >
                   <Icon name="term" size={16} />
-                </button>
+                </HouseButton>
               </div>
 
               <div className="composer-card-tools-right">
                 {/* Model selector pill (Image 4) with real model/provider logo */}
                 <div className="composer-model-pill-wrap">
-                  <button
+                  <HouseButton
                     type="button"
                     data-model-trigger="true"
                     className="composer-model-pill"
@@ -3321,7 +3322,7 @@ export default function Chat() {
                     />
                     <span className="composer-model-name">{shownModel}</span>
                     <Icon name="chevron" size={9} className="composer-model-chevron" />
-                  </button>
+                  </HouseButton>
                   {modelOpen && (
                     <ModelMenu
                       placement={isEmpty ? 'down' : 'up'}
@@ -3337,7 +3338,7 @@ export default function Chat() {
                 {/* Send / Stop button */}
                 {turnState === 'running' ? (
                   <>
-                    <button
+                    <HouseButton
                       type="button"
                       className="composer-send-circle is-stop"
                       onClick={stop}
@@ -3346,8 +3347,8 @@ export default function Chat() {
                       aria-label="Stop"
                     >
                       <span className="composer-stop-square" />
-                    </button>
-                    <button
+                    </HouseButton>
+                    <HouseButton
                       type="button"
                       className="composer-queue-btn"
                       onClick={handleQueue}
@@ -3356,10 +3357,10 @@ export default function Chat() {
                     >
                       <span>Queue</span>
                       <span className="composer-queue-symbol">↵</span>
-                    </button>
+                    </HouseButton>
                   </>
                 ) : (
-                  <button
+                  <HouseButton
                     type="button"
                     className="composer-send-circle"
                     onClick={() => send()}
@@ -3368,7 +3369,7 @@ export default function Chat() {
                     aria-label="Send"
                   >
                     <Icon name="arrow-up" size={14} />
-                  </button>
+                  </HouseButton>
                 )}
               </div>
             </div>
@@ -3382,7 +3383,7 @@ export default function Chat() {
           {/* Left Cluster */}
           <div className="composer-footer-left">
             {/* Workspace chip */}
-            <button
+            <HouseButton
               type="button"
               className="composer-footer-chip composer-footer-chip--workspace"
               onPointerDown={(e) => e.stopPropagation()} onClick={() => { setPlusOpen(true); setGuardOpen(false); setEffortOpen(false); setModelOpen(false); setContextOpen(false) }}
@@ -3390,11 +3391,11 @@ export default function Chat() {
             >
               <Icon name="folder" size={13} />
               <span>{workspace ? (workspace.charAt(0).toUpperCase() + workspace.slice(1)) : 'Amethyst'}</span>
-            </button>
+            </HouseButton>
 
             {/* Guard mode chip */}
             <div className="composer-footer-chip-wrap">
-              <button
+              <HouseButton
                 type="button"
                 className={`composer-footer-chip composer-footer-chip--guard${guard === 'full-access' || guard === 'full' ? ' is-full-access' : ''}${guardOpen ? ' is-active' : ''}`}
                 onPointerDown={(e) => e.stopPropagation()} onClick={() => { setGuardOpen((o) => !o); setEffortOpen(false); setModelOpen(false); setPlusOpen(false); setContextOpen(false) }}
@@ -3403,7 +3404,7 @@ export default function Chat() {
                 <Icon name={guard === 'full-access' || guard === 'full' ? 'shield-check' : 'shield'} size={13} className="guard-status-icon" />
                 <span>{guard === 'guard' ? 'Guard' : guardLabel}</span>
                 <Icon name="chevron" size={10} className="composer-footer-chevron" />
-              </button>
+              </HouseButton>
               {guardOpen && (
                 <GuardMenu
                   guard={guard}
@@ -3416,7 +3417,7 @@ export default function Chat() {
 
             {/* Reasoning effort chip */}
             <div className="composer-footer-chip-wrap">
-              <button
+              <HouseButton
                 type="button"
                 className={`composer-footer-chip composer-footer-chip--effort${effortOpen ? ' is-active' : ''}`}
                 style={{ opacity: (modelCaps && modelCaps.supports_effort === false) ? 0.5 : 1, cursor: (modelCaps && modelCaps.supports_effort === false) ? 'not-allowed' : 'pointer' }}
@@ -3436,7 +3437,7 @@ export default function Chat() {
                 <Icon name="lightning" size={13} className="effort-lightning-icon" />
                 <span>{(modelCaps && modelCaps.supports_effort === false) ? "None" : effortLabel}</span>
                 {(!modelCaps || modelCaps.supports_effort !== false) && <Icon name="chevron" size={10} className="composer-footer-chevron" />}
-              </button>
+              </HouseButton>
               {effortOpen && (!modelCaps || modelCaps.supports_effort !== false) && (
                 <EffortMenu
                   effort={effort}
@@ -3457,7 +3458,7 @@ export default function Chat() {
           <div className="composer-footer-right">
             {/* Context ring meter */}
             <div className="composer-footer-chip-wrap">
-              <button
+              <HouseButton
                 type="button"
                 className={`composer-footer-context${contextOpen ? ' is-active' : ''}`}
                 title={`Context memory usage: ${contextStats.displayPct} (${contextStats.usedTokens.toLocaleString()} / ${contextStats.maxTokens.toLocaleString()} tokens)`}
@@ -3482,7 +3483,7 @@ export default function Chat() {
                   />
                 </svg>
                 <span>Context {contextStats.displayPct}</span>
-              </button>
+              </HouseButton>
               {contextOpen && (
                 <ContextPopover
                   pct={contextStats.pct}
@@ -3503,7 +3504,7 @@ export default function Chat() {
 
   return (
     <div className="view view--flush">
-      <input
+      <HouseInput
         ref={fileRef}
         type="file"
         multiple
@@ -3569,7 +3570,7 @@ export default function Chat() {
                 }}
               >
                 {suggestedActions.map((item) => (
-                  <button
+                  <HouseButton
                     key={item.id}
                     type="button"
                     className="hero-suggestion-row"
@@ -3579,7 +3580,7 @@ export default function Chat() {
                       <Icon name={item.icon} size={18} />
                     </span>
                     <span className="hero-suggestion-label">{item.label}</span>
-                  </button>
+                  </HouseButton>
                 ))}
               </motion.div>
             </div>
@@ -3588,7 +3589,7 @@ export default function Chat() {
           <>
             {pins.length > 0 && (
               <div className={`pin-strip${pinsOpen ? ' open' : ''}`}>
-                <button
+                <HouseButton
                   type="button"
                   className="pin-strip-head"
                   onClick={() => setPinsOpen((o) => !o)}
@@ -3597,11 +3598,11 @@ export default function Chat() {
                   <Icon name="pin" size={12} weight="fill" />
                   <span>{pins.length} pinned</span>
                   <Icon name="chevron" size={11} className="pin-strip-caret" />
-                </button>
+                </HouseButton>
                 {pinsOpen && (
                   <div className="pin-strip-list">
                     {pins.map((item) => (
-                      <button
+                      <HouseButton
                         key={item.id}
                         type="button"
                         className="pin-chip"
@@ -3620,7 +3621,7 @@ export default function Chat() {
                         >
                           <Icon name="x" size={11} />
                         </span>
-                      </button>
+                      </HouseButton>
                     ))}
                   </div>
                 )}
@@ -3635,13 +3636,13 @@ export default function Chat() {
                   <div className="chat-note chat-note--bad" role="status">
                     <Icon name="alert" size={14} />
                     <span>This conversation&rsquo;s messages could not be loaded. {loadError}</span>
-                    <button
+                    <HouseButton
                       type="button"
                       className="btn btn--small"
                       onClick={() => loadMessages(activeId)}
                     >
                       Try again
-                    </button>
+                    </HouseButton>
                   </div>
                 )}
                 {openedEmpty && (
@@ -3738,13 +3739,13 @@ export default function Chat() {
             />
 
             {!atBottom && (
-              <button
+              <HouseButton
                 type="button"
                 className="jump-latest"
                 onClick={() => { setAtBottom(true); const el = scrollRef.current; el?.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }) }}
               >
                 <Icon name="down" size={13} /> latest
-              </button>
+              </HouseButton>
             )}
             {composer}
           </>

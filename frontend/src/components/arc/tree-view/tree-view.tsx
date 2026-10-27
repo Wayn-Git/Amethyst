@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../ui/bento/index.jsx'
 "use client";
 
 import { useId, useRef, useState } from "react";
@@ -197,7 +198,7 @@ export function TreeView({
               }}
               transition={reduced ? still : { layout: { type: "spring", stiffness: 350, damping: 30 } }}
             >
-              <button
+              <HouseButton
                 ref={element => {
                   if (element) refs.current.set(item.node.id, element);
                   else refs.current.delete(item.node.id);
@@ -243,7 +244,7 @@ export function TreeView({
                   {item.node.icon ?? (hasChildren ? <FolderIcon open={isExpanded} reduced={reduced} /> : <File size={15} strokeWidth={1.75} />)}
                 </span>
                 <span className={styles.label}>{item.node.label}</span>
-              </button>
+              </HouseButton>
             </motion.div>
           );
         })}

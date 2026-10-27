@@ -12,7 +12,7 @@
         "allowConstantExport": true
       }
     ],
-    "amethyst-ui/no-raw-controls": "warn"
+    "amethyst-ui/no-raw-controls": "error"
   },
   "jsPlugins": [
     {

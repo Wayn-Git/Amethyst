@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../../../components/ui/bento/index.jsx'
 import { useState, useMemo } from 'react'
 import { ChevronLeft, Search, X } from 'lucide-react'
 import PluginCard from './PluginCard.jsx'
@@ -59,7 +60,7 @@ export default function CategoryView({
     <div className="plugin-category-view-root">
       {/* Top back navigation */}
       <div className="plugin-category-top-nav">
-        <button
+        <HouseButton
           type="button"
           className="plugin-back-btn"
           onClick={onBack}
@@ -67,7 +68,7 @@ export default function CategoryView({
         >
           <ChevronLeft size={18} />
           <span>All Connectors</span>
-        </button>
+        </HouseButton>
       </div>
 
       {/* Category Header Row with Title and Search Input */}
@@ -79,7 +80,7 @@ export default function CategoryView({
 
         <div className="plugin-category-search-box">
           <Search size={15} className="text-dim shrink-0" />
-          <input
+          <HouseInput
             type="text"
             className="plugin-category-search-input"
             placeholder={`Search ${category.toLowerCase()} plugins`}
@@ -87,14 +88,14 @@ export default function CategoryView({
             onChange={(e) => setCategoryQuery(e.target.value)}
           />
           {categoryQuery && (
-            <button
+            <HouseButton
               type="button"
               className="plugin-clear-search-btn"
               onClick={() => setCategoryQuery('')}
               aria-label="Clear search"
             >
               <X size={13} />
-            </button>
+            </HouseButton>
           )}
         </div>
       </div>

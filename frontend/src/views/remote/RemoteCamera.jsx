@@ -1,3 +1,4 @@
+import { Button as HouseButton, Select as HouseSelect } from '../../components/ui/bento/index.jsx'
 import { useCallback, useEffect, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { api, getBase } from '../../api.js'
@@ -112,7 +113,7 @@ export default function RemoteCamera() {
           <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
             Select Camera:
           </label>
-          <button
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={loadCameras}
@@ -120,10 +121,10 @@ export default function RemoteCamera() {
           >
             <Icon name="refresh" size={12} />
             Refresh
-          </button>
+          </HouseButton>
         </div>
 
-        <select
+        <HouseSelect
           value={selectedCamera}
           onChange={(e) => {
             setSelectedCamera(e.target.value)
@@ -146,10 +147,10 @@ export default function RemoteCamera() {
               {c.name} ({c.device})
             </option>
           ))}
-        </select>
+        </HouseSelect>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <button
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={takeSnapshot}
@@ -157,8 +158,8 @@ export default function RemoteCamera() {
             style={{ padding: '10px 0', textAlign: 'center' }}
           >
             {loading ? 'Capturing…' : 'Take Snapshot'}
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="pair-go"
             onClick={() => {
@@ -172,7 +173,7 @@ export default function RemoteCamera() {
             }}
           >
             {streaming ? 'Stop Live Feed' : 'Start Live Feed'}
-          </button>
+          </HouseButton>
         </div>
       </div>
 

@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../../components/ui/bento/index.jsx'
 import { useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -90,14 +91,14 @@ export default function ExportPlaylistModal({ open, items = [], onClose, toast }
               <Icon name="music" size={18} />
               <h3 className="export-playlist-title">Export to Spotify</h3>
             </div>
-            <button
+            <HouseButton
               type="button"
               className="icon-btn"
               onClick={handleClose}
               aria-label="Close"
             >
               <Icon name="x" size={14} />
-            </button>
+            </HouseButton>
           </div>
 
           {/* Pick phase */}
@@ -106,7 +107,7 @@ export default function ExportPlaylistModal({ open, items = [], onClose, toast }
               {/* Playlist name */}
               <div className="export-playlist-field">
                 <label className="export-playlist-label">Playlist name</label>
-                <input
+                <HouseInput
                   className="export-playlist-input"
                   placeholder={`Amethyst — ${new Date().toISOString().slice(0, 10)}`}
                   value={name}
@@ -117,13 +118,13 @@ export default function ExportPlaylistModal({ open, items = [], onClose, toast }
 
               {/* Item list */}
               <div className="export-playlist-list-header">
-                <button
+                <HouseButton
                   type="button"
                   className="export-playlist-select-all"
                   onClick={toggleAll}
                 >
                   {selected.size === items.length ? 'Deselect all' : 'Select all'}
-                </button>
+                </HouseButton>
                 <span className="export-playlist-count">
                   {selected.size} of {items.length} selected
                 </span>
@@ -140,7 +141,7 @@ export default function ExportPlaylistModal({ open, items = [], onClose, toast }
 
                   return (
                     <label key={item.id} className="export-playlist-item">
-                      <input
+                      <HouseInput
                         type="checkbox"
                         checked={selected.has(item.id)}
                         onChange={() => toggle(item.id)}
@@ -174,7 +175,7 @@ export default function ExportPlaylistModal({ open, items = [], onClose, toast }
               </div>
 
               {/* Export button */}
-              <button
+              <HouseButton
                 type="button"
                 className="btn export-playlist-btn"
                 disabled={selected.size === 0}
@@ -182,7 +183,7 @@ export default function ExportPlaylistModal({ open, items = [], onClose, toast }
               >
                 <Icon name="music" size={14} />
                 <span>Create Spotify Playlist ({selected.size} track{selected.size !== 1 ? 's' : ''})</span>
-              </button>
+              </HouseButton>
             </div>
           )}
 
@@ -253,13 +254,13 @@ export default function ExportPlaylistModal({ open, items = [], onClose, toast }
                 </div>
               )}
 
-              <button
+              <HouseButton
                 type="button"
                 className="btn btn--ghost export-playlist-done-btn"
                 onClick={handleClose}
               >
                 Done
-              </button>
+              </HouseButton>
             </div>
           )}
         </motion.div>

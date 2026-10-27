@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useRef } from 'react'
 import Icon from './Icon.jsx'
 import { useApp } from '../store.jsx'
@@ -31,9 +32,9 @@ export default function Shortcuts() {
             <div className="vheader-eyebrow"><Icon name="keyboard" size={14} /> keyboard</div>
             <div className="modal-title">Shortcuts</div>
           </div>
-          <button type="button" className="icon-btn" onClick={() => setOverlay(null)} aria-label="Close">
+          <HouseButton type="button" className="icon-btn" onClick={() => setOverlay(null)} aria-label="Close">
             <Icon name="x" size={16} />
-          </button>
+          </HouseButton>
         </div>
         <div className="shortcuts-grid">
           {Object.entries(groups).map(([group, rows]) => (

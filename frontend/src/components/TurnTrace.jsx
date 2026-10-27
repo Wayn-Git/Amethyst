@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useMemo, useState } from 'react'
 
 import Icon from './Icon.jsx'
@@ -335,7 +336,7 @@ function Row({ run, live, isLatest }) {
 
   return (
     <div className={`trace-item${run.isError ? ' is-error' : ''}${open ? ' is-open' : ''}${live ? ' is-live' : ''}`}>
-      <button
+      <HouseButton
         type="button"
         className="trace-item-line"
         onClick={() => setOpen((o) => !o)}
@@ -353,7 +354,7 @@ function Row({ run, live, isLatest }) {
            {duration && <span className="trace-tool-count">{duration}</span>}
           <Icon name="chevron" size={11} className={`trace-tool-chevron${open ? ' is-open' : ''}`} />
         </span>
-      </button>
+      </HouseButton>
 
       {open && (
         <div className="trace-item-fold">
@@ -375,7 +376,7 @@ function Thought({ text }) {
   const [open, setOpen] = useState(false)
   return (
     <div className={`trace-item trace-item--thought${open ? ' is-open' : ''}`}>
-      <button type="button" className="trace-item-line" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+      <HouseButton type="button" className="trace-item-line" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <span className="trace-tool-badge trace-tool-badge--thought">
           <Icon name="brain" size={13} className="trace-tool-icon" />
           <span className="trace-tool-name">Thinking</span>
@@ -384,7 +385,7 @@ function Thought({ text }) {
         <span className="trace-tool-meta">
           <Icon name="chevron" size={11} className={`trace-tool-chevron${open ? ' is-open' : ''}`} />
         </span>
-      </button>
+      </HouseButton>
       {open && (
         <div className="trace-item-fold">
           <div className="trace-inset-card">

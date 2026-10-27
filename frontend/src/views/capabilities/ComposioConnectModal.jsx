@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../../components/ui/bento/index.jsx'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../../components/Icon.jsx'
@@ -276,7 +277,7 @@ export default function ComposioConnectModal({ open, onClose, onConnected, compo
                   </div>
 
                   {isConfigured && (
-                    <button
+                    <HouseButton
                       type="button"
                       className="btn btn--small btn--ghost"
                       onClick={() => handleStartBrowserLogin()}
@@ -284,7 +285,7 @@ export default function ComposioConnectModal({ open, onClose, onConnected, compo
                       style={{ fontSize: 12, padding: '4px 10px' }}
                     >
                       Reconnect
-                    </button>
+                    </HouseButton>
                   )}
                 </div>
 
@@ -309,7 +310,7 @@ export default function ComposioConnectModal({ open, onClose, onConnected, compo
                           Click below to sign in with Google on Composio. Amethyst automatically captures your account and enables all apps without needing an API key.
                         </p>
 
-                        <button
+                        <HouseButton
                           type="button"
                           className="btn btn--primary"
                           onClick={handleStartBrowserLogin}
@@ -328,7 +329,7 @@ export default function ComposioConnectModal({ open, onClose, onConnected, compo
                         >
                           <Icon name="external-link" size={14} />
                           {busy ? 'Opening login…' : 'Sign in with Google'}
-                        </button>
+                        </HouseButton>
                       </div>
                     ) : (
                       /* Live Linking / Waiting State */
@@ -379,7 +380,7 @@ export default function ComposioConnectModal({ open, onClose, onConnected, compo
                             }}
                           >
                             <span>{loginSession.code}</span>
-                            <button
+                            <HouseButton
                               type="button"
                               className="icon-btn"
                               onClick={() => {
@@ -390,29 +391,29 @@ export default function ComposioConnectModal({ open, onClose, onConnected, compo
                               style={{ padding: 4 }}
                             >
                               <Icon name="copy" size={12} />
-                            </button>
+                            </HouseButton>
                           </div>
                         )}
 
                         <div style={{ display: 'flex', justifyContent: 'center', gap: 10 }}>
                           {loginSession?.login_url && (
-                            <button
+                            <HouseButton
                               type="button"
                               className="btn btn--small btn--ghost"
                               onClick={() => window.open(loginSession.login_url, '_blank')}
                               style={{ fontSize: 12 }}
                             >
                               Re-open Tab <Icon name="external-link" size={11} />
-                            </button>
+                            </HouseButton>
                           )}
-                          <button
+                          <HouseButton
                             type="button"
                             className="btn btn--small btn--ghost"
                             onClick={() => stopPolling()}
                             style={{ fontSize: 12 }}
                           >
                             Cancel
-                          </button>
+                          </HouseButton>
                         </div>
 
                         {pollError && (
@@ -425,7 +426,7 @@ export default function ComposioConnectModal({ open, onClose, onConnected, compo
 
                     {/* Secondary Accordion: Manual API Key Fallback */}
                     <div style={{ borderTop: '1px solid var(--border, rgba(255, 255, 255, 0.08))', paddingTop: 12 }}>
-                      <button
+                      <HouseButton
                         type="button"
                         onClick={() => setShowManualKey((s) => !s)}
                         style={{
@@ -442,7 +443,7 @@ export default function ComposioConnectModal({ open, onClose, onConnected, compo
                       >
                         <Icon name={showManualKey ? 'chevron-down' : 'chevron-right'} size={12} />
                         <span>Or enter a Composio API key manually</span>
-                      </button>
+                      </HouseButton>
 
                       {showManualKey && (
                         <motion.form
@@ -454,7 +455,7 @@ export default function ComposioConnectModal({ open, onClose, onConnected, compo
                           style={{ marginTop: 12 }}
                         >
                           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                            <input
+                            <HouseInput
                               id="composio-api-key"
                               ref={inputRef}
                               type={showKey ? 'text' : 'password'}
@@ -473,7 +474,7 @@ export default function ComposioConnectModal({ open, onClose, onConnected, compo
                                 outline: 'none',
                               }}
                             />
-                            <button
+                            <HouseButton
                               type="button"
                               onClick={() => setShowKey((s) => !s)}
                               style={{
@@ -490,18 +491,18 @@ export default function ComposioConnectModal({ open, onClose, onConnected, compo
                               aria-label={showKey ? 'Hide key' : 'Show key'}
                             >
                               <Icon name={showKey ? 'eye-slash' : 'eye'} size={14} />
-                            </button>
+                            </HouseButton>
                           </div>
 
                           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-                            <button
+                            <HouseButton
                               type="submit"
                               className="btn btn--small btn--primary"
                               disabled={busy || !keyDraft.trim()}
                               style={{ minWidth: 90 }}
                             >
                               {busy ? 'Validating…' : 'Save Key'}
-                            </button>
+                            </HouseButton>
                           </div>
                         </motion.form>
                       )}
@@ -526,7 +527,7 @@ export default function ComposioConnectModal({ open, onClose, onConnected, compo
                         Composio Dashboard <Icon name="external-link" size={12} />
                       </a>
 
-                      <button
+                      <HouseButton
                         type="button"
                         className="btn btn--small btn--danger"
                         onClick={handleDisconnect}
@@ -534,7 +535,7 @@ export default function ComposioConnectModal({ open, onClose, onConnected, compo
                         style={{ color: 'var(--coral, #ef4444)' }}
                       >
                         {disconnecting ? 'Disconnecting…' : 'Disconnect'}
-                      </button>
+                      </HouseButton>
                     </div>
                   </div>
                 )}

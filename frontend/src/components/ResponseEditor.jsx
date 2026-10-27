@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput, Textarea as HouseTextarea } from './ui/bento/index.jsx'
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import Icon from './Icon.jsx'
 import Markdown from './markdown/Markdown.jsx'
@@ -608,7 +609,7 @@ export default function ResponseEditor({
       {/* Top Header Bar */}
       <div className="editor-top-bar">
         <div className="editor-header-left">
-          <button
+          <HouseButton
             type="button"
             className="editor-icon-btn"
             title="Close editor"
@@ -616,14 +617,14 @@ export default function ResponseEditor({
           >
             <Icon name="back" size={14} />
             <span className="btn-label">Back</span>
-          </button>
+          </HouseButton>
 
           <span className="editor-title">Response Document</span>
 
           {/* Version Selector */}
           {artifact && artifact.versions && artifact.versions.length > 0 && (
             <div className="editor-version-picker">
-              <button
+              <HouseButton
                 type="button"
                 className="version-picker-btn"
                 onClick={() => setVersionDropdownOpen((v) => !v)}
@@ -631,13 +632,13 @@ export default function ResponseEditor({
                 <span className="v-tag">v{artifact.version}</span>
                 <span className="v-label">{artifact.version === 1 ? 'Original' : 'Edited'}</span>
                 <Icon name="chevron-down" size={10} />
-              </button>
+              </HouseButton>
 
               {versionDropdownOpen && (
                 <div className="version-dropdown-list">
                   <div className="v-list-header">Version History</div>
                   {artifact.versions.map((ver) => (
-                    <button
+                    <HouseButton
                       key={ver.version}
                       type="button"
                       className={`v-list-item${ver.version === artifact.version ? ' is-active' : ''}`}
@@ -651,7 +652,7 @@ export default function ResponseEditor({
                         {ver.version === artifact.version && <span className="v-current-tag">Current</span>}
                       </div>
                       {ver.change_summary && <div className="v-item-summary">{ver.change_summary}</div>}
-                    </button>
+                    </HouseButton>
                   ))}
                 </div>
               )}
@@ -661,42 +662,42 @@ export default function ResponseEditor({
 
         {/* View Mode Switcher */}
         <div className="editor-view-modes">
-          <button
+          <HouseButton
             type="button"
             className={`mode-tab${viewMode === 'edit' ? ' is-active' : ''}`}
             onClick={() => setViewMode('edit')}
           >
             <Icon name="edit" size={12} />
             <span>Edit</span>
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className={`mode-tab${viewMode === 'split' ? ' is-active' : ''}`}
             onClick={() => setViewMode('split')}
           >
             <Icon name="layers" size={12} />
             <span>Split View</span>
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className={`mode-tab${viewMode === 'preview' ? ' is-active' : ''}`}
             onClick={() => setViewMode('preview')}
           >
             <Icon name="eye" size={12} />
             <span>Preview</span>
-          </button>
+          </HouseButton>
         </div>
 
         {/* Header Right Actions */}
         <div className="editor-header-right">
-          <button
+          <HouseButton
             type="button"
             className="editor-secondary-btn"
             onClick={isFullScreen ? onCloseFullScreen : onCancel}
           >
             Cancel
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="editor-primary-btn"
             disabled={saving}
@@ -704,14 +705,14 @@ export default function ResponseEditor({
           >
             <Icon name={saving ? 'clock' : 'check'} size={13} />
             <span>{saving ? 'Saving...' : 'Save & Apply'}</span>
-          </button>
+          </HouseButton>
         </div>
       </div>
 
       {/* Editor Tool Bar */}
       <div className="editor-tool-bar">
         <div className="tool-bar-left">
-          <button
+          <HouseButton
             type="button"
             className="tool-btn"
             title="Undo (Ctrl+Z)"
@@ -719,8 +720,8 @@ export default function ResponseEditor({
             onClick={handleUndo}
           >
             <Icon name="back" size={13} />
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="tool-btn"
             title="Redo (Ctrl+Y)"
@@ -728,12 +729,12 @@ export default function ResponseEditor({
             onClick={handleRedo}
           >
             <Icon name="chevron-right" size={13} />
-          </button>
+          </HouseButton>
 
           <div className="tool-divider" />
 
           {/* Find & Replace Trigger */}
-          <button
+          <HouseButton
             type="button"
             className={`tool-btn${findOpen ? ' is-active' : ''}`}
             title="Find & Replace (Ctrl+F)"
@@ -741,12 +742,12 @@ export default function ResponseEditor({
           >
             <Icon name="search" size={13} />
             <span>Find</span>
-          </button>
+          </HouseButton>
           <div className="tool-divider" />
 
           {/* AI Transform Dropdown */}
           <div className="ai-transform-wrapper" ref={aiDropdownRef}>
-            <button
+            <HouseButton
               type="button"
               className={`tool-btn ai-tool-btn${aiMenuOpen ? ' active' : ''}`}
               title="AI Assistant Tools"
@@ -756,36 +757,36 @@ export default function ResponseEditor({
               <Icon name="zap" size={13} />
               <span>Ask AI</span>
               <Icon name="chevron-down" size={10} />
-            </button>
+            </HouseButton>
 
             {aiMenuOpen && (
               <div className="ai-dropdown-menu">
-                <button type="button" onClick={() => handleToolbarAiAction('rewrite')}>
+                <HouseButton type="button" onClick={() => handleToolbarAiAction('rewrite')}>
                   <Icon name="edit" size={12} />
                   <span>Improve & Polish</span>
-                </button>
-                <button type="button" onClick={() => handleToolbarAiAction('shorten')}>
+                </HouseButton>
+                <HouseButton type="button" onClick={() => handleToolbarAiAction('shorten')}>
                   <Icon name="minus-circle" size={12} />
                   <span>Make Shorter</span>
-                </button>
-                <button type="button" onClick={() => handleToolbarAiAction('expand')}>
+                </HouseButton>
+                <HouseButton type="button" onClick={() => handleToolbarAiAction('expand')}>
                   <Icon name="expand" size={12} />
                   <span>Expand & Elaborate</span>
-                </button>
-                <button type="button" onClick={() => handleToolbarAiAction('fix_grammar')}>
+                </HouseButton>
+                <HouseButton type="button" onClick={() => handleToolbarAiAction('fix_grammar')}>
                   <Icon name="check" size={12} />
                   <span>Fix Grammar & Typos</span>
-                </button>
-                <button type="button" onClick={() => handleToolbarAiAction('professional')}>
+                </HouseButton>
+                <HouseButton type="button" onClick={() => handleToolbarAiAction('professional')}>
                   <Icon name="file" size={12} />
                   <span>Professional Tone</span>
-                </button>
-                <button type="button" onClick={() => handleToolbarAiAction('casual')}>
+                </HouseButton>
+                <HouseButton type="button" onClick={() => handleToolbarAiAction('casual')}>
                   <Icon name="message-square" size={12} />
                   <span>Casual Tone</span>
-                </button>
+                </HouseButton>
                 <div className="ai-menu-divider" />
-                <button
+                <HouseButton
                   type="button"
                   onClick={() => {
                     setAiMenuOpen(false)
@@ -795,7 +796,7 @@ export default function ResponseEditor({
                 >
                   <Icon name="zap" size={12} />
                   <span>Custom Prompt...</span>
-                </button>
+                </HouseButton>
               </div>
             )}
           </div>
@@ -809,7 +810,7 @@ export default function ResponseEditor({
 
           <div className="tool-divider" />
 
-          <button
+          <HouseButton
             type="button"
             className="tool-btn"
             title="Copy markdown"
@@ -817,11 +818,11 @@ export default function ResponseEditor({
           >
             <Icon name={copied ? 'check' : 'copy'} size={13} />
             <span>{copied ? 'Copied' : 'Copy'}</span>
-          </button>
+          </HouseButton>
 
           {/* Export Dropdown */}
           <div className="export-menu-wrapper" ref={exportDropdownRef}>
-            <button
+            <HouseButton
               type="button"
               className="tool-btn"
               disabled={exporting}
@@ -830,26 +831,26 @@ export default function ResponseEditor({
               <Icon name="download" size={13} />
               <span>{exporting ? 'Exporting...' : 'Export'}</span>
               <Icon name="chevron-down" size={10} />
-            </button>
+            </HouseButton>
 
             {exportOpen && (
               <div className="export-dropdown-menu">
-                <button type="button" onClick={() => handleExport('md')}>
+                <HouseButton type="button" onClick={() => handleExport('md')}>
                   <Icon name="file" size={12} />
                   <span>Markdown (.md)</span>
-                </button>
-                <button type="button" onClick={() => handleExport('txt')}>
+                </HouseButton>
+                <HouseButton type="button" onClick={() => handleExport('txt')}>
                   <Icon name="type" size={12} />
                   <span>Plain Text (.txt)</span>
-                </button>
-                <button type="button" onClick={() => handleExport('html')}>
+                </HouseButton>
+                <HouseButton type="button" onClick={() => handleExport('html')}>
                   <Icon name="globe" size={12} />
                   <span>Standalone HTML (.html)</span>
-                </button>
-                <button type="button" onClick={() => handleExport('docx')}>
+                </HouseButton>
+                <HouseButton type="button" onClick={() => handleExport('docx')}>
                   <Icon name="doc" size={12} />
                   <span>Word Document (.docx)</span>
-                </button>
+                </HouseButton>
               </div>
             )}
           </div>
@@ -875,22 +876,22 @@ export default function ResponseEditor({
             </div>
           </div>
           <div className="proposal-actions">
-            <button
+            <HouseButton
               type="button"
               className="proposal-btn reject"
               onClick={() => setAiProposal(null)}
             >
               <Icon name="x" size={12} />
               <span>Reject</span>
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className="proposal-btn accept"
               onClick={handleAcceptAiProposal}
             >
               <Icon name="check" size={12} />
               <span>Accept & Apply</span>
-            </button>
+            </HouseButton>
           </div>
         </div>
       )}
@@ -907,7 +908,7 @@ export default function ResponseEditor({
       {findOpen && (
         <div className="find-replace-bar">
           <div className="find-inputs">
-            <input
+            <HouseInput
               type="text"
               className="find-input"
               placeholder="Find..."
@@ -915,7 +916,7 @@ export default function ResponseEditor({
               onChange={(e) => setFindQuery(e.target.value)}
               autoFocus
             />
-            <input
+            <HouseInput
               type="text"
               className="find-input"
               placeholder="Replace with..."
@@ -925,7 +926,7 @@ export default function ResponseEditor({
           </div>
           <div className="find-options">
             <label className="find-checkbox">
-              <input
+              <HouseInput
                 type="checkbox"
                 checked={matchCase}
                 onChange={(e) => setMatchCase(e.target.checked)}
@@ -935,15 +936,15 @@ export default function ResponseEditor({
             <span className="match-counter">{matchCount} matches</span>
           </div>
           <div className="find-actions">
-            <button type="button" className="find-btn" onClick={handleReplaceOne} disabled={!matchCount}>
+            <HouseButton type="button" className="find-btn" onClick={handleReplaceOne} disabled={!matchCount}>
               Replace
-            </button>
-            <button type="button" className="find-btn" onClick={handleReplaceAll} disabled={!matchCount}>
+            </HouseButton>
+            <HouseButton type="button" className="find-btn" onClick={handleReplaceAll} disabled={!matchCount}>
               Replace All
-            </button>
-            <button type="button" className="find-btn close" onClick={() => setFindOpen(false)}>
+            </HouseButton>
+            <HouseButton type="button" className="find-btn close" onClick={() => setFindOpen(false)}>
               <Icon name="x" size={12} />
-            </button>
+            </HouseButton>
           </div>
         </div>
       )}
@@ -952,7 +953,7 @@ export default function ResponseEditor({
       {generatePromptOpen && (
         <form className="inline-generate-banner" onSubmit={handleGenerateSubmit}>
           <Icon name="zap" size={14} className="generate-banner-icon" />
-          <input
+          <HouseInput
             ref={generateInputRef}
             type="text"
             className="generate-banner-input"
@@ -961,20 +962,20 @@ export default function ResponseEditor({
             onChange={(e) => setGeneratePrompt(e.target.value)}
             disabled={generating}
           />
-          <button
+          <HouseButton
             type="submit"
             className="generate-banner-btn"
             disabled={!generatePrompt.trim() || generating}
           >
             {generating ? 'Generating...' : 'Generate'}
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="generate-banner-close"
             onClick={() => setGeneratePromptOpen(false)}
           >
             <Icon name="x" size={12} />
-          </button>
+          </HouseButton>
         </form>
       )}
 
@@ -989,7 +990,7 @@ export default function ResponseEditor({
 
         {(viewMode === 'edit' || viewMode === 'split') && (
           <div className="editor-pane">
-            <textarea
+            <HouseTextarea
               ref={textareaRef}
               className="editor-textarea"
               value={content}
@@ -1007,7 +1008,7 @@ export default function ResponseEditor({
                 style={{ top: `${slashMenu.coords.top}px`, left: `${slashMenu.coords.left}px` }}
               >
                 {filteredCommands.map((cmd, idx) => (
-                  <button
+                  <HouseButton
                     key={cmd.id}
                     type="button"
                     className={`slash-cmd-item ${idx === slashMenu.activeIndex ? 'is-focused' : ''}`}
@@ -1015,7 +1016,7 @@ export default function ResponseEditor({
                     onMouseEnter={() => setSlashMenu((s) => ({ ...s, activeIndex: idx }))}
                   >
                     <span className="slash-cmd-label">{cmd.label}</span>
-                  </button>
+                  </HouseButton>
                 ))}
               </div>
             )}

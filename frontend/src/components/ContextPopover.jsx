@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import Icon from './Icon.jsx'
@@ -72,14 +73,14 @@ export default function ContextPopover({
       {/* Header */}
       <div className="context-popover-head">
         <span className="context-popover-title">Conversation context</span>
-        <button
+        <HouseButton
           type="button"
           className="context-popover-close"
           onClick={onClose}
           aria-label="Close"
         >
           <Icon name="x" size={13} />
-        </button>
+        </HouseButton>
       </div>
 
       {/* Main Stat Row */}
@@ -126,7 +127,7 @@ export default function ContextPopover({
 
       {/* Action Button */}
       <div className="context-popover-actions">
-        <button
+        <HouseButton
           type="button"
           className={`context-popover-btn${compactDone ? ' is-done' : ''}`}
           onClick={handleCompact}
@@ -137,7 +138,7 @@ export default function ContextPopover({
             : compactDone
               ? 'Compacted!'
               : 'Compact now'}
-        </button>
+        </HouseButton>
       </div>
     </motion.div>
   )

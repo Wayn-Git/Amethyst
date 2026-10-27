@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import Icon from '../../components/Icon.jsx'
 
 export default function LibraryActionTile({ onAction }) {
@@ -5,7 +6,7 @@ export default function LibraryActionTile({ onAction }) {
     <div className="lib-action-tile" role="region" aria-label="Quick capture shortcuts">
       <div className="lib-action-tile-core">
         {/* Action 1: Add a URL */}
-        <button
+        <HouseButton
           type="button"
           className="lib-action-tile-row"
           onClick={() => onAction?.('url')}
@@ -17,10 +18,10 @@ export default function LibraryActionTile({ onAction }) {
             <div className="lib-action-tile-title">Add a URL</div>
             <div className="lib-action-tile-sub">Articles, videos, podcasts & social</div>
           </div>
-        </button>
+        </HouseButton>
 
         {/* Action 2: Upload or drop anywhere */}
-        <button
+        <HouseButton
           type="button"
           className="lib-action-tile-row"
           onClick={() => onAction?.('file')}
@@ -45,10 +46,10 @@ export default function LibraryActionTile({ onAction }) {
             <div className="lib-action-tile-title">Upload or drop anywhere</div>
             <div className="lib-action-tile-sub">PDF, images, .md & .txt</div>
           </div>
-        </button>
+        </HouseButton>
 
         {/* Action 3: Note */}
-        <button
+        <HouseButton
           type="button"
           className="lib-action-tile-row"
           onClick={() => onAction?.('note')}
@@ -60,10 +61,10 @@ export default function LibraryActionTile({ onAction }) {
             <div className="lib-action-tile-title">Note</div>
             <div className="lib-action-tile-sub">Write your own note</div>
           </div>
-        </button>
+        </HouseButton>
 
         {/* Action 4: Wikipedia */}
-        <button
+        <HouseButton
           type="button"
           className="lib-action-tile-row"
           onClick={() => onAction?.('wiki')}
@@ -75,7 +76,7 @@ export default function LibraryActionTile({ onAction }) {
             <div className="lib-action-tile-title">Wikipedia</div>
             <div className="lib-action-tile-sub">Add any topic</div>
           </div>
-        </button>
+        </HouseButton>
       </div>
     </div>
   )

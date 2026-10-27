@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../components/ui/bento/index.jsx'
 import React, { useState, useEffect } from 'react';
 import '../styles/install.css';
 
@@ -115,9 +116,9 @@ export default function Install() {
               title="Click to copy"
             >
               <span className="install-code-text">brew install --cask amethyst</span>
-              <button type="button" className="install-copy-btn">
+              <HouseButton type="button" className="install-copy-btn">
                 {copiedMac ? <CheckIcon /> : <CopyIcon />}
-              </button>
+              </HouseButton>
             </div>
           </div>
           <a href={downloadUrls.mac} className="install-action-btn" target="_blank" rel="noreferrer">
@@ -140,9 +141,9 @@ export default function Install() {
               title="Click to copy PowerShell command"
             >
               <span className="install-code-text">irm https://raw.github.../install.ps1 | iex</span>
-              <button type="button" className="install-copy-btn">
+              <HouseButton type="button" className="install-copy-btn">
                 {copiedWin ? <CheckIcon /> : <CopyIcon />}
-              </button>
+              </HouseButton>
             </div>
           </div>
           <a href={downloadUrls.windows} className="install-action-btn" target="_blank" rel="noreferrer">
@@ -165,9 +166,9 @@ export default function Install() {
               title="Click to copy curl command"
             >
               <span className="install-code-text">curl -fsSL https://raw.github.../install.sh | bash</span>
-              <button type="button" className="install-copy-btn">
+              <HouseButton type="button" className="install-copy-btn">
                 {copiedLinux ? <CheckIcon /> : <CopyIcon />}
-              </button>
+              </HouseButton>
             </div>
           </div>
           <a href={downloadUrls.linux} className="install-action-btn" target="_blank" rel="noreferrer">

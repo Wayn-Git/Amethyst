@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput, Textarea as HouseTextarea } from '../components/ui/bento/index.jsx'
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import Icon from '../components/Icon.jsx'
 import Badge from '../components/ui/Badge.jsx'
@@ -183,7 +184,7 @@ function FormattedFactText({ text = '', searchQuery = '', onCopyCode }) {
         if (part.startsWith('`') && part.endsWith('`')) {
           const codeVal = part.slice(1, -1)
           return (
-            <button
+            <HouseButton
               type="button"
               key={i}
               onClick={(e) => {
@@ -196,7 +197,7 @@ function FormattedFactText({ text = '', searchQuery = '', onCopyCode }) {
             >
               <span>{highlightMatch(codeVal)}</span>
               <Icon name="copy" size={10} style={{ opacity: 0.5 }} />
-            </button>
+            </HouseButton>
           )
         }
         return <React.Fragment key={i}>{highlightMatch(part)}</React.Fragment>
@@ -551,7 +552,7 @@ export default function Memory() {
 
           {/* Simple header buttons: clean, greyed out when off, no extra nested boxes */}
           <div className="mem-header-actions">
-            <button
+            <HouseButton
               type="button"
               className={`btn btn--small mem-btn-interactive ${enabled ? 'btn--primary' : 'btn--ghost'}`}
               disabled={busy === 'toggle'}
@@ -562,16 +563,16 @@ export default function Memory() {
               }}
             >
               {enabled ? 'Memory on' : 'Memory off'}
-            </button>
+            </HouseButton>
 
-            <button
+            <HouseButton
               type="button"
               className="btn btn--ghost btn--small mem-btn-interactive"
               onClick={load}
               disabled={loading}
             >
               Refresh
-            </button>
+            </HouseButton>
           </div>
         </header>
 
@@ -581,7 +582,7 @@ export default function Memory() {
         <form className="mem-composer-row" onSubmit={handleAddFact} data-enter>
           <div className="mem-composer-field">
             <Icon name="plus" size={13} style={{ opacity: 0.55 }} />
-            <input
+            <HouseInput
               ref={composerInputRef}
               value={newFact}
               onChange={(e) => setNewFact(e.target.value)}
@@ -593,14 +594,14 @@ export default function Memory() {
             )}
           </div>
 
-          <button
+          <HouseButton
             type="submit"
             className="btn btn--primary btn--small mem-btn-interactive"
             disabled={!newFact.trim() || busy === 'add'}
             style={{ flexShrink: 0, height: '38px', padding: '0 16px' }}
           >
             Remember
-          </button>
+          </HouseButton>
         </form>
 
         {/* =========================================================================
@@ -615,28 +616,28 @@ export default function Memory() {
                 { id: 'retired', label: `Retired (${retiredCount})` },
                 { id: 'all', label: 'All' },
               ].map((tab) => (
-                <button
+                <HouseButton
                   key={tab.id}
                   type="button"
                   onClick={() => setStatusFilter(tab.id)}
                   className={`mem-segmented-btn ${statusFilter === tab.id ? 'is-active' : ''}`}
                 >
                   {tab.label}
-                </button>
+                </HouseButton>
               ))}
             </div>
 
             {/* Category Chips */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
               {CATEGORIES.map((cat) => (
-                <button
+                <HouseButton
                   key={cat.id}
                   type="button"
                   onClick={() => setSelectedCategory(cat.id)}
                   className={`mem-category-chip ${selectedCategory === cat.id ? 'is-active' : ''}`}
                 >
                   {cat.label}
-                </button>
+                </HouseButton>
               ))}
             </div>
           </div>
@@ -644,7 +645,7 @@ export default function Memory() {
           {/* Search */}
           <div className="inline-search" style={{ minWidth: '200px' }}>
             <Icon name="search" size={13} />
-            <input
+            <HouseInput
               ref={searchInputRef}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -658,14 +659,14 @@ export default function Memory() {
               }}
             />
             {searchQuery && (
-              <button
+              <HouseButton
                 type="button"
                 className="icon-btn"
                 onClick={() => setSearchQuery('')}
                 aria-label="Clear filter"
               >
                 <Icon name="x" size={12} />
-              </button>
+              </HouseButton>
             )}
           </div>
         </div>
@@ -719,7 +720,7 @@ export default function Memory() {
                 >
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
                     {/* Checkbox */}
-                    <input
+                    <HouseInput
                       type="checkbox"
                       checked={isChecked}
                       onChange={(e) => {
@@ -773,7 +774,7 @@ export default function Memory() {
                       {/* Fact Text or Inline Edit */}
                       {isEditing ? (
                         <div onClick={(e) => e.stopPropagation()} style={{ marginTop: '8px' }}>
-                          <textarea
+                          <HouseTextarea
                             value={editDraft}
                             onChange={(e) => setEditDraft(e.target.value)}
                             rows={3}
@@ -799,20 +800,20 @@ export default function Memory() {
                               marginTop: '8px',
                             }}
                           >
-                            <button
+                            <HouseButton
                               type="button"
                               className="btn btn--ghost btn--small mem-btn-interactive"
                               onClick={() => setEditingId(null)}
                             >
                               Cancel
-                            </button>
-                            <button
+                            </HouseButton>
+                            <HouseButton
                               type="button"
                               className="btn btn--primary btn--small mem-btn-interactive"
                               onClick={() => handleSaveCorrection(fact.id)}
                             >
                               Save correction
-                            </button>
+                            </HouseButton>
                           </div>
                         </div>
                       ) : (
@@ -849,7 +850,7 @@ export default function Memory() {
 
                         {/* Inline Version History Drawer Trigger */}
                         {fact.history && fact.history.length > 0 && (
-                          <button
+                          <HouseButton
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation()
@@ -870,12 +871,12 @@ export default function Memory() {
                           >
                             <span>{fact.history.length + 1} versions</span>
                             <Icon name={isHistoryOpen ? 'caret-up' : 'caret-down'} size={10} />
-                          </button>
+                          </HouseButton>
                         )}
 
                         {/* Actions */}
                         <div className="mem-card-actions">
-                          <button
+                          <HouseButton
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation()
@@ -888,9 +889,9 @@ export default function Memory() {
                           >
                             <Icon name="edit" size={12} />
                             <span>Correct</span>
-                          </button>
+                          </HouseButton>
 
-                          <button
+                          <HouseButton
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation()
@@ -902,7 +903,7 @@ export default function Memory() {
                           >
                             <Icon name="trash" size={12} />
                             <span>Forget</span>
-                          </button>
+                          </HouseButton>
                         </div>
                       </div>
 
@@ -969,15 +970,15 @@ export default function Memory() {
               {multiSelectIds.length} selected
             </span>
             <div style={{ width: '1px', height: '14px', background: 'var(--hairline-strong)' }} />
-            <button
+            <HouseButton
               type="button"
               className="btn btn--ghost btn--small mem-btn-interactive"
               onClick={handleBulkForget}
               style={{ color: 'var(--stop)' }}
             >
               <Icon name="trash" size={12} /> Forget
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className="btn btn--ghost btn--small mem-btn-interactive"
               onClick={() => {
@@ -992,15 +993,15 @@ export default function Memory() {
               }}
             >
               Export JSON
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className="icon-btn mem-btn-interactive"
               onClick={() => setMultiSelectIds([])}
               title="Clear selection"
             >
               <Icon name="x" size={12} />
-            </button>
+            </HouseButton>
           </div>
         )}
 
@@ -1029,7 +1030,7 @@ export default function Memory() {
           >
             <span>{undoToast.msg}</span>
             {undoToast.onUndo && (
-              <button
+              <HouseButton
                 type="button"
                 onClick={() => {
                   undoToast.onUndo?.()
@@ -1039,7 +1040,7 @@ export default function Memory() {
                 style={{ color: 'var(--accent)', padding: '2px 6px' }}
               >
                 <Icon name="undo" size={12} /> Undo
-              </button>
+              </HouseButton>
             )}
           </div>
         )}

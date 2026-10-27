@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput, Select as HouseSelect } from '../../components/ui/bento/index.jsx'
 import { useCallback, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { api } from '../../api.js'
@@ -196,7 +197,7 @@ export default function PdfToolsTool() {
           { id: 'from-images', label: 'Images to PDF', icon: 'image' },
           { id: 'to-word', label: 'PDF to Word (DOCX)', icon: 'book' },
         ].map((tab) => (
-          <button
+          <HouseButton
             key={tab.id}
             type="button"
             className={`fc-cat-tab${activeTab === tab.id ? ' is-active' : ''}`}
@@ -207,7 +208,7 @@ export default function PdfToolsTool() {
           >
             <Icon name={tab.icon} size={15} />
             <span>{tab.label}</span>
-          </button>
+          </HouseButton>
         ))}
       </div>
 
@@ -225,7 +226,7 @@ export default function PdfToolsTool() {
               onClick={() => mergeInputRef.current?.click()}
             >
               <div className="fc-dropzone-core py-8 flex flex-col items-center gap-3">
-                <input
+                <HouseInput
                   ref={mergeInputRef}
                   type="file"
                   multiple
@@ -262,36 +263,36 @@ export default function PdfToolsTool() {
                     </div>
 
                     <div className="flex items-center gap-1">
-                      <button
+                      <HouseButton
                         type="button"
                         className="p-1 hover:text-[var(--fc-text)] disabled:opacity-30"
                         disabled={idx === 0}
                         onClick={() => moveMergeFile(idx, -1)}
                       >
                         <Icon name="arrow-up" size={13} />
-                      </button>
-                      <button
+                      </HouseButton>
+                      <HouseButton
                         type="button"
                         className="p-1 hover:text-[var(--fc-text)] disabled:opacity-30"
                         disabled={idx === mergeFiles.length - 1}
                         onClick={() => moveMergeFile(idx, 1)}
                       >
                         <Icon name="arrow-down" size={13} />
-                      </button>
-                      <button
+                      </HouseButton>
+                      <HouseButton
                         type="button"
                         className="p-1 hover:text-rose-400 ml-1"
                         onClick={() => removeMergeFile(idx)}
                       >
                         <Icon name="trash" size={13} />
-                      </button>
+                      </HouseButton>
                     </div>
                   </div>
                 ))}
               </div>
             )}
 
-            <button
+            <HouseButton
               type="button"
               className="fc-btn fc-btn-primary w-full"
               disabled={processing || mergeFiles.length < 2}
@@ -299,7 +300,7 @@ export default function PdfToolsTool() {
             >
               <Icon name="layers" size={16} />
               <span>{processing ? 'Merging Documents…' : `Merge ${mergeFiles.length} PDFs`}</span>
-            </button>
+            </HouseButton>
           </div>
 
           <div className="fc-tool-panel flex flex-col justify-between">
@@ -362,7 +363,7 @@ export default function PdfToolsTool() {
                 onClick={() => singleInputRef.current?.click()}
               >
                 <div className="fc-dropzone-core py-8 flex flex-col items-center gap-3">
-                  <input
+                  <HouseInput
                     ref={singleInputRef}
                     type="file"
                     accept=".pdf,application/pdf"
@@ -391,7 +392,7 @@ export default function PdfToolsTool() {
                     <span className="font-semibold text-[var(--fc-text)] truncate max-w-[200px]">{singleFile.name}</span>
                     <span className="text-[var(--fc-text-dim)] font-mono">({formatBytes(singleFile.size)})</span>
                   </div>
-                  <button
+                  <HouseButton
                     type="button"
                     className="fc-btn fc-btn-danger-ghost text-xs"
                     onClick={() => {
@@ -400,13 +401,13 @@ export default function PdfToolsTool() {
                     }}
                   >
                     Change
-                  </button>
+                  </HouseButton>
                 </div>
 
                 {activeTab === 'split' && (
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-semibold text-[var(--fc-text)]">Pages to Extract</label>
-                    <input
+                    <HouseInput
                       type="text"
                       className="fc-input font-mono"
                       placeholder="e.g. 1, 3-5, 8"
@@ -422,18 +423,18 @@ export default function PdfToolsTool() {
                 {activeTab === 'to-images' && (
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-semibold text-[var(--fc-text)]">Image Format</label>
-                    <select
+                    <HouseSelect
                       className="fc-select font-mono uppercase"
                       value={imgFmt}
                       onChange={(e) => setImgFmt(e.target.value)}
                     >
                       <option value="png">PNG (Lossless & Crisp)</option>
                       <option value="jpg">JPG (Smaller file size)</option>
-                    </select>
+                    </HouseSelect>
                   </div>
                 )}
 
-                <button
+                <HouseButton
                   type="button"
                   className="fc-btn fc-btn-primary w-full mt-2"
                   disabled={processing}
@@ -451,7 +452,7 @@ export default function PdfToolsTool() {
                       ? 'Render Pages as Images'
                       : 'Convert to Word'}
                   </span>
-                </button>
+                </HouseButton>
               </div>
             )}
           </div>
@@ -505,7 +506,7 @@ export default function PdfToolsTool() {
               onClick={() => imagesInputRef.current?.click()}
             >
               <div className="fc-dropzone-core py-8 flex flex-col items-center gap-3">
-                <input
+                <HouseInput
                   ref={imagesInputRef}
                   type="file"
                   multiple
@@ -536,19 +537,19 @@ export default function PdfToolsTool() {
                     className="flex items-center justify-between p-2 rounded-lg bg-[var(--fc-surface-2)] border border-[var(--fc-border)] text-xs text-[var(--fc-text)]"
                   >
                     <span className="truncate max-w-[220px]">{f.name}</span>
-                    <button
+                    <HouseButton
                       type="button"
                       className="p-1 hover:text-rose-400"
                       onClick={() => setImageFiles((prev) => prev.filter((_, i) => i !== idx))}
                     >
                       <Icon name="trash" size={13} />
-                    </button>
+                    </HouseButton>
                   </div>
                 ))}
               </div>
             )}
 
-            <button
+            <HouseButton
               type="button"
               className="fc-btn fc-btn-primary w-full"
               disabled={processing || imageFiles.length === 0}
@@ -556,7 +557,7 @@ export default function PdfToolsTool() {
             >
               <Icon name="convert" size={16} />
               <span>{processing ? 'Generating PDF…' : `Create PDF from ${imageFiles.length} Images`}</span>
-            </button>
+            </HouseButton>
           </div>
 
           <div className="fc-tool-panel flex flex-col justify-between">

@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useRef } from 'react'
 import { motion } from 'framer-motion'
 import Icon from './Icon.jsx'
@@ -49,7 +50,7 @@ export default function GuardMenu({ guard, onChange, onClose, placement = 'down'
         {PRIMARY_MODES.map((g) => {
           const active = currentBase === g.id
           return (
-            <button
+            <HouseButton
               key={g.id}
               type="button"
               className={`guard-item${active ? ' is-active' : ''}${g.id === 'full-access' ? ' guard-item--full' : ''}`}
@@ -63,7 +64,7 @@ export default function GuardMenu({ guard, onChange, onClose, placement = 'down'
                 <span className="guard-item-desc">{g.desc}</span>
               </span>
               {active && <Icon name="check" size={13} className="guard-check" />}
-            </button>
+            </HouseButton>
           )
         })}
       </div>

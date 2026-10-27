@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../components/ui/bento/index.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import Icon from '../components/Icon.jsx'
@@ -134,10 +135,10 @@ function AutomationRow({ auto, busy: _busy, onAction, onEdit }) {
   return (
     <div className={`auto-table-row${auto.enabled ? '' : ' is-off'}`}>
       <div className="auto-table-cell auto-table-cell--name">
-        <button type="button" className="auto-table-name-btn" onClick={() => onEdit(auto)}>
+        <HouseButton type="button" className="auto-table-name-btn" onClick={() => onEdit(auto)}>
           <Icon name="zap" size={14} className="auto-table-icon" />
           <span>{auto.name}</span>
-        </button>
+        </HouseButton>
         {auto.description && (
           <span className="auto-table-desc">{auto.description}</span>
         )}
@@ -241,7 +242,7 @@ function RunsTab({ onSelectRun }) {
             <span>Time</span>
           </div>
           {runs.map((run) => (
-            <button
+            <HouseButton
               key={run.id}
               type="button"
               className="auto-runs-row auto-runs-row--clickable"
@@ -270,7 +271,7 @@ function RunsTab({ onSelectRun }) {
               <span className="auto-runs-time">
                 {run.created_at ? new Date(run.created_at).toLocaleString() : '—'}
               </span>
-            </button>
+            </HouseButton>
           ))}
         </div>
       )}
@@ -385,34 +386,34 @@ export default function Automations() {
       <div className="view-inner view-inner--wide">
         <header className="auto-header" data-enter>
           <div className="auto-header-tabs">
-            <button
+            <HouseButton
               type="button"
               className={`auto-header-tab${tab === 'automations' ? ' is-active' : ''}`}
               onClick={() => setTab('automations')}
             >
               Automations
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className={`auto-header-tab${tab === 'runs' ? ' is-active' : ''}`}
               onClick={() => setTab('runs')}
             >
               Runs
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className={`auto-header-tab${tab === 'calendar' ? ' is-active' : ''}`}
               onClick={() => setTab('calendar')}
             >
               Calendar
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className={`auto-header-tab${tab === 'templates' ? ' is-active' : ''}`}
               onClick={() => setTab('templates')}
             >
               Templates
-            </button>
+            </HouseButton>
           </div>
           <Button
             variant="primary"

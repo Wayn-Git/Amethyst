@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import Icon from './Icon.jsx'
@@ -281,7 +282,7 @@ export default function ModelMenu({
         {/* Left Provider Sidebar (matching Screenshot 2) */}
         <div className="model-menu-sidebar">
           {/* 1. All Providers button (≡) */}
-          <button
+          <HouseButton
             type="button"
             className={`model-menu-sidebar-btn${selectedProvider === 'all' ? ' is-active' : ''}`}
             onClick={() => setSelectedProvider('all')}
@@ -289,11 +290,11 @@ export default function ModelMenu({
             aria-label="All models"
           >
             <AiProviderIcon provider="all" size={15} />
-          </button>
+          </HouseButton>
 
           {/* 2. Provider brand icons */}
           {providers.map((p) => (
-            <button
+            <HouseButton
               key={p}
               type="button"
               className={`model-menu-sidebar-btn${selectedProvider === p ? ' is-active' : ''}`}
@@ -302,7 +303,7 @@ export default function ModelMenu({
               aria-label={p}
             >
               <AiProviderIcon provider={p} size={16} />
-            </button>
+            </HouseButton>
           ))}
         </div>
 
@@ -329,7 +330,7 @@ export default function ModelMenu({
                   <span className="model-menu-group-count">{recentAvailable.length}</span>
                 </div>
                 {recentAvailable.map((recent) => (
-                  <button
+                  <HouseButton
                     key={`recent:${recent.provider}:${recent.model}`}
                     type="button"
                     className={`model-menu-item${recent.provider === provider && recent.model === model ? ' is-active' : ''}`}
@@ -341,7 +342,7 @@ export default function ModelMenu({
                       <span className="model-menu-item-meta">{recent.provider}</span>
                     </span>
                     {recent.provider === provider && recent.model === model && <Icon name="check" size={15} className="model-menu-check" />}
-                  </button>
+                  </HouseButton>
                 ))}
               </div>
             )}
@@ -358,7 +359,7 @@ export default function ModelMenu({
                 {group.models.map((m) => {
                   const isSelected = m.id === model && group.provider === provider
                   return (
-                    <button
+                    <HouseButton
                       key={m.id}
                       type="button"
                       className={`model-menu-item${isSelected ? ' is-active' : ''}`}
@@ -377,7 +378,7 @@ export default function ModelMenu({
                       {isSelected && (
                         <Icon name="check" size={15} className="model-menu-check" />
                       )}
-                    </button>
+                    </HouseButton>
                   )
                 })}
               </div>
@@ -385,7 +386,7 @@ export default function ModelMenu({
 
             {/* Custom model prompt if query has no exact match */}
             {query.trim() && !hasExactMatch && (
-              <button
+              <HouseButton
                 type="button"
                 className="model-menu-item model-menu-item--custom"
                 onClick={() => handleSelectCustom(query)}
@@ -397,14 +398,14 @@ export default function ModelMenu({
                   <span className="model-menu-item-name">Use custom: {query.trim()}</span>
                   <span className="model-menu-item-meta">Press Enter to select</span>
                 </span>
-              </button>
+              </HouseButton>
             )}
           </FadeScrollArea>
 
           {/* Pinned Auto option at the bottom (matching Screenshot 2) */}
           {canRoute && (
             <div className="model-menu-auto-row">
-              <button
+              <HouseButton
                 type="button"
                 className={`model-menu-item model-menu-item--auto${provider === 'auto' ? ' is-active' : ''}`}
                 onClick={() => {
@@ -422,7 +423,7 @@ export default function ModelMenu({
                 {provider === 'auto' && (
                   <Icon name="check" size={15} className="model-menu-check" />
                 )}
-              </button>
+              </HouseButton>
             </div>
           )}
         </div>

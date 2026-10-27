@@ -1,3 +1,4 @@
+import { Input as HouseInput, Button as HouseButton } from '../ui/bento/index.jsx'
 import { useState, useMemo } from 'react'
 import Icon from '../Icon.jsx'
 
@@ -48,7 +49,7 @@ export default function DataTable({ data }) {
         </div>
         <div className="table-header-right">
           <div className="table-filter-box">
-            <input
+            <HouseInput
               type="text"
               placeholder="Filter table..."
               value={filter}
@@ -56,17 +57,17 @@ export default function DataTable({ data }) {
               className="table-filter-input"
             />
             {filter && (
-              <button
+              <HouseButton
                 type="button"
                 className="table-filter-clear"
                 onClick={() => setFilter('')}
                 aria-label="Clear filter"
               >
                 <Icon name="x" size={12} />
-              </button>
+              </HouseButton>
             )}
           </div>
-          <button
+          <HouseButton
             type="button"
             className="table-action-btn"
             onClick={copyAsCsv}
@@ -75,7 +76,7 @@ export default function DataTable({ data }) {
           >
             <Icon name={copied ? 'check' : 'copy'} size={14} />
             <span>{copied ? 'Copied' : 'CSV'}</span>
-          </button>
+          </HouseButton>
         </div>
       </div>
 

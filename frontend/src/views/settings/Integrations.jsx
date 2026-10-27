@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../../components/ui/bento/index.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import AnimatedSelect from '../../components/ui/AnimatedSelect.jsx'
@@ -386,7 +387,7 @@ export default function Integrations() {
 
                     {isConfigured ? (
                       <>
-                        <button
+                        <HouseButton
                           type="button"
                           className="set-btn-sm"
                           disabled={testingSearch === engine.slug}
@@ -394,8 +395,8 @@ export default function Integrations() {
                           title={`Test connectivity to ${engine.name}`}
                         >
                           {testingSearch === engine.slug ? 'Testing…' : 'Test'}
-                        </button>
-                        <button
+                        </HouseButton>
+                        <HouseButton
                           type="button"
                           className={`set-btn-sm ${isEditing ? 'is-active' : ''}`}
                           onClick={() => {
@@ -404,10 +405,10 @@ export default function Integrations() {
                           }}
                         >
                           Configure
-                        </button>
+                        </HouseButton>
                       </>
                     ) : (
-                      <button
+                      <HouseButton
                         type="button"
                         className="set-btn-sm is-primary"
                         onClick={() => {
@@ -417,7 +418,7 @@ export default function Integrations() {
                       >
                         <Icon name="plus" size={12} />
                         <span>Connect</span>
-                      </button>
+                      </HouseButton>
                     )}
                   </div>
                 </div>
@@ -442,7 +443,7 @@ export default function Integrations() {
 
                     <div className="int-drawer-form">
                       <div className="int-input-wrap">
-                        <input
+                        <HouseInput
                           type={showKey ? 'text' : 'password'}
                           className="set-input"
                           style={{ width: '100%', paddingRight: 32 }}
@@ -455,38 +456,38 @@ export default function Integrations() {
                           }}
                           autoFocus
                         />
-                        <button
+                        <HouseButton
                           type="button"
                           className="int-eye-btn"
                           onClick={() => setShowKey((s) => !s)}
                           title={showKey ? 'Hide key' : 'Show key'}
                         >
                           <Icon name={showKey ? 'eye-slash' : 'eye'} size={13} />
-                        </button>
+                        </HouseButton>
                       </div>
 
                       <div className="int-drawer-actions">
-                        <button
+                        <HouseButton
                           type="button"
                           className="set-btn-sm is-primary"
                           disabled={savingSearch === engine.slug || !draftKey.trim()}
                           onClick={() => handleSaveSearchKey(engine.slug)}
                         >
                           {savingSearch === engine.slug ? 'Saving…' : 'Save Key'}
-                        </button>
+                        </HouseButton>
 
                         {isConfigured && (
-                          <button
+                          <HouseButton
                             type="button"
                             className="set-btn-sm is-danger"
                             disabled={savingSearch === engine.slug}
                             onClick={() => handleClearKey(engine.slug)}
                           >
                             Remove
-                          </button>
+                          </HouseButton>
                         )}
 
-                        <button
+                        <HouseButton
                           type="button"
                           className="set-btn-sm"
                           onClick={() => {
@@ -495,7 +496,7 @@ export default function Integrations() {
                           }}
                         >
                           Cancel
-                        </button>
+                        </HouseButton>
                       </div>
                     </div>
                   </div>
@@ -541,22 +542,22 @@ export default function Integrations() {
             <div className="int-provider-actions" style={{ marginTop: 2 }}>
               {isComposioConnected ? (
                 <>
-                  <button
+                  <HouseButton
                     type="button"
                     className="set-btn-sm is-primary"
                     onClick={handleNavigateToConnectors}
                   >
                     <span>Open Connectors</span>
                     <Icon name="arrow-up-right" size={11} />
-                  </button>
-                  <button
+                  </HouseButton>
+                  <HouseButton
                     type="button"
                     className="set-btn-sm"
                     disabled={savingComposio}
                     onClick={handleDeleteComposioKey}
                   >
                     Disconnect
-                  </button>
+                  </HouseButton>
                 </>
               ) : (
                 <>
@@ -565,13 +566,13 @@ export default function Integrations() {
                       <span className="int-status-pill">
                         Waiting ({pollCountdown}s)
                       </span>
-                      <button type="button" className="set-btn-sm" onClick={handleCancelLogin}>
+                      <HouseButton type="button" className="set-btn-sm" onClick={handleCancelLogin}>
                         Cancel
-                      </button>
+                      </HouseButton>
                     </>
                   ) : (
                     <>
-                      <button
+                      <HouseButton
                         type="button"
                         className="set-btn-sm is-primary"
                         disabled={savingComposio}
@@ -579,14 +580,14 @@ export default function Integrations() {
                       >
                         <Icon name="arrow-up-right" size={12} />
                         <span>Sign In in Browser</span>
-                      </button>
-                      <button
+                      </HouseButton>
+                      <HouseButton
                         type="button"
                         className={`set-btn-sm ${showManualKey ? 'is-active' : ''}`}
                         onClick={() => setShowManualKey(!showManualKey)}
                       >
                         {showManualKey ? 'Hide Key' : 'API Key'}
-                      </button>
+                      </HouseButton>
                     </>
                   )}
                 </>
@@ -602,7 +603,7 @@ export default function Integrations() {
               </div>
               <div className="int-drawer-form">
                 <div className="int-input-wrap">
-                  <input
+                  <HouseInput
                     type="password"
                     className="set-input"
                     placeholder="Paste Composio API key…"
@@ -615,21 +616,21 @@ export default function Integrations() {
                   />
                 </div>
                 <div className="int-drawer-actions">
-                  <button
+                  <HouseButton
                     type="button"
                     className="set-btn-sm is-primary"
                     disabled={savingComposio || !composioKeyDraft.trim()}
                     onClick={handleSaveComposioKey}
                   >
                     {savingComposio ? 'Connecting…' : 'Save & Connect'}
-                  </button>
-                  <button
+                  </HouseButton>
+                  <HouseButton
                     type="button"
                     className="set-btn-sm"
                     onClick={() => setShowManualKey(false)}
                   >
                     Cancel
-                  </button>
+                  </HouseButton>
                 </div>
               </div>
             </div>
@@ -640,17 +641,17 @@ export default function Integrations() {
             <div className="int-connected-strip">
               <div className="int-strip-header">
                 <span className="int-strip-title">Active Tools ({connectedToolkits.length})</span>
-                <button
+                <HouseButton
                   type="button"
                   className="int-strip-link"
                   onClick={handleNavigateToConnectors}
                 >
                   Manage in Connectors ↗
-                </button>
+                </HouseButton>
               </div>
               <div className="int-tool-chips">
                 {connectedToolkits.map((toolkit) => (
-                  <button
+                  <HouseButton
                     key={toolkit.slug}
                     type="button"
                     className="int-tool-chip"
@@ -660,20 +661,20 @@ export default function Integrations() {
                     <ServiceIcon card={toolkit} size="small" />
                     <span className="int-tool-name">{toolkit.name}</span>
                     <span className="int-status-dot is-live" />
-                  </button>
+                  </HouseButton>
                 ))}
               </div>
             </div>
           ) : isComposioConnected ? (
             <div className="int-empty-tools-card">
               <span>Composio is connected. Link individual tools (Gmail, Slack, GitHub) to grant access.</span>
-              <button
+              <HouseButton
                 type="button"
                 className="set-btn-sm is-primary"
                 onClick={handleNavigateToConnectors}
               >
                 Browse Connectors ↗
-              </button>
+              </HouseButton>
             </div>
           ) : (
             /* Supported Tools Preview */
@@ -723,13 +724,13 @@ export default function Integrations() {
               </div>
 
               <div className="int-provider-actions">
-                <button
+                <HouseButton
                   type="button"
                   className={`set-btn-sm ${editingNotifier === 'recipient' ? 'is-active' : ''}`}
                   onClick={() => setEditingNotifier(editingNotifier === 'recipient' ? null : 'recipient')}
                 >
                   {notifier?.recipient_email ? 'Change' : 'Set Email'}
-                </button>
+                </HouseButton>
               </div>
             </div>
 
@@ -740,7 +741,7 @@ export default function Integrations() {
                 </div>
                 <div className="int-drawer-form">
                   <div className="int-input-wrap">
-                    <input
+                    <HouseInput
                       type="email"
                       className="set-input"
                       placeholder="your-email@example.com"
@@ -753,21 +754,21 @@ export default function Integrations() {
                     />
                   </div>
                   <div className="int-drawer-actions">
-                    <button
+                    <HouseButton
                       type="button"
                       className="set-btn-sm is-primary"
                       disabled={savingNotifier || !notifierDraft.recipient_email.trim()}
                       onClick={() => handleSaveNotifierSection({ recipient_email: notifierDraft.recipient_email })}
                     >
                       {savingNotifier ? 'Saving…' : 'Save'}
-                    </button>
-                    <button
+                    </HouseButton>
+                    <HouseButton
                       type="button"
                       className="set-btn-sm"
                       onClick={() => setEditingNotifier(null)}
                     >
                       Cancel
-                    </button>
+                    </HouseButton>
                   </div>
                 </div>
               </div>
@@ -799,22 +800,22 @@ export default function Integrations() {
 
               <div className="int-provider-actions">
                 {notifier?.agentmail_configured && (
-                  <button
+                  <HouseButton
                     type="button"
                     className="set-btn-sm"
                     disabled={testingNotifier}
                     onClick={handleTestEmail}
                   >
                     {testingNotifier ? 'Sending…' : 'Test Send'}
-                  </button>
+                  </HouseButton>
                 )}
-                <button
+                <HouseButton
                   type="button"
                   className={`set-btn-sm ${editingNotifier === 'agentmail' ? 'is-active' : ''}`}
                   onClick={() => setEditingNotifier(editingNotifier === 'agentmail' ? null : 'agentmail')}
                 >
                   {notifier?.agentmail_configured ? 'Configure' : 'Set API Key'}
-                </button>
+                </HouseButton>
               </div>
             </div>
 
@@ -825,14 +826,14 @@ export default function Integrations() {
                 </div>
                 <div className="int-drawer-form" style={{ flexDirection: 'column', gap: 8 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, width: '100%' }}>
-                    <input
+                    <HouseInput
                       type="password"
                       className="set-input"
                       placeholder="API Key (am_live_...)"
                       value={notifierDraft.agentmail_api_key}
                       onChange={(e) => setNotifierDraft(prev => ({ ...prev, agentmail_api_key: e.target.value }))}
                     />
-                    <input
+                    <HouseInput
                       type="text"
                       className="set-input"
                       placeholder="Inbox ID (inbox_...)"
@@ -841,7 +842,7 @@ export default function Integrations() {
                     />
                   </div>
                   <div className="int-drawer-actions">
-                    <button
+                    <HouseButton
                       type="button"
                       className="set-btn-sm is-primary"
                       disabled={savingNotifier}
@@ -851,14 +852,14 @@ export default function Integrations() {
                       })}
                     >
                       {savingNotifier ? 'Saving…' : 'Save'}
-                    </button>
-                    <button
+                    </HouseButton>
+                    <HouseButton
                       type="button"
                       className="set-btn-sm"
                       onClick={() => setEditingNotifier(null)}
                     >
                       Cancel
-                    </button>
+                    </HouseButton>
                   </div>
                 </div>
               </div>
@@ -889,13 +890,13 @@ export default function Integrations() {
               </div>
 
               <div className="int-provider-actions">
-                <button
+                <HouseButton
                   type="button"
                   className={`set-btn-sm ${editingNotifier === 'turso' ? 'is-active' : ''}`}
                   onClick={() => setEditingNotifier(editingNotifier === 'turso' ? null : 'turso')}
                 >
                   {notifier?.turso_configured ? 'Configure' : 'Set Up Cloud'}
-                </button>
+                </HouseButton>
               </div>
             </div>
 
@@ -906,14 +907,14 @@ export default function Integrations() {
                 </div>
                 <div className="int-drawer-form" style={{ flexDirection: 'column', gap: 8 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, width: '100%' }}>
-                    <input
+                    <HouseInput
                       type="text"
                       className="set-input"
                       placeholder="libsql://your-db.turso.io"
                       value={notifierDraft.turso_database_url}
                       onChange={(e) => setNotifierDraft(prev => ({ ...prev, turso_database_url: e.target.value }))}
                     />
-                    <input
+                    <HouseInput
                       type="password"
                       className="set-input"
                       placeholder="Auth Token"
@@ -922,7 +923,7 @@ export default function Integrations() {
                     />
                   </div>
                   <div className="int-drawer-actions">
-                    <button
+                    <HouseButton
                       type="button"
                       className="set-btn-sm is-primary"
                       disabled={savingNotifier}
@@ -932,14 +933,14 @@ export default function Integrations() {
                       })}
                     >
                       {savingNotifier ? 'Saving…' : 'Save'}
-                    </button>
-                    <button
+                    </HouseButton>
+                    <HouseButton
                       type="button"
                       className="set-btn-sm"
                       onClick={() => setEditingNotifier(null)}
                     >
                       Cancel
-                    </button>
+                    </HouseButton>
                   </div>
                 </div>
               </div>

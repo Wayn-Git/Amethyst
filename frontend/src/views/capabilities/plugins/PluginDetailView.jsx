@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../../../components/ui/bento/index.jsx'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import {
   PanelLeft,
@@ -187,13 +188,13 @@ export default function PluginDetailView({
           <PanelLeft size={16} />
         </div>
         <div className="plugin-detail-breadcrumbs">
-          <button
+          <HouseButton
             type="button"
             className="plugin-breadcrumb-link"
             onClick={onBack}
           >
             Plugins
-          </button>
+          </HouseButton>
           <ChevronRight size={13} className="plugin-breadcrumb-sep" />
           <span className="plugin-breadcrumb-current">
             {card.label || card.name}
@@ -217,7 +218,7 @@ export default function PluginDetailView({
           <div className="plugin-detail-actions-col">
             {/* Overflow "..." Menu */}
             <div className="plugin-detail-menu-anchor" ref={menuRef}>
-              <button
+              <HouseButton
                 type="button"
                 className={`plugin-detail-action-btn is-icon ${menuOpen ? 'is-active' : ''}`}
                 onClick={() => setMenuOpen((v) => !v)}
@@ -225,11 +226,11 @@ export default function PluginDetailView({
                 aria-expanded={menuOpen}
               >
                 <MoreHorizontal size={18} />
-              </button>
+              </HouseButton>
 
               {menuOpen && (
                 <div className="plugin-detail-dropdown-menu" role="menu">
-                  <button
+                  <HouseButton
                     type="button"
                     className="plugin-dropdown-item"
                     onClick={() => {
@@ -239,16 +240,16 @@ export default function PluginDetailView({
                   >
                     <Activity size={14} className="text-dim" />
                     <span>Test live connection</span>
-                  </button>
-                  <button
+                  </HouseButton>
+                  <HouseButton
                     type="button"
                     className="plugin-dropdown-item"
                     onClick={handleCopyId}
                   >
                     <Copy size={14} className="text-dim" />
                     <span>Copy connector ID</span>
-                  </button>
-                  <button
+                  </HouseButton>
+                  <HouseButton
                     type="button"
                     className="plugin-dropdown-item"
                     onClick={() => {
@@ -258,9 +259,9 @@ export default function PluginDetailView({
                   >
                     <Code2 size={14} className="text-dim" />
                     <span>View tool definitions ({toolsList.length})</span>
-                  </button>
+                  </HouseButton>
                   {isConnected && (
-                    <button
+                    <HouseButton
                       type="button"
                       className="plugin-dropdown-item is-destructive"
                       onClick={() => {
@@ -276,14 +277,14 @@ export default function PluginDetailView({
                     >
                       <Trash2 size={14} />
                       <span>Disconnect service</span>
-                    </button>
+                    </HouseButton>
                   )}
                 </div>
               )}
             </div>
 
             {/* Manage Button */}
-            <button
+            <HouseButton
               type="button"
               className="plugin-detail-action-btn is-manage"
               onClick={() => {
@@ -297,10 +298,10 @@ export default function PluginDetailView({
             >
               <Settings size={15} />
               <span>Manage</span>
-            </button>
+            </HouseButton>
 
             {/* Try in chat Button */}
-            <button
+            <HouseButton
               type="button"
               className="plugin-detail-action-btn is-try-chat"
               onClick={() => handleTryInChat()}
@@ -308,7 +309,7 @@ export default function PluginDetailView({
             >
               <Sparkles size={14} />
               <span>Try in chat</span>
-            </button>
+            </HouseButton>
           </div>
         </div>
 
@@ -316,7 +317,7 @@ export default function PluginDetailView({
         <div className="plugin-detail-hero-box">
           <div className="plugin-hero-prompt-list">
             {promptSuggestions.map((prompt, idx) => (
-              <button
+              <HouseButton
                 key={idx}
                 type="button"
                 className="plugin-hero-prompt-card"
@@ -335,7 +336,7 @@ export default function PluginDetailView({
                 <div className="plugin-hero-prompt-arrow" aria-hidden="true">
                   <ArrowRight size={13} />
                 </div>
-              </button>
+              </HouseButton>
             ))}
           </div>
         </div>
@@ -390,7 +391,7 @@ export default function PluginDetailView({
 
                   <div className="plugin-app-row-right">
                     {isEnt ? (
-                      <button
+                      <HouseButton
                         type="button"
                         className="plugin-app-action-btn is-outline"
                         onClick={() => setEnterpriseModalOpen(true)}
@@ -398,9 +399,9 @@ export default function PluginDetailView({
                       >
                         <Building2 size={13} />
                         <span>{hasEntConfig ? 'Configure' : 'Enterprise Host'}</span>
-                      </button>
+                      </HouseButton>
                     ) : isSubConnected ? (
-                      <button
+                      <HouseButton
                         type="button"
                         className="plugin-app-action-btn is-subtle"
                         onClick={() => setManageModalOpen(true)}
@@ -408,9 +409,9 @@ export default function PluginDetailView({
                       >
                         <Settings size={13} />
                         <span>Manage ({subStatus?.accounts?.length || 1})</span>
-                      </button>
+                      </HouseButton>
                     ) : (
-                      <button
+                      <HouseButton
                         type="button"
                         className="plugin-app-action-btn is-primary"
                         onClick={() => onConnect?.(toolkitSlug)}
@@ -427,7 +428,7 @@ export default function PluginDetailView({
                             <span>Connect</span>
                           </>
                         )}
-                      </button>
+                      </HouseButton>
                     )}
                   </div>
                 </div>
@@ -518,13 +519,13 @@ export default function PluginDetailView({
             memories with the app to help provide context for your requests. An
             app's use of this data is subject to their terms and privacy policy,
             which can be found on the app's page. If you have{' '}
-            <button
+            <HouseButton
               type="button"
               className="plugin-legal-inline-link"
               onClick={() => toast('Memory settings are available in Amethyst Settings', 'info')}
             >
               Memory
-            </button>{' '}
+            </HouseButton>{' '}
             enabled, data from the app may be used to proactively provide helpful
             information or suggestions. Amethyst always respects your training
             data preferences, including for data from connected apps. Use of
@@ -563,13 +564,13 @@ export default function PluginDetailView({
                   Manage {card.label || card.name} Accounts
                 </h3>
               </div>
-              <button
+              <HouseButton
                 type="button"
                 className="plugin-modal-close-btn"
                 onClick={() => setManageModalOpen(false)}
               >
                 <X size={16} />
-              </button>
+              </HouseButton>
             </div>
 
             <div className="plugin-modal-body">
@@ -578,7 +579,7 @@ export default function PluginDetailView({
                   <p className="text-sm text-dim">
                     No individual accounts authenticated yet. Connect via OAuth to grant permissions.
                   </p>
-                  <button
+                  <HouseButton
                     type="button"
                     className="plugin-modal-btn is-primary mt-3"
                     onClick={() => {
@@ -587,7 +588,7 @@ export default function PluginDetailView({
                     }}
                   >
                     Authorize Account
-                  </button>
+                  </HouseButton>
                 </div>
               ) : (
                 <div className="plugin-modal-accounts-list">
@@ -622,7 +623,7 @@ export default function PluginDetailView({
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
-                          <button
+                          <HouseButton
                             type="button"
                             className="plugin-modal-btn is-subtle"
                             disabled={isTesting}
@@ -630,8 +631,8 @@ export default function PluginDetailView({
                             title="Probe token"
                           >
                             {isTesting ? 'Testing…' : 'Test'}
-                          </button>
-                          <button
+                          </HouseButton>
+                          <HouseButton
                             type="button"
                             className="plugin-modal-btn is-danger"
                             onClick={() => {
@@ -645,7 +646,7 @@ export default function PluginDetailView({
                             }}
                           >
                             Disconnect
-                          </button>
+                          </HouseButton>
                         </div>
                       </div>
                     )
@@ -656,14 +657,14 @@ export default function PluginDetailView({
               {/* Add another account form */}
               <div className="plugin-modal-add-box">
                 {!showAddAccount ? (
-                  <button
+                  <HouseButton
                     type="button"
                     className="plugin-modal-add-toggle"
                     onClick={() => setShowAddAccount(true)}
                   >
                     <Plus size={13} />
                     <span>Add another account alias</span>
-                  </button>
+                  </HouseButton>
                 ) : (
                   <form
                     className="plugin-modal-add-form"
@@ -675,7 +676,7 @@ export default function PluginDetailView({
                       setAliasDraft('')
                     }}
                   >
-                    <input
+                    <HouseInput
                       type="text"
                       placeholder="Account alias (e.g. Work, Personal, Org)"
                       value={aliasDraft}
@@ -683,33 +684,33 @@ export default function PluginDetailView({
                       className="plugin-modal-input"
                       autoFocus
                     />
-                    <button
+                    <HouseButton
                       type="submit"
                       className="plugin-modal-btn is-primary"
                       disabled={!aliasDraft.trim() || busy}
                     >
                       Authorize
-                    </button>
-                    <button
+                    </HouseButton>
+                    <HouseButton
                       type="button"
                       className="plugin-modal-btn is-ghost"
                       onClick={() => setShowAddAccount(false)}
                     >
                       Cancel
-                    </button>
+                    </HouseButton>
                   </form>
                 )}
               </div>
             </div>
 
             <div className="plugin-modal-footer">
-              <button
+              <HouseButton
                 type="button"
                 className="plugin-modal-btn is-ghost"
                 onClick={() => setManageModalOpen(false)}
               >
                 Close
-              </button>
+              </HouseButton>
             </div>
           </div>
         </div>
@@ -732,13 +733,13 @@ export default function PluginDetailView({
                   Configure {card.label || card.name} Enterprise
                 </h3>
               </div>
-              <button
+              <HouseButton
                 type="button"
                 className="plugin-modal-close-btn"
                 onClick={() => setEnterpriseModalOpen(false)}
               >
                 <X size={16} />
-              </button>
+              </HouseButton>
             </div>
 
             <form onSubmit={handleSaveEnterprise} className="plugin-modal-body">
@@ -748,7 +749,7 @@ export default function PluginDetailView({
 
               <div className="plugin-modal-field">
                 <label className="plugin-modal-label">Host URL / Custom Domain</label>
-                <input
+                <HouseInput
                   type="text"
                   placeholder={`https://${card.slug}.enterprise.mycorp.internal`}
                   value={enterpriseHost}
@@ -759,7 +760,7 @@ export default function PluginDetailView({
 
               <div className="plugin-modal-field mt-3">
                 <label className="plugin-modal-label">Personal Access Token / API Key</label>
-                <input
+                <HouseInput
                   type="password"
                   placeholder="ghp_... or Bearer Token"
                   value={enterpriseToken}
@@ -776,16 +777,16 @@ export default function PluginDetailView({
               )}
 
               <div className="plugin-modal-footer mt-4">
-                <button
+                <HouseButton
                   type="button"
                   className="plugin-modal-btn is-ghost"
                   onClick={() => setEnterpriseModalOpen(false)}
                 >
                   Cancel
-                </button>
-                <button type="submit" className="plugin-modal-btn is-primary">
+                </HouseButton>
+                <HouseButton type="submit" className="plugin-modal-btn is-primary">
                   Save Settings
-                </button>
+                </HouseButton>
               </div>
             </form>
           </div>
@@ -809,13 +810,13 @@ export default function PluginDetailView({
                   Granted MCP Tools ({toolsList.length})
                 </h3>
               </div>
-              <button
+              <HouseButton
                 type="button"
                 className="plugin-modal-close-btn"
                 onClick={() => setSchemasModalOpen(false)}
               >
                 <X size={16} />
-              </button>
+              </HouseButton>
             </div>
 
             <div className="plugin-modal-body">
@@ -844,13 +845,13 @@ export default function PluginDetailView({
             </div>
 
             <div className="plugin-modal-footer">
-              <button
+              <HouseButton
                 type="button"
                 className="plugin-modal-btn is-ghost"
                 onClick={() => setSchemasModalOpen(false)}
               >
                 Close
-              </button>
+              </HouseButton>
             </div>
           </div>
         </div>

@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../../components/ui/bento/index.jsx'
 import { useMemo, useState } from 'react'
 import {
   ChevronRight,
@@ -228,7 +229,7 @@ export default function PluginsDirectory({
           {/* ── Connected Apps Strip (if any) ── */}
           {installedCards.length > 0 && tabFilter === 'all' && (
             <section className="plugin-installed-strip-section">
-              <button
+              <HouseButton
                 type="button"
                 className="plugin-installed-strip-header"
                 onClick={() => (onSwitchFilter ? onSwitchFilter('installed') : onOpenCategory('Installed'))}
@@ -236,11 +237,11 @@ export default function PluginsDirectory({
               >
                 <span>Installed ({installedCards.length})</span>
                 <ChevronRight size={15} className="text-dim" />
-              </button>
+              </HouseButton>
 
               <div className="plugin-installed-icons-row">
                 {installedCards.map((card) => (
-                  <button
+                  <HouseButton
                     key={card.slug}
                     type="button"
                     className="plugin-installed-icon-btn"
@@ -248,7 +249,7 @@ export default function PluginsDirectory({
                     title={`${card.label || card.name} (Connected)`}
                   >
                     <ServiceIcon card={card} size="default" />
-                  </button>
+                  </HouseButton>
                 ))}
               </div>
             </section>
@@ -278,7 +279,7 @@ export default function PluginsDirectory({
 
                   <div className="flex items-center gap-2">
                     {hasMore && (
-                      <button
+                      <HouseButton
                         type="button"
                         className="plugin-section-toggle-btn"
                         onClick={() => toggleCategoryExpand(section.id)}
@@ -294,10 +295,10 @@ export default function PluginsDirectory({
                             <ChevronDown size={13} />
                           </>
                         )}
-                      </button>
+                      </HouseButton>
                     )}
 
-                    <button
+                    <HouseButton
                       type="button"
                       className="plugin-section-more-btn"
                       onClick={() => onOpenCategory(section.id)}
@@ -305,7 +306,7 @@ export default function PluginsDirectory({
                     >
                       <span>Category page</span>
                       <ArrowRight size={13} />
-                    </button>
+                    </HouseButton>
                   </div>
                 </div>
 
@@ -346,14 +347,14 @@ export default function PluginsDirectory({
                   </p>
                 </div>
 
-                <button
+                <HouseButton
                   type="button"
                   className="plugin-section-more-btn"
                   onClick={() => onSwitchFilter?.('system')}
                 >
                   <span>Manage System &amp; MCP</span>
                   <ArrowRight size={13} />
-                </button>
+                </HouseButton>
               </div>
 
               <div className="system-tools-grid">
@@ -372,13 +373,13 @@ export default function PluginsDirectory({
           {/* ── Whirl-Style Bottom Footnote ── */}
           <div className="connectors-bottom-footnote">
             <span>Built something cool? Add your custom integration via </span>
-            <button
+            <HouseButton
               type="button"
               className="connectors-bottom-footnote-link"
               onClick={() => setNewOpen?.(true)}
             >
               Custom MCP Server ↗
-            </button>
+            </HouseButton>
           </div>
         </>
       )}

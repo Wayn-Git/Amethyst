@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../ui/bento/index.jsx'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Icon from '../Icon.jsx'
@@ -184,7 +185,7 @@ function SourcePill({ href, children }) {
         >
           <div className="citation-popover-header">
             <div className="citation-popover-nav">
-              <button
+              <HouseButton
                 type="button"
                 className="citation-nav-btn"
                 disabled={totalSources <= 1 || sourceIndex === 0}
@@ -195,8 +196,8 @@ function SourcePill({ href, children }) {
                 aria-label="Previous source"
               >
                 <Icon name="caret-left" size={11} />
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 className="citation-nav-btn"
                 disabled={totalSources <= 1 || sourceIndex >= totalSources - 1}
@@ -207,7 +208,7 @@ function SourcePill({ href, children }) {
                 aria-label="Next source"
               >
                 <Icon name="caret-right" size={11} />
-              </button>
+              </HouseButton>
               <span className="citation-nav-counter">
                 {sourceIndex + 1}/{totalSources}
               </span>
@@ -276,14 +277,14 @@ function ArticleCarousel({ items, galleryImages = [] }) {
   return (
     <div className="openai-carousel-wrap">
       {canScrollLeft && (
-        <button
+        <HouseButton
           type="button"
           className="openai-carousel-nav openai-carousel-nav--left"
           onClick={() => handleScroll(-1)}
           aria-label="Previous articles"
         >
           <Icon name="caret-left" size={16} />
-        </button>
+        </HouseButton>
       )}
 
       <div className="openai-carousel-track" ref={scrollRef}>
@@ -362,14 +363,14 @@ function ArticleCarousel({ items, galleryImages = [] }) {
       </div>
 
       {canScrollRight && (
-        <button
+        <HouseButton
           type="button"
           className="openai-carousel-nav openai-carousel-nav--right"
           onClick={() => handleScroll(1)}
           aria-label="Next articles"
         >
           <Icon name="caret-right" size={16} />
-        </button>
+        </HouseButton>
       )}
     </div>
   )
@@ -501,7 +502,7 @@ function CodeBlock({ lang, file, text: code, open }) {
             <span>{file || 'Project structure'}</span>
           </div>
           <div className="md-tree-actions">
-            <button
+            <HouseButton
               type="button"
               className="md-tree-toggle-btn"
               onClick={() => setViewMode('code')}
@@ -509,7 +510,7 @@ function CodeBlock({ lang, file, text: code, open }) {
             >
               <Icon name="code" size={12} />
               <span>Raw</span>
-            </button>
+            </HouseButton>
           </div>
         </div>
         <TreeView nodes={asciiTree} defaultExpandedIds={[asciiTree[0]?.id]} />
@@ -527,7 +528,7 @@ function CodeBlock({ lang, file, text: code, open }) {
             <span>{file || 'JSON Data'}</span>
           </div>
           <div className="md-tree-actions">
-            <button
+            <HouseButton
               type="button"
               className="md-tree-toggle-btn"
               onClick={() => setViewMode('code')}
@@ -535,7 +536,7 @@ function CodeBlock({ lang, file, text: code, open }) {
             >
               <Icon name="code" size={12} />
               <span>Raw</span>
-            </button>
+            </HouseButton>
           </div>
         </div>
         <JsonViewer data={parsedJson} rootName={file || 'root'} defaultExpandDepth={2} maxHeight={360} />
@@ -547,14 +548,14 @@ function CodeBlock({ lang, file, text: code, open }) {
     <div className="md-arc-code-wrap">
       {(asciiTree || (parsedJson && code.split('\n').length > 4)) && (
         <div className="md-tree-switch-bar">
-          <button
+          <HouseButton
             type="button"
             className="md-tree-toggle-btn is-active"
             onClick={() => setViewMode('rich')}
           >
             <Icon name="spark" size={12} />
             <span>Interactive {asciiTree ? 'Tree' : 'JSON'}</span>
-          </button>
+          </HouseButton>
         </div>
       )}
       <AgentCodeBlock
@@ -632,7 +633,7 @@ function TableBlock({ head, rows }) {
         <div className="md-table-meta">
           <span className="md-table-count">{rowCount} {rowCount === 1 ? 'row' : 'rows'}</span>
         </div>
-        <button
+        <HouseButton
           type="button"
           className={`md-table-copy-btn${copied === 'copied' ? ' is-copied' : ''}`}
           onClick={handleCopy}
@@ -641,7 +642,7 @@ function TableBlock({ head, rows }) {
         >
           <Icon name={copied === 'copied' ? 'check' : 'copy'} size={12} />
           <span>{copied === 'copied' ? 'Copied' : 'Copy'}</span>
-        </button>
+        </HouseButton>
       </div>
       <div className="md-table-scroll">
         <table className="md-table">

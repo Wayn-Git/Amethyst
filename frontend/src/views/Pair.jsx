@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../components/ui/bento/index.jsx'
 /* Pairing, as the first thing a phone sees.
  *
  * This screen exists because the one before it was unreachable. The pairing
@@ -225,9 +226,9 @@ export default function Pair({ onPaired, onDesktop }) {
           <Icon name="alert" size={30} />
           <h1>{trouble.title}</h1>
           <p className="pair-sub">{trouble.body}</p>
-          <button type="button" className="pair-go" onClick={() => { setPhase('idle'); setTyping(true) }}>
+          <HouseButton type="button" className="pair-go" onClick={() => { setPhase('idle'); setTyping(true) }}>
             {trouble.retry}
-          </button>
+          </HouseButton>
         </div>
       </Shell>
     )
@@ -261,16 +262,16 @@ export default function Pair({ onPaired, onDesktop }) {
       </ol>
 
       {canScan() ? (
-        <button type="button" className="pair-go" onClick={() => setPhase('scanning')}>
+        <HouseButton type="button" className="pair-go" onClick={() => setPhase('scanning')}>
           <Icon name="camera" size={18} />
           Scan the code
-        </button>
+        </HouseButton>
       ) : null}
 
       {typing ? (
         <div className="pair-manual">
           <label className="pair-label" htmlFor="pair-relay">Computer or Relay address</label>
-          <input
+          <HouseInput
             id="pair-relay"
             className="pair-input"
             type="url"
@@ -288,7 +289,7 @@ export default function Pair({ onPaired, onDesktop }) {
           />
 
           <label className="pair-label" htmlFor="pair-code">Pairing code</label>
-          <input
+          <HouseInput
             id="pair-code"
             className="pair-input pair-input--code"
             autoCapitalize="characters"
@@ -302,19 +303,19 @@ export default function Pair({ onPaired, onDesktop }) {
             }}
           />
 
-          <button
+          <HouseButton
             type="button"
             className="pair-go"
             onClick={() => run({ relay: relayUrl.trim(), host: hostUrl.trim(), secret: code })}
             disabled={!ready}
           >
             Pair
-          </button>
+          </HouseButton>
         </div>
       ) : (
-        <button type="button" className="pair-secondary" onClick={() => setTyping(true)}>
+        <HouseButton type="button" className="pair-secondary" onClick={() => setTyping(true)}>
           Enter the code instead
-        </button>
+        </HouseButton>
       )}
     </Shell>
   )
@@ -327,9 +328,9 @@ function Shell({ children, onDesktop }) {
     <div className="pair">
       <div className="pair-card">{children}</div>
       {onDesktop ? (
-        <button type="button" className="pair-escape" onClick={onDesktop}>
+        <HouseButton type="button" className="pair-escape" onClick={onDesktop}>
           Use the desktop interface
-        </button>
+        </HouseButton>
       ) : null}
     </div>
   )

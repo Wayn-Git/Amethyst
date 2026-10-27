@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../../ui/bento/index.jsx'
 "use client";
 
 import {
@@ -160,14 +161,14 @@ export function ApprovalCard({
             </div>
           </div>
           {onDismiss && (
-            <button
+            <HouseButton
               type="button"
               onClick={onDismiss}
               aria-label="Dismiss approval"
               className="approval-card-dismiss-btn"
             >
               <X className="size-3.5" />
-            </button>
+            </HouseButton>
           )}
         </div>
 
@@ -185,17 +186,17 @@ export function ApprovalCard({
           </span>
           <div className="approval-card-actions-group">
             {onRequestChanges && (
-              <button
+              <HouseButton
                 type="button"
                 disabled={disabled || isSubmitting}
                 onClick={() => onRequestChanges()}
                 className="approval-card-btn-ghost"
               >
                 {requestChangesLabel}
-              </button>
+              </HouseButton>
             )}
             {onReject && (
-              <button
+              <HouseButton
                 type="button"
                 disabled={disabled || isSubmitting}
                 onClick={onReject}
@@ -203,10 +204,10 @@ export function ApprovalCard({
               >
                 <X className="size-3.5" />
                 {rejectLabel}
-              </button>
+              </HouseButton>
             )}
             {onApprove && (
-              <button
+              <HouseButton
                 type="button"
                 disabled={disabled || isSubmitting}
                 onClick={onApprove}
@@ -214,7 +215,7 @@ export function ApprovalCard({
               >
                 <Check className="size-3.5" />
                 {approveLabel}
-              </button>
+              </HouseButton>
             )}
           </div>
         </div>
@@ -302,7 +303,7 @@ export function ApprovalCard({
                     {step.title}
                   </span>
                 ) : (
-                  <input
+                  <HouseInput
                     type="text"
                     value={step.title}
                     disabled={disabled}
@@ -343,15 +344,15 @@ export function ApprovalCard({
               Nothing runs until approved.
             </span>
             <div className="approval-card-actions-group">
-              <button
+              <HouseButton
                 type="button"
                 disabled={disabled}
                 onClick={onDiscardPlan}
                 className="approval-card-btn-ghost"
               >
                 Discard
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 disabled={disabled}
                 onClick={onApprovePlan}
@@ -359,7 +360,7 @@ export function ApprovalCard({
               >
                 <Check className="size-3.5" />
                 Approve and run
-              </button>
+              </HouseButton>
             </div>
           </div>
         )}
@@ -577,7 +578,7 @@ function QuestionsView({
         <div className="flex items-center gap-2">
           {isMulti && (
             <div className="approval-card-pagination">
-              <button
+              <HouseButton
                 type="button"
                 disabled={currentIndex === 0}
                 onClick={() => setCurrentIndex((idx) => Math.max(0, idx - 1))}
@@ -585,11 +586,11 @@ function QuestionsView({
                 className="approval-card-page-btn"
               >
                 <ChevronLeft className="size-3.5" />
-              </button>
+              </HouseButton>
               <span>
                 {currentIndex + 1} of {total}
               </span>
-              <button
+              <HouseButton
                 type="button"
                 disabled={currentIndex === total - 1}
                 onClick={() =>
@@ -599,19 +600,19 @@ function QuestionsView({
                 className="approval-card-page-btn"
               >
                 <ChevronRight className="size-3.5" />
-              </button>
+              </HouseButton>
             </div>
           )}
 
           {onDismiss && (
-            <button
+            <HouseButton
               type="button"
               onClick={onDismiss}
               aria-label="Dismiss"
               className="approval-card-dismiss-btn"
             >
               <X className="size-3.5" />
-            </button>
+            </HouseButton>
           )}
         </div>
       </div>
@@ -633,7 +634,7 @@ function QuestionsView({
             : currentAnswer?.value === opt.value;
 
           return (
-            <button
+            <HouseButton
               key={opt.value || oIdx}
               type="button"
               disabled={disabled}
@@ -653,13 +654,13 @@ function QuestionsView({
                   <p className="approval-card-option-desc">{opt.description}</p>
                 )}
               </div>
-            </button>
+            </HouseButton>
           );
         })}
 
         {/* Freeform write-in input */}
         <div>
-          <input
+          <HouseInput
             type="text"
             value={customText[currentQ.id] || ""}
             disabled={disabled}
@@ -673,21 +674,21 @@ function QuestionsView({
       {/* Footer controls */}
       <div className="approval-card-footer">
         {isMulti ? (
-          <button
+          <HouseButton
             type="button"
             onClick={handleSkip}
             disabled={disabled}
             className="approval-card-btn-skip"
           >
             Skip
-          </button>
+          </HouseButton>
         ) : (
           <div />
         )}
 
         <div className="approval-card-actions-group">
           {isMulti && !isLastQuestion ? (
-            <button
+            <HouseButton
               type="button"
               disabled={disabled}
               onClick={() => setCurrentIndex((idx) => idx + 1)}
@@ -695,9 +696,9 @@ function QuestionsView({
             >
               Next
               <ChevronRight className="size-3" />
-            </button>
+            </HouseButton>
           ) : (
-            <button
+            <HouseButton
               type="button"
               disabled={disabled || isSubmitting}
               onClick={doSubmit}
@@ -705,7 +706,7 @@ function QuestionsView({
             >
               <Check className="size-3.5" />
               {isSubmitting ? "Submitting…" : "Submit"}
-            </button>
+            </HouseButton>
           )}
         </div>
       </div>

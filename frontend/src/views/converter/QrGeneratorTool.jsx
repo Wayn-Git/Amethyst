@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput, Textarea as HouseTextarea, Select as HouseSelect } from '../../components/ui/bento/index.jsx'
 import { useEffect, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { api } from '../../api.js'
@@ -86,7 +87,7 @@ export default function QrGeneratorTool() {
               { id: 'email', label: 'Email', icon: 'mail' },
               { id: 'phone', label: 'Phone', icon: 'mobile' },
             ].map((m) => (
-              <button
+              <HouseButton
                 key={m.id}
                 type="button"
                 className={`fc-cat-tab${mode === m.id ? ' is-active' : ''}`}
@@ -94,7 +95,7 @@ export default function QrGeneratorTool() {
               >
                 <Icon name={m.icon} size={13} />
                 <span>{m.label}</span>
-              </button>
+              </HouseButton>
             ))}
           </div>
 
@@ -105,7 +106,7 @@ export default function QrGeneratorTool() {
                 <label className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">
                   Target Website URL
                 </label>
-                <input
+                <HouseInput
                   type="url"
                   className="fc-input font-mono text-sm"
                   placeholder="https://example.com"
@@ -120,7 +121,7 @@ export default function QrGeneratorTool() {
                 <label className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">
                   Raw Text or Note
                 </label>
-                <textarea
+                <HouseTextarea
                   rows={4}
                   className="fc-textarea font-mono text-xs"
                   placeholder="Paste or type content here…"
@@ -136,7 +137,7 @@ export default function QrGeneratorTool() {
                   <label className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">
                     Network Name (SSID)
                   </label>
-                  <input
+                  <HouseInput
                     type="text"
                     className="fc-input"
                     placeholder="MyOfficeWiFi"
@@ -148,7 +149,7 @@ export default function QrGeneratorTool() {
                   <label className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">
                     Password
                   </label>
-                  <input
+                  <HouseInput
                     type="text"
                     className="fc-input font-mono"
                     placeholder="WPA2 Password…"
@@ -160,7 +161,7 @@ export default function QrGeneratorTool() {
                   <label className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">
                     Encryption Security
                   </label>
-                  <select
+                  <HouseSelect
                     className="fc-select"
                     value={wifiEnc}
                     onChange={(e) => setWifiEnc(e.target.value)}
@@ -168,7 +169,7 @@ export default function QrGeneratorTool() {
                     <option value="WPA">WPA / WPA2 / WPA3</option>
                     <option value="WEP">WEP</option>
                     <option value="nopass">None (Open)</option>
-                  </select>
+                  </HouseSelect>
                 </div>
               </>
             )}
@@ -178,7 +179,7 @@ export default function QrGeneratorTool() {
                 <label className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">
                   Email Address
                 </label>
-                <input
+                <HouseInput
                   type="email"
                   className="fc-input"
                   placeholder="hello@example.com"
@@ -193,7 +194,7 @@ export default function QrGeneratorTool() {
                 <label className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">
                   Phone Number
                 </label>
-                <input
+                <HouseInput
                   type="tel"
                   className="fc-input"
                   placeholder="+1 (555) 000-0000"
@@ -208,14 +209,14 @@ export default function QrGeneratorTool() {
               <span className="text-xs font-medium text-[var(--fc-text-dim)]">Export format:</span>
               <div className="flex items-center gap-1.5">
                 {['png', 'svg'].map((f) => (
-                  <button
+                  <HouseButton
                     key={f}
                     type="button"
                     className={`fc-cat-tab${kind === f ? ' is-active' : ''}`}
                     onClick={() => setKind(f)}
                   >
                     .{f.toUpperCase()}
-                  </button>
+                  </HouseButton>
                 ))}
               </div>
             </div>
@@ -260,7 +261,7 @@ export default function QrGeneratorTool() {
                     <span>Download {kind.toUpperCase()}</span>
                   </a>
 
-                  <button
+                  <HouseButton
                     type="button"
                     className="fc-btn fc-btn-secondary"
                     onClick={() => {
@@ -271,7 +272,7 @@ export default function QrGeneratorTool() {
                   >
                     <Icon name="copy" size={14} />
                     <span>Copy Payload</span>
-                  </button>
+                  </HouseButton>
                 </>
               )}
             </div>

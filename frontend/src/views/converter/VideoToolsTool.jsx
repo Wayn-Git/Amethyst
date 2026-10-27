@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput, Select as HouseSelect } from '../../components/ui/bento/index.jsx'
 import { useCallback, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { api } from '../../api.js'
@@ -151,7 +152,7 @@ export default function VideoToolsTool() {
           { id: 'compress-video', label: 'Compress Video', icon: 'arrow-down' },
           { id: 'audio-converter', label: 'Audio Converter', icon: 'speaker' },
         ].map((tab) => (
-          <button
+          <HouseButton
             key={tab.id}
             type="button"
             className={`fc-cat-tab${activeTab === tab.id ? ' is-active' : ''}`}
@@ -162,7 +163,7 @@ export default function VideoToolsTool() {
           >
             <Icon name={tab.icon} size={15} />
             <span>{tab.label}</span>
-          </button>
+          </HouseButton>
         ))}
       </div>
 
@@ -190,7 +191,7 @@ export default function VideoToolsTool() {
               onClick={() => fileInputRef.current?.click()}
             >
               <div className="fc-dropzone-core py-8 flex flex-col items-center gap-3">
-                <input
+                <HouseInput
                   ref={fileInputRef}
                   type="file"
                   accept={activeTab === 'audio-converter' ? 'audio/*' : 'video/*,audio/*'}
@@ -223,7 +224,7 @@ export default function VideoToolsTool() {
                   <span className="font-semibold text-[var(--fc-text)] truncate max-w-[200px]">{file.name}</span>
                   <span className="text-[var(--fc-text-dim)] font-mono">({formatBytes(file.size)})</span>
                 </div>
-                <button
+                <HouseButton
                   type="button"
                   className="fc-btn fc-btn-danger-ghost text-xs"
                   onClick={() => {
@@ -233,14 +234,14 @@ export default function VideoToolsTool() {
                   }}
                 >
                   Change
-                </button>
+                </HouseButton>
               </div>
 
               {/* Form Options */}
               {activeTab === 'convert-video' && (
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-[var(--fc-text)]">Target Video Format</label>
-                  <select
+                  <HouseSelect
                     className="fc-select font-mono uppercase"
                     value={targetVideoFmt}
                     onChange={(e) => setTargetVideoFmt(e.target.value)}
@@ -250,14 +251,14 @@ export default function VideoToolsTool() {
                     <option value="mkv">MKV (Matroska)</option>
                     <option value="mov">MOV (QuickTime)</option>
                     <option value="avi">AVI</option>
-                  </select>
+                  </HouseSelect>
                 </div>
               )}
 
               {activeTab === 'to-gif' && (
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-[var(--fc-text)]">Frame Rate (FPS)</label>
-                  <select
+                  <HouseSelect
                     className="fc-select font-mono"
                     value={gifFps}
                     onChange={(e) => setGifFps(Number(e.target.value))}
@@ -265,7 +266,7 @@ export default function VideoToolsTool() {
                     <option value="10">10 FPS (Compact file size)</option>
                     <option value="15">15 FPS (Standard balance)</option>
                     <option value="24">24 FPS (Cinematic smooth motion)</option>
-                  </select>
+                  </HouseSelect>
                 </div>
               )}
 
@@ -273,7 +274,7 @@ export default function VideoToolsTool() {
                 <div className="flex flex-col gap-2">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-semibold text-[var(--fc-text)]">Audio Format</label>
-                    <select
+                    <HouseSelect
                       className="fc-select font-mono uppercase"
                       value={audioFmt}
                       onChange={(e) => setAudioFmt(e.target.value)}
@@ -283,7 +284,7 @@ export default function VideoToolsTool() {
                       <option value="wav">WAV (Lossless 16-bit PCM)</option>
                       <option value="flac">FLAC (Lossless)</option>
                       <option value="ogg">OGG (Vorbis)</option>
-                    </select>
+                    </HouseSelect>
                   </div>
                   {!hasAudio && (
                     <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
@@ -298,7 +299,7 @@ export default function VideoToolsTool() {
                 <div className="flex flex-col gap-2">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-semibold text-[var(--fc-text)]">Compression Preset</label>
-                    <select
+                    <HouseSelect
                       className="fc-select font-mono"
                       value={compressLevel}
                       onChange={(e) => setCompressLevel(e.target.value)}
@@ -306,7 +307,7 @@ export default function VideoToolsTool() {
                       <option value="balanced">Balanced (CRF 28 - Recommended)</option>
                       <option value="high">High Compression (CRF 32 - Smallest File)</option>
                       <option value="light">Light Compression (CRF 23 - Highest Quality)</option>
-                    </select>
+                    </HouseSelect>
                   </div>
                   <p className="text-[11px] text-[var(--fc-text-faint)] leading-normal">
                     Re-encodes with H.264 CRF constant rate factor for maximum space savings.
@@ -317,7 +318,7 @@ export default function VideoToolsTool() {
               {activeTab === 'audio-converter' && (
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-[var(--fc-text)]">Convert Audio To</label>
-                  <select
+                  <HouseSelect
                     className="fc-select font-mono uppercase"
                     value={targetAudioFmt}
                     onChange={(e) => setTargetAudioFmt(e.target.value)}
@@ -327,11 +328,11 @@ export default function VideoToolsTool() {
                     <option value="aac">AAC</option>
                     <option value="ogg">OGG (Vorbis)</option>
                     <option value="flac">FLAC (Lossless)</option>
-                  </select>
+                  </HouseSelect>
                 </div>
               )}
 
-              <button
+              <HouseButton
                 type="button"
                 className="fc-btn fc-btn-primary w-full mt-2"
                 disabled={processing || (activeTab === 'extract-audio' && !hasAudio)}
@@ -339,7 +340,7 @@ export default function VideoToolsTool() {
               >
                 <Icon name="convert" size={16} />
                 <span>{processing ? 'Processing with FFmpeg…' : 'Start Processing'}</span>
-              </button>
+              </HouseButton>
             </div>
           )}
         </div>

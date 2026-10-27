@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useApp } from '../store.jsx'
 import { MOD_LABEL } from '../keys.js'
@@ -258,7 +259,7 @@ export default function AppTitleBar() {
       {/* Left: Navigation arrows and Menu dropdowns */}
       <div className="app-tb-left">
         <div className="app-tb-nav-group">
-          <button
+          <HouseButton
             type="button"
             className="app-tb-nav-btn"
             onClick={() => window.history.back()}
@@ -268,8 +269,8 @@ export default function AppTitleBar() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="app-tb-nav-btn"
             onClick={() => window.history.forward()}
@@ -279,7 +280,7 @@ export default function AppTitleBar() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12h14M12 5l7 7-7 7" />
             </svg>
-          </button>
+          </HouseButton>
         </div>
 
         <nav className="app-tb-menus" aria-label="Menu bar">
@@ -287,7 +288,7 @@ export default function AppTitleBar() {
             const isOpen = openMenu === menu.id
             return (
               <div key={menu.id} className="app-tb-menu-anchor">
-                <button
+                <HouseButton
                   type="button"
                   className={`app-tb-menu-btn${isOpen ? ' is-active' : ''}`}
                   onClick={() => setOpenMenu(isOpen ? null : menu.id)}
@@ -300,7 +301,7 @@ export default function AppTitleBar() {
                   aria-expanded={isOpen}
                 >
                   {menu.label}
-                </button>
+                </HouseButton>
 
                 {isOpen && (
                   <div className="app-tb-dropdown" role="menu">
@@ -309,7 +310,7 @@ export default function AppTitleBar() {
                         return <div key={`sep-${idx}`} className="app-tb-dropdown-sep" role="separator" />
                       }
                       return (
-                        <button
+                        <HouseButton
                           key={item.label}
                           type="button"
                           className="app-tb-dropdown-item"
@@ -320,7 +321,7 @@ export default function AppTitleBar() {
                           {item.shortcut && (
                             <span className="app-tb-item-shortcut">{item.shortcut}</span>
                           )}
-                        </button>
+                        </HouseButton>
                       )
                     })}
                   </div>
@@ -336,7 +337,7 @@ export default function AppTitleBar() {
 
       {/* Right: Window Controls */}
       <div className="app-tb-right">
-        <button
+        <HouseButton
           type="button"
           className="app-tb-win-btn app-tb-minimize"
           onClick={handleMinimize}
@@ -346,9 +347,9 @@ export default function AppTitleBar() {
           <svg width="11" height="11" viewBox="0 0 12 12">
             <rect y="5.25" width="12" height="1.5" fill="currentColor" />
           </svg>
-        </button>
+        </HouseButton>
 
-        <button
+        <HouseButton
           type="button"
           className="app-tb-win-btn app-tb-maximize"
           onClick={handleMaximize}
@@ -365,9 +366,9 @@ export default function AppTitleBar() {
               <rect x="1.5" y="1.5" width="9" height="9" rx="1" />
             </svg>
           )}
-        </button>
+        </HouseButton>
 
-        <button
+        <HouseButton
           type="button"
           className="app-tb-win-btn app-tb-close"
           onClick={handleClose}
@@ -378,7 +379,7 @@ export default function AppTitleBar() {
             <line x1="1.5" y1="1.5" x2="10.5" y2="10.5" />
             <line x1="10.5" y1="1.5" x2="1.5" y2="10.5" />
           </svg>
-        </button>
+        </HouseButton>
       </div>
     </header>
     </>

@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../ui/bento/index.jsx'
 import { useState } from 'react'
 import Button from '../ui/AppButton.jsx'
 import Icon from '../Icon.jsx'
@@ -87,7 +88,7 @@ export default function Quiz({ data }) {
             const state = picked === null ? '' : isRight ? ' is-right' : picked === i ? ' is-wrong' : ''
             return (
               <li key={i}>
-                <button
+                <HouseButton
                   type="button"
                   className={`widget-option${state}`}
                   disabled={picked !== null}
@@ -99,7 +100,7 @@ export default function Quiz({ data }) {
                     {picked === i && !isRight && <Icon name="x" size={13} />}
                   </span>
                   {option}
-                </button>
+                </HouseButton>
               </li>
             )
           })}

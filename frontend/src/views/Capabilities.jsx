@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../components/ui/bento/index.jsx'
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../components/Icon.jsx'
@@ -40,7 +41,7 @@ export default function Capabilities() {
             {TABS.map((t) => {
               const isActive = capabilitiesTab === t.id
               return (
-                <button
+                <HouseButton
                   key={t.id}
                   type="button"
                   role="tab"
@@ -61,7 +62,7 @@ export default function Capabilities() {
                       transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                     />
                   )}
-                </button>
+                </HouseButton>
               )
             })}
           </div>
@@ -70,7 +71,7 @@ export default function Capabilities() {
             <div className="clean-cap-actions">
               <div className="plugin-search-pill">
                 <Icon name="search" size={14} />
-                <input
+                <HouseInput
                   value={query}
                   placeholder="Search skills…"
                   onChange={(e) => setQuery(e.target.value)}
@@ -82,24 +83,24 @@ export default function Capabilities() {
                   }}
                 />
                 {query && (
-                  <button
+                  <HouseButton
                     type="button"
                     className="icon-btn"
                     onClick={() => setQuery('')}
                     aria-label="Clear"
                   >
                     <Icon name="x" size={12} />
-                  </button>
+                  </HouseButton>
                 )}
               </div>
-              <button
+              <HouseButton
                 type="button"
                 className="plugin-add-custom-btn"
                 title="New skill"
                 onClick={() => setNewOpen((o) => !o)}
               >
                 <Icon name={newOpen ? 'x' : 'plus'} size={15} />
-              </button>
+              </HouseButton>
             </div>
           )}
         </div>

@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../ui/bento/index.jsx'
 "use client";
 
 import { useState, useEffect, useMemo, useRef, type FC, type ReactNode } from "react";
@@ -480,7 +481,7 @@ export const AgentRun: FC<AgentRunProps> = ({
       data-open={isOpen ? "true" : "false"}
     >
       {/* Header Summary / Disclosure Row - exact Arc summary */}
-      <button
+      <HouseButton
         type="button"
         className={`${styles.summary} ${isOpen ? styles.isOpen : ""}`}
         onClick={() => setManualOpen(!isOpen)}
@@ -511,7 +512,7 @@ export const AgentRun: FC<AgentRunProps> = ({
           size={14}
           className={`${styles.summaryChevron} ${isOpen ? styles.open : ""}`}
         />
-      </button>
+      </HouseButton>
 
       {/* Timeline of Steps */}
       <AnimatePresence initial={false}>
@@ -560,7 +561,7 @@ export const AgentRun: FC<AgentRunProps> = ({
 
                     {/* Step Main Body */}
                     <div className={styles.stepMain}>
-                      <button
+                      <HouseButton
                         type="button"
                         className={styles.stepHead}
                         onClick={() => toggleStep(step.id)}
@@ -592,7 +593,7 @@ export const AgentRun: FC<AgentRunProps> = ({
                           size={14}
                           className={`${styles.stepChevron} ${isStepOpen ? styles.open : ""}`}
                         />
-                      </button>
+                      </HouseButton>
 
                       {/* Step Expanded Details */}
                       <AnimatePresence initial={false}>
@@ -620,12 +621,12 @@ export const AgentRun: FC<AgentRunProps> = ({
                                 </div>
                                 {step.gate.reason && <p style={{ margin: 0, fontSize: 12 }}>{step.gate.reason}</p>}
                                 <div className={styles.approvalGateActions}>
-                                  <button type="button" className={styles.btnApprove} onClick={step.gate.onApprove}>
+                                  <HouseButton type="button" className={styles.btnApprove} onClick={step.gate.onApprove}>
                                     <Check size={12} /> Approve
-                                  </button>
-                                  <button type="button" className={styles.btnReject} onClick={step.gate.onReject}>
+                                  </HouseButton>
+                                  <HouseButton type="button" className={styles.btnReject} onClick={step.gate.onReject}>
                                     Decline
-                                  </button>
+                                  </HouseButton>
                                 </div>
                               </div>
                             )}

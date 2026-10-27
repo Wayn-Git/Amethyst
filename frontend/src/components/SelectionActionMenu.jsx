@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from './ui/bento/index.jsx'
 import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -438,7 +439,7 @@ export default function SelectionActionMenu({
         {/* Result Mode: Keep / Discard / Retry */}
         {mode === 'result' && (
           <div className="selection-menu-content">
-            <button
+            <HouseButton
               type="button"
               onClick={handleKeep}
               className="selection-menu-btn selection-menu-btn--accent"
@@ -446,8 +447,8 @@ export default function SelectionActionMenu({
             >
               <Check size={13} strokeWidth={2.4} />
               <span>Keep</span>
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               onClick={reset}
               className="selection-menu-btn"
@@ -455,9 +456,9 @@ export default function SelectionActionMenu({
             >
               <X size={13} strokeWidth={2} />
               <span>Discard</span>
-            </button>
+            </HouseButton>
             <span className="selection-menu-divider" />
-            <button
+            <HouseButton
               type="button"
               title="Try again"
               aria-label="Try again"
@@ -465,21 +466,21 @@ export default function SelectionActionMenu({
               className="selection-menu-btn selection-menu-btn--icon-only"
             >
               <RotateCw size={13} strokeWidth={2} />
-            </button>
+            </HouseButton>
           </div>
         )}
 
         {/* Prompt Input Mode */}
         {mode === 'prompt' && (
           <div className="selection-menu-content">
-            <button
+            <HouseButton
               type="button"
               className="selection-menu-btn selection-menu-btn--icon-only"
               onClick={() => setMode('idle')}
               title="Back"
             >
               <ChevronLeft size={14} />
-            </button>
+            </HouseButton>
             <form
               className="selection-menu-input-form"
               onSubmit={(e) => {
@@ -489,14 +490,14 @@ export default function SelectionActionMenu({
                 }
               }}
             >
-              <input
+              <HouseInput
                 ref={inputRef}
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="Describe edits or tone…"
                 className="selection-menu-input"
               />
-              <button
+              <HouseButton
                 type="submit"
                 disabled={!prompt.trim()}
                 title="Apply edit"
@@ -504,25 +505,25 @@ export default function SelectionActionMenu({
                 className="selection-menu-submit-btn"
               >
                 <ArrowUp size={13} strokeWidth={2.4} />
-              </button>
+              </HouseButton>
             </form>
             <span className="selection-menu-divider" />
-            <button
+            <HouseButton
               type="button"
               onClick={() => runAiAction('Shorten')}
               className="selection-menu-chip"
               title="Make concise"
             >
               Shorten
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               onClick={() => runAiAction('Grammar')}
               className="selection-menu-chip"
               title="Fix spelling and grammar"
             >
               Grammar
-            </button>
+            </HouseButton>
           </div>
         )}
 
@@ -530,7 +531,7 @@ export default function SelectionActionMenu({
         {mode === 'idle' && (
           <div className="selection-menu-content">
             {/* Quote / Refer */}
-            <button
+            <HouseButton
               type="button"
               title={`Quote selection in chat (${MOD_LABEL}+K)`}
               onClick={handleRefer}
@@ -539,10 +540,10 @@ export default function SelectionActionMenu({
               <Quote size={13} strokeWidth={2.4} />
               <span>Quote</span>
               <kbd className="selection-menu-kbd">{MOD_LABEL}K</kbd>
-            </button>
+            </HouseButton>
 
             {/* Improve with AI - Direct 1-click execution */}
-            <button
+            <HouseButton
               type="button"
               title="Improve writing with AI"
               onClick={() => runAiAction('Improve')}
@@ -550,10 +551,10 @@ export default function SelectionActionMenu({
             >
               <Sparkles size={13} strokeWidth={2.2} style={{ color: 'var(--accent)' }} />
               <span>Improve</span>
-            </button>
+            </HouseButton>
 
             {/* Ask / Explain */}
-            <button
+            <HouseButton
               type="button"
               title="Ask AI to explain this selection"
               onClick={handleAsk}
@@ -561,10 +562,10 @@ export default function SelectionActionMenu({
             >
               <HelpCircle size={13} strokeWidth={2} />
               <span>Explain</span>
-            </button>
+            </HouseButton>
 
             {/* Custom Instruction Prompt */}
-            <button
+            <HouseButton
               type="button"
               title="Custom AI edit instruction"
               onClick={() => setMode('prompt')}
@@ -572,12 +573,12 @@ export default function SelectionActionMenu({
               aria-label="Custom edit instruction"
             >
               <Sliders size={13} strokeWidth={2} />
-            </button>
+            </HouseButton>
 
             <span className="selection-menu-divider" />
 
             {/* Copy button */}
-            <button
+            <HouseButton
               type="button"
               title="Copy to clipboard"
               onClick={handleCopy}
@@ -594,13 +595,13 @@ export default function SelectionActionMenu({
                   <span>Copy</span>
                 </>
               )}
-            </button>
+            </HouseButton>
 
             {/* Formatting Chips (if allowed) */}
             {(allowFormatting || isExternalRef.current) && (onFormat || externalFormatHandlerRef.current) && (
               <>
                 <span className="selection-menu-divider" />
-                <button
+                <HouseButton
                   type="button"
                   title="Bold"
                   onClick={() => {
@@ -613,8 +614,8 @@ export default function SelectionActionMenu({
                   className="selection-menu-btn selection-menu-btn--icon-only font-bold"
                 >
                   B
-                </button>
-                <button
+                </HouseButton>
+                <HouseButton
                   type="button"
                   title="Italic"
                   onClick={() => {
@@ -627,8 +628,8 @@ export default function SelectionActionMenu({
                   className="selection-menu-btn selection-menu-btn--icon-only italic"
                 >
                   I
-                </button>
-                <button
+                </HouseButton>
+                <HouseButton
                   type="button"
                   title="Inline code"
                   onClick={() => {
@@ -641,7 +642,7 @@ export default function SelectionActionMenu({
                   className="selection-menu-btn selection-menu-btn--icon-only"
                 >
                   <Code size={13} />
-                </button>
+                </HouseButton>
               </>
             )}
           </div>

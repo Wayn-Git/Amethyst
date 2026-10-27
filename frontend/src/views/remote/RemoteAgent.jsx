@@ -1,3 +1,4 @@
+import { Button as HouseButton, Textarea as HouseTextarea } from '../../components/ui/bento/index.jsx'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { AsciiSkeleton } from 'ascii-reveal'
@@ -110,22 +111,22 @@ export default function RemoteAgent() {
                 {item.reason || item.description || JSON.stringify(item.arguments || {})}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button
+                <HouseButton
                   type="button"
                   className="set-btn-sm"
                   onClick={() => decideConfirmation(item.id, false)}
                   style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.4)', padding: '4px 12px' }}
                 >
                   Deny
-                </button>
-                <button
+                </HouseButton>
+                <HouseButton
                   type="button"
                   className="pair-go"
                   onClick={() => decideConfirmation(item.id, true)}
                   style={{ padding: '4px 16px', fontSize: 12 }}
                 >
                   Allow Tool Call
-                </button>
+                </HouseButton>
               </div>
             </div>
           ))}
@@ -134,7 +135,7 @@ export default function RemoteAgent() {
 
       {/* 2. Conversations Bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, overflowX: 'auto', paddingBottom: 4 }}>
-        <button
+        <HouseButton
           type="button"
           className="set-btn-sm"
           onClick={startNewConversation}
@@ -142,9 +143,9 @@ export default function RemoteAgent() {
         >
           <Icon name="plus" size={14} />
           New Chat
-        </button>
+        </HouseButton>
         {conversations.map((conv) => (
-          <button
+          <HouseButton
             key={conv.id}
             type="button"
             className={`rc-tab${conv.id === activeId ? ' is-active' : ''}`}
@@ -161,7 +162,7 @@ export default function RemoteAgent() {
             }}
           >
             {conv.title || 'Untitled'}
-          </button>
+          </HouseButton>
         ))}
       </div>
 
@@ -226,14 +227,14 @@ export default function RemoteAgent() {
               <AsciiSkeleton variant="dither" width={12} height={12} circle />
               <span>{phase}…</span>
             </div>
-            <button
+            <HouseButton
               type="button"
               className="set-btn-sm"
               onClick={stopTurn}
               style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.4)', padding: '2px 8px', fontSize: 11 }}
             >
               Stop
-            </button>
+            </HouseButton>
           </div>
         )}
 
@@ -258,7 +259,7 @@ export default function RemoteAgent() {
 
       {/* 4. Composer */}
       <div style={{ display: 'flex', gap: 8 }}>
-        <textarea
+        <HouseTextarea
           rows={2}
           className="pair-input"
           placeholder="Instruct Amethyst agent on your PC…"
@@ -272,7 +273,7 @@ export default function RemoteAgent() {
           }}
           style={{ flex: 1, resize: 'none', fontSize: 13, padding: '8px 10px' }}
         />
-        <button
+        <HouseButton
           type="button"
           className="pair-go"
           onClick={sendMessage}
@@ -280,7 +281,7 @@ export default function RemoteAgent() {
           style={{ padding: '0 16px', display: 'grid', placeItems: 'center' }}
         >
           <Icon name="send" size={16} />
-        </button>
+        </HouseButton>
       </div>
     </div>
   )

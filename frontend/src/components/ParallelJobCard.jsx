@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useState, useEffect, useRef, Component } from 'react'
 import Icon from './Icon.jsx'
 import { AsciiSkeleton } from 'ascii-reveal'
@@ -74,7 +75,7 @@ function ParallelJobCard({ call, running }) {
 
   return (
     <div className={`parallel-job-card${running ? ' is-running' : ''}${isAllDone ? ' is-done' : ''}`}>
-      <button type="button" className="tool-card-head" onClick={() => setOpen(o => !o)} aria-expanded={open}>
+      <HouseButton type="button" className="tool-card-head" onClick={() => setOpen(o => !o)} aria-expanded={open}>
         <div className="parallel-icon-wrapper">
           <Icon name="term" size={14} />
           {running && <div className="parallel-pulse" />}
@@ -101,7 +102,7 @@ function ParallelJobCard({ call, running }) {
         )}
 
         <Icon name="chevron" size={13} style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 160ms ease' }} />
-      </button>
+      </HouseButton>
 
       <div className={`tool-body${open ? ' open' : ''}`}>
         <div>

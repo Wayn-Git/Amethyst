@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput, Select as HouseSelect } from '../../components/ui/bento/index.jsx'
 import { useMemo, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { useApp } from '../../store.jsx'
@@ -221,14 +222,14 @@ export default function UnitConverterTool() {
       {/* Category Tabs */}
       <div className="fc-cat-tabs mb-6">
         {Object.entries(UNIT_CATEGORIES).map(([catKey, catData]) => (
-          <button
+          <HouseButton
             key={catKey}
             type="button"
             className={`fc-cat-tab${category === catKey ? ' is-active' : ''}`}
             onClick={() => handleCategoryChange(catKey)}
           >
             {catData.label}
-          </button>
+          </HouseButton>
         ))}
       </div>
 
@@ -245,14 +246,14 @@ export default function UnitConverterTool() {
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">From</label>
               <div className="flex items-center gap-2">
-                <input
+                <HouseInput
                   type="number"
                   className="fc-input font-mono flex-1 text-base font-semibold"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   placeholder="Enter value…"
                 />
-                <select
+                <HouseSelect
                   className="fc-select w-44"
                   value={fromUnit}
                   onChange={(e) => setFromUnit(e.target.value)}
@@ -262,13 +263,13 @@ export default function UnitConverterTool() {
                       {u.name}
                     </option>
                   ))}
-                </select>
+                </HouseSelect>
               </div>
             </div>
 
             {/* Swap Button */}
             <div className="flex justify-center my-1">
-              <button
+              <HouseButton
                 type="button"
                 className="fc-btn fc-btn-secondary h-8 px-3 text-xs"
                 onClick={handleSwap}
@@ -276,20 +277,20 @@ export default function UnitConverterTool() {
               >
                 <Icon name="convert" size={14} />
                 <span>Swap</span>
-              </button>
+              </HouseButton>
             </div>
 
             {/* Output Row */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">To</label>
               <div className="flex items-center gap-2">
-                <input
+                <HouseInput
                   type="text"
                   readOnly
                   className="fc-input font-mono flex-1 text-base font-semibold bg-[var(--fc-surface-2)] text-[var(--fc-accent)]"
                   value={convertedValue !== '' ? convertedValue : '—'}
                 />
-                <select
+                <HouseSelect
                   className="fc-select w-44"
                   value={toUnit}
                   onChange={(e) => setToUnit(e.target.value)}
@@ -299,7 +300,7 @@ export default function UnitConverterTool() {
                       {u.name}
                     </option>
                   ))}
-                </select>
+                </HouseSelect>
               </div>
             </div>
 
@@ -313,7 +314,7 @@ export default function UnitConverterTool() {
               </span>
             </div>
 
-            <button
+            <HouseButton
               type="button"
               className="fc-btn fc-btn-secondary w-full"
               onClick={() => {
@@ -323,7 +324,7 @@ export default function UnitConverterTool() {
             >
               <Icon name="copy" size={14} />
               <span>Copy Converted Value</span>
-            </button>
+            </HouseButton>
           </div>
         </div>
 

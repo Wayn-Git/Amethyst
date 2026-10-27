@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from './ui/bento/index.jsx'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Icon from './Icon.jsx'
@@ -232,7 +233,7 @@ export default function PairingApprovalModal({ request, onResolved, onDismiss })
               Connect & Trust Device?
             </h2>
           </div>
-          <button
+          <HouseButton
             type="button"
             onClick={onDismiss}
             aria-label="Close"
@@ -259,7 +260,7 @@ export default function PairingApprovalModal({ request, onResolved, onDismiss })
             }}
           >
             <Icon name="x" size={16} />
-          </button>
+          </HouseButton>
         </div>
 
         <p style={{ margin: '0 0 16px', fontSize: 13, color: 'rgba(255, 255, 255, 0.65)', lineHeight: 1.5 }}>
@@ -349,7 +350,7 @@ export default function PairingApprovalModal({ request, onResolved, onDismiss })
                   userSelect: 'none',
                 }}
               >
-                <input
+                <HouseInput
                   type="checkbox"
                   checked={checked}
                   onChange={() => togglePermission(def.id)}
@@ -431,7 +432,7 @@ export default function PairingApprovalModal({ request, onResolved, onDismiss })
               <Icon name="alert-triangle" size={16} />
               <span>{error}</span>
             </div>
-            <button
+            <HouseButton
               type="button"
               onClick={onDismiss}
               style={{
@@ -447,7 +448,7 @@ export default function PairingApprovalModal({ request, onResolved, onDismiss })
               }}
             >
               Dismiss
-            </button>
+            </HouseButton>
           </div>
         )}
 
@@ -461,7 +462,7 @@ export default function PairingApprovalModal({ request, onResolved, onDismiss })
             borderTop: '1px solid rgba(255, 255, 255, 0.08)',
           }}
         >
-          <button
+          <HouseButton
             type="button"
             onClick={onDismiss}
             disabled={busy}
@@ -479,10 +480,10 @@ export default function PairingApprovalModal({ request, onResolved, onDismiss })
             onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255, 255, 255, 0.45)' }}
           >
             Cancel
-          </button>
+          </HouseButton>
 
           <div style={{ display: 'flex', gap: 10 }}>
-            <button
+            <HouseButton
               type="button"
               onClick={handleReject}
               disabled={busy}
@@ -505,9 +506,9 @@ export default function PairingApprovalModal({ request, onResolved, onDismiss })
               }}
             >
               Decline
-            </button>
+            </HouseButton>
 
-            <button
+            <HouseButton
               type="button"
               onClick={handleApprove}
               disabled={busy}
@@ -537,7 +538,7 @@ export default function PairingApprovalModal({ request, onResolved, onDismiss })
             >
               <Icon name="check" size={16} />
               {busy ? 'Securing…' : 'Approve & Trust Device'}
-            </button>
+            </HouseButton>
           </div>
         </div>
       </div>

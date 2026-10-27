@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { ThumbsUp, ThumbsDown } from 'lucide-react'
 import Icon from './Icon.jsx'
@@ -387,7 +388,7 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
       {!hideToolbar && (
         minimalToolbar ? (
         <div className="chat-assistant-toolbar chat-assistant-toolbar--minimal" role="toolbar" aria-label="Step actions">
-          <button
+          <HouseButton
             type="button"
             className="resp-action-btn resp-action-btn--subtle"
             title={copied ? 'Copied!' : 'Copy'}
@@ -395,12 +396,12 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
             onClick={handleCopyDocument}
           >
             <Icon name={copied ? 'check' : 'copy'} size={14} />
-          </button>
+          </HouseButton>
         </div>
       ) : (
         <div className="chat-assistant-toolbar" role="toolbar" aria-label="Response message actions">
           {/* Copy */}
-          <button
+          <HouseButton
             type="button"
             className="resp-action-btn"
             title={copied ? 'Copied!' : 'Copy'}
@@ -408,11 +409,11 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
             onClick={handleCopyDocument}
           >
             <Icon name={copied ? 'check' : 'copy'} size={15} />
-          </button>
+          </HouseButton>
 
           {/* Edit */}
           {onStartEdit && (
-            <button
+            <HouseButton
               type="button"
               className="resp-action-btn"
               title="Edit response"
@@ -420,12 +421,12 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
               onClick={onStartEdit}
             >
               <Icon name="edit" size={15} />
-            </button>
+            </HouseButton>
           )}
 
           {/* Regenerate */}
           {onRegenerate && (
-            <button
+            <HouseButton
               type="button"
               className="resp-action-btn"
               title="Regenerate"
@@ -433,11 +434,11 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
               onClick={onRegenerate}
             >
               <Icon name="refresh" size={15} />
-            </button>
+            </HouseButton>
           )}
 
           {/* Thumbs up */}
-          <button
+          <HouseButton
             type="button"
             className={`resp-action-btn${vote === 'up' ? ' is-active text-emerald-500' : ''}`}
             title="Good response"
@@ -445,10 +446,10 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
             onClick={() => setVote((v) => (v === 'up' ? null : 'up'))}
           >
             <ThumbsUp size={14} strokeWidth={vote === 'up' ? 2.4 : 1.8} />
-          </button>
+          </HouseButton>
 
           {/* Thumbs down */}
-          <button
+          <HouseButton
             type="button"
             className={`resp-action-btn${vote === 'down' ? ' is-active text-rose-500' : ''}`}
             title="Bad response"
@@ -456,11 +457,11 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
             onClick={() => setVote((v) => (v === 'down' ? null : 'down'))}
           >
             <ThumbsDown size={14} strokeWidth={vote === 'down' ? 2.4 : 1.8} />
-          </button>
+          </HouseButton>
 
           {/* Sources Toggle Button with avatar stack */}
           {hasSources && (
-            <button
+            <HouseButton
               type="button"
               className={`resp-sources-toggle-btn${sourcesOpen ? ' is-active' : ''}`}
               onClick={() => setSourcesOpen((o) => !o)}
@@ -479,13 +480,13 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
                 ))}
               </span>
               <span className="font-mono text-[11px]">{sources.length} {sources.length === 1 ? 'source' : 'sources'}</span>
-            </button>
+            </HouseButton>
           )}
 
           {/* Version History Pill & Undo/Redo */}
           {artifact?.versions?.length > 1 && (
             <div className="resp-version-group" ref={versionRef}>
-              <button
+              <HouseButton
                 type="button"
                 className={`resp-version-pill${versionMenuOpen ? ' is-active' : ''}`}
                 title={`Version ${artifact.version} (Click for history)`}
@@ -493,9 +494,9 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
               >
                 <span className="v-num">v{artifact.version}</span>
                 <span className="v-tag">Edited</span>
-              </button>
+              </HouseButton>
 
-              <button
+              <HouseButton
                 type="button"
                 className="resp-action-btn resp-action-btn--subtle"
                 title="Undo version"
@@ -506,9 +507,9 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
                 }}
               >
                 <Icon name="undo" size={13} />
-              </button>
+              </HouseButton>
 
-              <button
+              <HouseButton
                 type="button"
                 className="resp-action-btn resp-action-btn--subtle"
                 title="Redo version"
@@ -519,13 +520,13 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
                 }}
               >
                 <Icon name="redo" size={13} />
-              </button>
+              </HouseButton>
 
               {versionMenuOpen && (
                 <div className="artifact-version-popover">
                   <div className="version-popover-title">Version History</div>
                   {artifact.versions.map((ver) => (
-                    <button
+                    <HouseButton
                       key={ver.version}
                       type="button"
                       className={`version-popover-item${ver.version === artifact.version ? ' is-current' : ''}`}
@@ -541,7 +542,7 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
                       {ver.change_summary && (
                         <div className="v-summary-row">{ver.change_summary}</div>
                       )}
-                    </button>
+                    </HouseButton>
                   ))}
                 </div>
               )}
@@ -550,7 +551,7 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
 
           {/* Share & Export */}
           <div className="resp-menu-anchor" ref={exportRef}>
-            <button
+            <HouseButton
               type="button"
               className={`resp-action-btn${exportMenuOpen ? ' is-active' : ''}`}
               title="Share & Export"
@@ -558,33 +559,33 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
               onClick={() => { setExportMenuOpen((v) => !v); setMoreMenuOpen(false) }}
             >
               <Icon name="share" size={15} />
-            </button>
+            </HouseButton>
 
             {exportMenuOpen && (
               <div className="response-popover-dropdown export-dropdown">
-                <button type="button" onClick={() => handleExport('docx')}>
+                <HouseButton type="button" onClick={() => handleExport('docx')}>
                   <Icon name="page" size={14} />
                   <span>Word Document (.docx)</span>
-                </button>
-                <button type="button" onClick={() => handleExport('md')}>
+                </HouseButton>
+                <HouseButton type="button" onClick={() => handleExport('md')}>
                   <Icon name="code" size={14} />
                   <span>Markdown (.md)</span>
-                </button>
-                <button type="button" onClick={() => handleExport('html')}>
+                </HouseButton>
+                <HouseButton type="button" onClick={() => handleExport('html')}>
                   <Icon name="globe" size={14} />
                   <span>Standalone HTML (.html)</span>
-                </button>
-                <button type="button" onClick={() => handleExport('txt')}>
+                </HouseButton>
+                <HouseButton type="button" onClick={() => handleExport('txt')}>
                   <Icon name="type" size={14} />
                   <span>Plain Text (.txt)</span>
-                </button>
+                </HouseButton>
               </div>
             )}
           </div>
 
           {/* Fullscreen Workspace */}
           {onOpenFullScreen && (
-            <button
+            <HouseButton
               type="button"
               className="resp-action-btn"
               title="Fullscreen workspace"
@@ -592,12 +593,12 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
               onClick={onOpenFullScreen}
             >
               <Icon name="expand" size={15} />
-            </button>
+            </HouseButton>
           )}
 
           {/* More Menu (...) */}
           <div className="resp-menu-anchor" ref={moreRef}>
-            <button
+            <HouseButton
               type="button"
               className={`resp-action-btn${moreMenuOpen ? ' is-active' : ''}`}
               title="More actions"
@@ -605,7 +606,7 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
               onClick={() => { setMoreMenuOpen((v) => !v); setExportMenuOpen(false) }}
             >
               <Icon name="more" size={15} />
-            </button>
+            </HouseButton>
 
             {moreMenuOpen && (
               <div className="response-popover-dropdown more-dropdown">
@@ -613,13 +614,13 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
                   {getFormattedTime()}
                 </div>
 
-                <button type="button" onClick={handleReadAloud}>
+                <HouseButton type="button" onClick={handleReadAloud}>
                   <Icon name="speaker" size={14} />
                   <span>{speaking ? 'Stop reading' : 'Read aloud'}</span>
-                </button>
+                </HouseButton>
 
                 {onBranchInNewChat && (
-                  <button
+                  <HouseButton
                     type="button"
                     onClick={() => {
                       setMoreMenuOpen(false)
@@ -628,11 +629,11 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
                   >
                     <Icon name="branch" size={14} />
                     <span>Branch in new chat</span>
-                  </button>
+                  </HouseButton>
                 )}
 
                 {onPin && (
-                  <button
+                  <HouseButton
                     type="button"
                     onClick={() => {
                       setMoreMenuOpen(false)
@@ -641,11 +642,11 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
                   >
                     <Icon name="pin" size={14} />
                     <span>{item.pinned ? 'Unpin message' : 'Pin message'}</span>
-                  </button>
+                  </HouseButton>
                 )}
 
                 {onViewSources && hasSources && (
-                  <button
+                  <HouseButton
                     type="button"
                     onClick={() => {
                       setMoreMenuOpen(false)
@@ -654,7 +655,7 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
                   >
                     <Icon name="book" size={14} />
                     <span>Open in sources panel</span>
-                  </button>
+                  </HouseButton>
                 )}
               </div>
             )}
@@ -705,7 +706,7 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
           <p className="text-[12px] font-medium text-neutral-500 dark:text-neutral-400 mb-1">Follow-ups</p>
           <div className="flex flex-col gap-0.5">
             {followUps.map((promptText, i) => (
-              <button
+              <HouseButton
                 key={i}
                 type="button"
                 onClick={() => onFollowUp?.(promptText, i)}
@@ -726,7 +727,7 @@ function toggleMarkdownFormat(fullMarkdown, selectedText, formatType) {
                   <path d="M20 4v7a4 4 0 0 1-4 4H4" />
                 </svg>
                 <span className="truncate">{promptText}</span>
-              </button>
+              </HouseButton>
             ))}
           </div>
         </div>

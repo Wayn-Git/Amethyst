@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput, Select as HouseSelect } from '../../components/ui/bento/index.jsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { api, getBase } from '../../api.js'
@@ -178,13 +179,13 @@ export default function RemoteMedia() {
           }}
         >
           <span>{notice}</span>
-          <button
+          <HouseButton
             type="button"
             onClick={() => setNotice(null)}
             style={{ background: 'none', border: 'none', color: 'var(--text-sub)', cursor: 'pointer' }}
           >
             <Icon name="x" size={14} />
-          </button>
+          </HouseButton>
         </div>
       )}
 
@@ -202,7 +203,7 @@ export default function RemoteMedia() {
             <Icon name="music" size={18} />
             <strong style={{ fontSize: 14, color: 'var(--text)' }}>Master Volume</strong>
           </div>
-          <button
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={toggleMute}
@@ -216,11 +217,11 @@ export default function RemoteMedia() {
           >
             <Icon name={muted ? 'minus-circle' : 'dash'} size={14} />
             {muted ? 'Muted' : 'Mute'}
-          </button>
+          </HouseButton>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <input
+          <HouseInput
             type="range"
             min="0"
             max="100"
@@ -239,7 +240,7 @@ export default function RemoteMedia() {
             <label style={{ display: 'block', fontSize: 11, color: 'var(--text-sub)', marginBottom: 6 }}>
               Output Device (Audio Sink):
             </label>
-            <select
+            <HouseSelect
               value={currentSink}
               onChange={handleSinkChange}
               style={{
@@ -257,7 +258,7 @@ export default function RemoteMedia() {
                   {s.description || s.name}
                 </option>
               ))}
-            </select>
+            </HouseSelect>
           </div>
         )}
       </div>
@@ -295,7 +296,7 @@ export default function RemoteMedia() {
 
         {/* Controls */}
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 14 }}>
-          <button
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={() => handleAction('previous')}
@@ -303,8 +304,8 @@ export default function RemoteMedia() {
             title="Previous"
           >
             ⏮
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="pair-go"
             onClick={() => handleAction('play-pause')}
@@ -312,8 +313,8 @@ export default function RemoteMedia() {
             title="Play / Pause"
           >
             {media?.status === 'Playing' ? '⏸' : '▶'}
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={() => handleAction('next')}
@@ -321,8 +322,8 @@ export default function RemoteMedia() {
             title="Next"
           >
             ⏭
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={() => handleAction('stop')}
@@ -330,7 +331,7 @@ export default function RemoteMedia() {
             title="Stop"
           >
             ⏹
-          </button>
+          </HouseButton>
         </div>
       </div>
 
@@ -381,7 +382,7 @@ export default function RemoteMedia() {
           </div>
         )}
 
-        <button
+        <HouseButton
           type="button"
           onMouseDown={startTalking}
           onMouseUp={stopTalking}
@@ -411,7 +412,7 @@ export default function RemoteMedia() {
           }}
         >
           <Icon name="microphone" size={32} />
-        </button>
+        </HouseButton>
 
         <span style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 10 }}>
           {isTalking ? 'Release to stop talking' : 'Hold to speak'}

@@ -1,3 +1,4 @@
+import { Input as HouseInput, Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import { useMemo, useState } from 'react'
 import { HexColorPicker } from 'react-colorful'
 import Icon from '../../components/Icon.jsx'
@@ -131,7 +132,7 @@ export default function ColorConverterTool() {
                   <label className="text-[11px] font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider block">
                     HEX Code
                   </label>
-                  <input
+                  <HouseInput
                     type="text"
                     className="fc-input font-mono font-bold mt-1 text-sm uppercase"
                     value={hexInput}
@@ -175,14 +176,14 @@ export default function ColorConverterTool() {
               >
                 <span className="text-xs font-mono font-bold text-[var(--fc-text-dim)] w-12">{f.label}</span>
                 <span className="font-mono text-[var(--fc-text)] font-medium flex-1 text-xs">{f.val}</span>
-                <button
+                <HouseButton
                   type="button"
                   className="fc-btn fc-btn-secondary text-xs h-7 py-0 px-2.5"
                   onClick={() => copyVal(f.val, f.label)}
                 >
                   <Icon name="copy" size={12} />
                   <span>Copy</span>
-                </button>
+                </HouseButton>
               </div>
             ))}
           </div>

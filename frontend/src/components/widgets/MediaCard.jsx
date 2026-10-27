@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../ui/bento/index.jsx'
 import { useState } from 'react'
 import Icon from '../Icon.jsx'
 
@@ -42,13 +43,13 @@ function YouTube({ item }) {
           />
         </div>
       ) : (
-        <button type="button" className="media-poster" onClick={() => setPlaying(true)}>
+        <HouseButton type="button" className="media-poster" onClick={() => setPlaying(true)}>
           {item.thumbnail
             ? <img src={item.thumbnail} alt="" loading="lazy" />
             : <span className="media-poster-blank" />}
           <span className="media-play"><Icon name="play" size={18} /></span>
           {item.duration && <span className="media-duration">{item.duration}</span>}
-        </button>
+        </HouseButton>
       )}
       <figcaption>
         <a href={item.url} target="_blank" rel="noopener noreferrer">{item.title}</a>
@@ -61,9 +62,9 @@ function YouTube({ item }) {
 function Image({ item, onOpen }) {
   return (
     <figure className="media-card media-image">
-      <button type="button" className="media-thumb" onClick={() => onOpen(item)} title="Enlarge">
+      <HouseButton type="button" className="media-thumb" onClick={() => onOpen(item)} title="Enlarge">
         <img src={item.thumbnail || item.direct} alt={item.title} loading="lazy" />
-      </button>
+      </HouseButton>
       <figcaption>
         <a href={item.url} target="_blank" rel="noopener noreferrer">{item.title}</a>
         <Attribution item={item} />

@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../components/ui/bento/index.jsx'
 /* The whole app, on a device that is not the machine.
  *
  * `Remote` renders inside the workbench on a desktop -- one page among the
@@ -63,9 +64,9 @@ export default function RemoteOnly({ onDesktop }) {
               This device was removed from your computer. Anything it had queued was
               cancelled there, and nothing new will arrive until you pair it again.
             </p>
-            <button type="button" className="pair-go" onClick={startOver}>
+            <HouseButton type="button" className="pair-go" onClick={startOver}>
               Pair again
-            </button>
+            </HouseButton>
           </div>
         </div>
       </div>

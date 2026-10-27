@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../../components/ui/bento/index.jsx'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Download, Check, Loader2 } from 'lucide-react'
@@ -192,25 +193,25 @@ export default function PluginFeaturedCarousel({
               {/* Right Column: Install / Manage Button */}
               <div className="plugin-carousel-actions">
                 {isBusy ? (
-                  <button
+                  <HouseButton
                     type="button"
                     className="plugin-carousel-cta-btn is-busy"
                     disabled
                   >
                     <Loader2 size={15} className="animate-spin" />
                     <span>Connecting…</span>
-                  </button>
+                  </HouseButton>
                 ) : isConnected ? (
-                  <button
+                  <HouseButton
                     type="button"
                     className="plugin-carousel-cta-btn is-connected"
                     onClick={() => onOpenDetail?.(activeSlide.card)}
                   >
                     <Check size={14} />
                     <span>Connected</span>
-                  </button>
+                  </HouseButton>
                 ) : (
-                  <button
+                  <HouseButton
                     type="button"
                     className="plugin-carousel-cta-btn is-install"
                     onClick={() => onConnect?.(activeSlide.effectiveSlug)}
@@ -218,7 +219,7 @@ export default function PluginFeaturedCarousel({
                   >
                     <Download size={14} />
                     <span>Install</span>
-                  </button>
+                  </HouseButton>
                 )}
               </div>
             </motion.div>
@@ -229,7 +230,7 @@ export default function PluginFeaturedCarousel({
             {slides.map((s, idx) => {
               const isActive = idx === currentIndex
               return (
-                <button
+                <HouseButton
                   key={s.slug}
                   type="button"
                   role="tab"

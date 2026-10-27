@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput, Textarea as HouseTextarea } from '../../components/ui/bento/index.jsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import Skeleton from '../../components/Skeleton.jsx'
@@ -118,13 +119,13 @@ export default function RemoteFiles() {
           }}
         >
           <span>{notice}</span>
-          <button
+          <HouseButton
             type="button"
             onClick={() => setNotice(null)}
             style={{ background: 'none', border: 'none', color: 'var(--text-sub)', cursor: 'pointer' }}
           >
             <Icon name="x" size={14} />
-          </button>
+          </HouseButton>
         </div>
       )}
 
@@ -145,14 +146,14 @@ export default function RemoteFiles() {
             </div>
           </div>
           <div>
-            <input
+            <HouseInput
               type="file"
               ref={fileInputRef}
               onChange={handleUpload}
               style={{ display: 'none' }}
               disabled={uploading}
             />
-            <button
+            <HouseButton
               type="button"
               className="pair-go"
               onClick={() => fileInputRef.current?.click()}
@@ -161,7 +162,7 @@ export default function RemoteFiles() {
             >
               <Icon name="plus" size={14} />
               {uploading ? 'Uploading…' : 'Send File to PC'}
-            </button>
+            </HouseButton>
           </div>
         </div>
 
@@ -238,14 +239,14 @@ export default function RemoteFiles() {
                   >
                     <Icon name="download" size={14} />
                   </a>
-                  <button
+                  <HouseButton
                     type="button"
                     className="set-btn-sm"
                     onClick={() => handleDelete(file.name)}
                     style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.4)', padding: '6px 10px' }}
                   >
                     <Icon name="trash" size={14} />
-                  </button>
+                  </HouseButton>
                 </div>
               </div>
             ))}
@@ -267,7 +268,7 @@ export default function RemoteFiles() {
             <Icon name="copy" size={16} />
             <strong style={{ fontSize: 14, color: 'var(--text)' }}>PC Clipboard Sync</strong>
           </div>
-          <button
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={pullClipboard}
@@ -276,10 +277,10 @@ export default function RemoteFiles() {
           >
             <Icon name="refresh" size={12} />
             {clipboardLoading ? 'Reading…' : 'Pull from PC'}
-          </button>
+          </HouseButton>
         </div>
 
-        <textarea
+        <HouseTextarea
           rows={3}
           className="pair-input"
           value={clipboardText}
@@ -289,15 +290,15 @@ export default function RemoteFiles() {
         />
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={copyToPhone}
             disabled={!clipboardText}
           >
             Copy to Phone
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="pair-go"
             onClick={pushClipboard}
@@ -305,7 +306,7 @@ export default function RemoteFiles() {
             style={{ padding: '6px 14px', fontSize: 12 }}
           >
             Push to PC Clipboard
-          </button>
+          </HouseButton>
         </div>
       </div>
     </div>

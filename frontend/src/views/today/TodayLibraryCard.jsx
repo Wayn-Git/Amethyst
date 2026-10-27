@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import { useState, useEffect, useMemo } from 'react'
 import Icon from '../../components/Icon.jsx'
 import Skeleton from '../../components/Skeleton.jsx'
@@ -73,14 +74,14 @@ export default function TodayLibraryCard({ setView, todayItems = null }) {
         </div>
 
         <div className="today-card-actions">
-          <button
+          <HouseButton
             type="button"
             className="btn btn--small btn--ghost"
             style={{ borderRadius: 9999, padding: '4px 10px', fontSize: 12 }}
             onClick={() => setView?.('library')}
           >
             Library <Icon name="arrow-up-right" size={12} />
-          </button>
+          </HouseButton>
         </div>
       </div>
 
@@ -107,13 +108,13 @@ export default function TodayLibraryCard({ setView, todayItems = null }) {
             <div className="today-empty-desc">
               Bookmarks and reading saved today will appear here and reset each new day.
             </div>
-            <button
+            <HouseButton
               type="button"
               className="btn btn--small btn--ghost"
               onClick={() => setView?.('library')}
             >
               Browse library
-            </button>
+            </HouseButton>
           </div>
         ) : (
           <div className="today-library-list">

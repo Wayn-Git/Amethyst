@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../ui/bento/index.jsx'
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import Icon from '../Icon.jsx'
@@ -53,7 +54,7 @@ export function Lightbox({ images, initialIndex, onClose }) {
     >
       {/* Top Bar */}
       <div className="chatgpt-lightbox-topbar" onClick={(e) => e.stopPropagation()}>
-        <button
+        <HouseButton
           type="button"
           className="chatgpt-lightbox-btn"
           onClick={onClose}
@@ -61,13 +62,13 @@ export function Lightbox({ images, initialIndex, onClose }) {
           title="Close (Esc)"
         >
           <Icon name="x" size={20} />
-        </button>
+        </HouseButton>
 
         <span className="chatgpt-lightbox-counter">
           {index + 1} / {images.length}
         </span>
 
-        <button
+        <HouseButton
           type="button"
           className={`chatgpt-lightbox-btn${isFav ? ' is-favorited' : ''}`}
           onClick={toggleFavorite}
@@ -75,20 +76,20 @@ export function Lightbox({ images, initialIndex, onClose }) {
           title={isFav ? 'Remove from Favorites' : 'Add to Favorites'}
         >
           <Icon name="bookmark" size={20} />
-        </button>
+        </HouseButton>
       </div>
 
       {/* Main Stage */}
       <div className="chatgpt-lightbox-stage" onClick={(e) => e.stopPropagation()}>
         {images.length > 1 && (
-          <button
+          <HouseButton
             type="button"
             className="chatgpt-lightbox-nav is-prev"
             onClick={() => setIndex((i) => (i > 0 ? i - 1 : images.length - 1))}
             aria-label="Previous image"
           >
             <Icon name="back" size={22} />
-          </button>
+          </HouseButton>
         )}
 
         <div className="chatgpt-lightbox-main-wrapper">
@@ -100,14 +101,14 @@ export function Lightbox({ images, initialIndex, onClose }) {
         </div>
 
         {images.length > 1 && (
-          <button
+          <HouseButton
             type="button"
             className="chatgpt-lightbox-nav is-next"
             onClick={() => setIndex((i) => (i < images.length - 1 ? i + 1 : 0))}
             aria-label="Next image"
           >
             <Icon name="caret-right" size={22} />
-          </button>
+          </HouseButton>
         )}
 
         {/* Peek of next image on the right edge */}
@@ -179,7 +180,7 @@ export function ImageCard({ item, index, total, onOpen, onToggleFav, isFav }) {
       )}
 
       {/* Card Bookmark / Favorite Hover Button */}
-      <button
+      <HouseButton
         type="button"
         className={`chatgpt-card-favorite${isFav ? ' is-saved' : ''}`}
         onClick={(e) => {
@@ -190,7 +191,7 @@ export function ImageCard({ item, index, total, onOpen, onToggleFav, isFav }) {
         title={isFav ? 'Remove from Favorites' : 'Add to Favorites'}
       >
         <Icon name="bookmark" size={15} />
-      </button>
+      </HouseButton>
 
       {/* Count Badge on the 3rd card when more images exist */}
       {isLastSlot && (

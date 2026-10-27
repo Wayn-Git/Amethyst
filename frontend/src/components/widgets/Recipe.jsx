@@ -1,3 +1,4 @@
+import { Input as HouseInput } from '../ui/bento/index.jsx'
 import { useState } from 'react'
 import StepGuide from './StepGuide.jsx'
 
@@ -25,7 +26,7 @@ export default function Recipe({ data }) {
         <span>Servings</span>
         {/* Native range input: a slider is a solved problem and a dependency
             for one would be a bad trade. */}
-        <input
+        <HouseInput
           type="range"
           min="1"
           max={Math.max(12, base * 2)}

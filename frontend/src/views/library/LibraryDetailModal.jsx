@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput, Textarea as HouseTextarea } from '../../components/ui/bento/index.jsx'
 import { useRef, useState, useEffect, useMemo, useCallback } from 'react'
 import { AsciiSkeleton } from 'ascii-reveal'
 import Icon from '../../components/Icon.jsx'
@@ -1380,16 +1381,16 @@ export default function LibraryDetailModal({
               </a>
             )}
 
-            <button
+            <HouseButton
               type="button"
               className="lib-page-icon-btn"
               onClick={handleCopyLink}
               title="Copy URL"
             >
               <Icon name={copiedLink ? 'check' : 'copy'} size={15} />
-            </button>
+            </HouseButton>
 
-            <button
+            <HouseButton
               type="button"
               className={`lib-header-theater-btn ${isSidebarCollapsed ? 'lib-header-theater-btn--active' : ''}`}
               onClick={() => setIsSidebarCollapsed((prev) => !prev)}
@@ -1398,7 +1399,7 @@ export default function LibraryDetailModal({
             >
               <Icon name={isSidebarCollapsed ? 'collapse' : 'theater'} size={14} />
               <span>{isSidebarCollapsed ? 'Exit Theater' : 'Theater Mode'}</span>
-            </button>
+            </HouseButton>
 
             <CloseButton
               size="sm"
@@ -1430,7 +1431,7 @@ export default function LibraryDetailModal({
           >
             {hasMultipleMediaModes && (
               <div className="lib-media-segment" role="tablist" aria-label="Media view">
-                <button
+                <HouseButton
                   type="button"
                   role="tab"
                   aria-selected={isVideoMode}
@@ -1439,8 +1440,8 @@ export default function LibraryDetailModal({
                 >
                   <Icon name="play" size={12} />
                   <span>Video</span>
-                </button>
-                <button
+                </HouseButton>
+                <HouseButton
                   type="button"
                   role="tab"
                   aria-selected={!isVideoMode}
@@ -1452,7 +1453,7 @@ export default function LibraryDetailModal({
                 >
                   <Icon name="image" size={12} />
                   <span>Diagrams & Slides ({slideItems.length})</span>
-                </button>
+                </HouseButton>
               </div>
             )}
 
@@ -1522,7 +1523,7 @@ export default function LibraryDetailModal({
                 {/* Minimal bottom-docked slide navigation bar */}
                 {slideItems.length > 1 && (
                   <div className="lib-slide-nav-bar">
-                    <button
+                    <HouseButton
                       type="button"
                       className="lib-slide-nav-btn"
                       onClick={(e) => {
@@ -1534,11 +1535,11 @@ export default function LibraryDetailModal({
                       aria-label="Previous slide"
                     >
                       <Icon name="chevron-left" size={14} />
-                    </button>
+                    </HouseButton>
                     <span className="lib-slide-nav-counter">
                       {currentSlideIndex + 1} / {slideItems.length}
                     </span>
-                    <button
+                    <HouseButton
                       type="button"
                       className="lib-slide-nav-btn"
                       onClick={(e) => {
@@ -1550,7 +1551,7 @@ export default function LibraryDetailModal({
                       aria-label="Next slide"
                     >
                       <Icon name="chevron-right" size={14} />
-                    </button>
+                    </HouseButton>
                   </div>
                 )}
               </div>
@@ -1654,13 +1655,13 @@ export default function LibraryDetailModal({
                         {cleanCaption || item.excerpt}
                       </p>
                       {(cleanCaption || item.excerpt).length > 90 && (
-                        <button
+                        <HouseButton
                           type="button"
                           className="lib-creator-caption-toggle"
                           onClick={() => setIsCaptionExpanded((v) => !v)}
                         >
                           <span>{isCaptionExpanded ? 'Show less ⌃' : 'Show more ⌄'}</span>
-                        </button>
+                        </HouseButton>
                       )}
                     </div>
                   </>
@@ -1703,16 +1704,16 @@ export default function LibraryDetailModal({
                       </a>
                     ))}
                     {item.url && (
-                      <button
+                      <HouseButton
                         type="button"
                         className="lib-page-cta-pill lib-page-cta-pill--secondary"
                         onClick={handleCopyLink}
                       >
                         <Icon name={copiedLink ? 'check' : 'copy'} size={15} />
                         <span>{copiedLink ? 'Copied' : 'Copy link'}</span>
-                      </button>
+                      </HouseButton>
                     )}
-                    <button
+                    <HouseButton
                       type="button"
                       className="lib-page-cta-pill lib-page-cta-pill--secondary"
                       onClick={() => setIsSidebarCollapsed(false)}
@@ -1720,7 +1721,7 @@ export default function LibraryDetailModal({
                     >
                       <Icon name="collapse" size={14} />
                       <span>Exit Theater</span>
-                    </button>
+                    </HouseButton>
                   </div>
                 </div>
               </div>
@@ -1823,17 +1824,17 @@ export default function LibraryDetailModal({
                 ))}
 
                 {item.url && (
-                  <button
+                  <HouseButton
                     type="button"
                     className="lib-page-cta-pill lib-page-cta-pill--secondary"
                     onClick={handleCopyLink}
                   >
                     <Icon name={copiedLink ? 'check' : 'copy'} size={15} />
                     <span>{copiedLink ? 'Copied' : 'Copy link'}</span>
-                  </button>
+                  </HouseButton>
                 )}
 
-                <button
+                <HouseButton
                   type="button"
                   className="lib-page-cta-pill lib-page-cta-pill--secondary"
                   onClick={() => handleEnrich()}
@@ -1845,12 +1846,12 @@ export default function LibraryDetailModal({
                     className={isEnriching ? 'animate-spin' : ''}
                   />
                   <span>{isEnriching ? 'Synthesizing...' : (summaryText ? 'Re-analyze' : 'Synthesize')}</span>
-                </button>
+                </HouseButton>
               </div>
 
               {/* Studio Segmented Navigation Tabs */}
               <div className="lib-studio-tabs" role="tablist" aria-label="Studio sections">
-                <button
+                <HouseButton
                   type="button"
                   role="tab"
                   aria-selected={activeTab === 'overview'}
@@ -1859,8 +1860,8 @@ export default function LibraryDetailModal({
                 >
                   <Icon name="spark" size={14} />
                   <span>Overview & AI</span>
-                </button>
-                <button
+                </HouseButton>
+                <HouseButton
                   type="button"
                   role="tab"
                   aria-selected={activeTab === 'content'}
@@ -1872,8 +1873,8 @@ export default function LibraryDetailModal({
                   {contentCount > 0 && (
                     <span className="lib-studio-tab-badge">{contentCount}</span>
                   )}
-                </button>
-                <button
+                </HouseButton>
+                <HouseButton
                   type="button"
                   role="tab"
                   aria-selected={activeTab === 'notes'}
@@ -1885,7 +1886,7 @@ export default function LibraryDetailModal({
                   {notesCount > 0 && (
                     <span className="lib-studio-tab-badge">{notesCount}</span>
                   )}
-                </button>
+                </HouseButton>
               </div>
 
               {/* TAB CONTENT PANES WITH FLUID MOTION TRANSITION */}
@@ -1950,7 +1951,7 @@ export default function LibraryDetailModal({
                     )}
 
                     {rating && (
-                      <button
+                      <HouseButton
                         type="button"
                         className="lib-page-clear-rating-btn"
                         onClick={() => handleRating(rating)}
@@ -1958,7 +1959,7 @@ export default function LibraryDetailModal({
                       >
                         <Icon name="x" size={10} />
                         <span>Clear</span>
-                      </button>
+                      </HouseButton>
                     )}
                   </div>
 
@@ -1993,7 +1994,7 @@ export default function LibraryDetailModal({
 
                         <div className="lib-synthesis-actions">
                           <div className="lib-synthesis-model-picker" ref={modelPickerRef}>
-                            <button
+                            <HouseButton
                               type="button"
                               className="lib-model-select-btn"
                               onClick={() => setShowModelMenu((v) => !v)}
@@ -2008,7 +2009,7 @@ export default function LibraryDetailModal({
                                 {formatModelDisplayName(selectedEnrichModel || 'llama-3.3-70b-versatile')}
                               </span>
                               <Icon name="chevron-down" size={11} />
-                            </button>
+                            </HouseButton>
 
                             {showModelMenu && (
                               <div className="lib-model-menu-popover">
@@ -2056,14 +2057,14 @@ export default function LibraryDetailModal({
 
                       {(canExpandSummary || isLongSummary) && (
                         <div className="lib-synthesis-expand-wrap">
-                          <button
+                          <HouseButton
                             type="button"
                             className="lib-synthesis-expand-btn"
                             onClick={() => setIsSummaryExpanded((v) => !v)}
                           >
                             <span>{isSummaryExpanded ? 'Show less' : 'Show full summary'}</span>
                             <Icon name={isSummaryExpanded ? 'caret-up' : 'caret-down'} size={12} />
-                          </button>
+                          </HouseButton>
                         </div>
                       )}
                     </div>
@@ -2079,7 +2080,7 @@ export default function LibraryDetailModal({
 
                         <div className="lib-synthesis-actions">
                           <div className="lib-synthesis-model-picker" ref={modelPickerRef}>
-                            <button
+                            <HouseButton
                               type="button"
                               className="lib-model-select-btn"
                               onClick={() => setShowModelMenu((v) => !v)}
@@ -2094,7 +2095,7 @@ export default function LibraryDetailModal({
                                 {formatModelDisplayName(selectedEnrichModel || 'llama-3.3-70b-versatile')}
                               </span>
                               <Icon name="chevron-down" size={10} />
-                            </button>
+                            </HouseButton>
 
                             {showModelMenu && (
                               <div className="lib-model-menu-popover">
@@ -2130,7 +2131,7 @@ export default function LibraryDetailModal({
                         )}
 
                         <div className="lib-synthesis-pending-actions">
-                          <button
+                          <HouseButton
                             type="button"
                             className="lib-btn lib-btn--primary"
                             disabled={Boolean(busyAction) || item.status === 'enriching'}
@@ -2142,7 +2143,7 @@ export default function LibraryDetailModal({
                               className={isEnriching ? 'animate-spin' : ''}
                             />
                             <span>{isEnriching ? 'Synthesizing...' : 'Synthesize with AI'}</span>
-                          </button>
+                          </HouseButton>
 
                           {item.enrichment_note && (
                             <span className="lib-detail-pending-note" title={item.enrichment_note}>
@@ -2212,7 +2213,7 @@ export default function LibraryDetailModal({
                                   </a>
                                 )}
 
-                                <button
+                                <HouseButton
                                   type="button"
                                   className={`lib-song-btn ${isSaved ? 'lib-song-btn--saved' : 'lib-song-btn--primary'}`}
                                   disabled={isSaved || isSaving}
@@ -2231,9 +2232,9 @@ export default function LibraryDetailModal({
                                       ? 'Saving...'
                                       : 'Add to Song List'}
                                   </span>
-                                </button>
+                                </HouseButton>
 
-                                <button
+                                <HouseButton
                                   type="button"
                                   className="lib-song-btn"
                                   onClick={() => handleExportSongToPlaylist(track)}
@@ -2241,7 +2242,7 @@ export default function LibraryDetailModal({
                                 >
                                   <Icon name="list-plus" size={11} />
                                   <span>Export Playlist</span>
-                                </button>
+                                </HouseButton>
                               </div>
                             </div>
                           )
@@ -2355,7 +2356,7 @@ export default function LibraryDetailModal({
                       <p className="lib-content-empty-desc">
                         Synthesize this item with AI to automatically run Whisper speech-to-text on the audio track and Vision AI OCR frame analysis.
                       </p>
-                      <button
+                      <HouseButton
                         type="button"
                         className="lib-btn lib-btn--primary"
                         disabled={Boolean(busyAction) || item.status === 'enriching'}
@@ -2363,7 +2364,7 @@ export default function LibraryDetailModal({
                       >
                         <Icon name="spark" size={13} />
                         <span>Extract Transcripts & Visual Content</span>
-                      </button>
+                      </HouseButton>
                     </div>
                   ) : (
                     <>
@@ -2381,7 +2382,7 @@ export default function LibraryDetailModal({
                             <div className="flex items-center gap-2">
                               <div className="lib-transcript-search-wrap">
                                 <Icon name="magnifying-glass" size={12} className="lib-transcript-search-icon" />
-                                <input
+                                <HouseInput
                                   type="text"
                                   placeholder="Filter text..."
                                   className="lib-transcript-search-input"
@@ -2389,14 +2390,14 @@ export default function LibraryDetailModal({
                                   onChange={(e) => setTranscriptFilterQuery(e.target.value)}
                                 />
                                 {transcriptFilterQuery && (
-                                  <button
+                                  <HouseButton
                                     type="button"
                                     className="lib-transcript-search-clear"
                                     onClick={() => setTranscriptFilterQuery('')}
                                     title="Clear search"
                                   >
                                     <Icon name="x" size={10} />
-                                  </button>
+                                  </HouseButton>
                                 )}
                               </div>
                               <motion.button
@@ -2445,7 +2446,7 @@ export default function LibraryDetailModal({
                               {!transcript && (
                                 <div className="lib-transcript-search-wrap">
                                   <Icon name="magnifying-glass" size={12} className="lib-transcript-search-icon" />
-                                  <input
+                                  <HouseInput
                                     type="text"
                                     placeholder="Filter text..."
                                     className="lib-transcript-search-input"
@@ -2453,14 +2454,14 @@ export default function LibraryDetailModal({
                                     onChange={(e) => setTranscriptFilterQuery(e.target.value)}
                                   />
                                   {transcriptFilterQuery && (
-                                    <button
+                                    <HouseButton
                                       type="button"
                                       className="lib-transcript-search-clear"
                                       onClick={() => setTranscriptFilterQuery('')}
                                       title="Clear search"
                                     >
                                       <Icon name="x" size={10} />
-                                    </button>
+                                    </HouseButton>
                                   )}
                                 </div>
                               )}
@@ -2565,7 +2566,7 @@ export default function LibraryDetailModal({
                         <span>Personal notes and synthesis</span>
                       </label>
                       {notes !== (item.notes || '') && (
-                        <button
+                        <HouseButton
                           type="button"
                           className="lib-btn lib-btn--primary lib-page-save-notes-btn"
                           disabled={savingNotes}
@@ -2573,10 +2574,10 @@ export default function LibraryDetailModal({
                         >
                           <Icon name="check" size={12} />
                           <span>{savingNotes ? 'Saving...' : 'Save notes'}</span>
-                        </button>
+                        </HouseButton>
                       )}
                     </div>
-                    <textarea
+                    <HouseTextarea
                       id="lib-page-notes"
                       className="lib-page-notes-input"
                       placeholder="Record your personal notes, takeaways, code snippets, or key quotes..."
@@ -2597,7 +2598,7 @@ export default function LibraryDetailModal({
                       {filteredTags.map((tag) => (
                         <span key={tag} className="lib-page-tag-pill">
                           <span>#{tag}</span>
-                          <button
+                          <HouseButton
                             type="button"
                             className="lib-page-tag-remove"
                             onClick={() => handleRemoveTag(tag)}
@@ -2605,13 +2606,13 @@ export default function LibraryDetailModal({
                             aria-label={`Remove #${tag}`}
                           >
                             <Icon name="x" size={9} />
-                          </button>
+                          </HouseButton>
                         </span>
                       ))}
 
                       {isAddingTag ? (
                         <form onSubmit={handleAddTag} className="lib-page-tag-form">
-                          <input
+                          <HouseInput
                             type="text"
                             autoFocus
                             placeholder="New tag..."
@@ -2624,14 +2625,14 @@ export default function LibraryDetailModal({
                           />
                         </form>
                       ) : (
-                        <button
+                        <HouseButton
                           type="button"
                           className="lib-page-tag-pill lib-page-tag-pill--add"
                           onClick={() => setIsAddingTag(true)}
                         >
                           <Icon name="plus" size={11} />
                           <span>Add tag</span>
-                        </button>
+                        </HouseButton>
                       )}
                     </div>
                   </div>
@@ -2775,7 +2776,7 @@ export default function LibraryDetailModal({
 
               {carouselItems.length > 1 && (
                 <>
-                  <button
+                  <HouseButton
                     type="button"
                     className="lib-lightbox-nav lib-lightbox-nav--prev"
                     onClick={(e) => {
@@ -2788,8 +2789,8 @@ export default function LibraryDetailModal({
                     aria-label="Previous slide"
                   >
                     <Icon name="chevron-left" size={20} />
-                  </button>
-                  <button
+                  </HouseButton>
+                  <HouseButton
                     type="button"
                     className="lib-lightbox-nav lib-lightbox-nav--next"
                     onClick={(e) => {
@@ -2802,21 +2803,21 @@ export default function LibraryDetailModal({
                     aria-label="Next slide"
                   >
                     <Icon name="chevron-right" size={20} />
-                  </button>
+                  </HouseButton>
                   <div className="lib-lightbox-slide-pill">
                     {currentSlideIndex + 1} / {carouselItems.length}
                   </div>
                 </>
               )}
 
-              <button
+              <HouseButton
                 type="button"
                 className="lib-lightbox-close"
                 onClick={() => setShowLightbox(false)}
                 title="Close full view (Esc)"
               >
                 <Icon name="x" size={16} />
-              </button>
+              </HouseButton>
             </motion.div>
           </div>
         )}

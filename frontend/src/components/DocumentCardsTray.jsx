@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import Icon from './Icon.jsx'
 import { AsciiSkeleton } from 'ascii-reveal'
 
@@ -107,7 +108,7 @@ export default function DocumentCardsTray({ attachments = [], uploadingCount = 0
           return (
             <div className="doc-card" key={file.path || file.name}>
               {/* Floating remove button at top right */}
-              <button
+              <HouseButton
                 type="button"
                 className="doc-card-remove-btn"
                 onClick={() => onRemove(file)}
@@ -115,7 +116,7 @@ export default function DocumentCardsTray({ attachments = [], uploadingCount = 0
                 aria-label={`Remove ${file.name}`}
               >
                 <Icon name="x" size={10} />
-              </button>
+              </HouseButton>
 
               <div className="doc-card-preview">
                 {isCsv ? (

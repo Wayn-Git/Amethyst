@@ -1,3 +1,4 @@
+import { Input as HouseInput, Button as HouseButton } from './ui/bento/index.jsx'
 import { useState } from 'react'
 import {
   DropdownMenu,
@@ -82,7 +83,7 @@ export default function UserMenu({ children, align = 'start', side = 'bottom', s
           <div className="sb-user-name-editor" onClick={(e) => e.stopPropagation()}>
             <div className="sb-user-editor-label">Display Name</div>
             <div className="sb-user-editor-row" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              <input
+              <HouseInput
                 type="text"
                 className="user-menu-name-input"
                 style={{
@@ -103,7 +104,7 @@ export default function UserMenu({ children, align = 'start', side = 'bottom', s
                 autoFocus
                 placeholder="Enter username"
               />
-              <button
+              <HouseButton
                 type="button"
                 className="btn btn--primary btn--small"
                 onClick={handleSaveName}
@@ -111,8 +112,8 @@ export default function UserMenu({ children, align = 'start', side = 'bottom', s
                 style={{ padding: '4px 10px', fontSize: '11px', borderRadius: '5px' }}
               >
                 Save
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 className="sb-icon-btn"
                 onClick={() => setEditingName(false)}
@@ -120,7 +121,7 @@ export default function UserMenu({ children, align = 'start', side = 'bottom', s
                 style={{ width: '24px', height: '24px', padding: 0 }}
               >
                 <Icon name="x" size={12} />
-              </button>
+              </HouseButton>
             </div>
           </div>
         ) : (

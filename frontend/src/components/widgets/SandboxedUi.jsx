@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../ui/bento/index.jsx'
 import { useEffect, useMemo, useRef, useState, useId } from 'react'
 import Icon from '../Icon.jsx'
 import { PIN_CSP, pinnedHtml } from './pinnedSandbox.js'
@@ -297,7 +298,7 @@ export default function SandboxedUi({ data, pinned = false }) {
           </span>
         </div>
         <div className="sandboxed-ui-actions">
-          <button
+          <HouseButton
             type="button"
             className="sandboxed-ui-action-btn"
             title="Copy component code"
@@ -305,23 +306,23 @@ export default function SandboxedUi({ data, pinned = false }) {
           >
             <Icon name={copied ? 'check' : 'copy'} size={12} />
             <span>{copied ? 'Copied' : 'Code'}</span>
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="sandboxed-ui-action-btn"
             title="Reload component"
             onClick={() => setReloadKey((k) => k + 1)}
           >
             <Icon name="refresh" size={12} />
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="sandboxed-ui-action-btn"
             title={expanded ? 'Collapse height' : 'Expand height'}
             onClick={() => setExpanded((v) => !v)}
           >
             <Icon name={expanded ? 'collapse' : 'expand'} size={12} />
-          </button>
+          </HouseButton>
         </div>
       </div>
       <div className="sandboxed-ui-frame">

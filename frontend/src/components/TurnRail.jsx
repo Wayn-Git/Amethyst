@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import Icon from './Icon.jsx'
@@ -79,7 +80,7 @@ export default function TurnRail({ items, scrollRef, onJump }) {
 
   return (
     <div className="rail" ref={railRef} aria-hidden={false}>
-      <button
+      <HouseButton
         type="button"
         className="rail-step"
         onClick={() => step(-1)}
@@ -88,11 +89,11 @@ export default function TurnRail({ items, scrollRef, onJump }) {
         aria-label="Previous message"
       >
         <Icon name="chevron" size={12} className="rail-step-up" />
-      </button>
+      </HouseButton>
 
       <div className="rail-ticks" onMouseLeave={() => setHover(null)}>
         {shown.map((item, i) => (
-          <button
+          <HouseButton
             key={item.id}
             type="button"
             className={`rail-tick rail-tick--${item.kind}${i === current ? ' is-current' : ''}`}
@@ -116,7 +117,7 @@ export default function TurnRail({ items, scrollRef, onJump }) {
         )}
       </div>
 
-      <button
+      <HouseButton
         type="button"
         className="rail-step"
         onClick={() => step(1)}
@@ -125,7 +126,7 @@ export default function TurnRail({ items, scrollRef, onJump }) {
         aria-label="Next message"
       >
         <Icon name="chevron" size={12} className="rail-step-down" />
-      </button>
+      </HouseButton>
     </div>
   )
 }

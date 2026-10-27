@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import { memo } from 'react'
 import { motion } from 'framer-motion'
 import Icon from '../../components/Icon.jsx'
@@ -17,13 +18,13 @@ function ShelfHeader({ id, icon, title, count, onNavigate, actionLabel = 'View a
       </div>
 
       {onNavigate && (
-        <button
+        <HouseButton
           type="button"
           className="lib-shelf-action"
           onClick={onNavigate}
         >
           <span>{actionLabel}</span>
-        </button>
+        </HouseButton>
       )}
     </div>
   )

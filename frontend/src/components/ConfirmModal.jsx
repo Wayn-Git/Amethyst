@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import Icon from './Icon.jsx'
@@ -224,20 +225,20 @@ export default function ConfirmModal({ pending = [], onDecide }) {
                     Parameters
                   </span>
                   <div className="confirm-inspect-tabs">
-                    <button
+                    <HouseButton
                       type="button"
                       className={`confirm-tab-btn${viewMode === 'formatted' ? ' is-active' : ''}`}
                       onClick={() => setViewMode('formatted')}
                     >
                       Formatted
-                    </button>
-                    <button
+                    </HouseButton>
+                    <HouseButton
                       type="button"
                       className={`confirm-tab-btn${viewMode === 'raw' ? ' is-active' : ''}`}
                       onClick={() => setViewMode('raw')}
                     >
                       Raw JSON
-                    </button>
+                    </HouseButton>
                   </div>
                 </div>
 
@@ -250,7 +251,7 @@ export default function ConfirmModal({ pending = [], onDecide }) {
                     {/* Command view */}
                     {command ? (
                       <div className="confirm-terminal-box">
-                        <button
+                        <HouseButton
                           type="button"
                           className="confirm-terminal-copy"
                           onClick={() => copyText(command)}
@@ -258,7 +259,7 @@ export default function ConfirmModal({ pending = [], onDecide }) {
                         >
                           <Icon name={copied ? 'check' : 'copy'} size={12} />
                           {copied ? 'Copied' : 'Copy'}
-                        </button>
+                        </HouseButton>
                         <div className="confirm-terminal-line">
                           <span className="confirm-terminal-prompt">$</span>
                           <span className="confirm-terminal-cmd">{command}</span>
@@ -354,7 +355,7 @@ export default function ConfirmModal({ pending = [], onDecide }) {
 
             {/* Footer Buttons - strictly 12px squircle geometry (rounded-xl) */}
             <div className="confirm-footer">
-              <button
+              <HouseButton
                 type="button"
                 className="confirm-btn confirm-btn-decline"
                 disabled={busy === item.id}
@@ -363,9 +364,9 @@ export default function ConfirmModal({ pending = [], onDecide }) {
                 <Icon name="x" size={14} />
                 <span>Decline</span>
                 <kbd className="confirm-kbd">Esc</kbd>
-              </button>
+              </HouseButton>
 
-              <button
+              <HouseButton
                 type="button"
                 ref={allowRef}
                 className="confirm-btn confirm-btn-allow"
@@ -379,7 +380,7 @@ export default function ConfirmModal({ pending = [], onDecide }) {
                 )}
                 <span>Allow &amp; Execute</span>
                 <kbd className="confirm-kbd">Enter ↵</kbd>
-              </button>
+              </HouseButton>
             </div>
           </motion.div>
         </motion.div>

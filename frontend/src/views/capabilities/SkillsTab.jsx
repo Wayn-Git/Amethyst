@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput, Textarea as HouseTextarea } from '../../components/ui/bento/index.jsx'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import ServiceIcon from '../../components/ServiceIcon.jsx'
@@ -51,13 +52,13 @@ function Composer({ onDone, onCancel }) {
     <div className="cap-composer" data-enter>
       <div className="cap-composer-head">
         <span>New skill</span>
-        <button type="button" className="icon-btn" onClick={onCancel} aria-label="Cancel">
+        <HouseButton type="button" className="icon-btn" onClick={onCancel} aria-label="Cancel">
           <Icon name="x" size={15} />
-        </button>
+        </HouseButton>
       </div>
       <div className="field">
         <label htmlFor="skill-name">Name</label>
-        <input
+        <HouseInput
           id="skill-name"
           autoFocus
           value={name}
@@ -70,7 +71,7 @@ function Composer({ onDone, onCancel }) {
       </div>
       <div className="field">
         <label htmlFor="skill-desc">Description</label>
-        <input
+        <HouseInput
           id="skill-desc"
           value={description}
           placeholder="When to reach for this — the agent reads this to decide"
@@ -79,7 +80,7 @@ function Composer({ onDone, onCancel }) {
       </div>
       <div className="field">
         <label htmlFor="skill-body">Instruction</label>
-        <textarea
+        <HouseTextarea
           id="skill-body"
           rows={7}
           value={instruction}
@@ -88,10 +89,10 @@ function Composer({ onDone, onCancel }) {
         />
       </div>
       <div className="cap-composer-foot">
-        <button type="button" className="btn btn--primary btn--small" disabled={!ready || busy} onClick={() => create(false)}>
+        <HouseButton type="button" className="btn btn--primary btn--small" disabled={!ready || busy} onClick={() => create(false)}>
           {busy ? 'Writing…' : 'Create'}
-        </button>
-        <button
+        </HouseButton>
+        <HouseButton
           type="button"
           className="btn btn--ghost btn--small"
           disabled={!ready || busy}
@@ -99,7 +100,7 @@ function Composer({ onDone, onCancel }) {
           onClick={() => create(true)}
         >
           Replace
-        </button>
+        </HouseButton>
       </div>
     </div>
   )
@@ -116,7 +117,7 @@ function Gear({ name, capability, onToggle, onRemove, busy }) {
 
   return (
     <span className="dcard-gear-wrap">
-      <button
+      <HouseButton
         type="button"
         className="dcard-act"
         title="Manage this skill"
@@ -124,10 +125,10 @@ function Gear({ name, capability, onToggle, onRemove, busy }) {
         onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }}
       >
         <Icon name="sliders" size={15} />
-      </button>
+      </HouseButton>
       {open && (
         <div className="dcard-menu" onClick={(e) => e.stopPropagation()}>
-          <button
+          <HouseButton
             type="button"
             className="menu-row"
             disabled={busy || !capability}
@@ -135,15 +136,15 @@ function Gear({ name, capability, onToggle, onRemove, busy }) {
           >
             <span className="menu-gutter" />
             <span className="menu-label">{capability?.enabled ? 'Stand down' : 'Engage'}</span>
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="menu-row danger"
             onClick={() => { onRemove(); setOpen(false) }}
           >
             <span className="menu-gutter" />
             <span className="menu-label">Uninstall</span>
-          </button>
+          </HouseButton>
         </div>
       )}
     </span>
@@ -245,27 +246,27 @@ export default function SkillsTab({ query, newOpen, setNewOpen }) {
   return (
     <>
       <div className="cap-actions" data-enter>
-        <button
+        <HouseButton
           type="button"
           className="btn btn--ghost btn--small"
           onClick={() => { setImporting((i) => !i); setNewOpen(false) }}
           aria-expanded={importing}
         >
           <Icon name="link" size={14} /> Import a link
-        </button>
-        <button type="button" className="btn btn--ghost btn--small" onClick={() => load(true)}>
+        </HouseButton>
+        <HouseButton type="button" className="btn btn--ghost btn--small" onClick={() => load(true)}>
           <Icon name="refresh" size={14} /> Rescan
-        </button>
+        </HouseButton>
         <div className="cap-filter">
           {FILTERS.map((f) => (
-            <button
+            <HouseButton
               key={f.id}
               type="button"
               className={`conn-tab${filter === f.id ? ' active' : ''}`}
               onClick={() => setFilter(f.id)}
             >
               {f.label}
-            </button>
+            </HouseButton>
           ))}
         </div>
         <span className="cap-count">{installed.length} installed · {engaged} engaged</span>
@@ -276,7 +277,7 @@ export default function SkillsTab({ query, newOpen, setNewOpen }) {
       {importing && (
         <div className="dir-install" data-enter>
           <Icon name="link" size={15} />
-          <input
+          <HouseInput
             autoFocus
             value={url}
             placeholder="A link to any SKILL.md"
@@ -284,15 +285,15 @@ export default function SkillsTab({ query, newOpen, setNewOpen }) {
             onKeyDown={(e) => { if (e.key === 'Enter' && url.trim()) install(url.trim()) }}
             aria-label="Skill URL"
           />
-          <button
+          <HouseButton
             type="button"
             className="btn btn--primary btn--small"
             disabled={busy === url.trim() || !url.trim()}
             onClick={() => install(url.trim())}
           >
             Install
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="btn btn--ghost btn--small"
             disabled={busy === url.trim() || !url.trim()}
@@ -300,7 +301,7 @@ export default function SkillsTab({ query, newOpen, setNewOpen }) {
             title="Replace an installed skill of the same name"
           >
             Replace
-          </button>
+          </HouseButton>
         </div>
       )}
 
@@ -339,7 +340,7 @@ export default function SkillsTab({ query, newOpen, setNewOpen }) {
                     onRemove={() => remove(row.name)}
                   />
                 ) : (
-                  <button
+                  <HouseButton
                     type="button"
                     className="dcard-act"
                     title={`Install /${row.name}`}
@@ -348,7 +349,7 @@ export default function SkillsTab({ query, newOpen, setNewOpen }) {
                     onClick={() => install(row.url)}
                   >
                     <Icon name={busy === row.url ? 'refresh' : 'plus'} size={15} />
-                  </button>
+                  </HouseButton>
                 )}
               </div>
               <p className="dcard-desc">{row.description}</p>

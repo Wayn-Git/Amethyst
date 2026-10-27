@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput, Textarea as HouseTextarea } from '../../components/ui/bento/index.jsx'
 import { useMemo, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { useApp } from '../../store.jsx'
@@ -147,28 +148,28 @@ export default function TextToolsTool() {
           { id: 'snake', label: 'snake_case' },
           { id: 'constant', label: 'CONSTANT_CASE' },
         ].map((c) => (
-          <button
+          <HouseButton
             key={c.id}
             type="button"
             className="fc-btn fc-btn-secondary text-xs h-7 py-0 px-2.5 font-mono"
             onClick={() => transformCase(c.id)}
           >
             {c.label}
-          </button>
+          </HouseButton>
         ))}
       </div>
 
       {/* Find & Replace Row */}
       <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-[var(--fc-surface)] border border-[var(--fc-border)] shadow-xs mb-4">
         <div className="flex flex-wrap items-center gap-2 flex-1">
-          <input
+          <HouseInput
             type="text"
             className="fc-input text-xs w-40"
             placeholder="Find text…"
             value={findText}
             onChange={(e) => setFindText(e.target.value)}
           />
-          <input
+          <HouseInput
             type="text"
             className="fc-input text-xs w-40"
             placeholder="Replace with…"
@@ -176,7 +177,7 @@ export default function TextToolsTool() {
             onChange={(e) => setReplaceText(e.target.value)}
           />
           <label className="flex items-center gap-1.5 text-xs text-[var(--fc-text-dim)] cursor-pointer select-none">
-            <input
+            <HouseInput
               type="checkbox"
               checked={matchCase}
               onChange={(e) => setMatchCase(e.target.checked)}
@@ -184,54 +185,54 @@ export default function TextToolsTool() {
             />
             <span>Match case</span>
           </label>
-          <button
+          <HouseButton
             type="button"
             className="fc-btn fc-btn-secondary text-xs h-7 py-0 px-3"
             onClick={handleReplace}
           >
             Replace All
-          </button>
+          </HouseButton>
         </div>
 
         {/* Clean Operations */}
         <div className="flex items-center gap-1.5">
-          <button
+          <HouseButton
             type="button"
             className="fc-btn fc-btn-secondary text-xs h-7 py-0 px-2.5"
             onClick={removeDuplicates}
             title="Remove duplicate lines"
           >
             Dedupe Lines
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="fc-btn fc-btn-secondary text-xs h-7 py-0 px-2.5"
             onClick={removeBlankLines}
             title="Remove empty lines"
           >
             Remove Blank
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="fc-btn fc-btn-secondary text-xs h-7 py-0 px-2.5"
             onClick={() => sortLines(true)}
             title="Sort lines alphabetically"
           >
             Sort A-Z
-          </button>
+          </HouseButton>
         </div>
       </div>
 
       {/* Editor Box */}
       <div className="relative">
-        <textarea
+        <HouseTextarea
           className="fc-textarea w-full h-80 p-4 rounded-xl bg-[var(--fc-surface)] border border-[var(--fc-border)] text-[var(--fc-text)] font-mono text-sm leading-relaxed outline-none focus:border-[var(--fc-accent)] transition resize-y shadow-sm"
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Paste or write text to transform…"
         />
         <div className="absolute right-3 bottom-4 flex items-center gap-2">
-          <button
+          <HouseButton
             type="button"
             className="fc-btn fc-btn-primary text-xs h-8 py-0 px-3"
             onClick={() => {
@@ -241,14 +242,14 @@ export default function TextToolsTool() {
           >
             <Icon name="copy" size={14} />
             <span>Copy Text</span>
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="fc-btn fc-btn-danger-ghost text-xs h-8 py-0 px-2.5"
             onClick={() => setText('')}
           >
             <Icon name="trash" size={14} />
-          </button>
+          </HouseButton>
         </div>
       </div>
     </div>

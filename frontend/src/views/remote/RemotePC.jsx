@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../../components/ui/bento/index.jsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { api, getBase, getAuthHeaders } from '../../api.js'
@@ -230,13 +231,13 @@ export default function RemotePC() {
           }}
         >
           <span>{actionNotice}</span>
-          <button
+          <HouseButton
             type="button"
             onClick={() => setActionNotice(null)}
             style={{ background: 'none', border: 'none', color: 'var(--text-sub)', cursor: 'pointer' }}
           >
             <Icon name="x" size={14} />
-          </button>
+          </HouseButton>
         </div>
       )}
 
@@ -367,22 +368,22 @@ export default function RemotePC() {
             )}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button
+            <HouseButton
               type="button"
               className="set-btn-sm"
               onClick={takeScreenshot}
               disabled={screenshotLoading}
             >
               {screenshotLoading ? 'Capturing…' : 'Snapshot'}
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className="pair-go"
               style={{ padding: '4px 10px', fontSize: 12 }}
               onClick={() => setStreaming((prev) => !prev)}
             >
               {streaming ? 'Stop Live' : 'Live Stream'}
-            </button>
+            </HouseButton>
           </div>
         </div>
 
@@ -446,30 +447,30 @@ export default function RemotePC() {
 
         {/* Mouse Click Buttons */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 8 }}>
-          <button
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={() => handleClick('left')}
             style={{ padding: '8px 0', textAlign: 'center' }}
           >
             Left Click
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={() => handleClick('left', true)}
             style={{ padding: '8px 0', textAlign: 'center' }}
           >
             Double Click
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={() => handleClick('right')}
             style={{ padding: '8px 0', textAlign: 'center' }}
           >
             Right Click
-          </button>
+          </HouseButton>
         </div>
       </div>
 
@@ -488,19 +489,19 @@ export default function RemotePC() {
 
         {/* Quick Chords */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-          <button type="button" className="set-btn-sm" onClick={() => handleKey('Escape')}>Esc</button>
-          <button type="button" className="set-btn-sm" onClick={() => handleKey('Tab')}>Tab</button>
-          <button type="button" className="set-btn-sm" onClick={() => handleKey('Return')}>Enter</button>
-          <button type="button" className="set-btn-sm" onClick={() => handleKey('BackSpace')}>⌫</button>
-          <button type="button" className="set-btn-sm" onClick={() => handleCombo(['Control', 'c'])}>Ctrl+C</button>
-          <button type="button" className="set-btn-sm" onClick={() => handleCombo(['Control', 'v'])}>Ctrl+V</button>
-          <button type="button" className="set-btn-sm" onClick={() => handleCombo(['Alt', 'Tab'])}>Alt+Tab</button>
-          <button type="button" className="set-btn-sm" onClick={() => handleKey('Super_L')}>Super/Win</button>
+          <HouseButton type="button" className="set-btn-sm" onClick={() => handleKey('Escape')}>Esc</HouseButton>
+          <HouseButton type="button" className="set-btn-sm" onClick={() => handleKey('Tab')}>Tab</HouseButton>
+          <HouseButton type="button" className="set-btn-sm" onClick={() => handleKey('Return')}>Enter</HouseButton>
+          <HouseButton type="button" className="set-btn-sm" onClick={() => handleKey('BackSpace')}>⌫</HouseButton>
+          <HouseButton type="button" className="set-btn-sm" onClick={() => handleCombo(['Control', 'c'])}>Ctrl+C</HouseButton>
+          <HouseButton type="button" className="set-btn-sm" onClick={() => handleCombo(['Control', 'v'])}>Ctrl+V</HouseButton>
+          <HouseButton type="button" className="set-btn-sm" onClick={() => handleCombo(['Alt', 'Tab'])}>Alt+Tab</HouseButton>
+          <HouseButton type="button" className="set-btn-sm" onClick={() => handleKey('Super_L')}>Super/Win</HouseButton>
         </div>
 
         {/* Text Input Sender */}
         <form onSubmit={handleType} style={{ display: 'flex', gap: 8 }}>
-          <input
+          <HouseInput
             type="text"
             className="pair-input"
             placeholder="Type text to send to PC…"
@@ -508,15 +509,15 @@ export default function RemotePC() {
             onChange={(e) => setKeyboardText(e.target.value)}
             style={{ flex: 1, padding: '8px 12px', fontSize: 13 }}
           />
-          <button type="submit" className="pair-go" style={{ padding: '8px 16px' }} disabled={!keyboardText}>
+          <HouseButton type="submit" className="pair-go" style={{ padding: '8px 16px' }} disabled={!keyboardText}>
             Type
-          </button>
+          </HouseButton>
         </form>
       </div>
 
       {/* 5. Apps & Processes Quick Launchers */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <button
+        <HouseButton
           type="button"
           className="set-btn-sm"
           onClick={loadApps}
@@ -524,8 +525,8 @@ export default function RemotePC() {
         >
           <Icon name="grid" size={16} />
           App Launcher
-        </button>
-        <button
+        </HouseButton>
+        <HouseButton
           type="button"
           className="set-btn-sm"
           onClick={loadProcesses}
@@ -533,7 +534,7 @@ export default function RemotePC() {
         >
           <Icon name="list" size={16} />
           Processes
-        </button>
+        </HouseButton>
       </div>
 
       {/* Apps Modal */}
@@ -542,13 +543,13 @@ export default function RemotePC() {
           <div className="modal" style={{ width: 'min(500px, 92vw)', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
             <div className="modal-head">
               <h3 className="modal-title" style={{ fontSize: 18 }}>Launch Application</h3>
-              <button type="button" className="modal-close" onClick={() => setShowApps(false)}>
+              <HouseButton type="button" className="modal-close" onClick={() => setShowApps(false)}>
                 <Icon name="x" size={18} />
-              </button>
+              </HouseButton>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {apps.map((app) => (
-                <button
+                <HouseButton
                   key={app.id || app.name}
                   type="button"
                   onClick={() => launchApp(app.name)}
@@ -567,7 +568,7 @@ export default function RemotePC() {
                 >
                   <span style={{ fontWeight: 600, fontSize: 13 }}>{app.name}</span>
                   <span style={{ fontSize: 11, color: 'var(--accent)' }}>Launch →</span>
-                </button>
+                </HouseButton>
               ))}
             </div>
           </div>
@@ -580,9 +581,9 @@ export default function RemotePC() {
           <div className="modal" style={{ width: 'min(540px, 92vw)', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
             <div className="modal-head">
               <h3 className="modal-title" style={{ fontSize: 18 }}>Active Processes</h3>
-              <button type="button" className="modal-close" onClick={() => setShowProcesses(false)}>
+              <HouseButton type="button" className="modal-close" onClick={() => setShowProcesses(false)}>
                 <Icon name="x" size={18} />
-              </button>
+              </HouseButton>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {processes.slice(0, 35).map((proc) => (
@@ -606,14 +607,14 @@ export default function RemotePC() {
                       CPU: {proc.cpu_percent}% · RAM: {proc.memory_percent}%
                     </div>
                   </div>
-                  <button
+                  <HouseButton
                     type="button"
                     className="set-btn-sm"
                     onClick={() => killProc(proc.pid)}
                     style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.4)' }}
                   >
                     Kill
-                  </button>
+                  </HouseButton>
                 </div>
               ))}
             </div>
@@ -634,38 +635,38 @@ export default function RemotePC() {
           Power Management
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-          <button
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={() => setConfirmAction('lock')}
             style={{ padding: '8px 0', textAlign: 'center', fontSize: 11 }}
           >
             Lock
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={() => setConfirmAction('sleep')}
             style={{ padding: '8px 0', textAlign: 'center', fontSize: 11 }}
           >
             Sleep
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={() => setConfirmAction('reboot')}
             style={{ padding: '8px 0', textAlign: 'center', fontSize: 11, color: '#eab308' }}
           >
             Reboot
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={() => setConfirmAction('shutdown')}
             style={{ padding: '8px 0', textAlign: 'center', fontSize: 11, color: '#ef4444' }}
           >
             Shut Down
-          </button>
+          </HouseButton>
         </div>
       </div>
 
@@ -678,14 +679,14 @@ export default function RemotePC() {
               Are you sure you want to {confirmAction} your computer remotely?
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button
+              <HouseButton
                 type="button"
                 className="set-btn-sm"
                 onClick={() => setConfirmAction(null)}
               >
                 Cancel
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 className="pair-go"
                 style={{
@@ -694,7 +695,7 @@ export default function RemotePC() {
                 onClick={() => triggerPower(confirmAction)}
               >
                 Confirm {confirmAction}
-              </button>
+              </HouseButton>
             </div>
           </div>
         </div>

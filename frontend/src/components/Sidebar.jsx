@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icon.jsx'
 import BrandMark from './BrandMark.jsx'
@@ -55,7 +56,7 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
 
   return (
     <div className={`sb-conv-item${active ? ' is-active' : ''}${menu ? ' menu-open' : ''}`} ref={ref}>
-      <button
+      <HouseButton
         type="button"
         className={`sb-conv-btn${conv.pinned ? ' has-pinned-icon' : ''}`}
         onClick={onOpen}
@@ -68,10 +69,10 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
           </span>
         )}
         <span className="sb-conv-title">{conv.title || 'untitled'}</span>
-      </button>
+      </HouseButton>
 
       <div className="sb-conv-actions">
-        <button
+        <HouseButton
           type="button"
           className="sb-conv-more-btn"
           onClick={(e) => {
@@ -83,7 +84,7 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
           aria-expanded={menu}
         >
           <Icon name="dots" size={14} />
-        </button>
+        </HouseButton>
       </div>
 
       <AnimatePresence>
@@ -97,7 +98,7 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
             role="menu"
           >
             {onTogglePin && (
-              <button
+              <HouseButton
                 type="button"
                 onClick={() => {
                   setMenu(false)
@@ -105,9 +106,9 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
                 }}
               >
                 <Icon name="star" size={12} filled={Boolean(conv.pinned)} /> {conv.pinned ? 'Unpin' : 'Pin to Starred'}
-              </button>
+              </HouseButton>
             )}
-            <button
+            <HouseButton
               type="button"
               onClick={() => {
                 setMenu(false)
@@ -115,8 +116,8 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
               }}
             >
               <Icon name="edit" size={12} /> Rename
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className="danger"
               onClick={async () => {
@@ -132,7 +133,7 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
               }}
             >
               <Icon name="trash" size={12} /> Delete
-            </button>
+            </HouseButton>
           </motion.div>
         )}
       </AnimatePresence>
@@ -299,7 +300,7 @@ export default function Sidebar() {
         >
           {/* Top Actions: App Icon (reveals Sidebar Expand on hover) + Mode Switch + New Chat/Session + Search */}
           <div className="sb-mini-top">
-            <button
+            <HouseButton
               type="button"
               className="sb-mini-brand-toggle-btn"
               onClick={(e) => {
@@ -315,9 +316,9 @@ export default function Sidebar() {
               <span className="sb-mini-toggle-icon">
                 <Icon name="sidebar" size={19} />
               </span>
-            </button>
+            </HouseButton>
 
-            <button
+            <HouseButton
               type="button"
               className="sb-mini-plus-btn"
               onClick={leave(() => {
@@ -328,9 +329,9 @@ export default function Sidebar() {
               aria-label="New chat"
             >
               <Icon name="plus" size={18} weight="bold" />
-            </button>
+            </HouseButton>
 
-            <button
+            <HouseButton
               type="button"
               className="sb-mini-btn"
               onClick={(e) => {
@@ -342,7 +343,7 @@ export default function Sidebar() {
               aria-label="Search"
             >
               <Icon name="search" size={20} />
-            </button>
+            </HouseButton>
           </div>
 
           {/* Middle Nav Items: Real Places */}
@@ -350,7 +351,7 @@ export default function Sidebar() {
             {topPlaces.map((place) => {
               const isActive = view === place.id
               return (
-                <button
+                <HouseButton
                   key={place.id}
                   type="button"
                   className={`sb-mini-btn${isActive ? ' is-active' : ''}`}
@@ -363,13 +364,13 @@ export default function Sidebar() {
                   aria-label={place.label}
                 >
                   <Icon name={place.icon} size={20} />
-                </button>
+                </HouseButton>
               )
             })}
 
             {/* Collapsed Utilities Icon with Flyout */}
             <div ref={miniUtilsRef} style={{ position: 'relative' }}>
-              <button
+              <HouseButton
                 type="button"
                 className={`sb-mini-btn${isUtilityActive ? ' is-active' : ''}`}
                 onClick={(e) => {
@@ -381,7 +382,7 @@ export default function Sidebar() {
                 aria-expanded={miniUtilsOpen}
               >
                 <Icon name="wrench" size={20} />
-              </button>
+              </HouseButton>
 
               <AnimatePresence>
                 {miniUtilsOpen && (
@@ -394,7 +395,7 @@ export default function Sidebar() {
                   >
                     <div className="sb-mini-flyout-title">Utilities</div>
                     {utilityPlaces.map((u) => (
-                      <button
+                      <HouseButton
                         key={u.id}
                         type="button"
                         className={`sb-mini-flyout-item${view === u.id ? ' is-active' : ''}`}
@@ -407,7 +408,7 @@ export default function Sidebar() {
                         <span className="sb-mini-flyout-icon"><Icon name={u.icon} size={16} /></span>
                         <span className="sb-mini-flyout-label">{u.label}</span>
                         {u.digit && <span className="sb-mini-flyout-shortcut">{MOD_LABEL}+{u.digit}</span>}
-                      </button>
+                      </HouseButton>
                     ))}
                   </motion.div>
                 )}
@@ -417,7 +418,7 @@ export default function Sidebar() {
             {bottomPlaces.map((place) => {
               const isActive = view === place.id
               return (
-                <button
+                <HouseButton
                   key={place.id}
                   type="button"
                   className={`sb-mini-btn${isActive ? ' is-active' : ''}`}
@@ -430,7 +431,7 @@ export default function Sidebar() {
                   aria-label={place.label}
                 >
                   <Icon name={place.icon} size={20} />
-                </button>
+                </HouseButton>
               )
             })}
           </div>
@@ -453,14 +454,14 @@ export default function Sidebar() {
             <span className="wb-foot-sub" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}>{status}</span>
 
             <UserMenu align="start" side="right" sideOffset={12}>
-              <button
+              <HouseButton
                 type="button"
                 className="sb-mini-avatar-square"
                 title={`User menu for ${displayName}`}
                 aria-label={`User menu for ${displayName}`}
               >
                 {userInitials}
-              </button>
+              </HouseButton>
             </UserMenu>
           </div>
         </div>
@@ -473,7 +474,7 @@ export default function Sidebar() {
           <div className="sb-header">
             <div className="sb-header-top-row">
               <UserMenu align="start" side="bottom" sideOffset={8}>
-                <button
+                <HouseButton
                   type="button"
                   className="sb-workspace-selector wb-brand"
                   title="Workspace settings & user menu"
@@ -481,11 +482,11 @@ export default function Sidebar() {
                   <BrandMark size={24} glow />
                   <span className="sb-workspace-name">Amethyst</span>
                   <Icon name="chevron-down" size={11} className="sb-workspace-chevron" />
-                </button>
+                </HouseButton>
               </UserMenu>
 
               <div className="sb-header-actions">
-                <button
+                <HouseButton
                   type="button"
                   className={`sb-header-icon-btn${showSearchInput ? ' is-active' : ''}`}
                   onClick={() => setShowSearchInput((s) => !s)}
@@ -493,9 +494,9 @@ export default function Sidebar() {
                   aria-label="Search conversations"
                 >
                   <Icon name="search" size={18} />
-                </button>
+                </HouseButton>
 
-                <button
+                <HouseButton
                   type="button"
                   className="sb-header-icon-btn"
                   onClick={handleToggle}
@@ -503,7 +504,7 @@ export default function Sidebar() {
                   aria-label="Collapse sidebar"
                 >
                   <Icon name="sidebar" size={18} />
-                </button>
+                </HouseButton>
               </div>
             </div>
 
@@ -534,14 +535,14 @@ export default function Sidebar() {
                       }}
                     />
                     {filter && (
-                      <button
+                      <HouseButton
                         type="button"
                         className="sb-clear-btn"
                         onClick={() => setFilter('')}
                         aria-label="Clear search"
                       >
                         <Icon name="x" size={12} />
-                      </button>
+                      </HouseButton>
                     )}
                   </div>
                 </motion.div>
@@ -550,7 +551,7 @@ export default function Sidebar() {
           </div>
 
           {/* Prominent + New Chat Pill Button */}
-          <button
+          <HouseButton
             type="button"
             className={`sb-new-chat-pill${view === 'chat' && !activeId ? ' is-active' : ''}`}
             onClick={leave(() => {
@@ -567,7 +568,7 @@ export default function Sidebar() {
             <span className="sb-new-chat-shortcut">
               {MOD_LABEL}+Shift+O
             </span>
-          </button>
+          </HouseButton>
 
           {/* Primary Navigation Section: Real Amethyst Views */}
           <div className="sb-nav-section" aria-label="Main Navigation">
@@ -575,7 +576,7 @@ export default function Sidebar() {
             {topPlaces.map((place) => {
               const isActive = view === place.id
               return (
-                <button
+                <HouseButton
                   key={place.id}
                   type="button"
                   className={`sb-nav-item${isActive ? ' is-active' : ''}`}
@@ -594,13 +595,13 @@ export default function Sidebar() {
                       {MOD_LABEL}+{place.digit}
                     </span>
                   )}
-                </button>
+                </HouseButton>
               )
             })}
 
             {/* Expandable Utilities Group (Tasks, Email, File Converter) */}
             <div className="sb-nav-group">
-              <button
+              <HouseButton
                 type="button"
                 className={`sb-nav-item sb-nav-group-trigger${isUtilityActive ? ' has-active-child' : ''}`}
                 onClick={toggleUtilities}
@@ -619,7 +620,7 @@ export default function Sidebar() {
                     <Icon name="chevron-down" size={13} />
                   </span>
                 </div>
-              </button>
+              </HouseButton>
 
               <AnimatePresence initial={false}>
                 {utilitiesOpen && (
@@ -634,7 +635,7 @@ export default function Sidebar() {
                       {utilityPlaces.map((place) => {
                         const isActive = view === place.id
                         return (
-                          <button
+                          <HouseButton
                             key={place.id}
                             type="button"
                             className={`sb-nav-item sb-nav-subitem${isActive ? ' is-active' : ''}`}
@@ -655,7 +656,7 @@ export default function Sidebar() {
                             ) : place.beta ? (
                               <span className="sb-nav-item-beta">Beta</span>
                             ) : null}
-                          </button>
+                          </HouseButton>
                         )
                       })}
                     </div>
@@ -668,7 +669,7 @@ export default function Sidebar() {
             {bottomPlaces.map((place) => {
               const isActive = view === place.id
               return (
-                <button
+                <HouseButton
                   key={place.id}
                   type="button"
                   className={`sb-nav-item${isActive ? ' is-active' : ''}`}
@@ -687,7 +688,7 @@ export default function Sidebar() {
                       {MOD_LABEL}+{place.digit}
                     </span>
                   )}
-                </button>
+                </HouseButton>
               )
             })}
           </div>
@@ -790,7 +791,7 @@ export default function Sidebar() {
             <span className="wb-foot-sub" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}>{status}</span>
 
             <UserMenu align="start" side="top" sideOffset={10}>
-              <button
+              <HouseButton
                 type="button"
                 className="sb-user-card-bottom"
                 title={`Account settings for ${displayName}`}
@@ -802,7 +803,7 @@ export default function Sidebar() {
                   <span className="sb-user-name-bottom">{displayName}</span>
                   <span className="sb-user-subtext-bottom">{workspaceName}</span>
                 </div>
-              </button>
+              </HouseButton>
             </UserMenu>
           </div>
         </div>

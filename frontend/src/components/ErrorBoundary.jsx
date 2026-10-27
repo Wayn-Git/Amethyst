@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { Component } from 'react'
 
 /* A render failure in one view must not take the window with it.
@@ -37,13 +38,13 @@ export default class ErrorBoundary extends Component {
             : msg}
         </p>
         <div className="crash-actions">
-          <button type="button" className="btn btn--primary" onClick={() => window.location.reload()}>
+          <HouseButton type="button" className="btn btn--primary" onClick={() => window.location.reload()}>
             Reload application
-          </button>
+          </HouseButton>
           {!isChunkError && (
-            <button type="button" className="btn" onClick={() => this.setState({ error: null })}>
+            <HouseButton type="button" className="btn" onClick={() => this.setState({ error: null })}>
               Try again
-            </button>
+            </HouseButton>
           )}
         </div>
         <p className="crash-note">

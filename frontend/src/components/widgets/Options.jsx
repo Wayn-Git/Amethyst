@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../ui/bento/index.jsx'
 import { useState } from 'react'
 
 /* Selectable cards, single or multi.
@@ -34,7 +35,7 @@ export default function Options({ data }) {
           const on = chosen.has(i)
           return (
             <li key={i}>
-              <button
+              <HouseButton
                 type="button"
                 className={`widget-card-option${on ? ' is-on' : ''}`}
                 role={multi ? 'checkbox' : 'radio'}
@@ -46,7 +47,7 @@ export default function Options({ data }) {
                   <strong>{option.title}</strong>
                   {option.description && <span>{option.description}</span>}
                 </span>
-              </button>
+              </HouseButton>
             </li>
           )
         })}

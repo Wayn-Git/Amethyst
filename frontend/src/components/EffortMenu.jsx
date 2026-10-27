@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useRef } from 'react'
 import { motion } from 'framer-motion'
 import Icon from './Icon.jsx'
@@ -45,7 +46,7 @@ export default function EffortMenu({ effort, levels, onChange, onClose, placemen
         {currentLevels.map((e) => {
           const active = effort === e.id
           return (
-            <button
+            <HouseButton
               key={e.id}
               type="button"
               className={`effort-item${active ? ' is-active' : ''}`}
@@ -59,7 +60,7 @@ export default function EffortMenu({ effort, levels, onChange, onClose, placemen
                 <span className="effort-item-desc">{e.desc}</span>
               </span>
               {active && <Icon name="check" size={13} className="effort-check" />}
-            </button>
+            </HouseButton>
           )
         })}
       </div>

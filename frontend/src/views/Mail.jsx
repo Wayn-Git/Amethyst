@@ -1,3 +1,4 @@
+import { Textarea as HouseTextarea, Button as HouseButton, Input as HouseInput } from '../components/ui/bento/index.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import SidePanel from '../components/SidePanel.jsx'
@@ -73,7 +74,7 @@ function Reply({ threadId, onSent }) {
 
   return (
     <div className="mail-reply">
-      <textarea
+      <HouseTextarea
         value={body}
         rows={4}
         placeholder="Reply…"
@@ -85,14 +86,14 @@ function Reply({ threadId, onSent }) {
       />
       <div className="mail-reply-actions">
         <span className="empty-note"><kbd className="kbd">{MOD_LABEL}</kbd><kbd className="kbd">Enter</kbd> to send</span>
-        <button
+        <HouseButton
           type="button"
           className="btn btn--primary btn--small"
           disabled={busy || !body.trim()}
           onClick={send}
         >
           <Icon name="send" size={14} /> {busy ? 'Sending…' : 'Send'}
-        </button>
+        </HouseButton>
       </div>
     </div>
   )
@@ -351,9 +352,9 @@ export default function Mail() {
             </div>
           </div>
           <div className="vheader-actions">
-            <button type="button" className="btn btn--ghost" onClick={load}>
+            <HouseButton type="button" className="btn btn--ghost" onClick={load}>
               <Icon name="refresh" size={15} /> Refresh
-            </button>
+            </HouseButton>
           </div>
         </header>
 
@@ -369,7 +370,7 @@ export default function Mail() {
                 ? (labels.find((l) => l.id === 'INBOX')?.unread ?? 0)
                 : 0
               return (
-                <button
+                <HouseButton
                   key={entry.id}
                   type="button"
                   className={`task-rail-row${!search && box === entry.id ? ' is-on' : ''}`}
@@ -379,7 +380,7 @@ export default function Mail() {
                   <Icon name={entry.icon} size={15} />
                   <span className="task-rail-label">{entry.label}</span>
                   {unread > 0 && <span className="mail-unread-badge">{unread}</span>}
-                </button>
+                </HouseButton>
               )
             })}
           </nav>
@@ -401,7 +402,7 @@ export default function Mail() {
                   — and had no way to clear itself. */}
               <div className="inline-search mail-search">
                 <Icon name="search" size={13} />
-                <input
+                <HouseInput
                   value={search}
                   placeholder="Search mail — from:someone, subject:invoice"
                   aria-label="Search mail"
@@ -411,14 +412,14 @@ export default function Mail() {
                   }}
                 />
                 {search && (
-                  <button
+                  <HouseButton
                     type="button"
                     className="icon-btn"
                     aria-label="Clear the search"
                     onClick={() => { setSearch(''); setOpen(null) }}
                   >
                     <Icon name="x" size={13} />
-                  </button>
+                  </HouseButton>
                 )}
               </div>
 
@@ -436,13 +437,13 @@ export default function Mail() {
                   <div>
                     <div>{error}</div>
                     <div className="empty-actions">
-                      <button
+                      <HouseButton
                         type="button"
                         className="btn btn--small"
                         onClick={() => setView('capabilities')}
                       >
                         Open Connectors
-                      </button>
+                      </HouseButton>
                     </div>
                   </div>
                 </div>
@@ -460,7 +461,7 @@ export default function Mail() {
                 const isOpen = open === row.thread_id
                 return (
                   <div key={row.id} className={`server-row mail-row${row.unread ? ' mail-row--unread' : ''}`}>
-                    <button
+                    <HouseButton
                       type="button"
                       className="mail-open"
                       aria-expanded={isOpen}
@@ -472,7 +473,7 @@ export default function Mail() {
                       </div>
                       <div className="server-name mail-subject">{row.subject}</div>
                       <div className="server-target mail-snippet">{row.snippet}</div>
-                    </button>
+                    </HouseButton>
 
                     {/* Star/read/archive all call the same Gmail modify
                         scope Reply's send check guards two lines below --
@@ -480,7 +481,7 @@ export default function Mail() {
                         actually granted rather than assumed. */}
                     {account?.can_modify !== false && (
                       <div className="task-actions">
-                        <button
+                        <HouseButton
                           type="button"
                           className={`icon-btn task-star${row.starred ? ' is-on' : ''}`}
                           disabled={busyId === row.id}
@@ -494,9 +495,9 @@ export default function Mail() {
                           )}
                         >
                           <Icon name="star" size={14} />
-                        </button>
+                        </HouseButton>
                         {row.unread && (
-                          <button
+                          <HouseButton
                             type="button"
                             className="icon-btn"
                             disabled={busyId === row.id}
@@ -505,10 +506,10 @@ export default function Mail() {
                             onClick={() => act(row, { remove: ['UNREAD'] }, 'Marked read')}
                           >
                             <Icon name="check" size={14} />
-                          </button>
+                          </HouseButton>
                         )}
                         {row.labels?.includes('INBOX') && (
-                          <button
+                          <HouseButton
                             type="button"
                             className="icon-btn"
                             disabled={busyId === row.id}
@@ -517,7 +518,7 @@ export default function Mail() {
                             onClick={() => act(row, { remove: ['INBOX'] }, 'Archived')}
                           >
                             <Icon name="archive" size={14} />
-                          </button>
+                          </HouseButton>
                         )}
                       </div>
                     )}

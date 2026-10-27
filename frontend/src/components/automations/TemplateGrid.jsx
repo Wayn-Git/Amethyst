@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../ui/bento/index.jsx'
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import Icon from '../Icon.jsx'
@@ -37,14 +38,14 @@ export default function TemplateGrid({ onSelect }) {
         <h3>Templates</h3>
         <div className="auto-template-filters">
           {categories.map((cat) => (
-            <button
+            <HouseButton
               key={cat}
               type="button"
               className={`auto-template-filter${activeCategory === cat ? ' is-active' : ''}`}
               onClick={() => setActiveCategory(cat)}
             >
               {cat.charAt(0).toUpperCase() + cat.slice(1)}
-            </button>
+            </HouseButton>
           ))}
         </div>
       </div>

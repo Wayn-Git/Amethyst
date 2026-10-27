@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput, Select as HouseSelect, Textarea as HouseTextarea } from '../ui/bento/index.jsx'
 import { useCallback, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import Icon from '../Icon.jsx'
@@ -167,25 +168,25 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
       >
         <div className="auto-modal-head">
           <div className="auto-modal-tabs">
-            <button
+            <HouseButton
               type="button"
               className={`auto-modal-tab${tab === 'overview' ? ' is-active' : ''}`}
               onClick={() => setTab('overview')}
             >
               Overview
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className={`auto-modal-tab${tab === 'runs' ? ' is-active' : ''}`}
               onClick={() => setTab('runs')}
             >
               Runs
-            </button>
+            </HouseButton>
           </div>
           <div className="auto-modal-head-actions">
-            <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+            <HouseButton type="button" className="icon-btn" onClick={onClose} aria-label="Close">
               <Icon name="x" size={16} />
-            </button>
+            </HouseButton>
           </div>
         </div>
 
@@ -215,7 +216,7 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
             )}
 
             <Field label="Name" id="edit-auto-name">
-              <input
+              <HouseInput
                 id="edit-auto-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -223,7 +224,7 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
             </Field>
 
             <Field label="Description" id="edit-auto-desc">
-              <input
+              <HouseInput
                 id="edit-auto-desc"
                 value={description}
                 placeholder="Optional short description"
@@ -234,7 +235,7 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
             <div className="auto-modal-section">
               <label className="auto-modal-label">Triggers</label>
               <div className="auto-schedule-row">
-                <select
+                <HouseSelect
                   value={scheduleType}
                   onChange={(e) => setScheduleType(e.target.value)}
                   className="auto-schedule-type"
@@ -242,10 +243,10 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
                   {SCHEDULE_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
-                </select>
+                </HouseSelect>
 
                 {scheduleType === 'interval' && (
-                  <select
+                  <HouseSelect
                     value={intervalMinutes}
                     onChange={(e) => setIntervalMinutes(Number(e.target.value))}
                     className="auto-schedule-value"
@@ -253,11 +254,11 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
                     {INTERVAL_PRESETS.map((preset) => (
                       <option key={preset.minutes} value={preset.minutes}>{preset.label}</option>
                     ))}
-                  </select>
+                  </HouseSelect>
                 )}
 
                 {scheduleType === 'daily_at' && (
-                  <input
+                  <HouseInput
                     type="time"
                     value={dailyTime}
                     onChange={(e) => setDailyTime(e.target.value)}
@@ -267,7 +268,7 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
 
                 {scheduleType === 'weekly_at' && (
                   <>
-                    <select
+                    <HouseSelect
                       value={weeklyDay}
                       onChange={(e) => setWeeklyDay(Number(e.target.value))}
                       className="auto-schedule-day"
@@ -275,8 +276,8 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
                       {WEEKDAYS.map((day, i) => (
                         <option key={i} value={i}>{day}</option>
                       ))}
-                    </select>
-                    <input
+                    </HouseSelect>
+                    <HouseInput
                       type="time"
                       value={dailyTime}
                       onChange={(e) => setDailyTime(e.target.value)}
@@ -288,7 +289,7 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
             </div>
 
             <Field label="Instructions" id="edit-auto-prompt">
-              <textarea
+              <HouseTextarea
                 id="edit-auto-prompt"
                 rows={5}
                 value={prompt}
@@ -313,7 +314,7 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
 
             <div className="auto-modal-section">
               <label className="auto-modal-label">Notification</label>
-              <select
+              <HouseSelect
                 value={notification}
                 onChange={(e) => setNotification(e.target.value)}
                 className="auto-notification-select"
@@ -321,12 +322,12 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
                 {NOTIFICATION_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
-              </select>
+              </HouseSelect>
 
               {notification.includes('email') && (
                 <div style={{ marginTop: 12 }}>
                   <Field label="Recipient Email" id="auto-edit-email-recipient">
-                    <input
+                    <HouseInput
                       id="auto-edit-email-recipient"
                       type="email"
                       value={recipientEmail}
@@ -364,7 +365,7 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
             ) : (
               <div className="auto-runs-list">
                 {runs.map((run) => (
-                  <button
+                  <HouseButton
                     key={run.id}
                     type="button"
                     className="auto-run-item auto-run-item--clickable"
@@ -398,7 +399,7 @@ export default function EditAutomationModal({ automation, onClose, onSaved, onDe
                       </span>
                     </span>
                     <Icon name="caret-right" size={12} className="auto-run-arrow" />
-                  </button>
+                  </HouseButton>
                 ))}
               </div>
             )}

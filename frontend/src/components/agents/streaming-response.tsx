@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../ui/bento/index.jsx'
 "use client";
 
 import type React from "react";
@@ -105,7 +106,7 @@ export function StreamingResponse({
           </span>
           <div className="flex flex-wrap gap-1.5">
             {followUps.map((prompt) => (
-              <button
+              <HouseButton
                 key={prompt}
                 type="button"
                 onClick={() => onFollowUp?.(prompt)}
@@ -114,7 +115,7 @@ export function StreamingResponse({
                   border border-[var(--border)] transition-colors duration-150 text-left"
               >
                 <span>{prompt}</span>
-              </button>
+              </HouseButton>
             ))}
           </div>
         </div>

@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../../components/ui/bento/index.jsx'
 import { useEffect, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import Skeleton from '../../components/Skeleton.jsx'
@@ -59,33 +60,33 @@ export default function AskChatModal({ open, onClose, onSelectResource }) {
             </span>
             <span>Query Library</span>
           </div>
-          <button
+          <HouseButton
             type="button"
             className="icon-btn modal-close"
             onClick={onClose}
             aria-label="Close modal"
           >
             <Icon name="x" size={14} />
-          </button>
+          </HouseButton>
         </div>
 
         <form className="lib-ask-form" onSubmit={handleAsk}>
           <div className="lib-ask-input-wrap">
             <Icon name="search" size={16} className="lib-ask-search-icon" />
-            <input
+            <HouseInput
               ref={inputRef}
               className="lib-ask-input"
               placeholder="Ask anything about your saved knowledge, articles, or videos..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
-            <button
+            <HouseButton
               type="submit"
               className="btn btn--small btn--primary lib-ask-submit-btn"
               disabled={loading || !query.trim()}
             >
               {loading ? 'Searching...' : 'Ask'}
-            </button>
+            </HouseButton>
           </div>
         </form>
 
@@ -100,7 +101,7 @@ export default function AskChatModal({ open, onClose, onSelectResource }) {
                   'What movies or series did I bookmark recently?',
                   'Find my notes on system design and architecture',
                 ].map((prompt) => (
-                  <button
+                  <HouseButton
                     key={prompt}
                     type="button"
                     className="lib-ask-prompt-pill"
@@ -114,7 +115,7 @@ export default function AskChatModal({ open, onClose, onSelectResource }) {
                   >
                     <Icon name="search" size={12} />
                     <span>{prompt}</span>
-                  </button>
+                  </HouseButton>
                 ))}
               </div>
             </div>

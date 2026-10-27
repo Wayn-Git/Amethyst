@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useApp } from '../store.jsx'
 import Icon from './Icon.jsx'
 import { motion } from 'framer-motion'
@@ -25,7 +26,7 @@ export default function MobileNav() {
           const isActive = isMenu ? railOpen : view === item.id
 
           return (
-            <button
+            <HouseButton
               key={item.id}
               type="button"
               className={`mobile-nav-btn${isActive ? ' is-active' : ''}`}
@@ -50,7 +51,7 @@ export default function MobileNav() {
                 <Icon name={item.icon} size={20} filled={isActive} />
               </span>
               <span className="mobile-nav-label">{item.label}</span>
-            </button>
+            </HouseButton>
           )
         })}
       </div>

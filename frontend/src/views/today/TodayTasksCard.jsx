@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../../components/ui/bento/index.jsx'
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../../components/Icon.jsx'
@@ -181,14 +182,14 @@ export default function TodayTasksCard({
         </div>
 
         <div className="today-card-actions">
-          <button
+          <HouseButton
             type="button"
             className="btn btn--small btn--primary"
             style={{ borderRadius: 9999, padding: '4px 12px', fontSize: 12 }}
             onClick={() => setIsAdding((v) => !v)}
           >
             <Icon name="plus" size={13} /> Add task
-          </button>
+          </HouseButton>
         </div>
       </div>
 
@@ -205,7 +206,7 @@ export default function TodayTasksCard({
             animate={{ opacity: 1, height: 'auto', marginBottom: 10 }}
             exit={{ opacity: 0, height: 0, marginBottom: 0 }}
           >
-            <input
+            <HouseInput
               type="text"
               className="today-task-add-input"
               placeholder="What needs to be done? Press Enter to save"
@@ -214,14 +215,14 @@ export default function TodayTasksCard({
               disabled={addingBusy}
               onChange={(e) => setNewTitle(e.target.value)}
             />
-            <button
+            <HouseButton
               type="submit"
               className="btn btn--small btn--primary"
               disabled={!newTitle.trim() || addingBusy}
               style={{ padding: '2px 8px', fontSize: 11, borderRadius: 6 }}
             >
               {addingBusy ? '…' : 'Add'}
-            </button>
+            </HouseButton>
           </motion.form>
         )}
       </AnimatePresence>
@@ -237,13 +238,13 @@ export default function TodayTasksCard({
             <div className="today-empty-desc">
               Your to-do items will appear here. Tap below to create your first task.
             </div>
-            <button
+            <HouseButton
               type="button"
               className="btn btn--small btn--ghost"
               onClick={() => setIsAdding(true)}
             >
               <Icon name="plus" size={14} /> Add task
-            </button>
+            </HouseButton>
           </div>
         ) : (
           <div className="today-task-list">

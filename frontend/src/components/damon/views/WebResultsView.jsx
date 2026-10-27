@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../ui/bento/index.jsx'
 import Icon from '../../Icon.jsx'
 import { copyText, openUrl } from '../../../api.js'
 import { AsciiSkeleton } from 'ascii-reveal'
@@ -34,14 +35,14 @@ export default function WebResultsView({
         <Icon name={error ? 'alert-triangle' : 'globe'} size={24} />
         <p>{error ? 'Web search failed. Check your connection and try again.' : 'No web results came back for this.'}</p>
         <div className="damon-fallback-actions">
-          <button
+          <HouseButton
             type="button"
             className="damon-primary-action-btn"
             onClick={() => openUrl(`https://www.google.com/search?q=${encodeURIComponent(query || '')}`)}
           >
             <Icon name="arrow-up-right" size={14} />
             <span>Search Google in browser</span>
-          </button>
+          </HouseButton>
         </div>
       </div>
     )
@@ -86,14 +87,14 @@ export default function WebResultsView({
             </div>
 
             <div className="damon-web-actions">
-              <button
+              <HouseButton
                 type="button"
                 className="damon-action-btn"
                 title="Copy URL"
                 onClick={(e) => handleCopy(e, res.url)}
               >
                 <Icon name="copy" size={13} />
-              </button>
+              </HouseButton>
               <kbd className="kbd">↵ Open</kbd>
             </div>
           </div>

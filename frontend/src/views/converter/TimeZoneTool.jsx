@@ -1,3 +1,4 @@
+import { Input as HouseInput, Select as HouseSelect, Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import { useEffect, useMemo, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { useApp } from '../../store.jsx'
@@ -86,7 +87,7 @@ export default function TimeZoneTool() {
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex flex-col gap-1">
             <span className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">Date & Time</span>
-            <input
+            <HouseInput
               type="datetime-local"
               className="fc-input font-mono w-60"
               value={dateInputValue}
@@ -96,7 +97,7 @@ export default function TimeZoneTool() {
 
           <div className="flex flex-col gap-1">
             <span className="text-xs font-semibold text-[var(--fc-text-dim)] uppercase tracking-wider">Base Timezone</span>
-            <select
+            <HouseSelect
               className="fc-select w-64"
               value={baseZone}
               onChange={(e) => setBaseZone(e.target.value)}
@@ -106,18 +107,18 @@ export default function TimeZoneTool() {
                   {z.label}
                 </option>
               ))}
-            </select>
+            </HouseSelect>
           </div>
         </div>
 
-        <button
+        <HouseButton
           type="button"
           className="fc-btn fc-btn-secondary"
           onClick={setNow}
         >
           <Icon name="clock" size={15} />
           <span>Reset to Now</span>
-        </button>
+        </HouseButton>
       </div>
 
       {/* Grid of World Timezones */}

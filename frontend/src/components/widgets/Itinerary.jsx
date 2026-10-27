@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../ui/bento/index.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './itinerary.css'
 
@@ -301,17 +302,17 @@ function RouteMap({
     <div className="itinerary-map-container">
       <div className="itinerary-map-overlay-left">
         <div className="itinerary-map-filter-wrapper" ref={filterRef}>
-          <button
+          <HouseButton
             type="button"
             className="itinerary-map-pill itinerary-map-filter-btn"
             onClick={() => setFilterOpen((o) => !o)}
             aria-expanded={filterOpen}
           >
             {selectedDayFilter === 'all' ? 'All stops' : `Day ${selectedDayFilter}`} <span style={{ fontSize: 9 }}>▼</span>
-          </button>
+          </HouseButton>
           {filterOpen && (
             <div className="itinerary-map-filter-menu" role="menu">
-              <button
+              <HouseButton
                 type="button"
                 className={`itinerary-map-filter-item ${selectedDayFilter === 'all' ? 'is-selected' : ''}`}
                 onClick={() => {
@@ -320,12 +321,12 @@ function RouteMap({
                 }}
               >
                 All stops ({(allStops || []).length})
-              </button>
+              </HouseButton>
               {(days || []).map((d, i) => {
                 const dayNum = String(d.day ?? i + 1)
                 const count = (d.stops || []).length
                 return (
-                  <button
+                  <HouseButton
                     key={i}
                     type="button"
                     className={`itinerary-map-filter-item ${selectedDayFilter === dayNum ? 'is-selected' : ''}`}
@@ -335,7 +336,7 @@ function RouteMap({
                     }}
                   >
                     Day {dayNum} ({count} stop{count === 1 ? '' : 's'})
-                  </button>
+                  </HouseButton>
                 )
               })}
             </div>
@@ -344,9 +345,9 @@ function RouteMap({
         <span className="itinerary-map-info-btn" title="Route overview">ⓘ</span>
       </div>
       {onToggleExpand && (
-        <button type="button" className="itinerary-map-expand-btn" onClick={onToggleExpand}>
+        <HouseButton type="button" className="itinerary-map-expand-btn" onClick={onToggleExpand}>
           {expanded ? 'Collapse ⤡' : 'Expand ⤢'}
-        </button>
+        </HouseButton>
       )}
       <div className={`widget-map ${expanded ? 'is-expanded' : ''}`} ref={host} />
     </div>
@@ -612,7 +613,7 @@ Please adjust the stops, pacing, and daily highlights accordingly.`
         <div className="itinerary-tabbed-container">
           <div className="widget-tabs" role="tablist">
             {days.map((d, i) => (
-              <button
+              <HouseButton
                 key={i}
                 type="button"
                 role="tab"
@@ -624,7 +625,7 @@ Please adjust the stops, pacing, and daily highlights accordingly.`
                 }}
               >
                 Day {d.day ?? i + 1}
-              </button>
+              </HouseButton>
             ))}
           </div>
           <div role="tabpanel" className="itinerary-day-row" style={{ marginTop: '16px' }}>
@@ -703,7 +704,7 @@ Please adjust the stops, pacing, and daily highlights accordingly.`
                 '5–7 days, relaxed exploration',
               ].map((opt) => (
                 <label key={opt} className="itinerary-radio-item">
-                  <input
+                  <HouseInput
                     type="radio"
                     name="tailor-duration"
                     value={opt}
@@ -728,7 +729,7 @@ Please adjust the stops, pacing, and daily highlights accordingly.`
                 'Photography and the most beautiful stops',
               ].map((opt) => (
                 <label key={opt} className="itinerary-radio-item">
-                  <input
+                  <HouseInput
                     type="radio"
                     name="tailor-vibe"
                     value={opt}
@@ -752,7 +753,7 @@ Please adjust the stops, pacing, and daily highlights accordingly.`
                 'Luxury hotels and special stays',
               ].map((opt) => (
                 <label key={opt} className="itinerary-radio-item">
-                  <input
+                  <HouseInput
                     type="radio"
                     name="tailor-budget"
                     value={opt}
@@ -776,7 +777,7 @@ Please adjust the stops, pacing, and daily highlights accordingly.`
                 'No car, public transport and tours',
               ].map((opt) => (
                 <label key={opt} className="itinerary-radio-item">
-                  <input
+                  <HouseInput
                     type="radio"
                     name="tailor-travel"
                     value={opt}
@@ -798,14 +799,14 @@ Please adjust the stops, pacing, and daily highlights accordingly.`
             <span className="itinerary-customizer-tag">{tailorTravel}</span>
           </div>
 
-          <button
+          <HouseButton
             type="button"
             className="itinerary-customizer-btn"
             onClick={handleCustomizeClick}
             disabled={customizing}
           >
             {customizing ? '✨ Customizing your road trip...' : 'Customize my road trip'}
-          </button>
+          </HouseButton>
         </div>
       </div>
     </div>

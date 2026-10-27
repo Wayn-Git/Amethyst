@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 /* The camera, pointed at a pairing code.
  *
  * Built on `BarcodeDetector`, which is a browser API rather than a library:
@@ -114,10 +115,10 @@ export default function QrScanner({ onScan, onCancel }) {
       <p className="qr-scan-hint">
         {error || 'Point this at the code on your computer.'}
       </p>
-      <button type="button" className="pair-secondary" onClick={onCancel}>
+      <HouseButton type="button" className="pair-secondary" onClick={onCancel}>
         <Icon name="x" size={16} />
         Cancel
-      </button>
+      </HouseButton>
     </div>
   )
 }

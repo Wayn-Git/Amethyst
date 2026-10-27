@@ -1,3 +1,4 @@
+import { Button as HouseButton, Textarea as HouseTextarea, Input as HouseInput } from '../../components/ui/bento/index.jsx'
 import { useEffect, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -216,51 +217,51 @@ export default function AddContentModal({
               <Icon name="plus" size={16} />
               <span>Add Knowledge Resource</span>
             </h2>
-            <button
+            <HouseButton
               type="button"
               className="lib-modal-close"
               onClick={onClose}
               aria-label="Close dialog"
             >
               <Icon name="x" size={14} />
-            </button>
+            </HouseButton>
           </div>
 
           {/* Mode Tabs */}
           <div style={{ padding: '16px 20px 0' }}>
             <div className="lib-modal-tabs">
-              <button
+              <HouseButton
                 type="button"
                 className={`lib-modal-tab ${mode === 'url' ? 'lib-modal-tab--active' : ''}`}
                 onClick={() => setMode('url')}
               >
                 <Icon name="link" size={14} />
                 <span>Web Links</span>
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 className={`lib-modal-tab ${mode === 'file' ? 'lib-modal-tab--active' : ''}`}
                 onClick={() => setMode('file')}
               >
                 <Icon name="upload" size={14} />
                 <span>Upload File</span>
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 className={`lib-modal-tab ${mode === 'note' ? 'lib-modal-tab--active' : ''}`}
                 onClick={() => setMode('note')}
               >
                 <Icon name="edit" size={14} />
                 <span>Write Note</span>
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 className={`lib-modal-tab ${mode === 'wiki' ? 'lib-modal-tab--active' : ''}`}
                 onClick={() => setMode('wiki')}
               >
                 <Icon name="globe" size={14} />
                 <span>Wikipedia</span>
-              </button>
+              </HouseButton>
             </div>
           </div>
 
@@ -271,7 +272,7 @@ export default function AddContentModal({
                 <label className="lib-form-label" htmlFor="lib-url-input">
                   Paste URLs (Articles, YouTube, X, Spotify, GitHub, Papers...)
                 </label>
-                <textarea
+                <HouseTextarea
                   id="lib-url-input"
                   ref={urlInputRef}
                   className="lib-form-textarea"
@@ -300,7 +301,7 @@ export default function AddContentModal({
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
               >
-                <input
+                <HouseInput
                   ref={fileInputRef}
                   type="file"
                   style={{ display: 'none' }}
@@ -323,7 +324,7 @@ export default function AddContentModal({
               <form onSubmit={handleNoteSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div className="lib-form-group">
                   <label className="lib-form-label" htmlFor="lib-note-title">Note Title</label>
-                  <input
+                  <HouseInput
                     id="lib-note-title"
                     type="text"
                     className="lib-form-input"
@@ -334,7 +335,7 @@ export default function AddContentModal({
                 </div>
                 <div className="lib-form-group">
                   <label className="lib-form-label" htmlFor="lib-note-content">Note Content (Markdown)</label>
-                  <textarea
+                  <HouseTextarea
                     id="lib-note-content"
                     className="lib-form-textarea"
                     placeholder="Write your notes, ideas, or references..."
@@ -351,7 +352,7 @@ export default function AddContentModal({
                 <label className="lib-form-label" htmlFor="lib-wiki-topic">
                   Wikipedia Article or Concept
                 </label>
-                <input
+                <HouseInput
                   id="lib-wiki-topic"
                   type="text"
                   className="lib-form-input"
@@ -368,15 +369,15 @@ export default function AddContentModal({
 
           {/* Footer */}
           <div className="lib-modal-footer">
-            <button
+            <HouseButton
               type="button"
               className="lib-btn"
               onClick={onClose}
               disabled={busy}
             >
               Cancel
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className="lib-btn lib-btn--primary"
               disabled={busy}
@@ -401,7 +402,7 @@ export default function AddContentModal({
                   <span>{mode === 'file' ? 'Select File' : 'Add to Library'}</span>
                 </>
               )}
-            </button>
+            </HouseButton>
           </div>
         </motion.div>
       </div>

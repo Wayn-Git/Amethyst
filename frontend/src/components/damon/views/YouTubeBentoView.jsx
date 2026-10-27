@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../ui/bento/index.jsx'
 import Icon from '../../Icon.jsx'
 import { copyText } from '../../../api.js'
 import { AsciiSkeleton } from 'ascii-reveal'
@@ -19,7 +20,7 @@ export default function YouTubeBentoView({
   const sortBar = onSortChange ? (
     <div className="damon-yt-sort" role="group" aria-label="Sort videos">
       {[['relevance', 'Top'], ['date', 'Latest']].map(([id, label]) => (
-        <button
+        <HouseButton
           key={id}
           type="button"
           className={`damon-yt-sort-btn${sort === id ? ' is-active' : ''}`}
@@ -27,7 +28,7 @@ export default function YouTubeBentoView({
           onClick={() => onSortChange(id)}
         >
           {label}
-        </button>
+        </HouseButton>
       ))}
     </div>
   ) : null
@@ -106,14 +107,14 @@ export default function YouTubeBentoView({
             </div>
 
             <div className="damon-yt-card-actions">
-              <button
+              <HouseButton
                 type="button"
                 className="damon-action-btn"
                 title="Copy video link"
                 onClick={(e) => handleCopy(e, video.url)}
               >
                 <Icon name="copy" size={13} />
-              </button>
+              </HouseButton>
             </div>
           </div>
         )

@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import { memo, useMemo, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { api } from '../../api.js'
@@ -159,7 +160,7 @@ function LibraryRowComponent({
           </a>
         )}
         {item.indexed && !item.summary && (
-          <button
+          <HouseButton
             type="button"
             className="lib-dock-btn"
             disabled={busy}
@@ -170,10 +171,10 @@ function LibraryRowComponent({
             }}
           >
             <Icon name="brain" size={13} />
-          </button>
+          </HouseButton>
         )}
         {item.indexed && (
-          <button
+          <HouseButton
             type="button"
             className="lib-dock-btn"
             disabled={busy}
@@ -184,9 +185,9 @@ function LibraryRowComponent({
             }}
           >
             <Icon name="refresh" size={13} />
-          </button>
+          </HouseButton>
         )}
-        <button
+        <HouseButton
           type="button"
           className="lib-dock-btn lib-dock-btn--danger"
           disabled={busy}
@@ -197,7 +198,7 @@ function LibraryRowComponent({
           }}
         >
           <Icon name="trash" size={13} />
-        </button>
+        </HouseButton>
       </div>
     </article>
   )

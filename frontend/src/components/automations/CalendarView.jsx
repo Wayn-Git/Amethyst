@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../ui/bento/index.jsx'
 /* Calendar: the month a schedule actually lived in.
 
    Past days carry the runs that happened, colored by their outcome — the
@@ -169,7 +170,7 @@ export default function CalendarView({ rows, onSelectRun }) {
               </span>
               <div className="auto-calendar-dots">
                 {dayRuns.slice(0, 4).map((run) => (
-                  <button
+                  <HouseButton
                     key={run.id}
                     type="button"
                     className={`auto-calendar-dot ${STATUS_CLASS[run.status] || 'is-skipped'}`}

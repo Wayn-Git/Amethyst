@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../../ui/bento/index.jsx'
 "use client";
 
 import { forwardRef, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -220,7 +221,7 @@ function RowCopyBtn({
     );
 
   return (
-    <button
+    <HouseButton
       type="button"
       tabIndex={focusable ? undefined : -1}
       className={[styles.action, className].filter(Boolean).join(" ")}
@@ -244,7 +245,7 @@ function RowCopyBtn({
           {glyph}
         </motion.span>
       </AnimatePresence>
-    </button>
+    </HouseButton>
   );
 }
 
@@ -508,7 +509,7 @@ export const JsonViewer = forwardRef<HTMLDivElement, JsonViewerProps>(function J
           {searchable ? (
             <label className={styles.search}>
               <Search size={14} strokeWidth={1.75} aria-hidden="true" className={styles.searchIcon} />
-              <input
+              <HouseInput
                 ref={searchRef}
                 type="search"
                 className={styles.input}
@@ -525,12 +526,12 @@ export const JsonViewer = forwardRef<HTMLDivElement, JsonViewerProps>(function J
                   <span className={styles.count} aria-live="polite">
                     {matchCount ? `${Math.min(matchIndex, matchCount - 1) + 1}/${matchCount}` : "0/0"}
                   </span>
-                  <button type="button" className={styles.tool} aria-label="Previous match" disabled={!matchCount} onClick={() => stepMatch(-1)}>
+                  <HouseButton type="button" className={styles.tool} aria-label="Previous match" disabled={!matchCount} onClick={() => stepMatch(-1)}>
                     <ChevronUp size={14} strokeWidth={1.75} aria-hidden="true" />
-                  </button>
-                  <button type="button" className={styles.tool} aria-label="Next match" disabled={!matchCount} onClick={() => stepMatch(1)}>
+                  </HouseButton>
+                  <HouseButton type="button" className={styles.tool} aria-label="Next match" disabled={!matchCount} onClick={() => stepMatch(1)}>
                     <ChevronDown size={14} strokeWidth={1.75} aria-hidden="true" />
-                  </button>
+                  </HouseButton>
                 </span>
               ) : null}
             </label>
@@ -538,12 +539,12 @@ export const JsonViewer = forwardRef<HTMLDivElement, JsonViewerProps>(function J
             <span className={styles.grow} />
           )}
           <span className={styles.divider} aria-hidden="true" />
-          <button type="button" className={styles.tool} aria-label="Expand all" title="Expand all" onClick={expandAll}>
+          <HouseButton type="button" className={styles.tool} aria-label="Expand all" title="Expand all" onClick={expandAll}>
             <ChevronsUpDown size={14} strokeWidth={1.75} aria-hidden="true" />
-          </button>
-          <button type="button" className={styles.tool} aria-label="Collapse all" title="Collapse all" onClick={collapseAll}>
+          </HouseButton>
+          <HouseButton type="button" className={styles.tool} aria-label="Collapse all" title="Collapse all" onClick={collapseAll}>
             <ChevronsDownUp size={14} strokeWidth={1.75} aria-hidden="true" />
-          </button>
+          </HouseButton>
         </div>
       ) : null}
 

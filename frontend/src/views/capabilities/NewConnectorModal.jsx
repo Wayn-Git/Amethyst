@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput, Select as HouseSelect } from '../../components/ui/bento/index.jsx'
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../../components/Icon.jsx'
@@ -232,7 +233,7 @@ export default function NewConnectorModal({ open, onClose, onCreated }) {
                         <span className="mcp-icon-group-title">Brands (theSVG)</span>
                         <div className="mcp-icon-grid">
                           {BRAND_ICONS.map((ic) => (
-                            <button
+                            <HouseButton
                               key={ic}
                               type="button"
                               className={`mcp-icon-picker-btn${selectedIcon === ic ? ' active' : ''}`}
@@ -243,7 +244,7 @@ export default function NewConnectorModal({ open, onClose, onCreated }) {
                               title={ic}
                             >
                               <ServiceIcon name={ic} size={26} />
-                            </button>
+                            </HouseButton>
                           ))}
                         </div>
                       </div>
@@ -251,7 +252,7 @@ export default function NewConnectorModal({ open, onClose, onCreated }) {
                         <span className="mcp-icon-group-title">System</span>
                         <div className="mcp-icon-grid">
                           {GENERIC_ICONS.map((ic) => (
-                            <button
+                            <HouseButton
                               key={ic}
                               type="button"
                               className={`mcp-icon-picker-btn${selectedIcon === ic ? ' active' : ''}`}
@@ -262,7 +263,7 @@ export default function NewConnectorModal({ open, onClose, onCreated }) {
                               title={ic}
                             >
                               <Icon name={ic} size={18} />
-                            </button>
+                            </HouseButton>
                           ))}
                         </div>
                       </div>
@@ -275,7 +276,7 @@ export default function NewConnectorModal({ open, onClose, onCreated }) {
                   <label htmlFor="connector-name">
                     Name <span className="mcp-req">*</span>
                   </label>
-                  <input
+                  <HouseInput
                     id="connector-name"
                     type="text"
                     value={name}
@@ -291,7 +292,7 @@ export default function NewConnectorModal({ open, onClose, onCreated }) {
                   <label htmlFor="connector-desc">
                     Description <span className="mcp-opt">(optional)</span>
                   </label>
-                  <input
+                  <HouseInput
                     id="connector-desc"
                     type="text"
                     value={description}
@@ -305,7 +306,7 @@ export default function NewConnectorModal({ open, onClose, onCreated }) {
                   <div className="mcp-field-header">
                     <label>Connection</label>
                     <div className="mcp-mode-toggle" role="radiogroup" aria-label="Connection mode">
-                      <button
+                      <HouseButton
                         type="button"
                         role="radio"
                         aria-checked={connectionMode === 'url'}
@@ -320,8 +321,8 @@ export default function NewConnectorModal({ open, onClose, onCreated }) {
                           />
                         )}
                         <span className="mcp-mode-label">Server URL</span>
-                      </button>
-                      <button
+                      </HouseButton>
+                      <HouseButton
                         type="button"
                         role="radio"
                         aria-checked={connectionMode === 'command'}
@@ -336,12 +337,12 @@ export default function NewConnectorModal({ open, onClose, onCreated }) {
                           />
                         )}
                         <span className="mcp-mode-label">Command (stdio)</span>
-                      </button>
+                      </HouseButton>
                     </div>
                   </div>
 
                   {connectionMode === 'url' ? (
-                    <input
+                    <HouseInput
                       type="url"
                       value={url}
                       onChange={(e) => setUrl(e.target.value)}
@@ -350,14 +351,14 @@ export default function NewConnectorModal({ open, onClose, onCreated }) {
                     />
                   ) : (
                     <div className="mcp-command-inputs">
-                      <input
+                      <HouseInput
                         type="text"
                         value={command}
                         onChange={(e) => setCommand(e.target.value)}
                         placeholder="npx or uvx or node"
                         required
                       />
-                      <input
+                      <HouseInput
                         type="text"
                         value={argsStr}
                         onChange={(e) => setArgsStr(e.target.value)}
@@ -370,7 +371,7 @@ export default function NewConnectorModal({ open, onClose, onCreated }) {
                 {/* Authentication Dropdown */}
                 <div className="field">
                   <label htmlFor="connector-auth">Authentication</label>
-                  <select
+                  <HouseSelect
                     id="connector-auth"
                     value={authType}
                     onChange={(e) => setAuthType(e.target.value)}
@@ -379,7 +380,7 @@ export default function NewConnectorModal({ open, onClose, onCreated }) {
                     <option value="none">None (No authentication needed)</option>
                     <option value="oauth">OAuth (OAuth 2.0 flow)</option>
                     <option value="env">API Key / Environment Variable</option>
-                  </select>
+                  </HouseSelect>
                 </div>
 
                 {/* Env var credentials fields if authType is 'env' */}
@@ -388,7 +389,7 @@ export default function NewConnectorModal({ open, onClose, onCreated }) {
                     <div className="field-row">
                       <div className="field">
                         <label>Variable Name</label>
-                        <input
+                        <HouseInput
                           type="text"
                           value={envKey}
                           onChange={(e) => setEnvKey(e.target.value.toUpperCase())}
@@ -397,7 +398,7 @@ export default function NewConnectorModal({ open, onClose, onCreated }) {
                       </div>
                       <div className="field">
                         <label>Variable Value</label>
-                        <input
+                        <HouseInput
                           type="password"
                           value={envValue}
                           onChange={(e) => setEnvValue(e.target.value)}
@@ -413,14 +414,14 @@ export default function NewConnectorModal({ open, onClose, onCreated }) {
 
                 {/* Advanced Settings Collapsible with Animation */}
                 <div className="mcp-advanced">
-                  <button
+                  <HouseButton
                     type="button"
                     className="mcp-advanced-toggle"
                     onClick={() => setAdvancedOpen((o) => !o)}
                   >
                     <Icon name="chevron" size={13} className={`mcp-chevron${advancedOpen ? ' open' : ''}`} />
                     <span>Advanced settings</span>
-                  </button>
+                  </HouseButton>
 
                   <AnimatePresence>
                     {advancedOpen && (
@@ -435,7 +436,7 @@ export default function NewConnectorModal({ open, onClose, onCreated }) {
                         {authType === 'oauth' && (
                           <div className="field">
                             <label>OAuth Scopes (space separated)</label>
-                            <input
+                            <HouseInput
                               type="text"
                               value={scopesStr}
                               onChange={(e) => setScopesStr(e.target.value)}
@@ -444,7 +445,7 @@ export default function NewConnectorModal({ open, onClose, onCreated }) {
                           </div>
                         )}
                         <label className="mcp-checkbox-label">
-                          <input
+                          <HouseInput
                             type="checkbox"
                             checked={allowLocal}
                             onChange={(e) => setAllowLocal(e.target.checked)}
@@ -465,7 +466,7 @@ export default function NewConnectorModal({ open, onClose, onCreated }) {
                     </span>
                   </div>
                   <label className="mcp-risk-checkbox-label">
-                    <input
+                    <HouseInput
                       type="checkbox"
                       checked={riskAcknowledged}
                       onChange={(e) => setRiskAcknowledged(e.target.checked)}

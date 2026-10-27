@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../ui/bento/index.jsx'
 import { useState } from 'react'
 import Icon from '../../Icon.jsx'
 import { copyText } from '../../../api.js'
@@ -62,18 +63,18 @@ export default function LibraryView({
             { id: 'note', label: 'Notes' },
             { id: 'podcast', label: 'Podcasts' },
           ].map((k) => (
-            <button
+            <HouseButton
               key={k.id}
               type="button"
               className={`damon-bucket-btn${filterKind === k.id ? ' is-active' : ''}`}
               onClick={() => setFilterKind(k.id)}
             >
               {k.label}
-            </button>
+            </HouseButton>
           ))}
         </div>
 
-        <button
+        <HouseButton
           type="button"
           className="damon-nav-jump-btn"
           onClick={onNavigateLibrary}
@@ -81,7 +82,7 @@ export default function LibraryView({
         >
           <span>Open Library</span>
           <Icon name="arrow-up-right" size={13} />
-        </button>
+        </HouseButton>
       </div>
 
       {/* Quick Add Content Tile */}
@@ -149,14 +150,14 @@ export default function LibraryView({
 
                 <div className="damon-lib-actions">
                   {item.url && (
-                    <button
+                    <HouseButton
                       type="button"
                       className="damon-action-btn"
                       onClick={(e) => handleCopyLink(e, item.url)}
                       title="Copy URL"
                     >
                       <Icon name="copy" size={12} />
-                    </button>
+                    </HouseButton>
                   )}
                   <kbd className="kbd">↵ Open</kbd>
                 </div>

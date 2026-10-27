@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../ui/bento/index.jsx'
 import Icon from '../../Icon.jsx'
 import Skeleton from '../../Skeleton.jsx'
 import { copyText } from '../../../api.js'
@@ -51,7 +52,7 @@ export default function AnswerCardView({ answer, error, sources = [], loading, o
       {sources.length > 0 && (
         <div className="damon-answer-sources">
           {sources.map((src) => (
-            <button
+            <HouseButton
               key={src.url}
               type="button"
               className="damon-answer-source"
@@ -65,9 +66,9 @@ export default function AnswerCardView({ answer, error, sources = [], loading, o
                 onError={(e) => { e.target.style.display = 'none' }}
               />
               <span>{src.domain}</span>
-            </button>
+            </HouseButton>
           ))}
-          <button
+          <HouseButton
             type="button"
             className="damon-answer-source damon-answer-source--copy"
             onClick={async (e) => {
@@ -79,7 +80,7 @@ export default function AnswerCardView({ answer, error, sources = [], loading, o
           >
             <Icon name="copy" size={12} />
             <span>Copy</span>
-          </button>
+          </HouseButton>
         </div>
       )}
     </div>

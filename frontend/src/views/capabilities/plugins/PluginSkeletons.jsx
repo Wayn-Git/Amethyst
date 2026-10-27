@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../../components/ui/bento/index.jsx'
 import { ChevronLeft } from 'lucide-react'
 import Skeleton from '../../../components/Skeleton.jsx'
 
@@ -183,9 +184,9 @@ export function PluginDetailSkeleton({ onBack }) {
           <Skeleton w={16} h={16} r={3} />
         </div>
         <div className="plugin-detail-breadcrumbs">
-          <button type="button" className="plugin-breadcrumb-link" onClick={onBack}>
+          <HouseButton type="button" className="plugin-breadcrumb-link" onClick={onBack}>
             Plugins
-          </button>
+          </HouseButton>
           <span className="plugin-breadcrumb-sep">&gt;</span>
           <Skeleton w={90} h={14} r={3} />
         </div>

@@ -1,3 +1,4 @@
+import { Input as HouseInput, Button as HouseButton, Select as HouseSelect } from '../../components/ui/bento/index.jsx'
 import { useCallback, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { api } from '../../api.js'
@@ -155,7 +156,7 @@ export default function ImageResizerTool() {
           onClick={() => fileInputRef.current?.click()}
         >
           <div className="fc-dropzone-core">
-            <input
+            <HouseInput
               ref={fileInputRef}
               type="file"
               accept="image/*"
@@ -184,7 +185,7 @@ export default function ImageResizerTool() {
               ))}
             </div>
             <div className="fc-drop-action-row">
-              <button
+              <HouseButton
                 type="button"
                 className="fc-btn fc-btn-primary fc-btn-pill"
                 onClick={(e) => {
@@ -196,7 +197,7 @@ export default function ImageResizerTool() {
                 <span className="fc-btn-icon-bubble">
                   <Icon name="arrow-right" size={13} />
                 </span>
-              </button>
+              </HouseButton>
             </div>
           </div>
         </div>
@@ -206,7 +207,7 @@ export default function ImageResizerTool() {
           <div className="fc-tool-panel">
             <div className="flex items-center justify-between pb-3 border-b border-[var(--fc-border)]">
               <div className="fc-panel-title">Resizer & Compressor Settings</div>
-              <button
+              <HouseButton
                 type="button"
                 className="fc-btn fc-btn-danger-ghost text-xs"
                 onClick={() => {
@@ -217,7 +218,7 @@ export default function ImageResizerTool() {
               >
                 <Icon name="trash" size={14} />
                 <span>Change Image</span>
-              </button>
+              </HouseButton>
             </div>
 
             {/* Resize Mode Selector */}
@@ -229,14 +230,14 @@ export default function ImageResizerTool() {
                   { id: 'percentage', label: 'Percentage (%)' },
                   { id: 'preset', label: 'Social Presets' },
                 ].map((m) => (
-                  <button
+                  <HouseButton
                     key={m.id}
                     type="button"
                     className={`fc-mode-tab${mode === m.id ? ' is-active' : ''}`}
                     onClick={() => setMode(m.id)}
                   >
                     {m.label}
-                  </button>
+                  </HouseButton>
                 ))}
               </div>
             </div>
@@ -247,7 +248,7 @@ export default function ImageResizerTool() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-medium text-[var(--fc-text-dim)]">Width (px)</label>
-                    <input
+                    <HouseInput
                       type="number"
                       min="1"
                       className="fc-input font-mono"
@@ -257,7 +258,7 @@ export default function ImageResizerTool() {
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-medium text-[var(--fc-text-dim)]">Height (px)</label>
-                    <input
+                    <HouseInput
                       type="number"
                       min="1"
                       className="fc-input font-mono"
@@ -268,7 +269,7 @@ export default function ImageResizerTool() {
                 </div>
 
                 <label className="flex items-center gap-2 cursor-pointer text-xs text-[var(--fc-text)] mt-1">
-                  <input
+                  <HouseInput
                     type="checkbox"
                     checked={lockAspectRatio}
                     onChange={(e) => setLockAspectRatio(e.target.checked)}
@@ -286,7 +287,7 @@ export default function ImageResizerTool() {
                   <span>Scale Percentage</span>
                   <span className="font-mono font-semibold text-[var(--fc-accent)]">{percentage}%</span>
                 </div>
-                <input
+                <HouseInput
                   type="range"
                   min="10"
                   max="200"
@@ -297,7 +298,7 @@ export default function ImageResizerTool() {
                 />
                 <div className="flex items-center gap-2 flex-wrap">
                   {[25, 50, 75, 100, 150, 200].map((pct) => (
-                    <button
+                    <HouseButton
                       key={pct}
                       type="button"
                       className={`px-2.5 py-1 text-xs rounded-md border font-mono transition ${
@@ -308,7 +309,7 @@ export default function ImageResizerTool() {
                       onClick={() => setPercentage(pct)}
                     >
                       {pct}%
-                    </button>
+                    </HouseButton>
                   ))}
                 </div>
               </div>
@@ -320,7 +321,7 @@ export default function ImageResizerTool() {
                 <label className="text-xs font-medium text-[var(--fc-text-dim)]">Standard Sizes</label>
                 <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
                   {PRESETS.map((p) => (
-                    <button
+                    <HouseButton
                       key={p.label}
                       type="button"
                       className={`text-left p-2 rounded-lg text-xs border transition ${
@@ -331,7 +332,7 @@ export default function ImageResizerTool() {
                       onClick={() => applyPreset(p)}
                     >
                       {p.label}
-                    </button>
+                    </HouseButton>
                   ))}
                 </div>
               </div>
@@ -342,7 +343,7 @@ export default function ImageResizerTool() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-medium text-[var(--fc-text-dim)]">Output Format</label>
-                  <select
+                  <HouseSelect
                     className="fc-select font-mono uppercase"
                     value={targetFormat}
                     onChange={(e) => setTargetFormat(e.target.value)}
@@ -353,7 +354,7 @@ export default function ImageResizerTool() {
                     <option value="avif">AVIF</option>
                     <option value="ico">ICO</option>
                     <option value="pdf">PDF</option>
-                  </select>
+                  </HouseSelect>
                 </div>
 
                 <div className="flex flex-col gap-1.5">
@@ -361,7 +362,7 @@ export default function ImageResizerTool() {
                     <span>Quality</span>
                     <span className="font-mono text-[var(--fc-accent)]">{quality}%</span>
                   </div>
-                  <input
+                  <HouseInput
                     type="range"
                     min="10"
                     max="100"
@@ -376,7 +377,7 @@ export default function ImageResizerTool() {
               <div className="grid grid-cols-2 gap-3 mt-1">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-medium text-[var(--fc-text-dim)]">Rotation</label>
-                  <select
+                  <HouseSelect
                     className="fc-select"
                     value={rotateAngle}
                     onChange={(e) => setRotateAngle(Number(e.target.value))}
@@ -385,12 +386,12 @@ export default function ImageResizerTool() {
                     <option value="90">90° Clockwise</option>
                     <option value="180">180° Half turn</option>
                     <option value="270">270° Counter-clockwise</option>
-                  </select>
+                  </HouseSelect>
                 </div>
 
                 <div className="flex items-end pb-1.5">
                   <label className="flex items-center gap-2 cursor-pointer text-xs text-[var(--fc-text)]">
-                    <input
+                    <HouseInput
                       type="checkbox"
                       checked={grayscale}
                       onChange={(e) => setGrayscale(e.target.checked)}
@@ -403,7 +404,7 @@ export default function ImageResizerTool() {
             </div>
 
             {/* Execute Button */}
-            <button
+            <HouseButton
               type="button"
               className="fc-btn fc-btn-primary w-full mt-6 py-2.5 h-auto text-sm"
               disabled={processing}
@@ -411,7 +412,7 @@ export default function ImageResizerTool() {
             >
               <Icon name="convert" size={16} />
               <span>{processing ? 'Processing Image…' : 'Resize & Optimize Image'}</span>
-            </button>
+            </HouseButton>
           </div>
 
           {/* Right Panel: Preview & Result */}

@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import { memo, useMemo, useRef, useState, useCallback } from 'react'
 import { AsciiSkeleton } from 'ascii-reveal'
 import Icon from '../../components/Icon.jsx'
@@ -425,7 +426,7 @@ function LibraryCardComponent({
                     onEnded={() => setIsPlayingVideo(false)}
                   />
                 )}
-                <button
+                <HouseButton
                   type="button"
                   className="lib-card-video-close-btn"
                   aria-label="Close video player"
@@ -436,7 +437,7 @@ function LibraryCardComponent({
                   }}
                 >
                   <Icon name="x" size={12} />
-                </button>
+                </HouseButton>
               </div>
             ) : (
               <>
@@ -474,7 +475,7 @@ function LibraryCardComponent({
 
                 {/* Center Frosted Play Button for Videos / Reels */}
                 {(isVideo || duration || hasLocalVideo) && (
-                  <button
+                  <HouseButton
                     type="button"
                     className="lib-card-play-btn"
                     aria-label="Play video"
@@ -485,7 +486,7 @@ function LibraryCardComponent({
                     }}
                   >
                     <Icon name="play" size={16} />
-                  </button>
+                  </HouseButton>
                 )}
 
                 {/* Top-Right Multi-Image Carousel Badge & Slide Controls */}
@@ -497,7 +498,7 @@ function LibraryCardComponent({
                     </div>
 
                     {currentSlideIndex > 0 && (
-                      <button
+                      <HouseButton
                         type="button"
                         className="lib-card-slide-nav lib-card-slide-nav--prev"
                         aria-label="Previous slide"
@@ -508,11 +509,11 @@ function LibraryCardComponent({
                         }}
                       >
                         <Icon name="chevron-left" size={12} />
-                      </button>
+                      </HouseButton>
                     )}
 
                     {currentSlideIndex < slideCount - 1 && (
-                      <button
+                      <HouseButton
                         type="button"
                         className="lib-card-slide-nav lib-card-slide-nav--next"
                         aria-label="Next slide"
@@ -523,13 +524,13 @@ function LibraryCardComponent({
                         }}
                       >
                         <Icon name="chevron-right" size={12} />
-                      </button>
+                      </HouseButton>
                     )}
 
                     {/* Bottom Slide Dots */}
                     <div className="lib-card-slide-dots" onClick={(e) => e.stopPropagation()}>
                       {slides.map((_, idx) => (
-                        <button
+                        <HouseButton
                           key={idx}
                           type="button"
                           aria-label={`Slide ${idx + 1}`}
@@ -670,7 +671,7 @@ function LibraryCardComponent({
                   </a>
                 )}
                 {!item.summary && (
-                  <button
+                  <HouseButton
                     type="button"
                     className="lib-card-action-btn"
                     disabled={busy}
@@ -678,10 +679,10 @@ function LibraryCardComponent({
                     onClick={() => onEnrich?.(item)}
                   >
                     <Icon name="spark" size={12} />
-                  </button>
+                  </HouseButton>
                 )}
                 {item.indexed && (
-                  <button
+                  <HouseButton
                     type="button"
                     className="lib-card-action-btn"
                     disabled={busy}
@@ -689,9 +690,9 @@ function LibraryCardComponent({
                     onClick={() => onReindex?.(item)}
                   >
                     <Icon name="refresh" size={12} />
-                  </button>
+                  </HouseButton>
                 )}
-                <button
+                <HouseButton
                   type="button"
                   className="lib-card-action-btn lib-card-action-btn--danger"
                   disabled={busy}
@@ -699,7 +700,7 @@ function LibraryCardComponent({
                   onClick={() => onDelete?.(item)}
                 >
                   <Icon name="trash" size={12} />
-                </button>
+                </HouseButton>
               </div>
             )}
           </div>
@@ -765,7 +766,7 @@ function LibraryCardComponent({
         {visibleTags.length > 0 && (
           <div className="lib-card-tags-row">
             {visibleTags.map((tag) => (
-              <button
+              <HouseButton
                 type="button"
                 key={tag}
                 className="lib-card-tag-badge"
@@ -777,7 +778,7 @@ function LibraryCardComponent({
               >
                 <span className="lib-tag-hash">#</span>
                 <span>{tag}</span>
-              </button>
+              </HouseButton>
             ))}
             {extraTagsCount > 0 && (
               <span

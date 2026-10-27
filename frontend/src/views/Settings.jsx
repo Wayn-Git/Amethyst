@@ -1,3 +1,4 @@
+import { Input as HouseInput, Button as HouseButton } from '../components/ui/bento/index.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import Skeleton from '../components/Skeleton.jsx'
@@ -124,7 +125,7 @@ function Profile() {
             <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
               Display Name (Greeting)
             </label>
-            <input
+            <HouseInput
               type="text"
               className="set-input"
               value={name}
@@ -138,7 +139,7 @@ function Profile() {
             <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
               Full Name
             </label>
-            <input
+            <HouseInput
               type="text"
               className="set-input"
               value={fullName}
@@ -152,7 +153,7 @@ function Profile() {
             <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
               Email Address
             </label>
-            <input
+            <HouseInput
               type="email"
               className="set-input"
               value={email}
@@ -163,14 +164,14 @@ function Profile() {
           </div>
 
           <div style={{ marginTop: 8 }}>
-            <button
+            <HouseButton
               type="submit"
               className="set-btn-primary"
               disabled={saving || !name.trim()}
               style={{ padding: '8px 18px', fontSize: 13, borderRadius: 8 }}
             >
               {saving ? 'Saving...' : 'Save Profile Changes'}
-            </button>
+            </HouseButton>
           </div>
         </form>
       </div>
@@ -344,20 +345,20 @@ function General() {
             <span className="set-row-desc">The other combination always inserts a newline.</span>
           </div>
           <div className="set-seg-ctrl">
-            <button
+            <HouseButton
               type="button"
               className={`set-seg-btn${(sendWith === 'enter' || sendWith === 'Enter') ? ' is-active' : ''}`}
               onClick={() => handleSendWith('enter')}
             >
               Enter
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className={`set-seg-btn${(sendWith === 'ctrl-enter' || sendWith === 'Cmd+Enter') ? ' is-active' : ''}`}
               onClick={() => handleSendWith('ctrl-enter')}
             >
               Ctrl+↵
-            </button>
+            </HouseButton>
           </div>
         </div>
 
@@ -455,7 +456,7 @@ function General() {
             <span className="set-row-desc">Directory where file tools read, write, and execute by default.</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 320px', justifyContent: 'flex-end' }}>
-            <input
+            <HouseInput
               type="text"
               value={wsDraft}
               onChange={(e) => setWsDraft(e.target.value)}
@@ -463,14 +464,14 @@ function General() {
               className="set-input"
               style={{ flex: 1, minWidth: 160 }}
             />
-            <button type="button" className="set-btn-sm" onClick={handleBrowseDir} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <HouseButton type="button" className="set-btn-sm" onClick={handleBrowseDir} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               <Icon name="folder" size={13} />
               <span>Browse…</span>
-            </button>
-            <button type="button" className="set-btn-sm is-primary" onClick={saveWorkspace} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            </HouseButton>
+            <HouseButton type="button" className="set-btn-sm is-primary" onClick={saveWorkspace} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               <Icon name="check" size={13} />
               <span>Save</span>
-            </button>
+            </HouseButton>
           </div>
         </div>
       </div>
@@ -505,7 +506,7 @@ function General() {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <input
+            <HouseInput
               type="range"
               min={4}
               max={40}
@@ -568,41 +569,41 @@ function General() {
             </div>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingLeft: 40 }}>
-            <button
+            <HouseButton
               type="button"
               className="set-btn-sm"
               onClick={() => showBoardUINotification("information")}
             >
               Information
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className="set-btn-sm"
               onClick={() => showBoardUINotification("success")}
             >
               Success
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className="set-btn-sm"
               onClick={() => showBoardUINotification("error")}
             >
               Error
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className="set-btn-sm"
               onClick={() => showBoardUINotification("avatar")}
             >
               With avatar
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className="set-btn-sm"
               onClick={() => showBoardUINotification("actions")}
             >
               With buttons
-            </button>
+            </HouseButton>
           </div>
         </div>
       </div>
@@ -701,7 +702,7 @@ function Appearance() {
             Choose the palette the window is drawn in.
           </span>
         </div>
-        <button
+        <HouseButton
           type="button"
           className="set-btn-sm"
           onClick={handleResetAppearance}
@@ -710,7 +711,7 @@ function Appearance() {
         >
           <Icon name="refresh" size={12} />
           <span>Reset Defaults</span>
-        </button>
+        </HouseButton>
       </div>
 
       <div className="theme-grid-3" style={{ marginBottom: 24 }}>
@@ -809,18 +810,18 @@ function Appearance() {
               {SCALE_PRESETS.map((s) => {
                 const isActive = Math.abs(currentScale - s.val) < 2
                 return (
-                  <button
+                  <HouseButton
                     key={s.label}
                     type="button"
                     className={`set-seg-btn${isActive ? ' is-active' : ''}`}
                     onClick={() => setTextSize?.(s.val)}
                   >
                     {s.label}
-                  </button>
+                  </HouseButton>
                 )
               })}
             </div>
-            <button
+            <HouseButton
               type="button"
               className="set-btn-sm"
               onClick={() => setTextSize?.(100)}
@@ -829,7 +830,7 @@ function Appearance() {
             >
               <Icon name="refresh" size={11} />
               <span>Reset</span>
-            </button>
+            </HouseButton>
           </div>
         </div>
       </div>
@@ -843,7 +844,7 @@ function Appearance() {
           {ACCENT_PRESETS.map((a) => {
             const isSelected = (accentColor || '#3b82f6').toLowerCase() === a.hex.toLowerCase()
             return (
-              <button
+              <HouseButton
                 key={a.id}
                 type="button"
                 className={`set-accent-dot${isSelected ? ' is-active' : ''}`}
@@ -853,7 +854,7 @@ function Appearance() {
                 title={a.label}
               >
                 {isSelected && <Icon name="check" size={11} />}
-              </button>
+              </HouseButton>
             )
           })}
           <div style={{ width: 1, height: 20, background: 'var(--hairline)', margin: '0 4px' }} />
@@ -866,7 +867,7 @@ function Appearance() {
               }}
               title="Choose custom accent color"
             >
-              <input
+              <HouseInput
                 type="color"
                 value={accentColor || '#3b82f6'}
                 onChange={(e) => setAccentColor(e.target.value)}
@@ -886,7 +887,7 @@ function Appearance() {
           {AGENT_LOADERS.map((anim) => {
             const isSel = agentLoader === anim.id
             return (
-              <button
+              <HouseButton
                 key={anim.id}
                 type="button"
                 className={`set-loader-item${isSel ? ' is-active' : ''}`}
@@ -894,7 +895,7 @@ function Appearance() {
                 title={anim.label}
               >
                 <LoaderIcon type={anim.id} />
-              </button>
+              </HouseButton>
             )
           })}
         </div>
@@ -914,7 +915,7 @@ function Appearance() {
           </div>
           <div className="set-seg-ctrl">
             {['off', 'subtle', 'full'].map((m) => (
-              <button
+              <HouseButton
                 key={m}
                 type="button"
                 className={`set-seg-btn${glassMaterial === m ? ' is-active' : ''}`}
@@ -922,7 +923,7 @@ function Appearance() {
                 style={{ textTransform: 'capitalize' }}
               >
                 {m}
-              </button>
+              </HouseButton>
             ))}
           </div>
         </div>
@@ -943,7 +944,7 @@ function Appearance() {
           </div>
           <div className="set-seg-ctrl">
             {SPOTLIGHT_ANIMATIONS.map((a) => (
-              <button
+              <HouseButton
                 key={a.id}
                 type="button"
                 title={a.hint}
@@ -951,7 +952,7 @@ function Appearance() {
                 onClick={() => setSpotlightAnimation?.(a.id)}
               >
                 {a.label}
-              </button>
+              </HouseButton>
             ))}
           </div>
         </div>
@@ -970,27 +971,27 @@ function Appearance() {
             </span>
           </div>
           <div className="set-seg-ctrl">
-            <button
+            <HouseButton
               type="button"
               className={`set-seg-btn${(thinkingStyle || 'cards') === 'cards' ? ' is-active' : ''}`}
               onClick={() => setThinkingStyle?.('cards')}
             >
               Cards
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className={`set-seg-btn${thinkingStyle === 'chips' ? ' is-active' : ''}`}
               onClick={() => setThinkingStyle?.('chips')}
             >
               Tool Chips
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className={`set-seg-btn${thinkingStyle === 'activity' ? ' is-active' : ''}`}
               onClick={() => setThinkingStyle?.('activity')}
             >
               Activity Stream
-            </button>
+            </HouseButton>
           </div>
         </div>
       </div>
@@ -1230,7 +1231,7 @@ function Models() {
                 </div>
               )}
 
-              <button
+              <HouseButton
                 type="button"
                 className="set-btn-sm"
                 onClick={pingAll}
@@ -1239,7 +1240,7 @@ function Models() {
               >
                 <Icon name="refresh" size={12} className={pinging ? 'spin' : ''} />
                 <span>{pinging ? 'Pinging…' : 'Ping All'}</span>
-              </button>
+              </HouseButton>
             </div>
           </div>
         </div>
@@ -1253,7 +1254,7 @@ function Models() {
             Manage endpoints, default models, and priority fallback routing.
           </span>
         </div>
-        <button
+        <HouseButton
           type="button"
           className="set-btn-sm is-primary"
           onClick={() => setShowAddModal(true)}
@@ -1261,7 +1262,7 @@ function Models() {
         >
           <Icon name="plus" size={12} />
           <span>Add Provider</span>
-        </button>
+        </HouseButton>
       </div>
 
       <div className="set-box" style={{ marginBottom: 24 }}>
@@ -1311,7 +1312,7 @@ function Models() {
                     <LatencyTag latency={lat} />
 
                     {!isPrimary && (
-                      <button
+                      <HouseButton
                         type="button"
                         className="set-btn-sm"
                         onClick={(e) => {
@@ -1323,10 +1324,10 @@ function Models() {
                       >
                         <Icon name="star" size={11} />
                         <span>Make Primary</span>
-                      </button>
+                      </HouseButton>
                     )}
 
-                    <button
+                    <HouseButton
                       type="button"
                       className="set-btn-sm"
                       onClick={(e) => {
@@ -1337,8 +1338,8 @@ function Models() {
                     >
                       <Icon name="key" size={11} />
                       <span>Edit Key</span>
-                    </button>
-                    <button
+                    </HouseButton>
+                    <HouseButton
                       type="button"
                       className="set-btn-sm is-danger"
                       onClick={(e) => handleRemove(p.name, e)}
@@ -1346,7 +1347,7 @@ function Models() {
                     >
                       <Icon name="trash" size={11} />
                       <span>Remove</span>
-                    </button>
+                    </HouseButton>
                     <div style={{
                       transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
                       transition: 'transform 0.18s ease',
@@ -1456,7 +1457,7 @@ function Models() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   {idx !== 0 && (
-                    <button
+                    <HouseButton
                       type="button"
                       className="set-btn-sm"
                       onClick={() => handleSetPrimary(cand)}
@@ -1464,9 +1465,9 @@ function Models() {
                       title="Move directly to primary"
                     >
                       Make Top
-                    </button>
+                    </HouseButton>
                   )}
-                  <button
+                  <HouseButton
                     type="button"
                     className="set-btn-sm"
                     disabled={idx === 0}
@@ -1475,8 +1476,8 @@ function Models() {
                     title="Move up"
                   >
                     ↑
-                  </button>
-                  <button
+                  </HouseButton>
+                  <HouseButton
                     type="button"
                     className="set-btn-sm"
                     disabled={idx === routingLadder.length - 1}
@@ -1485,7 +1486,7 @@ function Models() {
                     title="Move down"
                   >
                     ↓
-                  </button>
+                  </HouseButton>
                 </div>
               </div>
             ))}
@@ -1567,9 +1568,9 @@ function EditKeyModal({ provider, onClose, onSaved }) {
               Edit {provider.name} Credentials
             </h3>
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close modal">
+          <HouseButton type="button" className="icon-btn" onClick={onClose} aria-label="Close modal">
             <Icon name="x" size={14} />
-          </button>
+          </HouseButton>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1578,7 +1579,7 @@ function EditKeyModal({ provider, onClose, onSaved }) {
               API Key
             </label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <input
+              <HouseInput
                 type={showKey ? 'text' : 'password'}
                 value={key}
                 onChange={(e) => setKey(e.target.value)}
@@ -1586,13 +1587,13 @@ function EditKeyModal({ provider, onClose, onSaved }) {
                 className="set-input"
                 style={{ flex: 1 }}
               />
-              <button
+              <HouseButton
                 type="button"
                 className="set-btn-sm"
                 onClick={() => setShowKey(!showKey)}
               >
                 {showKey ? 'Hide' : 'Show'}
-              </button>
+              </HouseButton>
             </div>
             <span style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: 4, display: 'block' }}>
               Stored securely in your operating system keychain.
@@ -1603,7 +1604,7 @@ function EditKeyModal({ provider, onClose, onSaved }) {
             <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
               Base URL
             </label>
-            <input
+            <HouseInput
               type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
@@ -1614,10 +1615,10 @@ function EditKeyModal({ provider, onClose, onSaved }) {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
-            <button type="button" className="set-btn-sm" onClick={onClose}>
+            <HouseButton type="button" className="set-btn-sm" onClick={onClose}>
               Cancel
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className="set-btn-sm is-primary"
               disabled={saving}
@@ -1626,7 +1627,7 @@ function EditKeyModal({ provider, onClose, onSaved }) {
             >
               <Icon name="check" size={12} />
               <span>{saving ? 'Saving…' : 'Save Credentials'}</span>
-            </button>
+            </HouseButton>
           </div>
         </div>
       </motion.div>
@@ -1701,9 +1702,9 @@ function AddProviderModal({ onClose, onAdded }) {
               Add Model Provider
             </h3>
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close modal">
+          <HouseButton type="button" className="icon-btn" onClick={onClose} aria-label="Close modal">
             <Icon name="x" size={14} />
-          </button>
+          </HouseButton>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1715,7 +1716,7 @@ function AddProviderModal({ onClose, onAdded }) {
               {VENDOR_PRESETS.map((p) => {
                 const isActive = preset.slug === p.slug
                 return (
-                  <button
+                  <HouseButton
                     key={p.slug}
                     type="button"
                     className={`set-preset-card${isActive ? ' is-active' : ''}`}
@@ -1724,7 +1725,7 @@ function AddProviderModal({ onClose, onAdded }) {
                   >
                     <AiProviderIcon provider={p.slug} size={15} />
                     <span style={{ fontWeight: 600, fontSize: '12px' }}>{p.name}</span>
-                  </button>
+                  </HouseButton>
                 )
               })}
             </div>
@@ -1735,7 +1736,7 @@ function AddProviderModal({ onClose, onAdded }) {
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
                 Provider Identifier
               </label>
-              <input
+              <HouseInput
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -1747,7 +1748,7 @@ function AddProviderModal({ onClose, onAdded }) {
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
                 Default Model
               </label>
-              <input
+              <HouseInput
                 type="text"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
@@ -1762,7 +1763,7 @@ function AddProviderModal({ onClose, onAdded }) {
             <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
               Base URL
             </label>
-            <input
+            <HouseInput
               type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
@@ -1776,7 +1777,7 @@ function AddProviderModal({ onClose, onAdded }) {
             <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
               API Key
             </label>
-            <input
+            <HouseInput
               type="password"
               value={key}
               onChange={(e) => setKey(e.target.value)}
@@ -1790,10 +1791,10 @@ function AddProviderModal({ onClose, onAdded }) {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
-            <button type="button" className="set-btn-sm" onClick={onClose}>
+            <HouseButton type="button" className="set-btn-sm" onClick={onClose}>
               Cancel
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className="set-btn-sm is-primary"
               disabled={saving}
@@ -1802,7 +1803,7 @@ function AddProviderModal({ onClose, onAdded }) {
             >
               <Icon name="check" size={13} />
               <span>{saving ? 'Connecting…' : 'Add Provider'}</span>
-            </button>
+            </HouseButton>
           </div>
         </div>
       </motion.div>
@@ -2111,7 +2112,7 @@ function RoleRow({ role, current, providers = [], configuredProviders = [], busy
           />
         </div>
 
-        <button
+        <HouseButton
           type="button"
           className={`set-btn-sm${dirty ? ' is-primary' : ''}`}
           disabled={busy || !dirty || !model?.trim()}
@@ -2120,10 +2121,10 @@ function RoleRow({ role, current, providers = [], configuredProviders = [], busy
         >
           <Icon name="check" size={13} />
           <span>{busy ? 'Saving…' : 'Save'}</span>
-        </button>
+        </HouseButton>
 
         {current && (
-          <button
+          <HouseButton
             type="button"
             className="set-btn-sm"
             disabled={busy}
@@ -2132,7 +2133,7 @@ function RoleRow({ role, current, providers = [], configuredProviders = [], busy
           >
             <Icon name="trash" size={12} />
             <span>Clear</span>
-          </button>
+          </HouseButton>
         )}
       </div>
     </div>
@@ -2355,7 +2356,7 @@ function Permissions() {
           </span>
         </div>
         {approvals.length > 0 && (
-          <button
+          <HouseButton
             type="button"
             className="set-btn-sm is-danger"
             onClick={handleRevokeAll}
@@ -2363,7 +2364,7 @@ function Permissions() {
           >
             <Icon name="trash" size={12} />
             <span>Clear All</span>
-          </button>
+          </HouseButton>
         )}
       </div>
 
@@ -2399,7 +2400,7 @@ function Permissions() {
                     Risk: {app.risk_level} · Approved {app.created_at || 'earlier'}
                   </span>
                 </div>
-                <button
+                <HouseButton
                   type="button"
                   className="set-btn-sm is-danger"
                   onClick={() => handleRevoke(app.operation_key)}
@@ -2407,7 +2408,7 @@ function Permissions() {
                 >
                   <Icon name="x" size={12} />
                   <span>Revoke</span>
-                </button>
+                </HouseButton>
               </div>
             ))}
           </div>
@@ -2479,7 +2480,7 @@ function Usage() {
           Usage
         </h2>
 
-        <button
+        <HouseButton
           type="button"
           className="set-btn-sm"
           onClick={load}
@@ -2498,7 +2499,7 @@ function Usage() {
         >
           <Icon name="refresh" size={13} className={loading ? 'spin' : ''} />
           <span style={{ fontSize: '12px' }}>Refresh</span>
-        </button>
+        </HouseButton>
       </div>
 
       {/* Main Usage Windows Card */}
@@ -2840,7 +2841,7 @@ function Activity() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div className="set-seg-ctrl" style={{ padding: 2, borderRadius: 7 }}>
             {['7d', '30d', '90d'].map((r) => (
-              <button
+              <HouseButton
                 key={r}
                 type="button"
                 className={`set-seg-btn${range === r ? ' is-active' : ''}`}
@@ -2851,11 +2852,11 @@ function Activity() {
                 style={{ fontSize: '11.5px', padding: '3px 10px', minWidth: 38 }}
               >
                 {r}
-              </button>
+              </HouseButton>
             ))}
           </div>
 
-          <button
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={load}
@@ -2874,7 +2875,7 @@ function Activity() {
           >
             <Icon name="refresh" size={13} className={loading ? 'spin' : ''} />
             <span style={{ fontSize: '12px' }}>Refresh</span>
-          </button>
+          </HouseButton>
         </div>
       </div>
 
@@ -3066,22 +3067,22 @@ function Activity() {
           </div>
 
           <div className="set-seg-ctrl" style={{ padding: 2 }}>
-            <button
+            <HouseButton
               type="button"
               className={`set-seg-btn${mode === 'requests' ? ' is-active' : ''}`}
               onClick={() => setMode('requests')}
               style={{ fontSize: '11.5px', padding: '3px 12px' }}
             >
               Requests
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className={`set-seg-btn${mode === 'spend' ? ' is-active' : ''}`}
               onClick={() => setMode('spend')}
               style={{ fontSize: '11.5px', padding: '3px 12px' }}
             >
               Spend
-            </button>
+            </HouseButton>
           </div>
         </div>
 
@@ -3485,10 +3486,10 @@ function Data() {
             <span className="set-row-title">Export workspace archive</span>
             <span className="set-row-desc">Download a complete JSON snapshot of conversations, settings, and skills.</span>
           </div>
-          <button type="button" className="set-btn-sm" onClick={handleExportAll} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          <HouseButton type="button" className="set-btn-sm" onClick={handleExportAll} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             <Icon name="download" size={12} />
             <span>Export JSON</span>
-          </button>
+          </HouseButton>
         </div>
       </div>
 
@@ -3518,10 +3519,10 @@ function DangerRow({ label, note, confirmLabel, onConfirm }) {
         <span className="set-row-title" style={{ color: 'var(--text)' }}>{label}</span>
         <span className="set-row-desc">{note}</span>
       </div>
-      <button type="button" className="set-btn-sm is-danger" onClick={onConfirm} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+      <HouseButton type="button" className="set-btn-sm is-danger" onClick={onConfirm} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
         <Icon name="trash" size={12} />
         <span>{confirmLabel}</span>
-      </button>
+      </HouseButton>
     </div>
   )
 }
@@ -3602,7 +3603,7 @@ function About() {
               </span>
             </div>
           </div>
-          <button
+          <HouseButton
             type="button"
             className="set-btn-sm is-primary"
             onClick={openSetupWizard}
@@ -3610,8 +3611,8 @@ function About() {
           >
             <Icon name="play" size={12} />
             <span>Launch Wizard</span>
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={() => setView('install')}
@@ -3619,7 +3620,7 @@ function About() {
           >
             <Icon name="download" size={12} />
             <span>Install App</span>
-          </button>
+          </HouseButton>
         </div>
       </div>
 
@@ -3653,7 +3654,7 @@ function About() {
             </div>
           </div>
           {updateInfo?.downloaded ? (
-            <button
+            <HouseButton
               type="button"
               className="set-btn-sm is-primary"
               onClick={quitAndInstallUpdate}
@@ -3661,9 +3662,9 @@ function About() {
             >
               <Icon name="refresh" size={12} />
               <span>Restart & Install</span>
-            </button>
+            </HouseButton>
           ) : updateInfo?.available ? (
-            <button
+            <HouseButton
               type="button"
               className="set-btn-sm is-primary"
               onClick={quitAndInstallUpdate}
@@ -3671,9 +3672,9 @@ function About() {
             >
               <Icon name="download" size={12} />
               <span>{updateInfo.releaseUrl ? 'View Release' : 'Install Update'}</span>
-            </button>
+            </HouseButton>
           ) : (
-            <button
+            <HouseButton
               type="button"
               className="set-btn-sm is-primary"
               onClick={() => checkForUpdates(true)}
@@ -3682,7 +3683,7 @@ function About() {
             >
               <Icon name="refresh" size={12} className={updateInfo?.checking ? 'spin' : ''} />
               <span>{updateInfo?.checking ? 'Checking…' : 'Check for Updates'}</span>
-            </button>
+            </HouseButton>
           )}
         </div>
       </div>
@@ -3746,7 +3747,7 @@ function About() {
 
       {/* 5. Diagnostics Action Button */}
       <div style={{ display: 'flex', justifyContent: 'flex-start', margin: '4px 0 16px' }}>
-        <button
+        <HouseButton
           type="button"
           className="set-btn-sm"
           onClick={handleCopyBuild}
@@ -3754,7 +3755,7 @@ function About() {
         >
           <Icon name="copy" size={12} />
           <span>{copied ? 'Copied to Clipboard!' : 'Copy System Diagnostics'}</span>
-        </button>
+        </HouseButton>
       </div>
     </div>
   )
@@ -3962,7 +3963,7 @@ function Devices() {
                   Syncing with {held.relayUrl}. Changes travel sealed; the relay cannot read them.
                 </span>
               </div>
-              <button type="button" className="set-btn-sm" onClick={syncNow}>Sync now</button>
+              <HouseButton type="button" className="set-btn-sm" onClick={syncNow}>Sync now</HouseButton>
             </div>
             {lastSync ? (
               <div className="set-box-row">
@@ -3994,7 +3995,7 @@ function Devices() {
                   handshake within a few seconds.
                 </span>
               </div>
-              <input
+              <HouseInput
                 className="set-input"
                 placeholder="https://amethyst-relay.you.workers.dev"
                 value={relayUrl}
@@ -4002,7 +4003,7 @@ function Devices() {
                 autoComplete="off"
                 spellCheck={false}
               />
-              <input
+              <HouseInput
                 className="set-input"
                 placeholder="the code, or the whole amethyst://pair link"
                 value={code}
@@ -4010,14 +4011,14 @@ function Devices() {
                 autoComplete="off"
                 spellCheck={false}
               />
-              <button
+              <HouseButton
                 type="button"
                 className="set-btn-sm"
                 onClick={joinFromPhone}
                 disabled={pairing || !relayUrl.trim() || !code.trim()}
               >
                 {pairing ? 'Waiting for the machine…' : 'Pair'}
-              </button>
+              </HouseButton>
             </div>
           </div>
         )}
@@ -4056,7 +4057,7 @@ function Devices() {
                   </span>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button
+                  <HouseButton
                     type="button"
                     className="set-btn-sm"
                     onClick={() => {
@@ -4069,10 +4070,10 @@ function Devices() {
                     }}
                   >
                     {isEditing ? 'Close' : 'Permissions'}
-                  </button>
-                  <button type="button" className="set-btn-sm" onClick={() => revoke(device)} style={{ color: 'var(--stop)' }}>
+                  </HouseButton>
+                  <HouseButton type="button" className="set-btn-sm" onClick={() => revoke(device)} style={{ color: 'var(--stop)' }}>
                     Revoke
-                  </button>
+                  </HouseButton>
                 </div>
               </div>
 
@@ -4119,7 +4120,7 @@ function Devices() {
                       { key: 'root', label: 'Root / Sudo' },
                     ].map(({ key, label }) => (
                       <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text)', cursor: 'pointer' }}>
-                        <input
+                        <HouseInput
                           type="checkbox"
                           checked={Boolean(editingPermissions[key])}
                           onChange={() => toggleEditingPermission(key)}
@@ -4129,14 +4130,14 @@ function Devices() {
                     ))}
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                    <button
+                    <HouseButton
                       type="button"
                       className="set-btn-sm"
                       onClick={() => setEditingDeviceId(null)}
                     >
                       Cancel
-                    </button>
-                    <button
+                    </HouseButton>
+                    <HouseButton
                       type="button"
                       className="pair-go"
                       onClick={() => savePermissions(device.id)}
@@ -4144,7 +4145,7 @@ function Devices() {
                       style={{ padding: '4px 12px', fontSize: 12 }}
                     >
                       {savingPermissions ? 'Saving…' : 'Save Scopes'}
-                    </button>
+                    </HouseButton>
                   </div>
                 </div>
               )}
@@ -4168,9 +4169,9 @@ function Devices() {
                   <div style={{ fontSize: 11, color: 'var(--text-sub)' }}>Role: {p.role} · Token: {p.request_id?.slice(0, 8)}…</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" className="set-btn-sm" onClick={() => setActiveModalRequest(p)} style={{ background: 'var(--accent, #6366f1)', color: '#fff', fontWeight: 600 }}>Review & Approve</button>
-                  <button type="button" className="set-btn-sm" onClick={() => approvePending(p.request_id)} style={{ background: '#f59e0b', color: '#000', fontWeight: 600 }}>Quick Approve</button>
-                  <button type="button" className="set-btn-sm" onClick={() => rejectPending(p.request_id)} style={{ color: 'var(--stop)' }}>Reject</button>
+                  <HouseButton type="button" className="set-btn-sm" onClick={() => setActiveModalRequest(p)} style={{ background: 'var(--accent, #6366f1)', color: '#fff', fontWeight: 600 }}>Review & Approve</HouseButton>
+                  <HouseButton type="button" className="set-btn-sm" onClick={() => approvePending(p.request_id)} style={{ background: '#f59e0b', color: '#000', fontWeight: 600 }}>Quick Approve</HouseButton>
+                  <HouseButton type="button" className="set-btn-sm" onClick={() => rejectPending(p.request_id)} style={{ color: 'var(--stop)' }}>Reject</HouseButton>
                 </div>
               </div>
             ))}
@@ -4185,9 +4186,9 @@ function Devices() {
               Good for five minutes, once. Direct LAN pairing is available automatically over Wi-Fi.
             </span>
           </div>
-          <button type="button" className="set-btn-sm" onClick={openPairing} disabled={busy}>
+          <HouseButton type="button" className="set-btn-sm" onClick={openPairing} disabled={busy}>
             {busy ? 'Opening…' : 'Pair a device'}
-          </button>
+          </HouseButton>
         </div>
         {invite ? (
           <div className="set-box-row pair-invite">
@@ -4216,7 +4217,7 @@ function Devices() {
                     “{pending[0].name}” requested to connect.
                   </div>
                 </div>
-                <button
+                <HouseButton
                   type="button"
                   className="set-btn-sm"
                   onClick={() => setActiveModalRequest(pending[0])}
@@ -4230,7 +4231,7 @@ function Devices() {
                   }}
                 >
                   Review & Approve
-                </button>
+                </HouseButton>
               </div>
             )}
             {/* Mode Switcher */}
@@ -4247,7 +4248,7 @@ function Devices() {
                 maxWidth: 420,
               }}
             >
-              <button
+              <HouseButton
                 type="button"
                 onClick={() => setPairMode('lan')}
                 style={{
@@ -4270,8 +4271,8 @@ function Devices() {
               >
                 <span>📱</span>
                 <span>Same Wi-Fi (Direct LAN)</span>
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 onClick={() => setPairMode('web')}
                 style={{
@@ -4294,7 +4295,7 @@ function Devices() {
               >
                 <span>🌐</span>
                 <span>Cloudflare Web</span>
-              </button>
+              </HouseButton>
             </div>
 
             {pairMode === 'lan' ? (
@@ -4325,14 +4326,14 @@ function Devices() {
                 <p style={{ fontSize: 12, color: 'var(--text-sub)', lineHeight: 1.5, marginBottom: 14 }}>
                   To pair over the web when you are away from home, enter your Cloudflare Pages or Tunnel URL (<code>https://...</code>) in the field below and click <strong>Save</strong>.
                 </p>
-                <button
+                <HouseButton
                   type="button"
                   className="set-btn-sm"
                   onClick={() => setPairMode('lan')}
                   style={{ background: 'var(--accent, #6366f1)', color: '#fff', fontWeight: 600, padding: '6px 14px' }}
                 >
                   📱 Use Same Wi-Fi (Direct LAN)
-                </button>
+                </HouseButton>
               </div>
             ) : (
               (pairMode === 'lan' ? (invite.lan_qr_svg || invite.qr_svg) : invite.web_qr_svg) ? (
@@ -4357,7 +4358,7 @@ function Devices() {
             )}
             <span className="set-row-desc">Or enter this code manually on the other device:</span>
             <code className="rc-code">{invite.secret.match(/.{1,4}/g).join(' ')}</code>
-            <button
+            <HouseButton
               type="button"
               className="set-btn-sm"
               onClick={() => {
@@ -4371,7 +4372,7 @@ function Devices() {
               }}
             >
               Copy pairing link
-            </button>
+            </HouseButton>
             <span className="set-row-desc">
               All communications between your phone and PC are cryptographically sealed.
             </span>
@@ -4386,7 +4387,7 @@ function Devices() {
                 : 'Enter your deployed Cloudflare Pages URL or Cloudflare Tunnel (cloudflared tunnel --url http://localhost:8000) and click Save to enable internet pairing.'}
             </span>
           </div>
-          <input
+          <HouseInput
             className="set-input"
             type="url"
             placeholder="https://amethyst.example.com"
@@ -4395,14 +4396,14 @@ function Devices() {
             autoComplete="off"
             spellCheck={false}
           />
-          <button
+          <HouseButton
             type="button"
             className="set-btn-sm"
             onClick={saveAppUrl}
             disabled={appUrl.trim() === savedAppUrl}
           >
             Save
-          </button>
+          </HouseButton>
         </div>
       </div>
       {activeModalRequest && (
@@ -4476,7 +4477,7 @@ export default function Settings() {
         <div className="set-nav-header">
           <div className="set-nav-tab">
             <span>Settings</span>
-            <button
+            <HouseButton
               type="button"
               className="set-nav-tab-close"
               onClick={handleClose}
@@ -4484,7 +4485,7 @@ export default function Settings() {
               aria-label="Close Settings"
             >
               <Icon name="x" size={12} />
-            </button>
+            </HouseButton>
           </div>
         </div>
 
@@ -4501,7 +4502,7 @@ export default function Settings() {
             {items.map((item) => {
               const isSel = section === item.id
               return (
-                <button
+                <HouseButton
                   key={item.id}
                   type="button"
                   className={`set-nav-item${isSel ? ' active' : ''}`}
@@ -4509,7 +4510,7 @@ export default function Settings() {
                 >
                   <Icon name={item.icon} size={15} />
                   <span className="set-nav-label">{item.label}</span>
-                </button>
+                </HouseButton>
               )
             })}
           </div>

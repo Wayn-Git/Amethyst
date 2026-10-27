@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../ui/bento/index.jsx'
 import Icon from '../Icon.jsx'
 
 export const MODES = [
@@ -16,7 +17,7 @@ export default function DamonModes({ activeMode, onSelectMode }) {
       {MODES.map((mode) => {
         const isActive = activeMode === mode.id
         return (
-          <button
+          <HouseButton
             key={mode.id}
             type="button"
             role="tab"
@@ -27,7 +28,7 @@ export default function DamonModes({ activeMode, onSelectMode }) {
           >
             <Icon name={mode.icon} size={13} />
             <span>{mode.label}</span>
-          </button>
+          </HouseButton>
         )
       })}
     </div>

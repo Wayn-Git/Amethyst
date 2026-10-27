@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../ui/bento/index.jsx'
 import { useEffect, useState } from 'react'
 import Icon from '../Icon.jsx'
 import MediaCard from './MediaCard.jsx'
@@ -20,9 +21,9 @@ function Lightbox({ item, onClose }) {
 
   return (
     <div className="media-lightbox" role="dialog" aria-modal="true" aria-label={item.title} onClick={onClose}>
-      <button type="button" className="media-close" onClick={onClose} aria-label="Close">
+      <HouseButton type="button" className="media-close" onClick={onClose} aria-label="Close">
         <Icon name="x" size={18} />
-      </button>
+      </HouseButton>
       {/* The image itself does not close the dialog; the backdrop does. */}
       <img src={item.direct || item.thumbnail} alt={item.title} onClick={(e) => e.stopPropagation()} />
       <figcaption onClick={(e) => e.stopPropagation()}>

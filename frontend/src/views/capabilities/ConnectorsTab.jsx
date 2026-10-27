@@ -1,3 +1,4 @@
+import { Input as HouseInput, Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -534,7 +535,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
           <div className="connectors-header-search">
             <div className="connectors-search-box">
               <Search size={14} className="text-dim shrink-0" />
-              <input
+              <HouseInput
                 type="text"
                 placeholder="Search integrations…"
                 value={query}
@@ -542,14 +543,14 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
                 className="connectors-search-input"
               />
               {query && (
-                <button
+                <HouseButton
                   type="button"
                   className="connectors-search-clear"
                   onClick={() => setQuery('')}
                   aria-label="Clear search"
                 >
                   <X size={12} />
-                </button>
+                </HouseButton>
               )}
             </div>
           </div>
@@ -560,15 +561,15 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
       {viewMode === 'directory' && (
         <div className="connectors-unified-toolbar">
           <div className="connectors-filter-tabs">
-            <button
+            <HouseButton
               type="button"
               className={`connectors-tab-btn ${tabFilter === 'all' ? 'is-active' : ''}`}
               onClick={() => setTabFilter('all')}
             >
               <span>Browse</span>
               <span className="connectors-tab-badge">530+</span>
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className={`connectors-tab-btn ${tabFilter === 'installed' ? 'is-active' : ''}`}
               onClick={() => setTabFilter('installed')}
@@ -577,18 +578,18 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
               {installedCardsCount > 0 && (
                 <span className="connectors-tab-badge">{installedCardsCount}</span>
               )}
-            </button>
+            </HouseButton>
             {CONNECTOR_CATEGORIES.map((cat) => (
-              <button
+              <HouseButton
                 key={cat.id}
                 type="button"
                 className={`connectors-tab-btn ${tabFilter === cat.id ? 'is-active' : ''}`}
                 onClick={() => setTabFilter(cat.id)}
               >
                 <span>{cat.shortTitle || cat.title}</span>
-              </button>
+              </HouseButton>
             ))}
-            <button
+            <HouseButton
               type="button"
               className={`connectors-tab-btn ${tabFilter === 'system' ? 'is-active' : ''}`}
               onClick={() => setTabFilter('system')}
@@ -596,7 +597,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
               <Monitor size={12} />
               <span>Local &amp; System</span>
               <span className="connectors-tab-badge">{SYSTEM_TOOLS.length}</span>
-            </button>
+            </HouseButton>
           </div>
 
           <div className="connectors-toolbar-right">
@@ -606,7 +607,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
                 <span className="connectors-chip-dot is-live" />
                 <span className="connectors-chip-label">Composio</span>
                 <span className="connectors-chip-ms">{gatewayHealth.latency || 78}ms</span>
-                <button
+                <HouseButton
                   type="button"
                   className="connectors-chip-refresh"
                   onClick={handleManualSync}
@@ -614,10 +615,10 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
                   title="Test real-time connection with Composio"
                 >
                   <RefreshCw size={11} className={syncing ? 'animate-spin' : ''} />
-                </button>
+                </HouseButton>
               </div>
             ) : gatewayHealth.status === 'unauthorized' ? (
-              <button
+              <HouseButton
                 type="button"
                 className="connectors-gateway-chip is-warning"
                 onClick={() => {
@@ -629,12 +630,12 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
               >
                 <span className="connectors-chip-dot is-warning" />
                 <span className="connectors-chip-label">Token Expired ↗</span>
-              </button>
+              </HouseButton>
             ) : gatewayHealth.status === 'error' ? (
               <div className="connectors-gateway-chip is-warning">
                 <span className="connectors-chip-dot is-warning" />
                 <span className="connectors-chip-label">Offline</span>
-                <button
+                <HouseButton
                   type="button"
                   className="connectors-chip-refresh"
                   onClick={handleManualSync}
@@ -642,10 +643,10 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
                   title="Retry Composio gateway"
                 >
                   <RefreshCw size={11} className={syncing ? 'animate-spin' : ''} />
-                </button>
+                </HouseButton>
               </div>
             ) : (
-              <button
+              <HouseButton
                 type="button"
                 className="connectors-gateway-chip"
                 onClick={() => {
@@ -657,10 +658,10 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
               >
                 <span className="connectors-chip-dot" />
                 <span className="connectors-chip-label">Connect Composio ↗</span>
-              </button>
+              </HouseButton>
             )}
 
-            <button
+            <HouseButton
               type="button"
               className="connectors-add-mcp-btn"
               onClick={() => setNewOpen(true)}
@@ -668,7 +669,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
             >
               <Plus size={13} />
               <span>Add Custom MCP</span>
-            </button>
+            </HouseButton>
           </div>
         </div>
       )}
@@ -691,13 +692,13 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
             <TriangleAlert size={15} />
             <span>{error}</span>
           </div>
-          <button
+          <HouseButton
             type="button"
             onClick={() => setError(null)}
             className="mcp-notice-close"
           >
             <X size={14} />
-          </button>
+          </HouseButton>
         </div>
       )}
 
@@ -716,7 +717,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
                 <Globe size={18} className="text-accent" />
                 <h4 className="mcp-editor-title">Connect Composio</h4>
               </div>
-              <button
+              <HouseButton
                 type="button"
                 onClick={() => {
                   setKeyModalOpen(false)
@@ -725,7 +726,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
                 className="mcp-icon-btn"
               >
                 <X size={16} />
-              </button>
+              </HouseButton>
             </div>
 
             {modalPrompt && (
@@ -733,22 +734,22 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
             )}
 
             <div className="connector-modal-tabs" role="tablist">
-              <button
+              <HouseButton
                 type="button"
                 className={`connector-modal-tab ${loginTab === 'browser' ? 'is-active' : ''}`}
                 onClick={() => setLoginTab('browser')}
               >
                 <Globe size={14} />
                 <span>Browser Login</span>
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 className={`connector-modal-tab ${loginTab === 'key' ? 'is-active' : ''}`}
                 onClick={() => setLoginTab('key')}
               >
                 <Key size={14} />
                 <span>API Key</span>
-              </button>
+              </HouseButton>
             </div>
 
             {loginTab === 'browser' ? (
@@ -789,18 +790,18 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
                         <ExternalLink size={13} />
                         <span>Re-open Login Tab</span>
                       </a>
-                      <button
+                      <HouseButton
                         type="button"
                         className="mcp-btn mcp-btn-ghost text-dim"
                         onClick={cancelBrowserLogin}
                       >
                         Cancel
-                      </button>
+                      </HouseButton>
                     </div>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3 mt-1">
-                    <button
+                    <HouseButton
                       type="button"
                       className="connector-browser-login-btn"
                       onClick={startBrowserLogin}
@@ -812,7 +813,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
                         <Globe size={16} />
                       )}
                       <span>Sign in with Composio (Google / GitHub)</span>
-                    </button>
+                    </HouseButton>
                     <div className="text-2xs text-center text-dim">
                       Opens Composio&apos;s secure sign-in portal in a new tab.
                     </div>
@@ -836,7 +837,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
                   </a>
                   :
                 </p>
-                <input
+                <HouseInput
                   className="mcp-input font-mono w-full"
                   placeholder="ak_... or uak_..."
                   type="password"
@@ -846,23 +847,23 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
                 />
                 <div className="mcp-form-footer">
                   {configured && (
-                    <button
+                    <HouseButton
                       type="button"
                       className="mcp-btn mcp-btn-danger text-xs mr-auto"
                       onClick={disconnectComposio}
                     >
                       <Trash2 size={13} />
                       <span>Disconnect Composio</span>
-                    </button>
+                    </HouseButton>
                   )}
-                  <button
+                  <HouseButton
                     type="button"
                     className="mcp-btn mcp-btn-secondary"
                     onClick={() => setKeyModalOpen(false)}
                   >
                     Cancel
-                  </button>
-                  <button
+                  </HouseButton>
+                  <HouseButton
                     type="button"
                     className="mcp-btn mcp-btn-primary"
                     onClick={saveApiKey}
@@ -872,7 +873,7 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
                       <Loader2 size={13} className="animate-spin" />
                     ) : null}
                     <span>Save Key</span>
-                  </button>
+                  </HouseButton>
                 </div>
               </div>
             )}

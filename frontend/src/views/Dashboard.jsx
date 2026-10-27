@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../components/ui/bento/index.jsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
@@ -118,13 +119,13 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="vheader-actions">
-            <button
+            <HouseButton
               type="button"
               className="btn btn--ghost"
               onClick={() => { refreshHealth(); loadMemory() }}
             >
               <Icon name="refresh" size={15} /> Refresh
-            </button>
+            </HouseButton>
           </div>
         </header>
 
@@ -193,13 +194,13 @@ export default function Dashboard() {
                     <span className="set-sub">{String(err).slice(0, 140)}</span>
                   </span>
                   <span className="set-row-tail">
-                    <button
+                    <HouseButton
                       type="button"
                       className="btn btn--ghost btn--small"
                       onClick={() => { setCapabilitiesTab('connectors'); setView('capabilities') }}
                     >
                       Open
-                    </button>
+                    </HouseButton>
                   </span>
                 </div>
               ))}
@@ -210,13 +211,13 @@ export default function Dashboard() {
                     <span className="set-sub">switched on, not signed in</span>
                   </span>
                   <span className="set-row-tail">
-                    <button
+                    <HouseButton
                       type="button"
                       className="btn btn--ghost btn--small"
                       onClick={() => { setCapabilitiesTab('connectors'); setView('capabilities') }}
                     >
                       Sign in
-                    </button>
+                    </HouseButton>
                   </span>
                 </div>
               ))}
@@ -226,7 +227,7 @@ export default function Dashboard() {
 
         <div className="dash-modules">
           {MODULES.map((m) => (
-            <button key={m.id} type="button" className="module-row" data-enter onClick={() => setView(m.id)}>
+            <HouseButton key={m.id} type="button" className="module-row" data-enter onClick={() => setView(m.id)}>
               <div className="module-icon">
                 <Icon name={m.icon} size={19} />
               </div>
@@ -235,7 +236,7 @@ export default function Dashboard() {
                 <div className="module-desc">{m.desc}</div>
               </div>
               <div className="module-meta">{m.meta}</div>
-            </button>
+            </HouseButton>
           ))}
         </div>
       </div>

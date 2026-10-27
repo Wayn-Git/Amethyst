@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../ui/bento/index.jsx'
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -159,7 +160,7 @@ export default function StreamingText({
         style={{ opacity: done ? 1 : 0, pointerEvents: done ? "auto" : "none" }}
       >
         {ACTION_ICONS.map((icon, i) => (
-          <button
+          <HouseButton
             key={i}
             type="button"
             aria-label="Action"
@@ -169,9 +170,9 @@ export default function StreamingText({
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               {icon}
             </svg>
-          </button>
+          </HouseButton>
         ))}
-        <button
+        <HouseButton
           type="button"
           aria-expanded={sourcesOpen}
           onClick={() => setSourcesOpen((current) => !current)}
@@ -188,7 +189,7 @@ export default function StreamingText({
             ))}
           </span>
           <span className="text-[12px] text-ink-2">{l.sources}</span>
-        </button>
+        </HouseButton>
       </div>
 
       <div
@@ -226,7 +227,7 @@ export default function StreamingText({
         <p className="text-[12px] font-medium text-ink-2">{l.followUps}</p>
         <div className="mt-0.5 flex flex-col">
           {followUps.map((text, i) => (
-            <button
+            <HouseButton type="submit"
               key={text}
               onClick={() => onFollowUp?.(text, i)}
               className="-mx-1.5 flex items-center gap-2 rounded-[7px] border-b border-line
@@ -243,7 +244,7 @@ export default function StreamingText({
                 <path d="M20 4v7a4 4 0 0 1-4 4H4" />
               </svg>
               {text}
-            </button>
+            </HouseButton>
           ))}
         </div>
       </div>

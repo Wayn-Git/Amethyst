@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../ui/bento/index.jsx'
 "use client";
 
 import { useState, useRef, useEffect, type ReactNode } from "react";
@@ -63,7 +64,7 @@ export function CopyButton({
     );
 
   return (
-    <button
+    <HouseButton
       type="button"
       tabIndex={focusable ? 0 : -1}
       className={[styles.button, className].filter(Boolean).join(" ")}
@@ -84,7 +85,7 @@ export function CopyButton({
           {glyph}
         </motion.span>
       </AnimatePresence>
-    </button>
+    </HouseButton>
   );
 }
 

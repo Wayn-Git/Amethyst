@@ -1,3 +1,4 @@
+import { Input as HouseInput, Select as HouseSelect, Button as HouseButton, Textarea as HouseTextarea } from '../ui/bento/index.jsx'
 import { useCallback, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import Icon from '../Icon.jsx'
@@ -112,7 +113,7 @@ function ActionsEditor({ actions, grantable, onChange }) {
           <div className="auto-actions-group-label">{group}</div>
           {items.map((action) => (
             <label key={action.name} className={`auto-actions-item${!action.available ? ' is-unavailable' : ''}`}>
-              <input
+              <HouseInput
                 type="checkbox"
                 checked={actions.includes(action.name)}
                 onChange={() => toggle(action.name)}
@@ -146,7 +147,7 @@ function ResultsEditor({ rememberBefore, onRememberChange, resultsTo, onResultsT
   return (
     <div className="auto-modal-section">
       <label className="auto-modal-label">Results</label>
-      <select
+      <HouseSelect
         value={value}
         onChange={(e) => onResultsToChange(e.target.value)}
         className="auto-notification-select"
@@ -159,9 +160,9 @@ function ResultsEditor({ rememberBefore, onRememberChange, resultsTo, onResultsT
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))
         )}
-      </select>
+      </HouseSelect>
       <label className="auto-results-item">
-        <input
+        <HouseInput
           type="checkbox"
           checked={rememberBefore}
           onChange={(e) => onRememberChange(e.target.checked)}
@@ -277,14 +278,14 @@ export default function NewAutomationModal({ template, onClose, onCreated }) {
             <Icon name="zap" size={16} className="auto-modal-head-icon" />
             <h2>{template ? `New: ${template.name}` : 'New Automation'}</h2>
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+          <HouseButton type="button" className="icon-btn" onClick={onClose} aria-label="Close">
             <Icon name="x" size={16} />
-          </button>
+          </HouseButton>
         </div>
 
         <div className="auto-modal-body">
           <Field label="Name" id="auto-name">
-            <input
+            <HouseInput
               id="auto-name"
               autoFocus
               value={name}
@@ -294,7 +295,7 @@ export default function NewAutomationModal({ template, onClose, onCreated }) {
           </Field>
 
           <Field label="Description" id="auto-desc">
-            <input
+            <HouseInput
               id="auto-desc"
               value={description}
               placeholder="Optional short description"
@@ -303,7 +304,7 @@ export default function NewAutomationModal({ template, onClose, onCreated }) {
           </Field>
 
           <Field label="Instructions" id="auto-prompt">
-            <textarea
+            <HouseTextarea
               id="auto-prompt"
               rows={5}
               value={prompt}
@@ -315,7 +316,7 @@ export default function NewAutomationModal({ template, onClose, onCreated }) {
           <div className="auto-modal-section">
             <label className="auto-modal-label">Triggers</label>
             <div className="auto-schedule-row">
-              <select
+              <HouseSelect
                 value={scheduleType}
                 onChange={(e) => setScheduleType(e.target.value)}
                 className="auto-schedule-type"
@@ -323,10 +324,10 @@ export default function NewAutomationModal({ template, onClose, onCreated }) {
                 {SCHEDULE_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
-              </select>
+              </HouseSelect>
 
               {scheduleType === 'interval' && (
-                <select
+                <HouseSelect
                   value={intervalMinutes}
                   onChange={(e) => setIntervalMinutes(Number(e.target.value))}
                   className="auto-schedule-value"
@@ -334,11 +335,11 @@ export default function NewAutomationModal({ template, onClose, onCreated }) {
                   {INTERVAL_PRESETS.map((preset) => (
                     <option key={preset.minutes} value={preset.minutes}>{preset.label}</option>
                   ))}
-                </select>
+                </HouseSelect>
               )}
 
               {scheduleType === 'daily_at' && (
-                <input
+                <HouseInput
                   type="time"
                   value={dailyTime}
                   onChange={(e) => setDailyTime(e.target.value)}
@@ -348,7 +349,7 @@ export default function NewAutomationModal({ template, onClose, onCreated }) {
 
               {scheduleType === 'weekly_at' && (
                 <>
-                  <select
+                  <HouseSelect
                     value={weeklyDay}
                     onChange={(e) => setWeeklyDay(Number(e.target.value))}
                     className="auto-schedule-day"
@@ -356,8 +357,8 @@ export default function NewAutomationModal({ template, onClose, onCreated }) {
                     {WEEKDAYS.map((day, i) => (
                       <option key={i} value={i}>{day}</option>
                     ))}
-                  </select>
-                  <input
+                  </HouseSelect>
+                  <HouseInput
                     type="time"
                     value={dailyTime}
                     onChange={(e) => setDailyTime(e.target.value)}
@@ -390,7 +391,7 @@ export default function NewAutomationModal({ template, onClose, onCreated }) {
 
           <div className="auto-modal-section">
             <label className="auto-modal-label">Notification</label>
-            <select
+            <HouseSelect
               value={notification}
               onChange={(e) => setNotification(e.target.value)}
               className="auto-notification-select"
@@ -398,12 +399,12 @@ export default function NewAutomationModal({ template, onClose, onCreated }) {
               {NOTIFICATION_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
-            </select>
+            </HouseSelect>
 
             {notification.includes('email') && (
               <div style={{ marginTop: 12 }}>
                 <Field label="Recipient Email" id="auto-email-recipient">
-                  <input
+                  <HouseInput
                     id="auto-email-recipient"
                     type="email"
                     value={recipientEmail}

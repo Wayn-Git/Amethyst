@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../ui/bento/index.jsx'
 "use client";
 
 import { useState, useMemo, memo } from "react";
@@ -161,7 +162,7 @@ function ToolItem({ item, onOpenArtifact }) {
 
   return (
     <div className={cn("claude-tool-item", open && "is-open")}>
-      <button
+      <HouseButton
         type="button"
         disabled={!hasPayload}
         onClick={() => setOpen((o) => !o)}
@@ -190,7 +191,7 @@ function ToolItem({ item, onOpenArtifact }) {
             />
           )}
         </div>
-      </button>
+      </HouseButton>
 
       {open && hasPayload && (
         <div className="claude-tool-payload">
@@ -347,7 +348,7 @@ export const ClaudeActivity = memo(function ClaudeActivity({
           Seamless Text-Integrated Trigger (Zero Boxy Card Borders)
           Fitts's Law 44px hit-target with transparent padding
           ────────────────────────────────────────────────────────── */}
-      <button
+      <HouseButton
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-expanded={isOpen}
@@ -386,7 +387,7 @@ export const ClaudeActivity = memo(function ClaudeActivity({
           size={14}
           className={cn("claude-activity-chevron", isOpen && "is-open")}
         />
-      </button>
+      </HouseButton>
 
       {/* ──────────────────────────────────────────────────────────
           The Expanded Accordion Directly Under the Text Trigger

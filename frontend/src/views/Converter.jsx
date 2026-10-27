@@ -1,3 +1,4 @@
+import { Button as HouseButton, Select as HouseSelect, Input as HouseInput } from '../components/ui/bento/index.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
@@ -613,7 +614,7 @@ export default function Converter() {
             {PRIMARY_NAV_ITEMS.map((item) => {
               const isActive = activeView === item.id
               return (
-                <button
+                <HouseButton
                   key={item.id}
                   type="button"
                   className={`fc-subnav-btn${isActive ? ' is-active' : ''}`}
@@ -628,13 +629,13 @@ export default function Converter() {
                   )}
                   <Icon name={item.icon} size={15} />
                   <span>{item.label}</span>
-                </button>
+                </HouseButton>
               )
             })}
           </div>
 
           <div className="fc-nav-quick-actions">
-            <select
+            <HouseSelect
               className="fc-studio-quick-select"
               value={activeView}
               onChange={(e) => setActiveView(e.target.value)}
@@ -654,7 +655,7 @@ export default function Converter() {
                 <option value="code-formatter">Code Formatter</option>
                 <option value="text-tools">Text & String Tools</option>
               </optgroup>
-            </select>
+            </HouseSelect>
           </div>
         </div>
 
@@ -662,14 +663,14 @@ export default function Converter() {
         {activeView !== 'all' && activeView !== 'files' && (
           <div className="fc-breadcrumb-bar">
             <div className="fc-breadcrumb-left">
-              <button
+              <HouseButton
                 type="button"
                 className="fc-back-btn"
                 onClick={() => setActiveView('all')}
               >
                 <Icon name="arrow-left" size={14} />
                 <span>All Studios</span>
-              </button>
+              </HouseButton>
               <div className="fc-breadcrumb-trail">
                 <span className="fc-crumb-dim">Studios /</span>
                 <span className="fc-crumb-active">
@@ -678,7 +679,7 @@ export default function Converter() {
               </div>
             </div>
 
-            <select
+            <HouseSelect
               className="fc-studio-quick-select"
               value={activeView}
               onChange={(e) => setActiveView(e.target.value)}
@@ -697,7 +698,7 @@ export default function Converter() {
                 <option value="code-formatter">Code Formatter</option>
                 <option value="text-tools">Text & String Tools</option>
               </optgroup>
-            </select>
+            </HouseSelect>
           </div>
         )}
 
@@ -726,7 +727,7 @@ export default function Converter() {
                 onClick={() => fileInputRef.current?.click()}
               >
                 <div className="fc-dropzone-core">
-                  <input
+                  <HouseInput
                     ref={fileInputRef}
                     type="file"
                     multiple
@@ -760,7 +761,7 @@ export default function Converter() {
                   </div>
 
                   <div className="fc-drop-action-row">
-                    <button
+                    <HouseButton
                       type="button"
                       className="fc-btn fc-btn-primary fc-btn-pill"
                       onClick={(e) => {
@@ -773,7 +774,7 @@ export default function Converter() {
                       <div className="fc-btn-icon-bubble">
                         <Icon name="arrow-right" size={13} />
                       </div>
-                    </button>
+                    </HouseButton>
                     <span className="fc-drop-paste-hint">or press <kbd>Ctrl+V</kbd> to paste</span>
                   </div>
                 </div>
@@ -808,7 +809,7 @@ export default function Converter() {
                       <span>Batch target:</span>
                       <div className="fc-target-chips">
                         {['pdf', 'webp', 'jpg', 'png', 'mp3', 'docx'].map((tgt) => (
-                          <button
+                          <HouseButton
                             key={tgt}
                             type="button"
                             className="fc-target-chip uppercase"
@@ -816,13 +817,13 @@ export default function Converter() {
                             title={`Set all eligible files to .${tgt}`}
                           >
                             .{tgt}
-                          </button>
+                          </HouseButton>
                         ))}
                       </div>
                     </div>
 
                     {canMergePdfs && (
-                      <button
+                      <HouseButton
                         type="button"
                         className="fc-btn fc-btn-secondary"
                         disabled={batchMerging}
@@ -831,21 +832,21 @@ export default function Converter() {
                       >
                         <Icon name="layers" size={14} />
                         <span>{batchMerging ? 'Merging…' : `Merge ${pdfItems.length} PDFs`}</span>
-                      </button>
+                      </HouseButton>
                     )}
 
                     {queue.some((i) => i.status === 'ready' || i.status === 'error') && (
-                      <button
+                      <HouseButton
                         type="button"
                         className="fc-btn fc-btn-primary"
                         onClick={processAll}
                       >
                         <Icon name="convert" size={14} />
                         <span>Convert All ({queue.filter((i) => i.status === 'ready' || i.status === 'error').length})</span>
-                      </button>
+                      </HouseButton>
                     )}
 
-                    <button
+                    <HouseButton
                       type="button"
                       className="fc-btn fc-btn-secondary"
                       onClick={() => fileInputRef.current?.click()}
@@ -853,9 +854,9 @@ export default function Converter() {
                     >
                       <Icon name="plus" size={14} />
                       <span>Add More</span>
-                    </button>
+                    </HouseButton>
 
-                    <button
+                    <HouseButton
                       type="button"
                       className="fc-btn fc-btn-danger-ghost"
                       onClick={clearQueue}
@@ -863,7 +864,7 @@ export default function Converter() {
                     >
                       <Icon name="trash" size={14} />
                       <span>Clear All</span>
-                    </button>
+                    </HouseButton>
                   </div>
                 </div>
 
@@ -916,7 +917,7 @@ export default function Converter() {
 
                               <div className="fc-file-controls">
                                 {!isDone && (
-                                  <button
+                                  <HouseButton
                                     type="button"
                                     className="fc-btn fc-btn-primary"
                                     disabled={isWorking}
@@ -924,17 +925,17 @@ export default function Converter() {
                                   >
                                     <Icon name="convert" size={14} />
                                     <span>{isWorking ? (item.status === 'uploading' ? 'Uploading…' : 'Converting…') : 'Convert'}</span>
-                                  </button>
+                                  </HouseButton>
                                 )}
 
-                                <button
+                                <HouseButton
                                   type="button"
                                   className="fc-btn fc-btn-danger-ghost"
                                   onClick={() => removeItem(item.id)}
                                   title="Remove from queue"
                                 >
                                   <Icon name="x" size={15} />
-                                </button>
+                                </HouseButton>
                               </div>
                             </div>
 
@@ -949,18 +950,18 @@ export default function Converter() {
 
                                     <div className="fc-target-chips">
                                       {quickTargets.map((fmt) => (
-                                        <button
+                                        <HouseButton
                                           key={fmt}
                                           type="button"
                                           className={`fc-target-chip uppercase${item.targetFormat === fmt && item.operation === 'convert' ? ' is-active' : ''}`}
                                           onClick={() => updateItem(item.id, { targetFormat: fmt, operation: 'convert' })}
                                         >
                                           .{fmt}
-                                        </button>
+                                        </HouseButton>
                                       ))}
                                     </div>
 
-                                    <select
+                                    <HouseSelect
                                       className="fc-select uppercase font-mono"
                                       value={item.operation === 'convert' ? item.targetFormat : item.operation}
                                       onChange={(e) => {
@@ -1001,18 +1002,18 @@ export default function Converter() {
                                           <option value="video_to_audio">Extract Audio</option>
                                         </optgroup>
                                       )}
-                                    </select>
+                                    </HouseSelect>
                                   </div>
 
                                   {['image', 'video', 'pdf'].includes(item.category) && (
-                                    <button
+                                    <HouseButton
                                       type="button"
                                       className="fc-pipeline-options-btn"
                                       onClick={() => updateItem(item.id, { showOptions: !item.showOptions })}
                                     >
                                       <Icon name="sliders" size={13} />
                                       <span>Options {item.showOptions ? '▴' : '▾'}</span>
-                                    </button>
+                                    </HouseButton>
                                   )}
                                 </div>
 
@@ -1021,7 +1022,7 @@ export default function Converter() {
                                     {item.operation === 'resize' && (
                                       <div className="fc-option-item">
                                         <span>Resize scale:</span>
-                                        <select
+                                        <HouseSelect
                                           className="fc-select font-mono"
                                           value={item.options.percentage || 50}
                                           onChange={(e) =>
@@ -1035,13 +1036,13 @@ export default function Converter() {
                                           <option value="75">75% (Three-Quarter)</option>
                                           <option value="150">150% (Enlarge)</option>
                                           <option value="200">200% (Double)</option>
-                                        </select>
+                                        </HouseSelect>
                                       </div>
                                     )}
 
                                     <div className="fc-option-item">
                                       <span>Quality:</span>
-                                      <input
+                                      <HouseInput
                                         type="range"
                                         min="10"
                                         max="100"
@@ -1059,7 +1060,7 @@ export default function Converter() {
                                     {item.category === 'image' && (
                                       <div className="fc-option-item">
                                         <span>Rotate:</span>
-                                        <select
+                                        <HouseSelect
                                           className="fc-select"
                                           value={item.options.angle || 0}
                                           onChange={(e) =>
@@ -1072,7 +1073,7 @@ export default function Converter() {
                                           <option value="90">90° CW</option>
                                           <option value="180">180° Flip</option>
                                           <option value="270">270° CCW</option>
-                                        </select>
+                                        </HouseSelect>
                                       </div>
                                     )}
                                   </div>
@@ -1118,14 +1119,14 @@ export default function Converter() {
                                 </div>
 
                                 <div className="flex items-center gap-2">
-                                  <button
+                                  <HouseButton
                                     type="button"
                                     className="fc-btn fc-btn-secondary"
                                     onClick={() => setPreviewItem(item.result)}
                                   >
                                     <Icon name="eye" size={14} />
                                     <span>Preview</span>
-                                  </button>
+                                  </HouseButton>
 
                                   <a
                                     href={api.converterDownloadUrl(item.result.job_id)}
@@ -1145,13 +1146,13 @@ export default function Converter() {
                                   <Icon name="alert" size={16} />
                                   <span>{item.error}</span>
                                 </div>
-                                <button
+                                <HouseButton
                                   type="button"
                                   className="fc-btn fc-btn-secondary text-xs"
                                   onClick={() => processItem(item.id)}
                                 >
                                   Retry
-                                </button>
+                                </HouseButton>
                               </div>
                             )}
                           </div>
@@ -1174,7 +1175,7 @@ export default function Converter() {
                 <div className="fc-toolbar">
                   <div className="fc-cat-tabs">
                     {CATEGORY_TABS.map((tab) => (
-                      <button
+                      <HouseButton
                         key={tab.id}
                         type="button"
                         className={`fc-cat-tab${activeCategory === tab.id ? ' is-active' : ''}`}
@@ -1182,13 +1183,13 @@ export default function Converter() {
                       >
                         <Icon name={tab.icon} size={15} />
                         <span>{tab.label}</span>
-                      </button>
+                      </HouseButton>
                     ))}
                   </div>
 
                   <div className="fc-search-wrap">
                     <Icon name="search" size={15} className="fc-search-icon" />
-                    <input
+                    <HouseInput
                       type="text"
                       className="fc-search-input"
                       placeholder="Search studios, formats, tags…"
@@ -1196,13 +1197,13 @@ export default function Converter() {
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
                     {searchQuery && (
-                      <button
+                      <HouseButton
                         type="button"
                         className="fc-search-clear-btn"
                         onClick={() => setSearchQuery('')}
                       >
                         <Icon name="x" size={12} />
-                      </button>
+                      </HouseButton>
                     )}
                   </div>
                 </div>
@@ -1284,13 +1285,13 @@ export default function Converter() {
                       <Icon name="download" size={14} />
                       <span>Download</span>
                     </a>
-                    <button
+                    <HouseButton
                       type="button"
                       className="fc-btn fc-btn-danger-ghost"
                       onClick={() => setPreviewItem(null)}
                     >
                       <Icon name="x" size={16} />
-                    </button>
+                    </HouseButton>
                   </div>
                 </div>
 
@@ -1322,7 +1323,7 @@ export default function Converter() {
                     <div className="w-full flex flex-col gap-2">
                       <div className="flex items-center justify-between text-xs text-[var(--fc-text-faint)]">
                         <span>Extracted Content ({previewItem.preview_text.length} characters)</span>
-                        <button
+                        <HouseButton
                           type="button"
                           className="fc-btn fc-btn-secondary text-xs py-1 h-7"
                           onClick={() => {
@@ -1332,7 +1333,7 @@ export default function Converter() {
                         >
                           <Icon name="copy" size={13} />
                           <span>Copy Text</span>
-                        </button>
+                        </HouseButton>
                       </div>
                       <pre className="fc-modal-text-content">{previewItem.preview_text}</pre>
                     </div>

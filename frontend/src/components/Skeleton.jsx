@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useEffect, useState } from 'react'
 import { AsciiSkeleton } from 'ascii-reveal'
 import Icon from './Icon.jsx'
@@ -338,9 +339,9 @@ export function BootScreen({ server, onRetry, onRemote }) {
         )}
 
         {down && (
-          <button type="button" className="btn btn--primary btn--small" onClick={onRetry}>
+          <HouseButton type="button" className="btn btn--primary btn--small" onClick={onRetry}>
             <Icon name="refresh" size={13} /> Try again
-          </button>
+          </HouseButton>
         )}
 
         {/* The way out for a device that is not the machine.
@@ -349,9 +350,9 @@ export function BootScreen({ server, onRetry, onRemote }) {
             making it sit out ninety seconds of a wake that cannot succeed
             before it is even told pairing exists is the bug this fixes. */}
         {onRemote && (
-          <button type="button" className="btn btn--small boot-remote" onClick={onRemote}>
+          <HouseButton type="button" className="btn btn--small boot-remote" onClick={onRemote}>
             <Icon name="link" size={13} /> This is not the machine — pair it instead
-          </button>
+          </HouseButton>
         )}
 
         {/* The page underneath, in outline, so the wait is spent looking at

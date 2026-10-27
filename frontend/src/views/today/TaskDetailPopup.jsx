@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../../components/ui/bento/index.jsx'
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../../components/Icon.jsx'
@@ -62,14 +63,14 @@ export default function TaskDetailPopup({
               </div>
               <h2 className="task-popup-title">{task.title}</h2>
             </div>
-            <button
+            <HouseButton
               type="button"
               className="task-popup-close"
               onClick={onClose}
               aria-label="Close details"
             >
               <Icon name="x" size={14} />
-            </button>
+            </HouseButton>
           </div>
 
           {/* Notes / Description if present */}
@@ -105,7 +106,7 @@ export default function TaskDetailPopup({
             </div>
 
             {/* Slider */}
-            <input
+            <HouseInput
               type="range"
               min="0"
               max="100"
@@ -118,65 +119,65 @@ export default function TaskDetailPopup({
 
             {/* Steppers & Presets */}
             <div className="task-popup-steppers">
-              <button
+              <HouseButton
                 type="button"
                 className="task-popup-step-btn"
                 disabled={isFinishing}
                 onClick={() => handleStep(-10)}
               >
                 -10%
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 className="task-popup-step-btn"
                 disabled={isFinishing}
                 onClick={() => handleProgressChange(25)}
               >
                 25%
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 className="task-popup-step-btn"
                 disabled={isFinishing}
                 onClick={() => handleProgressChange(50)}
               >
                 50%
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 className="task-popup-step-btn"
                 disabled={isFinishing}
                 onClick={() => handleProgressChange(75)}
               >
                 75%
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 className="task-popup-step-btn"
                 disabled={isFinishing}
                 onClick={() => handleStep(10)}
               >
                 +10%
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 className="task-popup-step-btn is-100"
                 disabled={isFinishing}
                 onClick={() => handleProgressChange(100)}
               >
                 Complete (100%)
-              </button>
+              </HouseButton>
             </div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-            <button
+            <HouseButton
               type="button"
               className="btn btn--small btn--ghost"
               onClick={onClose}
             >
               Close
-            </button>
+            </HouseButton>
           </div>
         </motion.div>
       </div>

@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import { useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
@@ -167,14 +168,14 @@ export default function RemoteTerminal() {
           <strong style={{ color: 'var(--text)' }}>Terminal</strong>
           {session && <span style={{ color: 'var(--text-faint)' }}>({session.shell || 'bash'})</span>}
         </div>
-        <button
+        <HouseButton
           type="button"
           className="set-btn-sm"
           onClick={() => fitAddonRef.current?.fit()}
           style={{ padding: '2px 8px', fontSize: 11 }}
         >
           Fit Screen
-        </button>
+        </HouseButton>
       </div>
 
       {error ? (
@@ -216,30 +217,30 @@ export default function RemoteTerminal() {
           alignItems: 'center',
         }}
       >
-        <button type="button" className="set-btn-sm" onClick={() => sendKey('\x1b')} style={{ minWidth: 42, padding: '6px 0', textAlign: 'center' }}>
+        <HouseButton type="button" className="set-btn-sm" onClick={() => sendKey('\x1b')} style={{ minWidth: 42, padding: '6px 0', textAlign: 'center' }}>
           Esc
-        </button>
-        <button type="button" className="set-btn-sm" onClick={() => sendKey('\t')} style={{ minWidth: 42, padding: '6px 0', textAlign: 'center' }}>
+        </HouseButton>
+        <HouseButton type="button" className="set-btn-sm" onClick={() => sendKey('\t')} style={{ minWidth: 42, padding: '6px 0', textAlign: 'center' }}>
           Tab
-        </button>
-        <button type="button" className="set-btn-sm" onClick={() => sendKey('\x03')} style={{ minWidth: 54, padding: '6px 0', textAlign: 'center', color: '#ef4444' }}>
+        </HouseButton>
+        <HouseButton type="button" className="set-btn-sm" onClick={() => sendKey('\x03')} style={{ minWidth: 54, padding: '6px 0', textAlign: 'center', color: '#ef4444' }}>
           Ctrl+C
-        </button>
-        <button type="button" className="set-btn-sm" onClick={() => sendKey('\x1a')} style={{ minWidth: 54, padding: '6px 0', textAlign: 'center' }}>
+        </HouseButton>
+        <HouseButton type="button" className="set-btn-sm" onClick={() => sendKey('\x1a')} style={{ minWidth: 54, padding: '6px 0', textAlign: 'center' }}>
           Ctrl+Z
-        </button>
-        <button type="button" className="set-btn-sm" onClick={() => sendKey('\x1b[A')} style={{ minWidth: 38, padding: '6px 0', textAlign: 'center' }}>
+        </HouseButton>
+        <HouseButton type="button" className="set-btn-sm" onClick={() => sendKey('\x1b[A')} style={{ minWidth: 38, padding: '6px 0', textAlign: 'center' }}>
           ↑
-        </button>
-        <button type="button" className="set-btn-sm" onClick={() => sendKey('\x1b[B')} style={{ minWidth: 38, padding: '6px 0', textAlign: 'center' }}>
+        </HouseButton>
+        <HouseButton type="button" className="set-btn-sm" onClick={() => sendKey('\x1b[B')} style={{ minWidth: 38, padding: '6px 0', textAlign: 'center' }}>
           ↓
-        </button>
-        <button type="button" className="set-btn-sm" onClick={() => sendKey('\x1b[D')} style={{ minWidth: 38, padding: '6px 0', textAlign: 'center' }}>
+        </HouseButton>
+        <HouseButton type="button" className="set-btn-sm" onClick={() => sendKey('\x1b[D')} style={{ minWidth: 38, padding: '6px 0', textAlign: 'center' }}>
           ←
-        </button>
-        <button type="button" className="set-btn-sm" onClick={() => sendKey('\x1b[C')} style={{ minWidth: 38, padding: '6px 0', textAlign: 'center' }}>
+        </HouseButton>
+        <HouseButton type="button" className="set-btn-sm" onClick={() => sendKey('\x1b[C')} style={{ minWidth: 38, padding: '6px 0', textAlign: 'center' }}>
           →
-        </button>
+        </HouseButton>
       </div>
     </div>
   )

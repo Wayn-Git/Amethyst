@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../ui/bento/index.jsx'
 "use client";
 
 import {
@@ -91,7 +92,7 @@ export function AgentActivity({
       )}
     >
       {/* Header disclosure button */}
-      <button
+      <HouseButton
         type="button"
         onClick={toggle}
         disabled={isWorking}
@@ -126,7 +127,7 @@ export function AgentActivity({
             )}
           />
         )}
-      </button>
+      </HouseButton>
 
       {/* Expandable item stream */}
       <AgentDisclosure open={isOpen}>

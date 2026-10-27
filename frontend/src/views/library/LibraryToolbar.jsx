@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput, Select as HouseSelect } from '../../components/ui/bento/index.jsx'
 import { useEffect, useMemo, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { IS_MAC } from '../../keys.js'
@@ -111,7 +112,7 @@ export default function LibraryToolbar({
 
         <div className="vheader-actions">
           {hasMusic && (
-            <button
+            <HouseButton
               type="button"
               className="btn btn--ghost btn--small"
               onClick={onOpenExport}
@@ -119,10 +120,10 @@ export default function LibraryToolbar({
             >
               <Icon name="music" size={14} />
               <span>Export playlist</span>
-            </button>
+            </HouseButton>
           )}
 
-          <button
+          <HouseButton
             type="button"
             className={`btn btn--ghost btn--small ${showShare ? 'is-active' : ''}`}
             onClick={onToggleShare}
@@ -131,9 +132,9 @@ export default function LibraryToolbar({
           >
             <Icon name="link" size={14} />
             <span>Connections</span>
-          </button>
+          </HouseButton>
 
-          <button
+          <HouseButton
             type="button"
             className="btn btn--primary btn--small"
             onClick={() => onOpenAddModal?.('url')}
@@ -142,7 +143,7 @@ export default function LibraryToolbar({
             <Icon name="plus" size={14} />
             <span>Add resource</span>
             <kbd className="lib-kbd lib-kbd--primary">{mac ? '⌘K' : 'Ctrl+K'}</kbd>
-          </button>
+          </HouseButton>
         </div>
       </header>
 
@@ -150,7 +151,7 @@ export default function LibraryToolbar({
       <div className="lib-subnav" data-enter>
         {/* Left: Format Tabs (All, Video, Article, Post...) Left-aligned like Tasks / Automations */}
         <div className="lib-tabs-track" role="tablist" aria-label="Format filters">
-          <button
+          <HouseButton
             type="button"
             role="tab"
             aria-selected={selectedKinds.length === 0}
@@ -159,11 +160,11 @@ export default function LibraryToolbar({
           >
             <span>All</span>
             <span className="lib-tab-count">{total}</span>
-          </button>
+          </HouseButton>
           {primaryFormats.map(([kind, count]) => {
             const isActive = selectedKinds.includes(kind)
             return (
-              <button
+              <HouseButton
                 key={kind}
                 type="button"
                 role="tab"
@@ -174,7 +175,7 @@ export default function LibraryToolbar({
                 <Icon name={KIND_ICON[kind] || 'file'} size={14} />
                 <span className="capitalize">{kind}</span>
                 <span className="lib-tab-count">{count}</span>
-              </button>
+              </HouseButton>
             )
           })}
         </div>
@@ -191,7 +192,7 @@ export default function LibraryToolbar({
             aria-label="Library search"
           >
             <Icon name={capturing ? 'link' : 'search'} size={14} className="lib-search-icon" />
-            <input
+            <HouseInput
               ref={(node) => {
                 if (searchRef) searchRef.current = node
                 if (captureRef) captureRef.current = node
@@ -203,15 +204,15 @@ export default function LibraryToolbar({
               aria-label="Search library or paste URL"
             />
             {capturing ? (
-              <button type="submit" className="lib-search-save-btn">
+              <HouseButton type="submit" className="lib-search-save-btn">
                 <span>Save</span>
                 <kbd className="lib-kbd-inline">↵</kbd>
-              </button>
+              </HouseButton>
             ) : (
               <>
                 {!rawValue && <kbd className="lib-search-hotkey">{mac ? '⌘/' : 'Ctrl/'}</kbd>}
                 {rawValue && (
-                  <button
+                  <HouseButton
                     type="button"
                     className="lib-search-clear"
                     onClick={() => {
@@ -221,14 +222,14 @@ export default function LibraryToolbar({
                     aria-label="Clear search"
                   >
                     <Icon name="x" size={12} />
-                  </button>
+                  </HouseButton>
                 )}
               </>
             )}
           </form>
 
           {/* Filter Desk Trigger */}
-          <button
+          <HouseButton
             type="button"
             className={`btn btn--ghost btn--small lib-subnav-btn ${activeCount > 0 ? 'is-active' : ''}`}
             onClick={() => setFilterOpen(true)}
@@ -244,13 +245,13 @@ export default function LibraryToolbar({
             ) : (
               <kbd className="lib-hotkey-hint">F</kbd>
             )}
-          </button>
+          </HouseButton>
 
           {/* Sort Dropdown */}
           <label className="lib-sort-select-wrap" title="Change sort order">
             <Icon name="down" size={11} className="lib-sort-chevron" />
             <span className="lib-sort-current">{sortLabel}</span>
-            <select
+            <HouseSelect
               value={order}
               onChange={(event) => onOrderChange?.(event.target.value)}
               aria-label="Sort order"
@@ -258,12 +259,12 @@ export default function LibraryToolbar({
               <option value="desc">Newest</option>
               <option value="asc">Oldest</option>
               <option value="rating">Top rated</option>
-            </select>
+            </HouseSelect>
           </label>
 
           {/* Segmented Grid / List Switcher */}
           <div className="lib-layout-switch" role="group" aria-label="View display">
-            <button
+            <HouseButton
               type="button"
               className={`lib-layout-switch-btn ${layout === 'grid' ? 'is-active' : ''}`}
               onClick={() => onLayoutChange?.('grid')}
@@ -272,8 +273,8 @@ export default function LibraryToolbar({
               title="Grid view"
             >
               <Icon name="grid" size={14} />
-            </button>
-            <button
+            </HouseButton>
+            <HouseButton
               type="button"
               className={`lib-layout-switch-btn ${layout === 'list' ? 'is-active' : ''}`}
               onClick={() => onLayoutChange?.('list')}
@@ -282,7 +283,7 @@ export default function LibraryToolbar({
               title="List view"
             >
               <Icon name="list" size={14} />
-            </button>
+            </HouseButton>
           </div>
         </div>
       </div>

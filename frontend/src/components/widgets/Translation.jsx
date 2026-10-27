@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../ui/bento/index.jsx'
 import { useState } from 'react'
 import Icon from '../Icon.jsx'
 import { copyText } from '../../api.js'
@@ -20,7 +21,7 @@ export default function Translation({ data }) {
       <div className="widget-pane is-target">
         <span className="widget-lang">{data.target_language}</span>
         <p>{data.translation}</p>
-        <button
+        <HouseButton
           type="button"
           className="msg-copy"
           title="Copy translation"
@@ -31,7 +32,7 @@ export default function Translation({ data }) {
           }}
         >
           <Icon name={done === 'ok' ? 'check' : done === 'no' ? 'x' : 'copy'} size={13} />
-        </button>
+        </HouseButton>
       </div>
     </div>
   )

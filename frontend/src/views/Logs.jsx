@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput, Select as HouseSelect } from '../components/ui/bento/index.jsx'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
@@ -69,7 +70,7 @@ function LogCard({ row, onCopy }) {
   const failed = Boolean(row.error)
   return (
     <div className={`log-card${failed ? ' log-card--failed' : ''}`} data-open={open}>
-      <button
+      <HouseButton
         type="button"
         className="log-card-head"
         onClick={() => setOpen((o) => !o)}
@@ -78,7 +79,7 @@ function LogCard({ row, onCopy }) {
         <span className="log-card-tool">{row.tool_name}</span>
         <span className={`badge badge--${riskTone(row.risk_level)}`}>{row.risk_level}</span>
         <Icon name="chevron" size={12} className="log-card-caret" />
-      </button>
+      </HouseButton>
       <div className="log-card-meta">
         <span>{fmtTime(row.created_at)}</span>
         <span>{row.tool_source}</span>
@@ -94,9 +95,9 @@ function LogCard({ row, onCopy }) {
         <div className="log-card-args">
           <span className="tool-block-label">arguments</span>
           <JsonViewer data={row.arguments || {}} rootName="arguments" maxHeight={240} />
-          <button type="button" className="btn btn--ghost btn--small" style={{ marginTop: 8 }} onClick={() => onCopy(row)}>
+          <HouseButton type="button" className="btn btn--ghost btn--small" style={{ marginTop: 8 }} onClick={() => onCopy(row)}>
             <Icon name="copy" size={12} /> Copy this row
-          </button>
+          </HouseButton>
         </div>
       )}
     </div>
@@ -216,7 +217,7 @@ export default function Logs() {
             </div>
           </div>
           <div className="vheader-actions">
-            <button
+            <HouseButton
               type="button"
               className={`btn btn--small${live ? ' btn--primary' : ' btn--ghost'}`}
               onClick={() => setLive((l) => !l)}
@@ -224,10 +225,10 @@ export default function Logs() {
               title="Reload every few seconds while a turn runs"
             >
               {live ? 'Following' : 'Follow'}
-            </button>
-            <button type="button" className="btn btn--ghost" onClick={() => load()} disabled={busy}>
+            </HouseButton>
+            <HouseButton type="button" className="btn btn--ghost" onClick={() => load()} disabled={busy}>
               <Icon name="refresh" size={15} /> {busy ? 'Loading…' : 'Reload'}
-            </button>
+            </HouseButton>
           </div>
         </header>
 
@@ -236,7 +237,7 @@ export default function Logs() {
             `denied` to get it is a trick you have to already know. */}
         <div className="log-lenses" role="group" aria-label="Filter by decision" data-enter>
           {LENSES.map((l) => (
-            <button
+            <HouseButton
               key={l.id}
               type="button"
               className={`chip${lens === l.id ? ' is-on' : ''}`}
@@ -245,34 +246,34 @@ export default function Logs() {
             >
               {l.label}
               <span className="chip-count">{loaded ? lensCounts[l.id] : '—'}</span>
-            </button>
+            </HouseButton>
           ))}
         </div>
 
         <div className="log-controls" data-enter>
           <div className="inline-search">
             <Icon name="search" size={13} />
-            <input
+            <HouseInput
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter by tool, source or result"
               aria-label="Filter the log"
             />
             {filter && (
-              <button type="button" className="icon-btn" onClick={() => setFilter('')} aria-label="Clear filter">
+              <HouseButton type="button" className="icon-btn" onClick={() => setFilter('')} aria-label="Clear filter">
                 <Icon name="x" size={13} />
-              </button>
+              </HouseButton>
             )}
           </div>
           <label className="inline-select">
             <span>Show</span>
-            <select
+            <HouseSelect
               value={limit}
               aria-label="How many rows to load"
               onChange={(e) => { setLimit(Number(e.target.value)); load(Number(e.target.value)) }}
             >
               {LIMITS.map((n) => <option key={n} value={n}>last {n}</option>)}
-            </select>
+            </HouseSelect>
           </label>
           <span className="log-count">
             {loaded ? `${filtered.length} row${filtered.length === 1 ? '' : 's'}` : 'loading…'}

@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useState, useRef, useEffect } from 'react'
 import Icon from './Icon.jsx'
 import { copyText } from '../api.js'
@@ -109,7 +110,7 @@ export default function ResponseMessageActions({
   return (
     <div className="response-message-actions-row" role="toolbar" aria-label="Response message actions">
       {/* 1. Copy */}
-      <button
+      <HouseButton
         type="button"
         className="msg-action-icon-btn"
         title={copied ? 'Copied!' : 'Copy'}
@@ -117,11 +118,11 @@ export default function ResponseMessageActions({
         onClick={handleCopy}
       >
         <Icon name={copied ? 'check' : 'copy'} size={15} />
-      </button>
+      </HouseButton>
 
       {/* 2. Share / Export */}
       <div className="msg-action-menu-anchor" ref={shareRef}>
-        <button
+        <HouseButton
           type="button"
           className={`msg-action-icon-btn${shareOpen ? ' is-active' : ''}`}
           title="Share & Export"
@@ -129,33 +130,33 @@ export default function ResponseMessageActions({
           onClick={() => { setShareOpen((v) => !v); setMoreOpen(false) }}
         >
           <Icon name="share" size={15} />
-        </button>
+        </HouseButton>
 
         {shareOpen && (
           <div className="response-popover-dropdown export-dropdown">
-            <button type="button" onClick={() => handleExport('docx')}>
+            <HouseButton type="button" onClick={() => handleExport('docx')}>
               <Icon name="page" size={14} />
               <span>Word Document (.docx)</span>
-            </button>
-            <button type="button" onClick={() => handleExport('md')}>
+            </HouseButton>
+            <HouseButton type="button" onClick={() => handleExport('md')}>
               <Icon name="code" size={14} />
               <span>Markdown (.md)</span>
-            </button>
-            <button type="button" onClick={() => handleExport('html')}>
+            </HouseButton>
+            <HouseButton type="button" onClick={() => handleExport('html')}>
               <Icon name="globe" size={14} />
               <span>Standalone HTML (.html)</span>
-            </button>
-            <button type="button" onClick={() => handleExport('txt')}>
+            </HouseButton>
+            <HouseButton type="button" onClick={() => handleExport('txt')}>
               <Icon name="type" size={14} />
               <span>Plain Text (.txt)</span>
-            </button>
+            </HouseButton>
           </div>
         )}
       </div>
 
       {/* 3. Regenerate */}
       {onRegenerate && (
-        <button
+        <HouseButton
           type="button"
           className="msg-action-icon-btn"
           title="Regenerate"
@@ -163,12 +164,12 @@ export default function ResponseMessageActions({
           onClick={onRegenerate}
         >
           <Icon name="refresh" size={15} />
-        </button>
+        </HouseButton>
       )}
 
       {/* 4. More actions (...) */}
       <div className="msg-action-menu-anchor" ref={moreRef}>
-        <button
+        <HouseButton
           type="button"
           className={`msg-action-icon-btn${moreOpen ? ' is-active' : ''}`}
           title="More"
@@ -176,7 +177,7 @@ export default function ResponseMessageActions({
           onClick={() => { setMoreOpen((v) => !v); setShareOpen(false) }}
         >
           <Icon name="more" size={15} />
-        </button>
+        </HouseButton>
 
         {moreOpen && (
           <div className="response-popover-dropdown more-dropdown">
@@ -185,7 +186,7 @@ export default function ResponseMessageActions({
             </div>
 
             {hasSources && (
-              <button
+              <HouseButton
                 type="button"
                 onClick={() => {
                   setMoreOpen(false)
@@ -194,11 +195,11 @@ export default function ResponseMessageActions({
               >
                 <Icon name="book" size={14} />
                 <span>View sources</span>
-              </button>
+              </HouseButton>
             )}
 
             {onBranchInNewChat && (
-              <button
+              <HouseButton
                 type="button"
                 onClick={() => {
                   setMoreOpen(false)
@@ -207,16 +208,16 @@ export default function ResponseMessageActions({
               >
                 <Icon name="branch" size={14} />
                 <span>Branch in new chat</span>
-              </button>
+              </HouseButton>
             )}
 
-            <button type="button" onClick={handleReadAloud}>
+            <HouseButton type="button" onClick={handleReadAloud}>
               <Icon name="speaker" size={14} />
               <span>{speaking ? 'Stop reading' : 'Read aloud'}</span>
-            </button>
+            </HouseButton>
 
             {onPin && (
-              <button
+              <HouseButton
                 type="button"
                 onClick={() => {
                   setMoreOpen(false)
@@ -225,7 +226,7 @@ export default function ResponseMessageActions({
               >
                 <Icon name="pin" size={14} />
                 <span>{item.pinned ? 'Unpin message' : 'Pin message'}</span>
-              </button>
+              </HouseButton>
             )}
           </div>
         )}

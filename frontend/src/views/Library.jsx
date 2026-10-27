@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../components/ui/bento/index.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import Icon from '../components/Icon.jsx'
@@ -691,15 +692,15 @@ export default function Library() {
                       </EmptyState.Header>
                       <EmptyState.Footer>
                         {activeFilterCount > 0 ? (
-                          <button
+                          <HouseButton
                             type="button"
                             className="lib-btn"
                             onClick={handleClearFilters}
                           >
                             Reset filters
-                          </button>
+                          </HouseButton>
                         ) : (
-                          <button
+                          <HouseButton
                             type="button"
                             className="lib-btn lib-btn--primary"
                             onClick={() => {
@@ -709,7 +710,7 @@ export default function Library() {
                           >
                             <Icon name="plus" size={14} />
                             <span>Add first resource</span>
-                          </button>
+                          </HouseButton>
                         )}
                       </EmptyState.Footer>
                     </EmptyState>

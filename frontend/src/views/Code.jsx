@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../components/ui/bento/index.jsx'
 import { useApp } from '../store.jsx'
 import Icon from '../components/Icon.jsx'
 import './code.css'
@@ -45,14 +46,14 @@ export default function Code() {
             <Icon name="arrow-up-right" size={13} />
           </a>
 
-          <button
+          <HouseButton
             type="button"
             className="agents-btn agents-btn-secondary"
             onClick={copyIssueLink}
           >
             <Icon name="copy" size={14} />
             <span>Copy Issue Link</span>
-          </button>
+          </HouseButton>
         </div>
       </header>
 

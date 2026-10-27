@@ -1,3 +1,4 @@
+import { Input as HouseInput, Button as HouseButton } from './ui/bento/index.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Icon from './Icon.jsx'
@@ -219,7 +220,7 @@ export default function PlusMenu({
       role="menu"
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <input
+      <HouseInput
         ref={fileRef}
         type="file"
         multiple
@@ -236,7 +237,7 @@ export default function PlusMenu({
         className="pmenu-primary-panel"
       >
         {/* 1. Add files or photos */}
-        <button
+        <HouseButton
           type="button"
           className="pmenu-item"
           onClick={() => fileRef.current?.click()}
@@ -247,10 +248,10 @@ export default function PlusMenu({
             <span className="pmenu-item-label">Add files or photos</span>
           </div>
           <span className="pmenu-shortcut">{MOD_LABEL}+U</span>
-        </button>
+        </HouseButton>
 
         {/* 2. Skills */}
-        <button
+        <HouseButton
           type="button"
           className={`pmenu-item${panel === 'skills' ? ' is-active' : ''}`}
           onClick={() => setPanel((p) => (p === 'skills' ? null : 'skills'))}
@@ -263,10 +264,10 @@ export default function PlusMenu({
             <span className="pmenu-item-label">Skills</span>
           </div>
           <Icon name="caret-right" size={12} className="pmenu-chevron" />
-        </button>
+        </HouseButton>
 
         {/* 3. Connectors */}
-        <button
+        <HouseButton
           type="button"
           className={`pmenu-item${panel === 'connectors' ? ' is-active' : ''}`}
           onClick={() => setPanel((p) => (p === 'connectors' ? null : 'connectors'))}
@@ -287,10 +288,10 @@ export default function PlusMenu({
             )}
             <Icon name="caret-right" size={12} className="pmenu-chevron" />
           </div>
-        </button>
+        </HouseButton>
 
         {/* 4. Design system */}
-        <button
+        <HouseButton
           type="button"
           className={`pmenu-item${panel === 'design' ? ' is-active' : ''}`}
           onClick={() => setPanel((p) => (p === 'design' ? null : 'design'))}
@@ -303,10 +304,10 @@ export default function PlusMenu({
             <span className="pmenu-item-label">Design system</span>
           </div>
           <Icon name="caret-right" size={12} className="pmenu-chevron" />
-        </button>
+        </HouseButton>
 
         {/* 5. Plugins */}
-        <button
+        <HouseButton
           type="button"
           className={`pmenu-item${panel === 'plugins' ? ' is-active' : ''}`}
           onClick={() => setPanel((p) => (p === 'plugins' ? null : 'plugins'))}
@@ -319,10 +320,10 @@ export default function PlusMenu({
             <span className="pmenu-item-label">Plugins</span>
           </div>
           <Icon name="caret-right" size={12} className="pmenu-chevron" />
-        </button>
+        </HouseButton>
 
         {/* 6. Memory */}
-        <button
+        <HouseButton
           type="button"
           className="pmenu-item"
           onClick={toggleMemory}
@@ -336,7 +337,7 @@ export default function PlusMenu({
           {memory?.enabled && (
             <Icon name="check-simple" size={14} weight="bold" className="pmenu-check-accent" />
           )}
-        </button>
+        </HouseButton>
       </motion.div>
 
       {/* Flyout Submenus */}
@@ -366,7 +367,7 @@ export default function PlusMenu({
                 <div className="pmenu-empty-item">No skills installed</div>
               ) : (
                 skills.map((skill) => (
-                  <button
+                  <HouseButton
                     key={skill.name}
                     type="button"
                     className="pmenu-item"
@@ -380,14 +381,14 @@ export default function PlusMenu({
                       <Icon name="scroll" size={15} className="pmenu-item-icon" />
                       <span className="pmenu-item-label">{skill.name}</span>
                     </div>
-                  </button>
+                  </HouseButton>
                 ))
               )}
             </div>
 
             <div className="pmenu-divider" />
 
-            <button
+            <HouseButton
               type="button"
               className="pmenu-item"
               onClick={() => {
@@ -400,9 +401,9 @@ export default function PlusMenu({
                 <Icon name="tray" size={15} className="pmenu-item-icon" />
                 <span className="pmenu-item-label">Manage skills</span>
               </div>
-            </button>
+            </HouseButton>
 
-            <button
+            <HouseButton
               type="button"
               className="pmenu-item"
               onClick={() => {
@@ -415,7 +416,7 @@ export default function PlusMenu({
                 <Icon name="plus" size={15} className="pmenu-item-icon" />
                 <span className="pmenu-item-label">Browse skills</span>
               </div>
-            </button>
+            </HouseButton>
           </motion.div>
         )}
 
@@ -439,7 +440,7 @@ export default function PlusMenu({
             transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
             className="pmenu-submenu"
           >
-            <button
+            <HouseButton
               type="button"
               className="pmenu-item"
               onClick={() => {
@@ -453,9 +454,9 @@ export default function PlusMenu({
                 <span className="pmenu-item-label">Add connector</span>
               </div>
               <Icon name="caret-right" size={12} className="pmenu-chevron" />
-            </button>
+            </HouseButton>
 
-            <button
+            <HouseButton
               type="button"
               className="pmenu-item"
               onClick={() => {
@@ -468,7 +469,7 @@ export default function PlusMenu({
                 <Icon name="tray" size={15} className="pmenu-item-icon" />
                 <span className="pmenu-item-label">Manage connectors</span>
               </div>
-            </button>
+            </HouseButton>
 
             <div className="pmenu-divider" />
 
@@ -538,7 +539,7 @@ export default function PlusMenu({
                     <div className="pmenu-plugin-group">
                       <div className="pmenu-group-title">Composio Apps</div>
                       {composioToolkits.map((item) => (
-                        <button
+                        <HouseButton
                           key={item.slug}
                           type="button"
                           className="pmenu-item"
@@ -556,7 +557,7 @@ export default function PlusMenu({
                               <Icon name="external-link" size={11} style={{ opacity: 0.6 }} />
                             )}
                           </div>
-                        </button>
+                        </HouseButton>
                       ))}
                     </div>
                   )}
@@ -566,7 +567,7 @@ export default function PlusMenu({
 
             <div className="pmenu-divider" />
 
-            <button
+            <HouseButton
               type="button"
               className={`pmenu-item${toolsOpen ? ' is-active' : ''}`}
               onClick={() => setToolsOpen((o) => !o)}
@@ -576,7 +577,7 @@ export default function PlusMenu({
                 <span className="pmenu-item-label">Tool access</span>
               </div>
               <Icon name="caret-right" size={12} className="pmenu-chevron" />
-            </button>
+            </HouseButton>
           </motion.div>
         )}
 
@@ -604,7 +605,7 @@ export default function PlusMenu({
               {THEME_OPTIONS.map((t) => {
                 const isCurrent = theme === t.id
                 return (
-                  <button
+                  <HouseButton
                     key={t.id}
                     type="button"
                     className={`pmenu-item${isCurrent ? ' is-active' : ''}`}
@@ -617,7 +618,7 @@ export default function PlusMenu({
                     {isCurrent && (
                       <Icon name="check-simple" size={14} weight="bold" className="pmenu-check-accent" />
                     )}
-                  </button>
+                  </HouseButton>
                 )
               })}
             </div>
@@ -644,7 +645,7 @@ export default function PlusMenu({
             transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
             className="pmenu-submenu"
           >
-            <button
+            <HouseButton
               type="button"
               className="pmenu-item"
               onClick={() => {
@@ -658,9 +659,9 @@ export default function PlusMenu({
                 <span className="pmenu-item-label">Add plugin</span>
               </div>
               <Icon name="caret-right" size={12} className="pmenu-chevron" />
-            </button>
+            </HouseButton>
 
-            <button
+            <HouseButton
               type="button"
               className="pmenu-item"
               onClick={() => {
@@ -673,7 +674,7 @@ export default function PlusMenu({
                 <Icon name="tray" size={15} className="pmenu-item-icon" />
                 <span className="pmenu-item-label">Manage plugins</span>
               </div>
-            </button>
+            </HouseButton>
 
             <div className="pmenu-divider" />
 
@@ -682,7 +683,7 @@ export default function PlusMenu({
                 <div className="pmenu-plugin-group">
                   <div className="pmenu-group-title">Composio Apps</div>
                   {composioToolkits.map((item) => (
-                    <button
+                    <HouseButton
                       key={item.slug}
                       type="button"
                       className="pmenu-item"
@@ -700,7 +701,7 @@ export default function PlusMenu({
                           <Icon name="external-link" size={11} style={{ opacity: 0.6 }} />
                         )}
                       </div>
-                    </button>
+                    </HouseButton>
                   ))}
                 </div>
               )}
@@ -750,14 +751,14 @@ export default function PlusMenu({
           >
             <div className="pmenu-submenu-header">
               <span className="pmenu-header-title">Tool Access ({tools.length})</span>
-              <button
+              <HouseButton
                 type="button"
                 className="pmenu-close-btn"
                 onClick={() => setToolsOpen(false)}
                 aria-label="Close"
               >
                 <Icon name="x" size={14} />
-              </button>
+              </HouseButton>
             </div>
             <div className="pmenu-submenu-scroll">
               {byServer.map(([server, group]) => (

@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 
@@ -323,7 +324,7 @@ export default function ArtifactPanel({
       <div className="artifact-head">
         <div className="artifact-views" role="tablist" aria-label="How to show this document">
           {(kind ? ['preview', 'code'] : ['code']).map((name) => (
-            <button
+            <HouseButton
               key={name}
               type="button"
               role="tab"
@@ -341,11 +342,11 @@ export default function ArtifactPanel({
                 />
               )}
               <Icon name={name === 'preview' ? 'eye' : 'code'} size={14} className="artifact-view-icon" />
-            </button>
+            </HouseButton>
           ))}
         </div>
 
-        <button
+        <HouseButton
           type="button"
           className={`artifact-switch${listOpen ? ' is-open' : ''}`}
           onClick={() => artifacts.length > 1 && setListOpen((o) => !o)}
@@ -359,10 +360,10 @@ export default function ArtifactPanel({
           </span>
           {active.version > 1 && <span className="artifact-version">v{active.version}</span>}
           {artifacts.length > 1 && <Icon name="chevron" size={11} className="artifact-switch-caret" />}
-        </button>
+        </HouseButton>
 
         <div className="artifact-actions">
-          <button
+          <HouseButton
             type="button"
             className="artifact-act"
             onClick={() => { navigator.clipboard?.writeText(full); flash('copy') }}
@@ -370,8 +371,8 @@ export default function ArtifactPanel({
             aria-label="Copy the source"
           >
             <Icon name={flashed === 'copy' ? 'check' : 'copy'} size={14} />
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="artifact-act"
             onClick={() => download(active, full)}
@@ -379,8 +380,8 @@ export default function ArtifactPanel({
             aria-label="Download this document"
           >
             <Icon name="download" size={14} />
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className={`artifact-act${expanded ? ' is-on' : ''}`}
             onClick={onToggleExpand}
@@ -389,7 +390,7 @@ export default function ArtifactPanel({
             aria-pressed={expanded}
           >
             <Icon name={expanded ? 'collapse' : 'expand'} size={14} />
-          </button>
+          </HouseButton>
         </div>
       </div>
 

@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../ui/bento/index.jsx'
 import { useState } from 'react'
 import Icon from '../../Icon.jsx'
 import { api } from '../../../api.js'
@@ -89,18 +90,18 @@ export default function TasksView({
             { id: 'important', label: 'Important' },
             { id: 'completed', label: 'Done' },
           ].map((b) => (
-            <button
+            <HouseButton
               key={b.id}
               type="button"
               className={`damon-bucket-btn${filterBucket === b.id ? ' is-active' : ''}`}
               onClick={() => setFilterBucket(b.id)}
             >
               {b.label}
-            </button>
+            </HouseButton>
           ))}
         </div>
 
-        <button
+        <HouseButton
           type="button"
           className="damon-nav-jump-btn"
           onClick={onNavigateTasks}
@@ -108,7 +109,7 @@ export default function TasksView({
         >
           <span>Open Tasks</span>
           <Icon name="arrow-up-right" size={13} />
-        </button>
+        </HouseButton>
       </div>
 
       {/* Quick Add Task from Query */}
@@ -167,7 +168,7 @@ export default function TasksView({
                 onClick={() => onSelect(t)}
               >
                 {/* Complete checkbox */}
-                <button
+                <HouseButton
                   type="button"
                   className={`damon-task-check${isDone ? ' is-checked' : ''}`}
                   onClick={(e) => handleToggleDone(e, t)}
@@ -175,7 +176,7 @@ export default function TasksView({
                   title={isDone ? 'Mark as to do' : 'Mark completed'}
                 >
                   <Icon name={isDone ? 'check' : 'check'} size={12} />
-                </button>
+                </HouseButton>
 
                 {/* Task Details */}
                 <div className="damon-task-details">
@@ -199,7 +200,7 @@ export default function TasksView({
                 {/* Quick Actions */}
                 <div className="damon-task-actions">
                   {isOverdue && (
-                    <button
+                    <HouseButton
                       type="button"
                       className="damon-action-btn"
                       onClick={(e) => handleRescheduleTomorrow(e, t)}
@@ -207,9 +208,9 @@ export default function TasksView({
                       disabled={isBusy}
                     >
                       <Icon name="clock" size={12} />
-                    </button>
+                    </HouseButton>
                   )}
-                  <button
+                  <HouseButton
                     type="button"
                     className={`damon-action-btn${t.important ? ' is-starred' : ''}`}
                     onClick={(e) => handleToggleStar(e, t)}
@@ -217,7 +218,7 @@ export default function TasksView({
                     disabled={isBusy}
                   >
                     <Icon name="star" size={12} />
-                  </button>
+                  </HouseButton>
                 </div>
               </div>
             )

@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../ui/bento/index.jsx'
 "use client";
 
 import {
@@ -202,7 +203,7 @@ export function CodeBlock({
         </div>
 
         {copyable && (
-          <button
+          <HouseButton
             type="button"
             onClick={handleCopy}
             className={cn("agent-code-block-copy-btn", copied && "is-copied")}
@@ -220,7 +221,7 @@ export function CodeBlock({
                 <span>Copy</span>
               </>
             )}
-          </button>
+          </HouseButton>
         )}
       </div>
 

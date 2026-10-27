@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 /* A connector card for a turn suspended mid-answer.
 
    A tool call that failed for want of a connected app parks the whole turn on
@@ -128,12 +129,12 @@ export default function ConnectorWaitCard({ waitId, toolkit, service, settled, o
         </div>
       </div>
       <div className="connector-wait__actions">
-        <button type="button" className="btn btn--small" onClick={() => handleConnect()} disabled={phase === 'connecting'}>
+        <HouseButton type="button" className="btn btn--small" onClick={() => handleConnect()} disabled={phase === 'connecting'}>
           {phase === 'connecting' ? 'Waiting…' : phase === 'failed' ? 'Connect again' : 'Connect'}
-        </button>
-        <button type="button" className="btn btn--small btn--ghost" onClick={() => handleDismiss()} disabled={phase === 'connecting'}>
+        </HouseButton>
+        <HouseButton type="button" className="btn btn--small btn--ghost" onClick={() => handleDismiss()} disabled={phase === 'connecting'}>
           Skip
-        </button>
+        </HouseButton>
       </div>
     </div>
   )

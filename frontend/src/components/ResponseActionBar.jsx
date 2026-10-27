@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useState, useRef, useEffect } from 'react'
 import Icon from './Icon.jsx'
 import { copyText } from '../api.js'
@@ -72,7 +73,7 @@ export default function ResponseActionBar({
   return (
     <div className="response-action-bar" role="toolbar" aria-label="Response actions">
       {artifact && artifact.version > 1 && (
-        <button
+        <HouseButton
           type="button"
           className="response-version-badge"
           title={`Version ${artifact.version} (Edited) — click to inspect`}
@@ -80,12 +81,12 @@ export default function ResponseActionBar({
         >
           <span className="version-tag">v{artifact.version}</span>
           <span className="version-label">Edited</span>
-        </button>
+        </HouseButton>
       )}
 
       {isSubstantial && (
         <>
-          <button
+          <HouseButton
             type="button"
             className="response-action-btn"
             title="Edit this response document"
@@ -94,9 +95,9 @@ export default function ResponseActionBar({
           >
             <Icon name="edit" size={13} />
             <span className="btn-text">Edit</span>
-          </button>
+          </HouseButton>
 
-          <button
+          <HouseButton
             type="button"
             className="response-action-btn"
             title="Open in full-screen workspace"
@@ -105,11 +106,11 @@ export default function ResponseActionBar({
           >
             <Icon name="expand" size={13} />
             <span className="btn-text">Expand</span>
-          </button>
+          </HouseButton>
         </>
       )}
 
-      <button
+      <HouseButton
         type="button"
         className="response-action-btn"
         title={copied ? 'Copied!' : 'Copy response markdown'}
@@ -118,11 +119,11 @@ export default function ResponseActionBar({
       >
         <Icon name={copied ? 'check' : 'copy'} size={13} />
         <span className="btn-text">{copied ? 'Copied' : 'Copy'}</span>
-      </button>
+      </HouseButton>
 
       {isSubstantial && (
         <div className="response-export-menu" ref={menuRef}>
-          <button
+          <HouseButton
             type="button"
             className="response-action-btn"
             title="Export or download document"
@@ -133,33 +134,33 @@ export default function ResponseActionBar({
             <Icon name="download" size={13} />
             <span className="btn-text">{exporting ? 'Exporting...' : 'Export'}</span>
             <Icon name="chevron-down" size={10} />
-          </button>
+          </HouseButton>
 
           {exportOpen && (
             <div className="export-dropdown-menu">
-              <button type="button" onClick={() => handleExport('md')}>
+              <HouseButton type="button" onClick={() => handleExport('md')}>
                 <Icon name="file" size={13} />
                 <span>Markdown (.md)</span>
-              </button>
-              <button type="button" onClick={() => handleExport('txt')}>
+              </HouseButton>
+              <HouseButton type="button" onClick={() => handleExport('txt')}>
                 <Icon name="type" size={13} />
                 <span>Plain Text (.txt)</span>
-              </button>
-              <button type="button" onClick={() => handleExport('html')}>
+              </HouseButton>
+              <HouseButton type="button" onClick={() => handleExport('html')}>
                 <Icon name="globe" size={13} />
                 <span>Standalone HTML (.html)</span>
-              </button>
-              <button type="button" onClick={() => handleExport('docx')}>
+              </HouseButton>
+              <HouseButton type="button" onClick={() => handleExport('docx')}>
                 <Icon name="doc" size={13} />
                 <span>Word Document (.docx)</span>
-              </button>
+              </HouseButton>
             </div>
           )}
         </div>
       )}
 
       {onRegenerate && (
-        <button
+        <HouseButton
           type="button"
           className="response-action-btn"
           title="Regenerate this answer"
@@ -167,11 +168,11 @@ export default function ResponseActionBar({
           onClick={onRegenerate}
         >
           <Icon name="refresh" size={13} />
-        </button>
+        </HouseButton>
       )}
 
       {onPin && (
-        <button
+        <HouseButton
           type="button"
           className={`response-action-btn${item.pinned ? ' is-pinned' : ''}`}
           title={item.pinned ? 'Unpin message' : 'Pin message'}
@@ -179,7 +180,7 @@ export default function ResponseActionBar({
           onClick={() => onPin(item, !item.pinned)}
         >
           <Icon name="pin" size={13} />
-        </button>
+        </HouseButton>
       )}
     </div>
   )

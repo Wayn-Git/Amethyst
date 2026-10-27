@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput } from '../../components/ui/bento/index.jsx'
 import { useMemo, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { KIND_ICON } from './LibraryCard.jsx'
@@ -75,20 +76,20 @@ export default function LibraryTagRail({
       <div className="lib-rail-header">
         <span className="lib-rail-heading">Taxonomy</span>
         {hasFilter && (
-          <button
+          <HouseButton
             type="button"
             className="lib-active-filter-clear-all"
             onClick={onClearFilters}
             title="Reset all taxonomy filters"
           >
             Reset
-          </button>
+          </HouseButton>
         )}
       </div>
 
       {/* Primary Section: All Items */}
       <div className="lib-rail-group">
-        <button
+        <HouseButton
           type="button"
           className={`lib-rail-item ${!hasFilter ? 'lib-rail-item--active' : ''}`}
           onClick={onClearFilters}
@@ -100,7 +101,7 @@ export default function LibraryTagRail({
             <span>All Knowledge</span>
           </div>
           <span className="lib-rail-item-badge">{total}</span>
-        </button>
+        </HouseButton>
       </div>
 
       {/* Curated Significance (Rating) */}
@@ -108,7 +109,7 @@ export default function LibraryTagRail({
         <div className="lib-rail-group">
           <div className="lib-rail-heading" style={{ padding: '6px 4px 4px' }}>Significance</div>
           {ratingCounts['5'] > 0 && (
-            <button
+            <HouseButton
               type="button"
               className={`lib-rail-item ${selectedRating === '5' ? 'lib-rail-item--active' : ''}`}
               onClick={() => onSelectRating?.(selectedRating === '5' ? '' : '5')}
@@ -120,11 +121,11 @@ export default function LibraryTagRail({
                 <span>Essential (5★)</span>
               </div>
               <span className="lib-rail-item-badge">{ratingCounts['5']}</span>
-            </button>
+            </HouseButton>
           )}
 
           {ratingCounts['4+'] > 0 && (
-            <button
+            <HouseButton
               type="button"
               className={`lib-rail-item ${selectedRating === '4+' ? 'lib-rail-item--active' : ''}`}
               onClick={() => onSelectRating?.(selectedRating === '4+' ? '' : '4+')}
@@ -136,7 +137,7 @@ export default function LibraryTagRail({
                 <span>High Impact (4★+)</span>
               </div>
               <span className="lib-rail-item-badge">{ratingCounts['4+']}</span>
-            </button>
+            </HouseButton>
           )}
         </div>
       )}
@@ -148,7 +149,7 @@ export default function LibraryTagRail({
           {activeKinds.map(([kind, count]) => {
             const isActive = selectedKind === kind
             return (
-              <button
+              <HouseButton
                 type="button"
                 key={kind}
                 className={`lib-rail-item ${isActive ? 'lib-rail-item--active' : ''}`}
@@ -161,7 +162,7 @@ export default function LibraryTagRail({
                   <span style={{ textTransform: 'capitalize' }}>{kind}</span>
                 </div>
                 <span className="lib-rail-item-badge">{count}</span>
-              </button>
+              </HouseButton>
             )
           })}
         </div>
@@ -174,7 +175,7 @@ export default function LibraryTagRail({
           {activeApps.map((app) => {
             const isActive = selectedTag === app.id
             return (
-              <button
+              <HouseButton
                 type="button"
                 key={app.id}
                 className={`lib-rail-item ${isActive ? 'lib-rail-item--active' : ''}`}
@@ -187,7 +188,7 @@ export default function LibraryTagRail({
                   <span>{app.label}</span>
                 </div>
                 <span className="lib-rail-item-badge">{app.count}</span>
-              </button>
+              </HouseButton>
             )
           })}
         </div>
@@ -200,7 +201,7 @@ export default function LibraryTagRail({
           {allTagEntries.length > 6 && (
             <div className="lib-rail-tag-search">
               <Icon name="search" size={12} />
-              <input
+              <HouseInput
                 type="text"
                 placeholder="Filter topics..."
                 value={tagQuery}
@@ -208,13 +209,13 @@ export default function LibraryTagRail({
                 aria-label="Filter topics"
               />
               {tagQuery && (
-                <button
+                <HouseButton
                   type="button"
                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                   onClick={() => setTagQuery('')}
                 >
                   <Icon name="x" size={10} />
-                </button>
+                </HouseButton>
               )}
             </div>
           )}
@@ -223,7 +224,7 @@ export default function LibraryTagRail({
             {filteredTags.map(([tag, count]) => {
               const isActive = selectedTag === tag
               return (
-                <button
+                <HouseButton
                   type="button"
                   key={tag}
                   className={`lib-tag-pill ${isActive ? 'lib-tag-pill--active' : ''}`}
@@ -232,19 +233,19 @@ export default function LibraryTagRail({
                 >
                   <span className="lib-tag-pill-name">#{tag}</span>
                   <span className="lib-tag-pill-count">{count}</span>
-                </button>
+                </HouseButton>
               )
             })}
           </div>
 
           {!tagQuery && allTagEntries.length > DEFAULT_VISIBLE_TAGS && (
-            <button
+            <HouseButton
               type="button"
               className="lib-rail-more-tags"
               onClick={() => setShowAllTags((prev) => !prev)}
             >
               <span>{showAllTags ? 'Show fewer topics' : `+${allTagEntries.length - DEFAULT_VISIBLE_TAGS} more topics`}</span>
-            </button>
+            </HouseButton>
           )}
         </div>
       )}

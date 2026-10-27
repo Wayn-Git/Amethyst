@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../ui/bento/index.jsx'
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import Icon from '../Icon.jsx'
@@ -72,9 +73,9 @@ export default function RunDetailModal({ runId, onClose }) {
               </span>
             )}
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+          <HouseButton type="button" className="icon-btn" onClick={onClose} aria-label="Close">
             <Icon name="x" size={16} />
-          </button>
+          </HouseButton>
         </div>
 
         {/* Body */}

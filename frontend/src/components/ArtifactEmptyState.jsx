@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useEffect, useState } from 'react'
 
 import Icon from './Icon.jsx'
@@ -261,7 +262,7 @@ export default function ArtifactEmptyState() {
     <div className="artifact-empty">
       <div className="artifact-empty-tabs" role="tablist" aria-label="Artifact panel info">
         {TABS.map((t) => (
-          <button
+          <HouseButton
             key={t.id}
             type="button"
             role="tab"
@@ -270,7 +271,7 @@ export default function ArtifactEmptyState() {
             onClick={() => setTab(t.id)}
           >
             {t.label}
-          </button>
+          </HouseButton>
         ))}
       </div>
       <div className="artifact-empty-body" role="tabpanel">

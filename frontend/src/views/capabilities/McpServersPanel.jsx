@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput, Textarea as HouseTextarea } from '../../components/ui/bento/index.jsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   CheckCircle2,
@@ -373,7 +374,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
           <div />
         )}
         <div className="mcp-panel-actions">
-          <button
+          <HouseButton
             type="button"
             className="mcp-btn mcp-btn-secondary"
             onClick={() => setImportOpen(true)}
@@ -381,8 +382,8 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
           >
             <ClipboardPaste size={14} />
             <span>Import JSON</span>
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="mcp-btn mcp-btn-primary"
             onClick={() => {
@@ -394,8 +395,8 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
           >
             <Plus size={14} />
             <span>Add Server</span>
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="mcp-icon-btn"
             onClick={load}
@@ -403,16 +404,16 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
             title="Refresh servers"
           >
             <RefreshCw size={15} className={busy === 'load' ? 'animate-spin' : ''} />
-          </button>
+          </HouseButton>
         </div>
       </div>
 
       {notice && (
         <div className="mcp-notice mcp-notice-info">
           <span>{notice}</span>
-          <button type="button" onClick={() => setNotice(null)} className="mcp-notice-close">
+          <HouseButton type="button" onClick={() => setNotice(null)} className="mcp-notice-close">
             <X size={14} />
-          </button>
+          </HouseButton>
         </div>
       )}
 
@@ -420,9 +421,9 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
         <div className="mcp-notice mcp-notice-error">
           <AlertTriangle size={15} className="shrink-0" />
           <span>{error}</span>
-          <button type="button" onClick={() => setError(null)} className="mcp-notice-close">
+          <HouseButton type="button" onClick={() => setError(null)} className="mcp-notice-close">
             <X size={14} />
-          </button>
+          </HouseButton>
         </div>
       )}
 
@@ -433,9 +434,9 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
             <h4 className="mcp-editor-title">
               {editing === 'new' ? 'Add Custom MCP Server' : `Edit Server "${editing}"`}
             </h4>
-            <button type="button" onClick={closeEditor} className="mcp-icon-btn" aria-label="Close">
+            <HouseButton type="button" onClick={closeEditor} className="mcp-icon-btn" aria-label="Close">
               <X size={16} />
-            </button>
+            </HouseButton>
           </div>
 
           <div className="mcp-form-body">
@@ -448,7 +449,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
                 </div>
                 <div className="mcp-presets-bar">
                   {MCP_PRESETS.map((p) => (
-                    <button
+                    <HouseButton
                       key={p.name}
                       type="button"
                       className="mcp-preset-chip"
@@ -459,7 +460,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
                       title={p.description}
                     >
                       <span>{p.label}</span>
-                    </button>
+                    </HouseButton>
                   ))}
                 </div>
               </div>
@@ -469,22 +470,22 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
             <div className="mcp-field-row">
               <label className="mcp-field-label">Transport Type</label>
               <div className="mcp-radio-pills">
-                <button
+                <HouseButton
                   type="button"
                   className={`mcp-pill-choice ${draft.transport === 'stdio' ? 'is-active' : ''}`}
                   onClick={() => setDraft((d) => ({ ...d, transport: 'stdio' }))}
                 >
                   <ServerCog size={13} />
                   <span>Local Command (stdio)</span>
-                </button>
-                <button
+                </HouseButton>
+                <HouseButton
                   type="button"
                   className={`mcp-pill-choice ${draft.transport === 'remote' ? 'is-active' : ''}`}
                   onClick={() => setDraft((d) => ({ ...d, transport: 'remote' }))}
                 >
                   <Globe size={13} />
                   <span>Remote URL (HTTP / SSE)</span>
-                </button>
+                </HouseButton>
               </div>
             </div>
 
@@ -493,7 +494,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
               <label className="mcp-field-label">
                 Server Name <span className="mcp-required">*</span>
               </label>
-              <input
+              <HouseInput
                 className="mcp-input"
                 placeholder="e.g. playwright, tavily, brave-search"
                 value={draft.name}
@@ -509,7 +510,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
                   <label className="mcp-field-label">
                     Command <span className="mcp-required">*</span>
                   </label>
-                  <input
+                  <HouseInput
                     className="mcp-input font-mono"
                     placeholder="npx, python3, uvx, node"
                     value={draft.command}
@@ -518,7 +519,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
                 </div>
                 <div className="mcp-field-row">
                   <label className="mcp-field-label">Arguments (one per line)</label>
-                  <textarea
+                  <HouseTextarea
                     className="mcp-textarea font-mono"
                     rows={3}
                     placeholder={`-y\n@modelcontextprotocol/server-filesystem\n/path/to/dir`}
@@ -528,7 +529,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
                 </div>
                 <div className="mcp-field-row">
                   <label className="mcp-field-label">Environment Variables (KEY=value per line)</label>
-                  <textarea
+                  <HouseTextarea
                     className="mcp-textarea font-mono"
                     rows={3}
                     placeholder={`GITHUB_TOKEN=ghp_...\nTAVILY_API_KEY=tvly-...`}
@@ -542,27 +543,27 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
                 <div className="mcp-field-row">
                   <label className="mcp-field-label">Protocol</label>
                   <div className="mcp-radio-pills">
-                    <button
+                    <HouseButton
                       type="button"
                       className={`mcp-pill-choice ${draft.type === 'http' ? 'is-active' : ''}`}
                       onClick={() => setDraft((d) => ({ ...d, type: 'http' }))}
                     >
                       HTTP (Streamable JSON-RPC)
-                    </button>
-                    <button
+                    </HouseButton>
+                    <HouseButton
                       type="button"
                       className={`mcp-pill-choice ${draft.type === 'sse' ? 'is-active' : ''}`}
                       onClick={() => setDraft((d) => ({ ...d, type: 'sse' }))}
                     >
                       Server-Sent Events (SSE)
-                    </button>
+                    </HouseButton>
                   </div>
                 </div>
                 <div className="mcp-field-row">
                   <label className="mcp-field-label">
                     Server URL <span className="mcp-required">*</span>
                   </label>
-                  <input
+                  <HouseInput
                     className="mcp-input font-mono"
                     placeholder="https://mcp.tavily.com/mcp/ or http://localhost:8080/sse"
                     value={draft.url}
@@ -571,7 +572,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
                 </div>
                 <div className="mcp-field-row">
                   <label className="mcp-field-label">HTTP Headers (Header: value per line)</label>
-                  <textarea
+                  <HouseTextarea
                     className="mcp-textarea font-mono"
                     rows={3}
                     placeholder={`Authorization: Bearer token...\nX-Custom-Key: secret...`}
@@ -583,10 +584,10 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
             )}
 
             <div className="mcp-form-footer">
-              <button type="button" className="mcp-btn mcp-btn-secondary" onClick={closeEditor}>
+              <HouseButton type="button" className="mcp-btn mcp-btn-secondary" onClick={closeEditor}>
                 Cancel
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 className="mcp-btn mcp-btn-primary"
                 onClick={save}
@@ -594,7 +595,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
               >
                 {busy === 'save' ? <Loader2 size={13} className="animate-spin" /> : null}
                 <span>{editing === 'new' ? 'Save Server' : 'Update Server'}</span>
-              </button>
+              </HouseButton>
             </div>
           </div>
         </div>
@@ -606,14 +607,14 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
           <div className="mcp-modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="mcp-editor-head">
               <h4 className="mcp-editor-title">Import MCP Servers</h4>
-              <button type="button" onClick={() => setImportOpen(false)} className="mcp-icon-btn">
+              <HouseButton type="button" onClick={() => setImportOpen(false)} className="mcp-icon-btn">
                 <X size={16} />
-              </button>
+              </HouseButton>
             </div>
             <p className="mcp-modal-desc">
               Paste the <code className="font-mono">mcpServers</code> JSON configuration from Claude Desktop, Cursor, or VSCode:
             </p>
-            <textarea
+            <HouseTextarea
               className="mcp-textarea font-mono"
               rows={8}
               placeholder={`{\n  "mcpServers": {\n    "playwright": {\n      "command": "npx",\n      "args": ["-y", "@playwright/mcp@latest"]\n    }\n  }\n}`}
@@ -621,10 +622,10 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
               onChange={(e) => setImportText(e.target.value)}
             />
             <div className="mcp-form-footer">
-              <button type="button" className="mcp-btn mcp-btn-secondary" onClick={() => setImportOpen(false)}>
+              <HouseButton type="button" className="mcp-btn mcp-btn-secondary" onClick={() => setImportOpen(false)}>
                 Cancel
-              </button>
-              <button
+              </HouseButton>
+              <HouseButton
                 type="button"
                 className="mcp-btn mcp-btn-primary"
                 onClick={importServers}
@@ -632,7 +633,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
               >
                 {busy === 'import' ? <Loader2 size={13} className="animate-spin" /> : null}
                 <span>Import Servers</span>
-              </button>
+              </HouseButton>
             </div>
           </div>
         </div>
@@ -652,7 +653,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
             <div className="text-dim text-xs mt-1">
               Add a stdio command server or remote HTTP endpoint, or paste your Claude/Cursor JSON.
             </div>
-            <button
+            <HouseButton
               type="button"
               className="mcp-btn mcp-btn-primary mt-4"
               onClick={() => {
@@ -662,7 +663,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
             >
               <Plus size={14} />
               <span>Add Your First Server</span>
-            </button>
+            </HouseButton>
 
             <div className="mcp-empty-presets mt-4">
               <span className="text-3xs text-dim block mb-2 font-medium uppercase tracking-wider">
@@ -670,7 +671,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
               </span>
               <div className="flex flex-wrap items-center justify-center gap-1.5 max-w-lg">
                 {MCP_PRESETS.map((p) => (
-                  <button
+                  <HouseButton
                     key={p.name}
                     type="button"
                     className="mcp-preset-chip"
@@ -682,7 +683,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
                     title={p.description}
                   >
                     <span>{p.label}</span>
-                  </button>
+                  </HouseButton>
                 ))}
               </div>
             </div>
@@ -728,7 +729,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
 
                     <div className="mcp-card-controls">
                       {/* Toggle switch */}
-                      <button
+                      <HouseButton
                         type="button"
                         role="switch"
                         aria-checked={isEnabled}
@@ -738,7 +739,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
                         title={isEnabled ? 'Click to disable' : 'Click to enable'}
                       >
                         <span className="mcp-switch-thumb" />
-                      </button>
+                      </HouseButton>
                     </div>
                   </div>
 
@@ -779,7 +780,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
                               <span>{probeResult.total || probeResult.tools?.length || 0} tools ready</span>
                             </div>
                             {probeResult.tools?.length > 0 && (
-                              <button
+                              <HouseButton
                                 type="button"
                                 className="text-3xs underline text-accent cursor-pointer"
                                 onClick={() =>
@@ -790,7 +791,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
                                 }
                               >
                                 {showTools ? 'Hide' : 'View tools'}
-                              </button>
+                              </HouseButton>
                             )}
                           </div>
                           {showTools && probeResult.tools?.length > 0 && (
@@ -818,7 +819,7 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
 
                 {/* Card footer actions */}
                 <div className="mcp-card-footer">
-                  <button
+                  <HouseButton
                     type="button"
                     className="mcp-action-link"
                     disabled={isBusy}
@@ -831,25 +832,25 @@ export default function McpServersPanel({ embedded = false, newOpen = false, set
                       <RefreshCw size={12} />
                     )}
                     <span>Test Tools</span>
-                  </button>
+                  </HouseButton>
 
                   <div className="flex items-center gap-1">
-                    <button
+                    <HouseButton
                       type="button"
                       className="mcp-icon-btn-sm"
                       onClick={() => startEdit(server)}
                       title="Edit server settings"
                     >
                       <Pencil size={13} />
-                    </button>
-                    <button
+                    </HouseButton>
+                    <HouseButton
                       type="button"
                       className="mcp-icon-btn-sm mcp-danger-hover"
                       onClick={() => removeServer(server)}
                       title="Delete server"
                     >
                       <Trash2 size={13} />
-                    </button>
+                    </HouseButton>
                   </div>
                 </div>
               </div>

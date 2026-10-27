@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import { useState, useEffect } from 'react'
 import Icon from '../../components/Icon.jsx'
 import Skeleton from '../../components/Skeleton.jsx'
@@ -86,7 +87,7 @@ export default function TodayMemoryCard({ setView }) {
         </div>
 
         <div className="today-card-actions">
-          <button
+          <HouseButton
             type="button"
             className="btn btn--small btn--ghost"
             style={{
@@ -100,7 +101,7 @@ export default function TodayMemoryCard({ setView }) {
             onClick={() => setView?.('memory')}
           >
             All <Icon name="arrow-up-right" size={12} />
-          </button>
+          </HouseButton>
         </div>
       </div>
 

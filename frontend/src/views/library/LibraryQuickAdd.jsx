@@ -1,3 +1,4 @@
+import { Button as HouseButton, Input as HouseInput, Select as HouseSelect, Textarea as HouseTextarea } from '../../components/ui/bento/index.jsx'
 import { useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 
@@ -48,7 +49,7 @@ export default function LibraryQuickAdd({ onSubmit, saving, onCancel }) {
     <section className="card card-pad lib-quick-add" data-enter>
       <div className="lib-quick-add-head">
         <div className="lib-quick-add-tabs" role="tablist">
-          <button
+          <HouseButton
             type="button"
             className={`lib-tab ${tab === 'url' ? 'lib-tab--active' : ''}`}
             onClick={() => setTab('url')}
@@ -57,8 +58,8 @@ export default function LibraryQuickAdd({ onSubmit, saving, onCancel }) {
           >
             <Icon name="link" size={13} />
             <span>Add URL / Media</span>
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className={`lib-tab ${tab === 'manual' ? 'lib-tab--active' : ''}`}
             onClick={() => setTab('manual')}
@@ -67,18 +68,18 @@ export default function LibraryQuickAdd({ onSubmit, saving, onCancel }) {
           >
             <Icon name="edit" size={13} />
             <span>Note / Book / Talk</span>
-          </button>
+          </HouseButton>
         </div>
 
         {onCancel && (
-          <button
+          <HouseButton
             type="button"
             className="icon-btn lib-quick-add-close"
             onClick={onCancel}
             aria-label="Close"
           >
             <Icon name="x" size={13} />
-          </button>
+          </HouseButton>
         )}
       </div>
 
@@ -87,7 +88,7 @@ export default function LibraryQuickAdd({ onSubmit, saving, onCancel }) {
           <div className="lib-capture-row">
             <div className="lib-input-icon-wrap">
               <Icon name="link" size={14} className="lib-input-icon" />
-              <input
+              <HouseInput
                 className="lib-input"
                 placeholder="Paste link to YouTube, article, paper, X post, podcast..."
                 value={draft.url}
@@ -96,7 +97,7 @@ export default function LibraryQuickAdd({ onSubmit, saving, onCancel }) {
               />
             </div>
 
-            <select
+            <HouseSelect
               className="lib-select"
               value={draft.kind}
               onChange={(e) => setDraft({ ...draft, kind: e.target.value })}
@@ -108,33 +109,33 @@ export default function LibraryQuickAdd({ onSubmit, saving, onCancel }) {
                   {k}
                 </option>
               ))}
-            </select>
+            </HouseSelect>
 
-            <button
+            <HouseButton
               type="submit"
               className="btn btn--primary"
               disabled={saving || !draft.url.trim()}
             >
               {saving ? 'Adding...' : 'Log Resource'}
-            </button>
+            </HouseButton>
           </div>
         ) : (
           <div className="lib-manual-form">
             <div className="lib-manual-grid">
-              <input
+              <HouseInput
                 className="lib-input"
                 placeholder="Title (e.g. Clean Architecture, Lecture on Transformers)"
                 value={draft.title}
                 onChange={(e) => setDraft({ ...draft, title: e.target.value })}
                 autoFocus
               />
-              <input
+              <HouseInput
                 className="lib-input"
                 placeholder="Author / Speaker / Source"
                 value={draft.author}
                 onChange={(e) => setDraft({ ...draft, author: e.target.value })}
               />
-              <select
+              <HouseSelect
                 className="lib-select"
                 value={draft.kind}
                 onChange={(e) => setDraft({ ...draft, kind: e.target.value })}
@@ -145,9 +146,9 @@ export default function LibraryQuickAdd({ onSubmit, saving, onCancel }) {
                 <option value="paper">paper</option>
                 <option value="article">article</option>
                 <option value="video">video</option>
-              </select>
+              </HouseSelect>
             </div>
-            <textarea
+            <HouseTextarea
               className="lib-input"
               rows={3}
               placeholder="What it discussed, quotes, key takeaways — search indexes this text."
@@ -156,17 +157,17 @@ export default function LibraryQuickAdd({ onSubmit, saving, onCancel }) {
             />
             <div className="lib-manual-actions">
               {onCancel && (
-                <button type="button" className="btn btn--ghost" onClick={onCancel}>
+                <HouseButton type="button" className="btn btn--ghost" onClick={onCancel}>
                   Cancel
-                </button>
+                </HouseButton>
               )}
-              <button
+              <HouseButton
                 type="submit"
                 className="btn btn--primary"
                 disabled={saving || (!draft.title.trim() && !draft.notes.trim())}
               >
                 {saving ? 'Saving...' : 'Save to Library'}
-              </button>
+              </HouseButton>
             </div>
           </div>
         )}

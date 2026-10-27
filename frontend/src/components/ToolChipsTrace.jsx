@@ -1,3 +1,4 @@
+import { Button as HouseButton } from './ui/bento/index.jsx'
 import { useState, useMemo } from 'react'
 import Icon from './Icon.jsx'
 import { prettyJSON } from '../api.js'
@@ -270,7 +271,7 @@ export default function ToolChipsTrace({
   return (
     <div className="tool-chips-container">
       {/* Header Pill */}
-      <button
+      <HouseButton
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
@@ -282,7 +283,7 @@ export default function ToolChipsTrace({
         <span className={`tool-chips-summary${running ? ' is-shimmering' : ''}`}>
           {headerText}
         </span>
-      </button>
+      </HouseButton>
 
       {/* Expandable Trace Rows */}
       {open && (
@@ -292,7 +293,7 @@ export default function ToolChipsTrace({
               const rowOpen = openRows.has(row.id)
               return (
                 <div key={row.id} className={`tool-chip-row-wrap${row.isError ? ' is-error' : ''}${row.isLive ? ' is-live' : ''}`}>
-                  <button
+                  <HouseButton
                     type="button"
                     aria-expanded={rowOpen}
                     onClick={() => toggleRow(row.id)}
@@ -317,7 +318,7 @@ export default function ToolChipsTrace({
                         style={{ transform: rowOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 150ms ease' }}
                       />
                     </span>
-                  </button>
+                  </HouseButton>
 
                   {/* Expanded payload */}
                   {rowOpen && (

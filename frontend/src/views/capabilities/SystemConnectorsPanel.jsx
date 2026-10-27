@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import { useMemo, useState } from 'react'
 import {
   Monitor,
@@ -110,16 +111,16 @@ export function SystemToolCard({ tool, onLaunchChat, onOpenNewMcp }) {
 
       <div className="system-card-footer">
         {tool.isMcp ? (
-          <button
+          <HouseButton
             type="button"
             className="system-btn-action is-primary"
             onClick={onOpenNewMcp}
           >
             <Plus size={13} />
             <span>Add MCP Server</span>
-          </button>
+          </HouseButton>
         ) : (
-          <button
+          <HouseButton
             type="button"
             className="system-btn-action"
             onClick={() => onLaunchChat?.(tool.prompt)}
@@ -127,7 +128,7 @@ export function SystemToolCard({ tool, onLaunchChat, onOpenNewMcp }) {
           >
             <MessageSquare size={13} />
             <span>Test in Chat</span>
-          </button>
+          </HouseButton>
         )}
       </div>
     </div>

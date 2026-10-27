@@ -1,3 +1,4 @@
+import { Button as HouseButton } from '../../ui/bento/index.jsx'
 import Icon from '../../Icon.jsx'
 import { copyText } from '../../../api.js'
 import { AsciiSkeleton } from 'ascii-reveal'
@@ -59,14 +60,14 @@ export default function ImageGridView({
               <div className="damon-image-overlay">
                 <div className="damon-img-creator">{img.creator}</div>
                 <div className="damon-img-card-actions">
-                  <button
+                  <HouseButton
                     type="button"
                     className="damon-action-btn"
                     title="Copy image URL"
                     onClick={(e) => handleCopy(e, img.image)}
                   >
                     <Icon name="copy" size={12} />
-                  </button>
+                  </HouseButton>
                   <a
                     href={img.source_url}
                     target="_blank"
