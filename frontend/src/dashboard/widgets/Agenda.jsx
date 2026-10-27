@@ -1,3 +1,4 @@
+import { Button, Segmented } from '../../components/ui/bento/index.jsx'
 import { WidgetRow, StateView } from '../primitives.jsx'
 import { useEffect, useState } from 'react'
 import { request } from '../api.js'
@@ -27,9 +28,17 @@ export default function Agenda({ data, refresh }) {
   return <div>
     <p>Google Calendar via Composio. Primary calendar, current week. {zone}.</p>
     {error && <StateView role="alert">{error}</StateView>}
-    <button disabled={busy} onClick={() => access(!enabled)}>{enabled ? 'Stop calendar access and delete cached data' : 'Enable calendar access'}</button>
-    {enabled && <><div className="widget-buttons" aria-label="Calendar view"><button aria-pressed={view === 'agenda'} onClick={() => setView('agenda')}>Agenda</button><button aria-pressed={view === 'week'} onClick={() => setView('week')}>Week</button></div>
+    <Button type="submit" disabled={busy} onClick={() => access(!enabled)}>{enabled ? 'Stop calendar access and delete cached data' : 'Enable calendar access'}</Button>
+    {enabled && <><Segmented aria-label="Calendar view" value={view} onValueChange={setView} options={[{ value: 'agenda', label: 'Agenda' }, { value: 'week', label: 'Week' }]} />
       {data?.limited && <StateView role="status">Showing up to 100 events. More events may exist.</StateView>}
+      {!(data?.items?.length) && (
+        <div className="adoption-stack" style={{ alignItems: 'center', justifyContent: 'center', padding: '16px 8px', textAlign: 'center' }}>
+          <p className="adoption-label" style={{ margin: '0 0 8px' }}>No calendar events found</p>
+          <Button size="small" onClick={() => window.dispatchEvent(new CustomEvent('amethyst:open-connectors', { detail: 'googlecalendar' }))}>
+            Connect Google Calendar
+          </Button>
+        </div>
+      )}
       {data?.items?.length > 0 && items.length === 0 && <StateView>No upcoming events this week.</StateView>}
       <ul className="widget-list">{items.map(item => <WidgetRow key={item.id}><div><strong>{item.title}</strong><p>{item.all_day ? `All day · ${day(item.start)} (end ${day(item.end)}, exclusive)` : `${time(item.start)} – ${time(item.end)}`}</p></div></WidgetRow>)}</ul></>}
   </div>

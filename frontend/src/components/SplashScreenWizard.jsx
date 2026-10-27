@@ -1501,10 +1501,16 @@ function StepMobileShortcuts({ toast, onNext, onSkip }) {
 function StepApps({ toast, onRefreshStatus, onNext, onSkip }) {
   const [composioStatus, setComposioStatus] = useState(null)
   const [composioToolkits, setComposioToolkits] = useState([])
-  const [browserLoggingIn, setBrowserLoggingIn] = useState(false)
-  const [pollCountdown, setPollCountdown] = useState(300)
-  const [busyAction, setBusyAction] = useState('')
-  const pollIdRef = useRef(null)
+  const [composioKey, setComposioKey] = useState('')
+  const [savingKey, setSavingKey] = useState(false)
+  const [keyResult, setKeyResult] = useState(null)
+  const [connectingToolkit, setConnectingToolkit] = useState(null)
+  const pollIntervalRef = useRef(null)
+
+  const REVIEWED_SCOPES = useMemo(
+    () => new Set(['gmail', 'googlecalendar', 'slack', 'github', 'linear', 'spotify']),
+    []
+  )
 
   const loadData = useCallback(async () => {
     try {
@@ -1522,51 +1528,90 @@ function StepApps({ toast, onRefreshStatus, onNext, onSkip }) {
   useEffect(() => {
     loadData()
     return () => {
-      if (pollIdRef.current) clearInterval(pollIdRef.current)
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
     }
   }, [loadData])
 
-  const handleStartBrowserLogin = async () => {
-    setBusyAction('composio-login')
-    try {
-      const res = await api.startComposioLogin()
-      if (res?.redirect_url && res?.session_id) {
-        window.open(res.redirect_url, '_blank')
-        setBrowserLoggingIn(true)
-        setPollCountdown(300)
-        toast('Authorize Composio in your open browser tab', 'ok')
+  const handleValidateAndSaveKey = async (rawKey) => {
+    const keyToSave = (rawKey !== undefined ? rawKey : composioKey).trim()
+    if (!keyToSave) {
+      toast('Please enter your Composio API key', 'bad')
+      return
+    }
 
-        const sid = res.session_id
-        let remaining = 300
-        const id = setInterval(async () => {
-          remaining -= 3
-          setPollCountdown((c) => Math.max(0, c - 3))
-          if (remaining <= 0) {
-            clearInterval(id)
-            setBrowserLoggingIn(false)
-            pollIdRef.current = null
-            toast('Login session timed out', 'bad')
+    setSavingKey(true)
+    setKeyResult(null)
+
+    try {
+      const res = await api.saveComposioKey(keyToSave)
+      if (res?.ok) {
+        setKeyResult({ ok: true, msg: 'Composio key verified and saved in vault!' })
+        toast('Composio key active and verified', 'ok')
+        setComposioKey('')
+        await loadData()
+        if (onRefreshStatus) onRefreshStatus()
+      } else {
+        const msg = res?.error || 'Invalid Composio key'
+        setKeyResult({ ok: false, msg })
+        toast(msg, 'bad')
+      }
+    } catch (err) {
+      const msg = err.message || 'Key validation failed'
+      setKeyResult({ ok: false, msg })
+      toast(msg, 'bad')
+    } finally {
+      setSavingKey(false)
+    }
+  }
+
+  const handleKeyPaste = (e) => {
+    const pasted = e.clipboardData?.getData('text')?.trim()
+    if (pasted) {
+      setComposioKey(pasted)
+      setTimeout(() => {
+        handleValidateAndSaveKey(pasted)
+      }, 50)
+    }
+  }
+
+  const handleConnectToolkit = async (slug) => {
+    setConnectingToolkit(slug)
+    try {
+      const res = await api.connectComposioToolkit(slug)
+      if (res?.redirect_url) {
+        window.open(res.redirect_url, '_blank')
+        toast(`Opening authorization for ${slug}…`, 'ok')
+
+        // Poll for connection status
+        let attempts = 0
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = setInterval(async () => {
+          attempts++
+          if (attempts > 60) {
+            clearInterval(pollIntervalRef.current)
+            pollIntervalRef.current = null
+            setConnectingToolkit(null)
             return
           }
           try {
-            const pollRes = await api.pollComposioLogin(sid)
-            if (pollRes?.status === 'connected' || pollRes?.connected) {
-              clearInterval(id)
-              setBrowserLoggingIn(false)
-              pollIdRef.current = null
-              toast('Composio linked successfully!', 'ok')
+            const toolkitsRes = await api.composioToolkits()
+            const match = toolkitsRes?.toolkits?.find((t) => t.slug === slug)
+            if (match?.connected) {
+              clearInterval(pollIntervalRef.current)
+              pollIntervalRef.current = null
+              setConnectingToolkit(null)
+              toast(`${slug} connected successfully!`, 'ok')
               await loadData()
+              if (onRefreshStatus) onRefreshStatus()
             }
           } catch {
             /* ignore */
           }
-        }, 3000)
-        pollIdRef.current = id
+        }, 2500)
       }
     } catch (e) {
-      toast(e.message || 'Login failed', 'bad')
-    } finally {
-      setBusyAction('')
+      setConnectingToolkit(null)
+      toast(e.message || `Failed to connect ${slug}`, 'bad')
     }
   }
 
@@ -1575,35 +1620,81 @@ function StepApps({ toast, onRefreshStatus, onNext, onSkip }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <span className="arc-step-counter">Integrations</span>
-      <h2 className="arc-title" style={{ marginTop: 4 }}>Connect Your Apps</h2>
+      <h2 className="arc-title" style={{ marginTop: 4 }}>Connected Apps (Optional)</h2>
       <p className="arc-subtitle-mono">
-        Link cloud services and tools. Everything is optional and works offline.
+        Link cloud services through read-only connectors. Everything is skippable and works offline.
       </p>
 
-      {/* Composio Sign In */}
-      <div className="arc-provider-item" style={{ marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <ServiceIcon card={{ slug: 'composio', name: 'Composio' }} size="small" />
-          <div>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>Cloud Apps via Composio</span>
-            <p style={{ margin: 0, fontSize: 11.5, color: '#64748b' }}>
-              {isComposioLinked ? 'Connected and authorized' : 'One sign-in connects all tools below'}
-            </p>
-          </div>
+      {/* Composio API Key Section */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+          <label className="arc-label">Composio API Key</label>
+          <a
+            href="https://app.composio.dev/settings"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="arc-forgot-link"
+          >
+            Get your key ↗
+          </a>
         </div>
 
-        {!isComposioLinked ? (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            type="password"
+            className="arc-input"
+            placeholder={
+              isComposioLinked
+                ? 'Key active in vault (paste new key to replace)...'
+                : 'Paste your Composio API key (validates on paste)...'
+            }
+            value={composioKey}
+            onChange={(e) => setComposioKey(e.target.value)}
+            onPaste={handleKeyPaste}
+            disabled={savingKey}
+          />
           <button
             type="button"
-            className="arc-social-btn"
-            style={{ width: 'auto', padding: '6px 12px', fontSize: 12 }}
-            disabled={busyAction === 'composio-login'}
-            onClick={handleStartBrowserLogin}
+            className="arc-btn-primary"
+            style={{ width: 'auto', whiteSpace: 'nowrap', padding: '0 16px' }}
+            disabled={savingKey || !composioKey.trim()}
+            onClick={() => handleValidateAndSaveKey()}
           >
-            {browserLoggingIn ? `Waiting (${pollCountdown}s)…` : 'Sign In in Browser ↗'}
+            {savingKey ? <LoaderIcon type="pixels" /> : 'Validate & Save'}
           </button>
-        ) : (
-          <span style={{ fontSize: 11.5, color: '#059669', fontWeight: 600 }}>✓ Connected</span>
+        </div>
+
+        {keyResult && (
+          <div
+            style={{
+              marginTop: 6,
+              fontSize: 12,
+              fontWeight: 500,
+              color: keyResult.ok ? '#059669' : '#dc2626',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Icon name={keyResult.ok ? 'check' : 'warning-circle'} size={14} />
+            <span>{keyResult.msg}</span>
+          </div>
+        )}
+
+        {isComposioLinked && !keyResult && (
+          <div
+            style={{
+              marginTop: 6,
+              fontSize: 12,
+              color: '#059669',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Icon name="check" size={14} />
+            <span>Composio authorized · Connect tools below with 1 click</span>
+          </div>
         )}
       </div>
 
@@ -1612,6 +1703,9 @@ function StepApps({ toast, onRefreshStatus, onNext, onSkip }) {
         {CLOUD_APPS.map((app) => {
           const item = composioToolkits.find((t) => t.slug === app.slug)
           const connected = Boolean(item?.connected)
+          const isScopeReviewed = REVIEWED_SCOPES.has(app.slug)
+          const isConnecting = connectingToolkit === app.slug
+
           return (
             <div key={app.slug} className="arc-connector-box">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1621,23 +1715,35 @@ function StepApps({ toast, onRefreshStatus, onNext, onSkip }) {
                   <p style={{ margin: 0, fontSize: 10.5, color: '#64748b' }}>{app.desc}</p>
                 </div>
               </div>
+
               {connected ? (
-                <span style={{ fontSize: 11, color: '#059669', fontWeight: 600 }}>✓</span>
+                <span style={{ fontSize: 11, color: '#059669', fontWeight: 600 }}>✓ Connected</span>
+              ) : !isScopeReviewed ? (
+                <span
+                  style={{
+                    fontSize: 10,
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    background: '#f1f5f9',
+                    color: '#94a3b8',
+                  }}
+                  title="Read-only scope review pending"
+                >
+                  Review pending
+                </span>
               ) : (
                 <button
                   type="button"
                   className="arc-text-btn"
-                  style={{ fontSize: 11.5 }}
-                  onClick={async () => {
-                    try {
-                      const res = await api.connectComposioToolkit(app.slug)
-                      if (res?.redirect_url) window.open(res.redirect_url, '_blank')
-                    } catch (e) {
-                      toast(e.message, 'bad')
-                    }
+                  style={{
+                    fontSize: 11.5,
+                    opacity: isComposioLinked ? 1 : 0.5,
+                    cursor: isComposioLinked ? 'pointer' : 'not-allowed',
                   }}
+                  disabled={!isComposioLinked || isConnecting}
+                  onClick={() => handleConnectToolkit(app.slug)}
                 >
-                  Connect
+                  {isConnecting ? 'Connecting…' : 'Connect'}
                 </button>
               )}
             </div>

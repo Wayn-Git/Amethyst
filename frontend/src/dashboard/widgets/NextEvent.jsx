@@ -8,7 +8,20 @@ export default function NextEvent({ data }) {
     return () => clearInterval(timer)
   }, [])
   const event = data?.items?.[0]
-  if (!event) return null
+  if (!event) {
+    return (
+      <div className="adoption-stack" style={{ alignItems: 'center', justifyContent: 'center', padding: '16px 8px', textAlign: 'center' }}>
+        <p className="adoption-label" style={{ margin: '0 0 8px' }}>No upcoming events</p>
+        <button
+          type="button"
+          className="widget-button"
+          onClick={() => window.dispatchEvent(new CustomEvent('amethyst:open-connectors', { detail: 'googlecalendar' }))}
+        >
+          Connect Google Calendar
+        </button>
+      </div>
+    )
+  }
   const start = new Date(event.start || NaN)
   const validStart = Number.isFinite(start.getTime())
   const minutes = Math.ceil((start.getTime() - now) / 60000)

@@ -34,6 +34,12 @@ export default function Home() {
   const manageConnections = useCallback(() => { setCapabilitiesTab('connectors'); navigate('/capabilities') }, [navigate, setCapabilitiesTab])
   const connectSource = useCallback(() => setDrawer({ type: 'settings', settingsId: 'sys.connectors' }), [])
   const [drawer, setDrawer] = useState(null)
+
+  useEffect(() => {
+    const handleOpenConnectors = () => setDrawer({ type: 'settings', settingsId: 'sys.connectors' })
+    window.addEventListener('amethyst:open-connectors', handleOpenConnectors)
+    return () => window.removeEventListener('amethyst:open-connectors', handleOpenConnectors)
+  }, [])
   const [entries, setEntries] = useState(() => cached('manifests') || [])
   const [layout, setLayout] = useState(() => (cached('layout')?.widgets ? morningLayout(cached('layout')) : { widgets: [] }))
   const [quietSettings, setQuietSettings] = useState(() => cached('quiet') || {})
