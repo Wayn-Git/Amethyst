@@ -34,3 +34,5 @@ Remaining verification: finish captures and expanded contrast sweep, update grou
 - [x] **feed** — 2 IDs / 4 sizes; six states; Paper/Graphite × 1440/390; nine-theme responsive and contrast checks. Contact sheet: `ui-review/feed-contact-sheet.png`.
 
 - [x] **system** — 4 IDs / 12 sizes; six states; Paper/Graphite × 1440/390; nine-theme responsive and contrast checks. Contact sheet: `ui-review/system-contact-sheet.png`.
+
+- [x] **dashboard** — 6 IDs / 13 sizes; six states; Paper/Graphite × 1440/390; nine-theme responsive and contrast checks. Contact sheet: `ui-review/dashboard-contact-sheet.png`.
