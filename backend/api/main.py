@@ -2471,6 +2471,260 @@ async def auto_configure_embeddings_route() -> dict[str, Any]:
     return {"configured": False, "provider": None, "model": None}
 
 
+@app.get("/api/setup/detect-models")
+async def detect_models_route() -> dict[str, Any]:
+    """Scan local machine for existing AI provider setups (read-only, known paths/env only)."""
+    from backend.detectors.registry import scan_all_detectors
+
+    detections = await scan_all_detectors()
+    return {"detections": [d.to_dict(mask_key=True) for d in detections]}
+
+
+class ConnectDetectedRequest(BaseModel):
+    detection_id: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    api_key: str | None = None
+    base_url: str | None = None
+
+
+@app.post("/api/setup/connect-detected")
+async def connect_detected_route(body: ConnectDetectedRequest) -> dict[str, Any]:
+    """Live test a detected provider, save key to vault only on success, and set as primary."""
+    from backend.config import add_provider, set_primary_provider
+    from backend.detectors.registry import get_cached_detection
+    from backend.provider_catalogue import entry_for, preset as find_preset
+    from backend.runtime import availability
+    from backend.secrets import set_secret
+
+    detection = get_cached_detection(body.detection_id) if body.detection_id else None
+
+    provider_slug = body.provider or (detection.provider if detection else None)
+    if not provider_slug:
+        raise HTTPException(status_code=400, detail="Missing detection_id or provider slug.")
+
+    api_key = body.api_key or (detection.api_key if detection else None)
+    base_url = body.base_url or (detection.base_url if detection else None)
+    preset = find_preset(provider_slug)
+    is_local = bool(preset and preset.local) or provider_slug in ("ollama", "lmstudio")
+    adapter = (detection.adapter if detection else None) or (preset.adapter if preset else None) or provider_slug
+
+    # Run live test verification before saving anything
+    verify_body = VerifyProvider(
+        api_key=api_key or "",
+        key=api_key or "",
+        base_url=base_url,
+        adapter=adapter,
+        default_model=body.model or (detection.default_model if detection else None),
+    )
+    verify_res = await verify_provider_route(provider_slug, verify_body)
+    if not verify_res.get("valid"):
+        msg = verify_res.get("message") or "Provider verification failed. Check credentials."
+        return {
+            "ok": False,
+            "status": "failed",
+            "message": msg,
+            "provider": provider_slug,
+        }
+
+    # Verification passed! Copy key into vault only now
+    api_key_ref = None
+    if api_key and not is_local:
+        api_key_ref = f"amethyst/{provider_slug}"
+        set_secret(api_key_ref, api_key)
+
+    chosen_model = body.model or (detection.default_model if detection else None) or (preset.default_model if preset else None)
+    if not chosen_model and verify_res.get("models"):
+        first_m = verify_res["models"][0]
+        chosen_model = first_m.get("id") or first_m.get("name") if isinstance(first_m, dict) else str(first_m)
+
+    entry = entry_for(preset) if preset else {"name": provider_slug}
+    if api_key_ref:
+        entry["api_key_ref"] = api_key_ref
+    if base_url:
+        entry["base_url"] = base_url
+    if chosen_model:
+        entry["default_model"] = chosen_model
+    if adapter:
+        entry["provider"] = adapter
+
+    add_provider(entry)
+    set_primary_provider(provider_slug)
+    availability.forget(provider_slug)
+
+    return {
+        "ok": True,
+        "status": "connected",
+        "provider": provider_slug,
+        "model": chosen_model,
+        "message": f"{provider_slug.capitalize()} connected successfully.",
+    }
+
+
+class OpenRouterStartRequest(BaseModel):
+    redirect_uri: str | None = None
+
+
+@app.post("/api/auth/openrouter/start")
+def start_openrouter_auth_route(body: OpenRouterStartRequest, request: Request) -> dict[str, str]:
+    """Initiate an OpenRouter PKCE OAuth flow with a loopback/origin callback."""
+    from backend.auth.openrouter import create_auth_url
+
+    callback_url = body.redirect_uri or f"{str(request.base_url).rstrip('/')}/api/auth/openrouter/callback"
+    return create_auth_url(callback_url)
+
+
+@app.get("/api/auth/openrouter/callback")
+async def openrouter_callback_route(code: str, state: str) -> Response:
+    """Handle callback from OpenRouter, exchange code for key, and store in vault."""
+    from fastapi.responses import HTMLResponse
+    from backend.auth.openrouter import exchange_code_for_key
+    from backend.config import add_provider, set_primary_provider
+    from backend.provider_catalogue import entry_for, preset as find_preset
+    from backend.secrets import set_secret
+
+    try:
+        api_key = await exchange_code_for_key(code, state)
+        api_key_ref = "amethyst/openrouter"
+        set_secret(api_key_ref, api_key)
+
+        preset = find_preset("openrouter")
+        entry = entry_for(preset) if preset else {"name": "openrouter"}
+        entry["api_key_ref"] = api_key_ref
+        entry["default_model"] = entry.get("default_model") or "meta-llama/llama-3.3-70b-instruct:free"
+        add_provider(entry)
+        set_primary_provider("openrouter")
+
+        html_content = """<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>OpenRouter Connected - Amethyst</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0f1115; color: #f1f5f9; display: grid; place-items: center; height: 100vh; margin: 0; }
+    .card { background: #1e222a; padding: 32px; border-radius: 16px; border: 1px solid #334155; text-align: center; max-width: 400px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+    h1 { font-size: 20px; font-weight: 600; margin-bottom: 8px; color: #10b981; }
+    p { color: #94a3b8; font-size: 14px; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>✓ OpenRouter Connected</h1>
+    <p>Your API key has been stored securely in your local vault. You can close this tab and return to Amethyst.</p>
+  </div>
+  <script>
+    if (window.opener) {
+      window.opener.postMessage({ type: 'openrouter_auth_success' }, '*');
+    }
+    setTimeout(() => { window.close(); }, 2000);
+  </script>
+</body>
+</html>"""
+        return HTMLResponse(content=html_content, status_code=200)
+    except Exception as exc:
+        log.exception("OpenRouter OAuth callback failed: %s", exc)
+        html_err = f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Authentication Failed - Amethyst</title>
+  <style>
+    body {{ font-family: system-ui, -apple-system, sans-serif; background: #0f1115; color: #f1f5f9; display: grid; place-items: center; height: 100vh; margin: 0; }}
+    .card {{ background: #1e222a; padding: 32px; border-radius: 16px; border: 1px solid #ef4444; text-align: center; max-width: 400px; }}
+    h1 {{ font-size: 20px; font-weight: 600; margin-bottom: 8px; color: #ef4444; }}
+    p {{ color: #94a3b8; font-size: 14px; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Authentication Failed</h1>
+    <p>{str(exc)}</p>
+  </div>
+</body>
+</html>"""
+        return HTMLResponse(content=html_err, status_code=400)
+
+
+@app.get("/api/auth/openrouter/poll/{state}")
+def poll_openrouter_auth_route(state: str) -> dict[str, Any]:
+    """Poll completion of an OpenRouter PKCE authorization session."""
+    from backend.auth.openrouter import get_auth_state
+
+    return get_auth_state(state)
+
+
+class VerifyCloudflareRequest(BaseModel):
+    api_token: str
+    account_id: str | None = None
+
+
+@app.post("/api/setup/cloudflare/verify")
+async def verify_cloudflare_token_route(body: VerifyCloudflareRequest) -> dict[str, Any]:
+    """Verify Cloudflare API token against Cloudflare API and store in vault if valid."""
+    import httpx
+    from backend.secrets import set_secret
+
+    token = body.api_token.strip()
+    if not token:
+        raise HTTPException(400, "API token is required")
+
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.get(
+                "https://api.cloudflare.com/client/v4/user/tokens/verify",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            data = resp.json()
+            if resp.status_code == 200 and data.get("success"):
+                set_secret("amethyst/cloudflare-api-token", token)
+                return {
+                    "ok": True,
+                    "valid": True,
+                    "status": "active",
+                    "message": "Cloudflare API token verified successfully.",
+                }
+            msg = "Invalid token or permissions"
+            if data.get("errors"):
+                msg = data["errors"][0].get("message", msg)
+            return {"ok": False, "valid": False, "message": msg}
+    except Exception as exc:
+        return {"ok": False, "valid": False, "message": f"Connection error: {exc}"}
+
+
+@app.get("/api/share/http-shortcuts.json")
+def get_http_shortcuts_config(request: Request, download: int = 0) -> Response:
+    """Return preconfigured HTTP Shortcuts JSON file with current endpoint and token."""
+    from fastapi.responses import JSONResponse
+    from backend import share
+
+    token = share.current() or share.rotate()
+    base = str(request.base_url).rstrip("/")
+    shortcut_data = {
+        "version": 3,
+        "shortcuts": [
+            {
+                "id": "amethyst-share-capture",
+                "name": "Share to Amethyst",
+                "url": f"{base}/api/share/capture",
+                "method": "POST",
+                "bodyType": "JSON",
+                "body": '{"url": "{shared_content}"}',
+                "headers": {
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                },
+                "acceptsSharedContent": True,
+            }
+        ],
+    }
+    headers = {}
+    if download:
+        headers["Content-Disposition"] = "attachment; filename=amethyst-shortcut.json"
+    return JSONResponse(content=shortcut_data, headers=headers)
+
+
+
+
 class KeychainFallbackRequest(BaseModel):
     consent: bool
 
