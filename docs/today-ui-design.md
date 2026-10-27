@@ -23,4 +23,4 @@ Verification: 23 adopted widget fixtures cover source states, real values and re
 - [x] glance.music: artwork and explicit player selection with unchanged approval gates.
 - [x] sys.connectors / dash.sync: shared account truth, refresh on return, actionable disconnected states.
 - [ ] dash.gallery / glance.clock: stable card bounds, gallery selection, settings and padding.
-- [ ] need.drafts / need.waiting: composers and reviews in sheets instead of expanding cards.
+- [x] need.drafts / need.waiting: composers and reviews in sheets instead of expanding cards.
