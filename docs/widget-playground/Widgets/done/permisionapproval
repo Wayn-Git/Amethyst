@@ -1,0 +1,1072 @@
+<Scope
+  values={{
+    pendingCount: size(
+      requests.filter((request) => request.decision === "pending"),
+    ),
+  }}
+>
+  <Basic theme={darkAppearance ? "dark" : "light"} gap={3}>
+    <Box width="100%" maxWidth={560} gap={3}>
+      <Col gap={1}>
+        <Row gap={2}>
+          <Icon name="shield-check" size="md" />
+          <Title value={copy.title} size="sm" />
+        </Row>
+        <Caption value={copy.studyNote} />
+      </Col>
+      <Col gap={2}>
+        <Label value={copy.directionLabel} fieldName="direction" />
+        <Select
+          name="direction"
+          bind="direction"
+          options={directionOptions}
+          size="2xl"
+          block
+        />
+        <Row gap={3} wrap="wrap" justify="between">
+          <SegmentedControl
+            name="widgetSize"
+            bind="widgetSize"
+            ariaLabel={copy.sizeLabel}
+            options={sizeOptions}
+            size="2xl"
+          />
+          <Toggle
+            name="darkAppearance"
+            bind="darkAppearance"
+            label={copy.appearanceLabel}
+            variant="switch"
+          />
+        </Row>
+        <Caption value={directionNotes[direction]} />
+      </Col>
+      <Card
+        size={widgetSize === "medium" ? "md" : "lg"}
+        theme={darkAppearance ? "dark" : "light"}
+        padding={4}
+        gap={4}
+      >
+        <Show when={widgetSize === "medium"}>
+          <Scope values={{ request: requests[0] }}>
+            <Show when={direction === "minimal"}>
+              <Col gap={3}>
+                <Row gap={3} align="start">
+                  <Box
+                    size={36}
+                    radius="sm"
+                    background="surface-secondary"
+                    align="center"
+                    justify="center"
+                  >
+                    <Icon name={request.icon} size="lg" />
+                  </Box>
+                  <Col flex={1} minWidth={0} gap={1}>
+                    <Title value={request.tool + " access"} size="sm" />
+                    <Caption
+                      value={request.agent + " · " + request.timestamp}
+                    />
+                  </Col>
+                </Row>
+                <Col gap={1}>
+                  <Text value={request.action} size="sm" weight="semibold" />
+                  <Text
+                    value={request.description}
+                    size="sm"
+                    color="secondary"
+                  />
+                </Col>
+                <Row gap={2} wrap="wrap">
+                  <Badge
+                    label={request.riskLabel}
+                    color={request.riskTone}
+                    variant="soft"
+                  />
+                  <Text value={request.scope} size="sm" />
+                </Row>
+              </Col>
+            </Show>
+            <Show when={direction === "review"}>
+              <Col gap={3}>
+                <Col gap={1}>
+                  <Caption value={copy.reviewTitle} />
+                  <Title value={request.action} size="sm" />
+                  <Text
+                    value={request.description}
+                    size="sm"
+                    color="secondary"
+                  />
+                </Col>
+                <Divider />
+                <KeyValue
+                  rows={[
+                    { label: copy.tool, value: request.tool },
+                    { label: copy.requestedBy, value: request.agent },
+                    { label: copy.scope, value: request.scope },
+                    { label: copy.access, value: request.permission },
+                    { label: copy.time, value: request.timestamp },
+                  ]}
+                  gap={2}
+                />
+                <Row gap={2} align="start">
+                  <Badge label={request.riskLabel} color={request.riskTone} />
+                  <Text
+                    value={request.accessNote}
+                    size="sm"
+                    color="secondary"
+                  />
+                </Row>
+              </Col>
+            </Show>
+            <Show when={direction === "inbox"}>
+              <Col gap={3}>
+                <Row gap={2}>
+                  <Title value={copy.inboxTitle} size="sm" />
+                  <Spacer />
+                  <Caption value={String(pendingCount) + copy.toReviewSuffix} />
+                </Row>
+                <Divider flush />
+                <Caption value={copy.latestLabel} size="sm" />
+                <Row gap={3} align="start">
+                  <Box
+                    size={34}
+                    radius="full"
+                    background="surface-secondary"
+                    align="center"
+                    justify="center"
+                  >
+                    <Text
+                      value={request.initials}
+                      size="xs"
+                      weight="semibold"
+                    />
+                  </Box>
+                  <Col flex={1} minWidth={0} gap={1}>
+                    <Text value={request.agent} size="sm" weight="semibold" />
+                    <Caption value={request.timestamp} />
+                  </Col>
+                  <Badge label={request.riskLabel} color={request.riskTone} />
+                </Row>
+                <Col gap={2}>
+                  <Title value={request.action} size="sm" />
+                  <Text value={request.description} size="sm" />
+                  <Caption value={request.tool + " · " + request.scope} />
+                </Col>
+              </Col>
+            </Show>
+            <Show when={direction === "security"}>
+              <Col gap={3}>
+                <Caption value={copy.permissionBoundary} size="sm" />
+                <Row gap={3} align="start">
+                  <Icon name="lock" size="xl" />
+                  <Col flex={1} minWidth={0} gap={1}>
+                    <Title value={request.accessTitle} size="md" />
+                    <Text value={request.scope} size="sm" />
+                  </Col>
+                  <Badge label={request.riskLabel} color={request.riskTone} />
+                </Row>
+                <Box
+                  background="surface-secondary"
+                  padding={3}
+                  radius="sm"
+                  gap={2}
+                >
+                  <Each of={request.boundaries} item="boundary">
+                    <Row key={boundary.text} gap={2} align="start">
+                      <Icon name={boundary.icon} size="sm" color="secondary" />
+                      <Text value={boundary.text} size="sm" />
+                    </Row>
+                  </Each>
+                </Box>
+                <Col gap={1}>
+                  <Text
+                    value={request.tool + " · " + request.action}
+                    size="sm"
+                    weight="semibold"
+                  />
+                  <Caption value={request.agent + " · " + request.timestamp} />
+                </Col>
+              </Col>
+            </Show>
+            <Show when={direction === "editorial"}>
+              <Col gap={4}>
+                <Caption value={copy.editorialEyebrow} size="sm" />
+                <Title value={request.editorial} size="xl" weight="medium" />
+                <Col gap={1}>
+                  <Text value={request.agent} size="sm" weight="medium" />
+                  <Caption value={request.timestamp + " · " + request.tool} />
+                </Col>
+                <Col gap={2}>
+                  <Text value={request.action} size="sm" weight="semibold" />
+                  <Text
+                    value={request.description}
+                    size="sm"
+                    color="secondary"
+                  />
+                </Col>
+                <Row wrap="wrap" gap={2} justify="between">
+                  <Text value={request.scope} size="sm" />
+                  <Text
+                    value={request.riskLabel}
+                    size="sm"
+                    weight="medium"
+                    color={request.riskTextTone}
+                  />
+                </Row>
+              </Col>
+            </Show>
+            <Show when={request.urgent}>
+              <Callout
+                color="warning"
+                title={copy.urgent}
+                description={request.urgentNote}
+                icon="clock"
+              />
+            </Show>
+            <Divider />
+            <Show when={request.decision === "pending"}>
+              <Row gap={2}>
+                <Col flex={1}>
+                  <Button
+                    label={copy.deny}
+                    iconStart="x"
+                    variant="outline"
+                    color="primary"
+                    size="2xl"
+                    block
+                    onClickAction={{
+                      patchState: set("requests.0.decision", "deny"),
+                    }}
+                  />
+                </Col>
+                <Col flex={1}>
+                  <Button
+                    label={copy.approve}
+                    iconStart="check"
+                    color="info"
+                    size="2xl"
+                    block
+                    onClickAction={{
+                      patchState: set("requests.0.decision", "approve"),
+                    }}
+                  />
+                </Col>
+              </Row>
+              <Show.Else>
+                <Row gap={2} wrap="wrap">
+                  <Icon
+                    name={
+                      request.decision === "approve"
+                        ? "check-circle"
+                        : "x-circle"
+                    }
+                    size="md"
+                  />
+                  <Text
+                    value={
+                      request.decision === "approve"
+                        ? copy.approveSelected
+                        : copy.denySelected
+                    }
+                    size="sm"
+                    weight="medium"
+                  />
+                  <Spacer />
+                  <Button
+                    label={copy.undo}
+                    variant="ghost"
+                    size="2xl"
+                    onClickAction={{
+                      patchState: set("requests.0.decision", "pending"),
+                    }}
+                  />
+                </Row>
+              </Show.Else>
+            </Show>
+          </Scope>
+          <Show.Else>
+            <Show when={direction === "minimal"}>
+              <Col gap={3}>
+                <Row gap={2}>
+                  <Title value={copy.queueTitle} size="sm" />
+                  <Spacer />
+                  <Caption value={String(pendingCount) + copy.toReviewSuffix} />
+                </Row>
+                <Divider flush />
+                <Each of={requests} item="request" index="i">
+                  <Box
+                    key={request.id}
+                    gap={3}
+                    border={request.urgent ? { size: 1, color: "warning" } : 0}
+                    radius="sm"
+                    padding={request.urgent ? 3 : 0}
+                  >
+                    <Row gap={3} wrap="wrap" align="start">
+                      <Col flex={1} minWidth={170} gap={2}>
+                        <Row gap={2}>
+                          <Icon name={request.icon} size="sm" />
+                          <Text
+                            value={request.tool}
+                            size="sm"
+                            weight="semibold"
+                          />
+                          <Show when={request.urgent}>
+                            <Badge
+                              label={copy.urgent}
+                              color="warning"
+                              icon="clock"
+                            />
+                          </Show>
+                        </Row>
+                        <Text
+                          value={request.action}
+                          size="sm"
+                          weight="semibold"
+                        />
+                        <Caption
+                          value={request.agent + " · " + request.timestamp}
+                        />
+                        <Text
+                          value={request.scope}
+                          size="sm"
+                          color="secondary"
+                        />
+                        <Row gap={2} wrap="wrap">
+                          <Badge
+                            label={request.riskLabel}
+                            color={request.riskTone}
+                          />
+                          <Caption value={request.permission} />
+                        </Row>
+                        <Show when={request.urgent}>
+                          <Caption value={request.urgentNote} />
+                        </Show>
+                      </Col>
+                      <Col gap={2} minWidth={160}>
+                        <Show when={request.decision === "pending"}>
+                          <Row gap={2}>
+                            <Button
+                              label={copy.deny}
+                              variant="outline"
+                              color="primary"
+                              size="2xl"
+                              $onClickAction='{ patchState: set("requests." + String(i) + ".decision", "deny") }'
+                            />
+                            <Button
+                              label={copy.approve}
+                              color="info"
+                              size="2xl"
+                              $onClickAction='{ patchState: set("requests." + String(i) + ".decision", "approve") }'
+                            />
+                          </Row>
+                          <Show.Else>
+                            <Col gap={1}>
+                              <Text
+                                value={
+                                  request.decision === "approve"
+                                    ? copy.approveSelected
+                                    : copy.denySelected
+                                }
+                                size="sm"
+                                weight="medium"
+                              />
+                              <Button
+                                label={copy.undo}
+                                variant="ghost"
+                                size="2xl"
+                                $onClickAction='{ patchState: set("requests." + String(i) + ".decision", "pending") }'
+                              />
+                            </Col>
+                          </Show.Else>
+                        </Show>
+                      </Col>
+                    </Row>
+                  </Box>
+                  <Show when={i < size(requests) - 1}>
+                    <Divider />
+                  </Show>
+                </Each>
+              </Col>
+            </Show>
+            <Show when={direction === "review"}>
+              <Col gap={3}>
+                <Col gap={1}>
+                  <Title value={copy.reviewTitle} size="sm" />
+                  <Caption value={String(pendingCount) + copy.toReviewSuffix} />
+                </Col>
+                <Each of={requests} item="request" index="i">
+                  <Box
+                    key={request.id}
+                    background="surface-secondary"
+                    radius="md"
+                    padding={3}
+                    gap={3}
+                    border={request.urgent ? { size: 1, color: "warning" } : 0}
+                  >
+                    <Col gap={2}>
+                      <Row gap={2} wrap="wrap">
+                        <Icon name={request.icon} size="sm" />
+                        <Text
+                          value={request.tool}
+                          size="sm"
+                          weight="semibold"
+                        />
+                        <Spacer />
+                        <Badge
+                          label={request.riskLabel}
+                          color={request.riskTone}
+                        />
+                        <Show when={request.urgent}>
+                          <Badge label={copy.urgent} color="warning" />
+                        </Show>
+                      </Row>
+                      <Title value={request.action} size="sm" />
+                      <Text
+                        value={request.description}
+                        size="sm"
+                        color="secondary"
+                      />
+                    </Col>
+                    <KeyValue
+                      rows={[
+                        { label: copy.requestedBy, value: request.agent },
+                        { label: copy.scope, value: request.scope },
+                        { label: copy.access, value: request.permission },
+                        { label: copy.time, value: request.timestamp },
+                      ]}
+                      gap={2}
+                    />
+                    <Text
+                      value={request.accessNote}
+                      size="sm"
+                      color="secondary"
+                    />
+                    <Show when={request.urgent}>
+                      <Text
+                        value={request.urgentNote}
+                        size="sm"
+                        color="warning"
+                      />
+                    </Show>
+                    <Show when={request.decision === "pending"}>
+                      <Row gap={2}>
+                        <Col flex={1}>
+                          <Button
+                            label={copy.deny}
+                            variant="outline"
+                            color="primary"
+                            size="2xl"
+                            block
+                            $onClickAction='{ patchState: set("requests." + String(i) + ".decision", "deny") }'
+                          />
+                        </Col>
+                        <Col flex={1}>
+                          <Button
+                            label={copy.approve}
+                            iconStart="check"
+                            color="info"
+                            size="2xl"
+                            block
+                            $onClickAction='{ patchState: set("requests." + String(i) + ".decision", "approve") }'
+                          />
+                        </Col>
+                      </Row>
+                      <Show.Else>
+                        <Row gap={2} wrap="wrap">
+                          <Text
+                            value={
+                              request.decision === "approve"
+                                ? copy.approveSelected
+                                : copy.denySelected
+                            }
+                            size="sm"
+                            weight="medium"
+                          />
+                          <Spacer />
+                          <Button
+                            label={copy.undo}
+                            variant="ghost"
+                            size="2xl"
+                            $onClickAction='{ patchState: set("requests." + String(i) + ".decision", "pending") }'
+                          />
+                        </Row>
+                      </Show.Else>
+                    </Show>
+                  </Box>
+                </Each>
+              </Col>
+            </Show>
+            <Show when={direction === "inbox"}>
+              <Col gap={3}>
+                <Row gap={3}>
+                  <Icon name="inbox" size="lg" />
+                  <Col gap={0} flex={1}>
+                    <Title value={copy.inboxTitle} size="sm" />
+                    <Caption
+                      value={String(pendingCount) + copy.toReviewSuffix}
+                    />
+                  </Col>
+                </Row>
+                <Divider flush />
+                <Each of={requests} item="request" index="i">
+                  <Box
+                    key={request.id}
+                    border={request.urgent ? { size: 1, color: "warning" } : 0}
+                    padding={request.urgent ? 3 : 0}
+                    radius="sm"
+                  >
+                    <Row gap={3} align="start">
+                      <Box
+                        size={32}
+                        radius="full"
+                        background="surface-secondary"
+                        align="center"
+                        justify="center"
+                      >
+                        <Text
+                          value={request.initials}
+                          size="xs"
+                          weight="semibold"
+                        />
+                      </Box>
+                      <Col flex={1} minWidth={0} gap={2}>
+                        <Row gap={2} wrap="wrap" justify="between">
+                          <Text
+                            value={request.agent}
+                            size="sm"
+                            weight="semibold"
+                          />
+                          <Caption value={request.timestamp} />
+                        </Row>
+                        <Text
+                          value={request.action}
+                          size="sm"
+                          weight="semibold"
+                        />
+                        <Text
+                          value={request.tool + " · " + request.scope}
+                          size="sm"
+                          color="secondary"
+                        />
+                        <Row gap={2} wrap="wrap">
+                          <Badge
+                            label={request.riskLabel}
+                            color={request.riskTone}
+                          />
+                          <Caption value={request.permission} />
+                          <Show when={request.urgent}>
+                            <Badge
+                              label={copy.urgent}
+                              color="warning"
+                              icon="clock"
+                            />
+                          </Show>
+                        </Row>
+                        <Show when={request.urgent}>
+                          <Caption value={request.urgentNote} />
+                        </Show>
+                        <Show when={request.decision === "pending"}>
+                          <Row gap={2} wrap="wrap">
+                            <Button
+                              label={copy.deny}
+                              variant="outline"
+                              color="primary"
+                              size="2xl"
+                              $onClickAction='{ patchState: set("requests." + String(i) + ".decision", "deny") }'
+                            />
+                            <Button
+                              label={copy.approve}
+                              iconStart="check"
+                              color="info"
+                              size="2xl"
+                              $onClickAction='{ patchState: set("requests." + String(i) + ".decision", "approve") }'
+                            />
+                          </Row>
+                          <Show.Else>
+                            <Row gap={2} wrap="wrap">
+                              <Text
+                                value={
+                                  request.decision === "approve"
+                                    ? copy.approveSelected
+                                    : copy.denySelected
+                                }
+                                size="sm"
+                                weight="medium"
+                              />
+                              <Button
+                                label={copy.undo}
+                                variant="ghost"
+                                size="2xl"
+                                $onClickAction='{ patchState: set("requests." + String(i) + ".decision", "pending") }'
+                              />
+                            </Row>
+                          </Show.Else>
+                        </Show>
+                      </Col>
+                    </Row>
+                  </Box>
+                  <Show when={i < size(requests) - 1}>
+                    <Divider />
+                  </Show>
+                </Each>
+              </Col>
+            </Show>
+            <Show when={direction === "security"}>
+              <Col gap={4}>
+                <Row gap={3} align="start">
+                  <Icon name="shield-check" size="xl" />
+                  <Col gap={1}>
+                    <Title value={copy.securityTitle} size="sm" />
+                    <Caption value={copy.securitySubtitle} />
+                  </Col>
+                </Row>
+                <Each of={securityGroups} item="group">
+                  <Col key={group.id} gap={3}>
+                    <Row gap={2}>
+                      <Text
+                        value={group.label}
+                        size="sm"
+                        weight="semibold"
+                        color={group.urgent ? "warning" : "secondary"}
+                      />
+                      <Spacer />
+                      <Caption
+                        value={String(
+                          size(
+                            requests.filter(
+                              (request) => request.urgent === group.urgent,
+                            ),
+                          ),
+                        )}
+                      />
+                    </Row>
+                    <Each
+                      of={requests.filter(
+                        (request) => request.urgent === group.urgent,
+                      )}
+                      item="request"
+                    >
+                      <Scope
+                        values={{
+                          i: requests.findIndex(
+                            (entry) => entry.id === request.id,
+                          ),
+                        }}
+                      >
+                        <Box
+                          key={request.id}
+                          padding={3}
+                          radius="sm"
+                          background="surface-secondary"
+                          gap={3}
+                          border={
+                            request.urgent ? { size: 1, color: "warning" } : 0
+                          }
+                        >
+                          <Row gap={2} wrap="wrap">
+                            <Title value={request.accessTitle} size="sm" />
+                            <Spacer />
+                            <Badge
+                              label={request.riskLabel}
+                              color={request.riskTone}
+                            />
+                            <Show when={request.urgent}>
+                              <Badge
+                                label={copy.urgent}
+                                color="warning"
+                                icon="clock"
+                              />
+                            </Show>
+                          </Row>
+                          <Col gap={1}>
+                            <Caption value={copy.scope} />
+                            <Text
+                              value={request.scope}
+                              size="sm"
+                              weight="semibold"
+                            />
+                          </Col>
+                          <Col gap={1}>
+                            <Text
+                              value={request.tool + " · " + request.action}
+                              size="sm"
+                            />
+                            <Caption
+                              value={request.agent + " · " + request.timestamp}
+                            />
+                          </Col>
+                          <Row gap={2} align="start">
+                            <Icon name="lock" size="sm" color="secondary" />
+                            <Text
+                              value={request.accessNote}
+                              size="sm"
+                              color="secondary"
+                            />
+                          </Row>
+                          <Show when={request.urgent}>
+                            <Text
+                              value={request.urgentNote}
+                              size="sm"
+                              color="warning"
+                            />
+                          </Show>
+                          <Divider />
+                          <Show when={request.decision === "pending"}>
+                            <Row gap={2}>
+                              <Col flex={1}>
+                                <Button
+                                  label={copy.deny}
+                                  variant="outline"
+                                  color="primary"
+                                  size="2xl"
+                                  block
+                                  $onClickAction='{ patchState: set("requests." + String(i) + ".decision", "deny") }'
+                                />
+                              </Col>
+                              <Col flex={1}>
+                                <Button
+                                  label={copy.approve}
+                                  iconStart="check"
+                                  color="info"
+                                  size="2xl"
+                                  block
+                                  $onClickAction='{ patchState: set("requests." + String(i) + ".decision", "approve") }'
+                                />
+                              </Col>
+                            </Row>
+                            <Show.Else>
+                              <Row gap={2} wrap="wrap">
+                                <Text
+                                  value={
+                                    request.decision === "approve"
+                                      ? copy.approveSelected
+                                      : copy.denySelected
+                                  }
+                                  size="sm"
+                                  weight="medium"
+                                />
+                                <Spacer />
+                                <Button
+                                  label={copy.undo}
+                                  variant="ghost"
+                                  size="2xl"
+                                  $onClickAction='{ patchState: set("requests." + String(i) + ".decision", "pending") }'
+                                />
+                              </Row>
+                            </Show.Else>
+                          </Show>
+                        </Box>
+                      </Scope>
+                    </Each>
+                  </Col>
+                </Each>
+              </Col>
+            </Show>
+            <Show when={direction === "editorial"}>
+              <Col gap={4}>
+                <Col gap={1}>
+                  <Caption value={copy.editorialEyebrow} size="sm" />
+                  <Title
+                    value={copy.editorialTitle}
+                    size="md"
+                    weight="medium"
+                  />
+                  <Caption value={String(pendingCount) + copy.toReviewSuffix} />
+                </Col>
+                <Divider flush />
+                <Each of={requests} item="request" index="i">
+                  <Box
+                    key={request.id}
+                    border={request.urgent ? { size: 1, color: "warning" } : 0}
+                    padding={request.urgent ? 3 : 0}
+                    radius="sm"
+                  >
+                    <Row gap={3} align="start">
+                      <Text
+                        value={String(i + 1).padStart(2, "0")}
+                        size="sm"
+                        color="tertiary"
+                        tabularNums
+                      />
+                      <Col flex={1} minWidth={0} gap={3}>
+                        <Title
+                          value={request.editorial}
+                          size="md"
+                          weight="medium"
+                        />
+                        <Col gap={1}>
+                          <Text
+                            value={request.agent + " · " + request.tool}
+                            size="sm"
+                            weight="medium"
+                          />
+                          <Caption value={request.timestamp} />
+                        </Col>
+                        <Col gap={1}>
+                          <Text value={request.action} size="sm" />
+                          <Text
+                            value={request.scope + " · " + request.permission}
+                            size="sm"
+                            color="secondary"
+                          />
+                        </Col>
+                        <Row gap={2} wrap="wrap">
+                          <Text
+                            value={request.riskLabel}
+                            size="sm"
+                            weight="medium"
+                            color={request.riskTextTone}
+                          />
+                          <Show when={request.urgent}>
+                            <Badge label={copy.urgent} color="warning" />
+                            <Caption value={request.urgentNote} />
+                          </Show>
+                        </Row>
+                        <Show when={request.decision === "pending"}>
+                          <Row gap={2} wrap="wrap">
+                            <Button
+                              label={copy.deny}
+                              variant="outline"
+                              color="primary"
+                              size="2xl"
+                              $onClickAction='{ patchState: set("requests." + String(i) + ".decision", "deny") }'
+                            />
+                            <Button
+                              label={copy.approve}
+                              color="info"
+                              size="2xl"
+                              $onClickAction='{ patchState: set("requests." + String(i) + ".decision", "approve") }'
+                            />
+                          </Row>
+                          <Show.Else>
+                            <Row gap={2} wrap="wrap">
+                              <Text
+                                value={
+                                  request.decision === "approve"
+                                    ? copy.approveSelected
+                                    : copy.denySelected
+                                }
+                                size="sm"
+                                weight="medium"
+                              />
+                              <Button
+                                label={copy.undo}
+                                variant="ghost"
+                                size="2xl"
+                                $onClickAction='{ patchState: set("requests." + String(i) + ".decision", "pending") }'
+                              />
+                            </Row>
+                          </Show.Else>
+                        </Show>
+                      </Col>
+                    </Row>
+                  </Box>
+                  <Show when={i < size(requests) - 1}>
+                    <Divider />
+                  </Show>
+                </Each>
+              </Col>
+            </Show>
+          </Show.Else>
+        </Show>
+        <Divider />
+        <Text value={copy.previewNote} size="sm" color="secondary" />
+      </Card>
+      <Show when={pendingCount < size(requests)}>
+        <Row>
+          <Button
+            label={copy.reset}
+            iconStart="reload"
+            variant="ghost"
+            size="2xl"
+            $onClickAction='{ patchState: requests.map((request, i) => set("requests." + String(i) + ".decision", "pending")) }'
+          />
+        </Row>
+      </Show>
+    </Box>
+  </Basic>
+</Scope>
+
+
+{
+  "direction": "minimal",
+  "widgetSize": "medium",
+  "darkAppearance": false,
+  "copy": {
+    "title": "Permission approvals",
+    "studyNote": "Interactive design study · synthetic snapshot at 14:34 UTC",
+    "directionLabel": "Design direction",
+    "sizeLabel": "Widget size",
+    "appearanceLabel": "Dark appearance",
+    "previewNote": "Design preview only. No access is changed.",
+    "reset": "Reset all selections",
+    "approve": "Approve",
+    "deny": "Deny",
+    "undo": "Undo selection",
+    "approveSelected": "Approve selected",
+    "denySelected": "Deny selected",
+    "latestLabel": "LATEST REQUEST",
+    "queueTitle": "Pending approvals",
+    "reviewTitle": "Review tool access",
+    "inboxTitle": "Approval inbox",
+    "securityTitle": "Access boundaries",
+    "securitySubtitle": "Urgent requests first. Review each permission separately.",
+    "editorialEyebrow": "PERMISSION REVIEW",
+    "editorialTitle": "Requests for access",
+    "permissionBoundary": "PERMISSION BOUNDARY",
+    "requestedBy": "Requested by",
+    "tool": "Tool",
+    "action": "Action",
+    "scope": "Permission scope",
+    "access": "Access",
+    "risk": "Risk",
+    "time": "Requested",
+    "urgent": "Urgent",
+    "toReviewSuffix": " to review"
+  },
+  "directionOptions": [
+    {
+      "value": "minimal",
+      "label": "01 · Minimal"
+    },
+    {
+      "value": "review",
+      "label": "02 · Review-focused"
+    },
+    {
+      "value": "inbox",
+      "label": "03 · Inbox-style"
+    },
+    {
+      "value": "security",
+      "label": "04 · Security-focused"
+    },
+    {
+      "value": "editorial",
+      "label": "05 · Editorial"
+    }
+  ],
+  "sizeOptions": [
+    {
+      "value": "medium",
+      "label": "Medium"
+    },
+    {
+      "value": "large",
+      "label": "Large"
+    }
+  ],
+  "directionNotes": {
+    "minimal": "Compact dialog → tightly divided queue with adjacent controls.",
+    "review": "Labeled permission sheet → expanded, independently reviewed sections.",
+    "inbox": "Latest-message preview → sender-led approval list.",
+    "security": "Permission boundary first → urgency-grouped access review.",
+    "editorial": "Statement-led dialog → numbered, typography-led review."
+  },
+  "securityGroups": [
+    {
+      "id": "urgent",
+      "label": "Needs urgent review",
+      "urgent": true
+    },
+    {
+      "id": "standard",
+      "label": "Standard review",
+      "urgent": false
+    }
+  ],
+  "requests": [
+    {
+      "id": "repository",
+      "agent": "Repository Agent",
+      "initials": "RA",
+      "icon": "square-code",
+      "tool": "GitHub",
+      "action": "Read pull-request metadata",
+      "description": "Read titles, authors and review status for open pull requests.",
+      "scope": "Selected repository · demo-app",
+      "permission": "Read only",
+      "accessTitle": "Read-only access",
+      "accessNote": "No code changes, secrets or repository settings.",
+      "riskLabel": "Low risk",
+      "riskTone": "secondary",
+      "riskTextTone": "secondary",
+      "timestamp": "2 min ago",
+      "urgent": false,
+      "urgentNote": "",
+      "editorial": "Let Repository Agent review pull requests.",
+      "decision": "pending",
+      "boundaries": [
+        {
+          "icon": "check",
+          "text": "Can read pull-request metadata in demo-app."
+        },
+        {
+          "icon": "lock",
+          "text": "Cannot modify code or repository settings."
+        }
+      ]
+    },
+    {
+      "id": "external-email",
+      "agent": "Messaging Agent",
+      "initials": "MA",
+      "icon": "mail",
+      "tool": "Mail",
+      "action": "Send an external email",
+      "description": "Send one release update to release-review@example.com.",
+      "scope": "One outgoing message",
+      "permission": "Send once",
+      "accessTitle": "External send",
+      "accessNote": "One external message. No inbox access; sending cannot be undone.",
+      "riskLabel": "High risk",
+      "riskTone": "danger",
+      "riskTextTone": "danger",
+      "timestamp": "5 min ago",
+      "urgent": true,
+      "urgentNote": "Requested deadline · 14:45 UTC",
+      "editorial": "Let Messaging Agent send the release update.",
+      "decision": "pending",
+      "boundaries": [
+        {
+          "icon": "check",
+          "text": "Can send this one message to the specified recipient."
+        },
+        {
+          "icon": "lock",
+          "text": "Cannot read the inbox. The sent message cannot be recalled."
+        }
+      ]
+    },
+    {
+      "id": "release-file",
+      "agent": "Workspace Agent",
+      "initials": "WA",
+      "icon": "document",
+      "tool": "Files",
+      "action": "Create a release-notes file",
+      "description": "Create release-notes.md inside the shared release folder.",
+      "scope": "Releases folder · one new file",
+      "permission": "Create only",
+      "accessTitle": "Scoped file creation",
+      "accessNote": "No overwrite, delete or access outside the Releases folder.",
+      "riskLabel": "Moderate risk",
+      "riskTone": "warning",
+      "riskTextTone": "warning",
+      "timestamp": "9 min ago",
+      "urgent": false,
+      "urgentNote": "",
+      "editorial": "Let Workspace Agent prepare the release notes.",
+      "decision": "pending",
+      "boundaries": [
+        {
+          "icon": "check",
+          "text": "Can create one new file in the Releases folder."
+        },
+        {
+          "icon": "lock",
+          "text": "Cannot overwrite, delete or access other folders."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,810 @@
+<Scope
+  values={{
+    shownCount:
+      layout === "minimal"
+        ? sizeMode === "medium"
+          ? 3
+          : 5
+        : sizeMode === "medium"
+          ? 4
+          : 6,
+    recent: mentions.filter((m) => m.ageHours < 24),
+    waiting: sortBy(
+      mentions.filter((m) => m.ageHours >= 24),
+      "ageHours",
+      "desc",
+    ),
+  }}
+>
+  <Basic theme={appearance} gap={3}>
+    <Box width="100%" maxWidth={400} gap={3}>
+      <Col gap={3}>
+        <Caption value={labels.study} />
+        <Col gap={1}>
+          <Label value={labels.composition} fieldName="layout" />
+          <Select
+            name="layout"
+            bind="layout"
+            options={layouts}
+            size="2xl"
+            block
+          />
+        </Col>
+        <Row gap={3} wrap="wrap" align="start">
+          <Col flex={1} minWidth={150} gap={1}>
+            <Label value={labels.size} fieldName="sizeMode" />
+            <SegmentedControl
+              name="sizeMode"
+              bind="sizeMode"
+              options={sizes}
+              ariaLabel={labels.size}
+              size="xl"
+              block
+            />
+          </Col>
+          <Col flex={1} minWidth={140} gap={1}>
+            <Label value={labels.appearance} fieldName="appearance" />
+            <SegmentedControl
+              name="appearance"
+              bind="appearance"
+              options={appearances}
+              ariaLabel={labels.appearance}
+              size="xl"
+              block
+            />
+          </Col>
+        </Row>
+      </Col>
+      <Card size="md" width="100%" padding={4} gap={3} theme={appearance}>
+        <Row gap={3} align="start">
+          <Col flex={1} minWidth={0} gap={1}>
+            <Title value={labels.title} size="sm" />
+            <Caption
+              value={
+                String(shownCount) +
+                " of " +
+                String(size(mentions)) +
+                " shown · " +
+                String(size(mentions.filter((m) => m.unread))) +
+                " unread"
+              }
+            />
+          </Col>
+          <Text
+            value={String(size(mentions))}
+            size="xl"
+            weight="semibold"
+            color="emphasis"
+            tabularNums
+          />
+        </Row>
+        <Show when={layout === "minimal"}>
+          <Col gap={4}>
+            <Col gap={2}>
+              <Caption value={labels.latest} size="sm" />
+              <Row gap={2} align="center">
+                <Image
+                  src={
+                    availableImages[mentions[0].platform === "slack" ? 0 : 1]
+                      .url
+                  }
+                  alt={mentions[0].platformName}
+                  size={20}
+                  fit="contain"
+                  radius="xs"
+                  background={
+                    mentions[0].platform === "github" ? "white" : "surface"
+                  }
+                />
+                <Col flex={1} minWidth={0} gap={0}>
+                  <Text
+                    value={mentions[0].sender}
+                    size="sm"
+                    weight="semibold"
+                  />
+                  <Caption value={mentions[0].context} />
+                </Col>
+                <Show when={mentions[0].unread}>
+                  <Box size={6} radius="full" background="info" />
+                </Show>
+              </Row>
+              <Text value={mentions[0].preview} size="lg" weight="medium" />
+              <Caption
+                value={
+                  mentions[0].time + (mentions[0].unread ? " · Unread" : "")
+                }
+              />
+            </Col>
+            <Col gap={0}>
+              <Each
+                of={mentions.slice(1, sizeMode === "medium" ? 3 : 5)}
+                item="m"
+                index="i"
+              >
+                <Col key={m.id} gap={2}>
+                  <Show
+                    when={sizeMode === "large" && (i === 0 || m.ageHours >= 24)}
+                  >
+                    <Col gap={2} padding={{ top: i === 0 ? 0 : 2 }}>
+                      <Show when={m.ageHours >= 24}>
+                        <Divider />
+                      </Show>
+                      <Caption
+                        value={
+                          m.ageHours >= 24 ? labels.carried : labels.alsoToday
+                        }
+                        color={m.ageHours >= 24 ? "warning" : "secondary"}
+                        size="sm"
+                      />
+                    </Col>
+                  </Show>
+                  <Row gap={2} align="start" padding={{ y: 2 }}>
+                    <Image
+                      src={availableImages[m.platform === "slack" ? 0 : 1].url}
+                      alt={m.platformName}
+                      size={16}
+                      fit="contain"
+                      radius="xs"
+                      background={m.platform === "github" ? "white" : "surface"}
+                    />
+                    <Col flex={1} minWidth={0} gap={1}>
+                      <Row gap={2} wrap="wrap">
+                        <Text value={m.sender} size="sm" weight="semibold" />
+                        <Spacer />
+                        <Caption
+                          value={
+                            m.time + (m.ageHours >= 24 ? " unanswered" : "")
+                          }
+                          color={m.ageHours >= 24 ? "warning" : "secondary"}
+                        />
+                      </Row>
+                      <Text
+                        value={m.preview}
+                        size="sm"
+                        maxLines={sizeMode === "medium" ? 1 : 2}
+                      />
+                      <Caption
+                        value={m.context + (m.unread ? " · Unread" : "")}
+                      />
+                    </Col>
+                  </Row>
+                  <Show when={sizeMode === "medium" && i === 0}>
+                    <Divider />
+                  </Show>
+                </Col>
+              </Each>
+            </Col>
+          </Col>
+          <Show.ElseIf when={layout === "unified"}>
+            <Col gap={0}>
+              <Each of={mentions.slice(0, shownCount)} item="m" index="i">
+                <Col key={m.id} gap={0}>
+                  <Show when={sizeMode === "large" && (i === 0 || i === 4)}>
+                    <Row gap={2} padding={{ top: i === 0 ? 0 : 3, bottom: 1 }}>
+                      <Text
+                        value={i === 0 ? labels.today : labels.earlier}
+                        size="xs"
+                        weight="semibold"
+                        color={i === 0 ? "secondary" : "warning"}
+                      />
+                      <Spacer />
+                      <Caption value={i === 0 ? "4" : "2"} size="sm" />
+                    </Row>
+                  </Show>
+                  <Row gap={3} align="start" padding={{ y: 3 }}>
+                    <Box
+                      size={30}
+                      radius="full"
+                      background="surface-secondary"
+                      align="center"
+                      justify="center"
+                    >
+                      <Text
+                        value={m.initials}
+                        size="xs"
+                        weight="semibold"
+                        color="secondary"
+                      />
+                    </Box>
+                    <Col flex={1} minWidth={0} gap={1}>
+                      <Row gap={2} wrap="wrap">
+                        <Text value={m.sender} size="sm" weight="semibold" />
+                        <Show when={m.unread}>
+                          <Box size={5} radius="full" background="info" />
+                        </Show>
+                        <Spacer />
+                        <Caption
+                          value={m.time}
+                          color={m.ageHours >= 24 ? "warning" : "secondary"}
+                        />
+                      </Row>
+                      <Text value={m.preview} size="sm" maxLines={2} />
+                      <Row gap={1} wrap="wrap">
+                        <Image
+                          src={
+                            availableImages[m.platform === "slack" ? 0 : 1].url
+                          }
+                          alt={m.platformName}
+                          size={13}
+                          fit="contain"
+                          radius="2xs"
+                          background={
+                            m.platform === "github" ? "white" : "surface"
+                          }
+                        />
+                        <Caption value={m.context} />
+                        <Show when={m.unread}>
+                          <Caption value={labels.unreadSuffix} />
+                        </Show>
+                        <Show when={m.ageHours >= 24}>
+                          <Caption
+                            value={labels.waitingSuffix}
+                            color="warning"
+                          />
+                        </Show>
+                      </Row>
+                    </Col>
+                  </Row>
+                  <Show
+                    when={
+                      i < shownCount - 1 && !(sizeMode === "large" && i === 3)
+                    }
+                  >
+                    <Divider color="subtle" />
+                  </Show>
+                </Col>
+              </Each>
+            </Col>
+          </Show.ElseIf>
+          <Show.ElseIf when={layout === "grouped"}>
+            <Col gap={4}>
+              <Each of={platforms} item="platform" index="p">
+                <Scope
+                  values={{
+                    groupItems: mentions
+                      .filter((m) => m.platform === platform.id)
+                      .slice(0, sizeMode === "medium" ? 2 : 3),
+                  }}
+                >
+                  <Col key={platform.id} gap={2}>
+                    <Show when={p > 0}>
+                      <Divider />
+                    </Show>
+                    <Row gap={2} padding={{ top: p > 0 ? 2 : 0 }}>
+                      <Image
+                        src={availableImages[platform.imageIndex].url}
+                        alt={platform.name}
+                        size={20}
+                        fit="contain"
+                        radius="xs"
+                        background={
+                          platform.id === "github" ? "white" : "surface"
+                        }
+                      />
+                      <Text value={platform.name} size="sm" weight="semibold" />
+                      <Caption value={String(size(groupItems))} />
+                      <Spacer />
+                      <Show when={sizeMode === "large"}>
+                        <Caption value={platform.description} size="sm" />
+                      </Show>
+                    </Row>
+                    <Each of={groupItems} item="m" index="i">
+                      <Row key={m.id} gap={2} align="start" padding={{ y: 2 }}>
+                        <Show when={sizeMode === "large"}>
+                          <Box
+                            size={28}
+                            radius={platform.id === "slack" ? "full" : "sm"}
+                            background="surface-secondary"
+                            align="center"
+                            justify="center"
+                          >
+                            <Show when={platform.id === "slack"}>
+                              <Text
+                                value={m.initials}
+                                size="xs"
+                                weight="medium"
+                                color="secondary"
+                              />
+                              <Show.Else>
+                                <Icon
+                                  name={m.kindIcon}
+                                  size="sm"
+                                  color="secondary"
+                                />
+                              </Show.Else>
+                            </Show>
+                          </Box>
+                        </Show>
+                        <Col flex={1} minWidth={0} gap={1}>
+                          <Row gap={2} wrap="wrap">
+                            <Text
+                              value={m.sender}
+                              size="sm"
+                              weight="semibold"
+                            />
+                            <Show when={m.unread}>
+                              <Box size={5} radius="full" background="info" />
+                            </Show>
+                            <Spacer />
+                            <Caption
+                              value={
+                                m.time + (m.ageHours >= 24 ? " waiting" : "")
+                              }
+                              color={m.ageHours >= 24 ? "warning" : "secondary"}
+                            />
+                          </Row>
+                          <Text
+                            value={m.preview}
+                            size="sm"
+                            maxLines={sizeMode === "medium" ? 1 : 2}
+                          />
+                          <Caption
+                            value={m.context + (m.unread ? " · Unread" : "")}
+                          />
+                        </Col>
+                      </Row>
+                    </Each>
+                  </Col>
+                </Scope>
+              </Each>
+            </Col>
+          </Show.ElseIf>
+          <Show.ElseIf when={layout === "timeline"}>
+            <Show when={sizeMode === "medium"}>
+              <List marker="empty-circle" connector gap={3} maxMarkerSize={10}>
+                <Each of={mentions.slice(0, 4)} item="m">
+                  <List.Item key={m.id}>
+                    <Col gap={1}>
+                      <Row gap={2} wrap="wrap">
+                        <Text value={m.sender} size="sm" weight="semibold" />
+                        <Spacer />
+                        <Caption value={m.time} />
+                      </Row>
+                      <Text value={m.preview} size="sm" maxLines={2} />
+                      <Row gap={1} wrap="wrap">
+                        <Image
+                          src={
+                            availableImages[m.platform === "slack" ? 0 : 1].url
+                          }
+                          alt={m.platformName}
+                          size={13}
+                          fit="contain"
+                          radius="2xs"
+                          background={
+                            m.platform === "github" ? "white" : "surface"
+                          }
+                        />
+                        <Caption
+                          value={m.context + (m.unread ? " · Unread" : "")}
+                        />
+                      </Row>
+                    </Col>
+                  </List.Item>
+                </Each>
+              </List>
+              <Show.Else>
+                <Col gap={0}>
+                  <Each of={mentions} item="m" index="i">
+                    <Col key={m.id} gap={0}>
+                      <Show when={i === 0 || i === 4}>
+                        <Row
+                          padding={{ top: i === 0 ? 0 : 2, bottom: 3 }}
+                          gap={2}
+                        >
+                          <Icon
+                            name={i === 0 ? "clock" : "history"}
+                            size="sm"
+                            color={i === 0 ? "secondary" : "warning"}
+                          />
+                          <Text
+                            value={i === 0 ? labels.today : labels.carried}
+                            size="xs"
+                            weight="semibold"
+                            color={i === 0 ? "secondary" : "warning"}
+                          />
+                        </Row>
+                      </Show>
+                      <Row align="stretch" gap={3}>
+                        <Col width={36} gap={0} padding={{ top: 0.5 }}>
+                          <Caption
+                            value={m.time}
+                            color={m.ageHours >= 24 ? "warning" : "secondary"}
+                            size="sm"
+                          />
+                        </Col>
+                        <Col
+                          width={8}
+                          align="center"
+                          gap={1}
+                          padding={{ top: 1 }}
+                        >
+                          <Box
+                            size={6}
+                            radius="full"
+                            background={
+                              m.ageHours >= 24 ? "warning" : "surface-tertiary"
+                            }
+                          />
+                          <Show when={i !== 3 && i !== 5}>
+                            <Box
+                              width={1}
+                              minHeight={45}
+                              flex={1}
+                              background="surface-tertiary"
+                            />
+                          </Show>
+                        </Col>
+                        <Col
+                          flex={1}
+                          minWidth={0}
+                          gap={1}
+                          padding={{ bottom: 4 }}
+                        >
+                          <Row gap={2}>
+                            <Image
+                              src={
+                                availableImages[m.platform === "slack" ? 0 : 1]
+                                  .url
+                              }
+                              alt={m.platformName}
+                              size={15}
+                              fit="contain"
+                              radius="2xs"
+                              background={
+                                m.platform === "github" ? "white" : "surface"
+                              }
+                            />
+                            <Text
+                              value={m.sender}
+                              size="sm"
+                              weight="semibold"
+                            />
+                            <Show when={m.unread}>
+                              <Box size={5} radius="full" background="info" />
+                            </Show>
+                          </Row>
+                          <Text value={m.preview} size="sm" maxLines={2} />
+                          <Caption
+                            value={m.context + (m.unread ? " · Unread" : "")}
+                          />
+                          <Show when={m.ageHours >= 24}>
+                            <Caption
+                              value={labels.overDay}
+                              color="warning"
+                              size="sm"
+                            />
+                          </Show>
+                        </Col>
+                      </Row>
+                    </Col>
+                  </Each>
+                </Col>
+              </Show.Else>
+            </Show>
+          </Show.ElseIf>
+          <Show.Else>
+            <Col gap={4}>
+              <Box
+                background={attentionSurface}
+                radius="md"
+                padding={3}
+                gap={3}
+              >
+                <Row gap={2}>
+                  <Icon name="clock" size="sm" color="warning" />
+                  <Text
+                    value={labels.attention}
+                    size="xs"
+                    weight="semibold"
+                    color="warning"
+                  />
+                  <Spacer />
+                  <Caption
+                    value={String(sizeMode === "medium" ? 1 : size(waiting))}
+                    color="warning"
+                  />
+                </Row>
+                <Each
+                  of={waiting.slice(0, sizeMode === "medium" ? 1 : 2)}
+                  item="m"
+                  index="i"
+                >
+                  <Col key={m.id} gap={2}>
+                    <Show when={i > 0}>
+                      <Divider color="subtle" />
+                    </Show>
+                    <Row gap={2} align="center">
+                      <Image
+                        src={
+                          availableImages[m.platform === "slack" ? 0 : 1].url
+                        }
+                        alt={m.platformName}
+                        size={17}
+                        fit="contain"
+                        radius="xs"
+                        background={
+                          m.platform === "github" ? "white" : "surface"
+                        }
+                      />
+                      <Text value={m.sender} size="sm" weight="semibold" />
+                      <Spacer />
+                      <Caption value={m.time} color="warning" />
+                    </Row>
+                    <Text
+                      value={m.preview}
+                      size={sizeMode === "medium" ? "md" : "sm"}
+                      weight={sizeMode === "medium" ? "medium" : "normal"}
+                    />
+                    <Caption value={m.context} />
+                  </Col>
+                </Each>
+              </Box>
+              <Col gap={2}>
+                <Row gap={2}>
+                  <Text
+                    value={labels.recent}
+                    size="xs"
+                    weight="semibold"
+                    color="secondary"
+                  />
+                  <Spacer />
+                  <Caption
+                    value={String(sizeMode === "medium" ? 3 : size(recent))}
+                    size="sm"
+                  />
+                </Row>
+                <Each
+                  of={recent.slice(0, sizeMode === "medium" ? 3 : 4)}
+                  item="m"
+                  index="i"
+                >
+                  <Col key={m.id} gap={2}>
+                    <Show when={i > 0}>
+                      <Divider color="subtle" />
+                    </Show>
+                    <Row gap={2} align="start" padding={{ y: 1 }}>
+                      <Image
+                        src={
+                          availableImages[m.platform === "slack" ? 0 : 1].url
+                        }
+                        alt={m.platformName}
+                        size={16}
+                        fit="contain"
+                        radius="xs"
+                        background={
+                          m.platform === "github" ? "white" : "surface"
+                        }
+                      />
+                      <Col flex={1} minWidth={0} gap={1}>
+                        <Row gap={2} wrap="wrap">
+                          <Text value={m.sender} size="sm" weight="semibold" />
+                          <Show when={m.unread}>
+                            <Box size={5} radius="full" background="info" />
+                          </Show>
+                          <Spacer />
+                          <Caption value={m.time} />
+                        </Row>
+                        <Text
+                          value={m.preview}
+                          size="sm"
+                          maxLines={sizeMode === "medium" ? 1 : 2}
+                        />
+                        <Caption
+                          value={m.context + (m.unread ? " · Unread" : "")}
+                        />
+                      </Col>
+                    </Row>
+                  </Col>
+                </Each>
+              </Col>
+            </Col>
+          </Show.Else>
+        </Show>
+      </Card>
+      <Caption value={notes[layout][sizeMode]} />
+      <Text value={labels.explanation} size="xs" color="secondary" />
+    </Box>
+  </Basic>
+</Scope>
+
+{
+  "layout": "unified",
+  "sizeMode": "medium",
+  "appearance": "light",
+  "labels": {
+    "study": "Design studies · 10 compositions · synthetic inbox",
+    "composition": "Composition",
+    "size": "Widget size",
+    "appearance": "Appearance",
+    "title": "Unanswered mentions",
+    "latest": "Latest mention",
+    "alsoToday": "Also today",
+    "today": "Today",
+    "earlier": "Earlier · still unanswered",
+    "carried": "Carried over · more than 24h",
+    "unreadSuffix": "· Unread",
+    "waitingSuffix": "· Awaiting reply",
+    "overDay": "Unanswered for more than 24 hours",
+    "attention": "Waiting more than 24h",
+    "recent": "Recent mentions",
+    "explanation": "Unread and unanswered are separate states. Attention is based on time waiting, not unread status."
+  },
+  "layouts": [
+    {
+      "value": "minimal",
+      "label": "01 · Minimal"
+    },
+    {
+      "value": "unified",
+      "label": "02 · Unified inbox"
+    },
+    {
+      "value": "grouped",
+      "label": "03 · Grouped by platform"
+    },
+    {
+      "value": "timeline",
+      "label": "04 · Timeline"
+    },
+    {
+      "value": "priority",
+      "label": "05 · Priority-focused"
+    }
+  ],
+  "sizes": [
+    {
+      "value": "medium",
+      "label": "Medium"
+    },
+    {
+      "value": "large",
+      "label": "Large"
+    }
+  ],
+  "appearances": [
+    {
+      "value": "light",
+      "label": "Light"
+    },
+    {
+      "value": "dark",
+      "label": "Dark"
+    }
+  ],
+  "attentionSurface": {
+    "light": "#faf5eb",
+    "dark": "#2b261d"
+  },
+  "availableImages": [
+    {
+      "url": "https://toppng.com/uploads/preview/slack-new-logo-11609376882jqwk3wapi2.png",
+      "alt": "Slack"
+    },
+    {
+      "url": "https://toppng.com/public/uploads/preview/github-logo-transparent-background-11659780033ppk7hsffs0.png",
+      "alt": "GitHub"
+    }
+  ],
+  "platforms": [
+    {
+      "id": "slack",
+      "name": "Slack",
+      "imageIndex": 0,
+      "description": "Conversations"
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "imageIndex": 1,
+      "description": "PR · Issue · Discussion"
+    }
+  ],
+  "mentions": [
+    {
+      "id": "spacing-review",
+      "platform": "slack",
+      "platformName": "Slack",
+      "sender": "Maya Chen",
+      "initials": "MC",
+      "kind": "Discussion",
+      "kindIcon": "message",
+      "context": "#design-systems · Discussion",
+      "preview": "Could you review the updated spacing before we publish the library?",
+      "time": "8m",
+      "ageHours": 0.133,
+      "unread": true
+    },
+    {
+      "id": "focus-review",
+      "platform": "github",
+      "platformName": "GitHub",
+      "sender": "Eli Brooks",
+      "initials": "EB",
+      "kind": "Pull request",
+      "kindIcon": "code",
+      "context": "atlas/web · PR #128",
+      "preview": "The keyboard fix is ready. Can you take another look at the focus ring?",
+      "time": "24m",
+      "ageHours": 0.4,
+      "unread": true
+    },
+    {
+      "id": "release-question",
+      "platform": "slack",
+      "platformName": "Slack",
+      "sender": "Nora Patel",
+      "initials": "NP",
+      "kind": "Discussion",
+      "kindIcon": "message",
+      "context": "#release-room · Discussion",
+      "preview": "Do we want to hold the release until the empty state is merged?",
+      "time": "1h",
+      "ageHours": 1,
+      "unread": false
+    },
+    {
+      "id": "invitation-status",
+      "platform": "github",
+      "platformName": "GitHub",
+      "sender": "Theo Park",
+      "initials": "TP",
+      "kind": "Issue",
+      "kindIcon": "alert-circle",
+      "context": "atlas/api · Issue #246",
+      "preview": "Should expired invitations return 410 instead of 404?",
+      "time": "2h",
+      "ageHours": 2,
+      "unread": false
+    },
+    {
+      "id": "migration-owner",
+      "platform": "slack",
+      "platformName": "Slack",
+      "sender": "Sam Rivera",
+      "initials": "SR",
+      "kind": "Discussion",
+      "kindIcon": "message",
+      "context": "#product · Discussion",
+      "preview": "Can you confirm who owns the migration checklist?",
+      "time": "26h",
+      "ageHours": 26,
+      "unread": false
+    },
+    {
+      "id": "motion-documentation",
+      "platform": "github",
+      "platformName": "GitHub",
+      "sender": "Ava Morgan",
+      "initials": "AM",
+      "kind": "Discussion",
+      "kindIcon": "message",
+      "context": "atlas/web · Discussion #52",
+      "preview": "Would a reduced-motion example help document this pattern?",
+      "time": "2d",
+      "ageHours": 49,
+      "unread": false
+    }
+  ],
+  "notes": {
+    "minimal": {
+      "medium": "Medium / Minimal — one generous latest preview, then two compact entries.",
+      "large": "Large / Minimal — an expanded latest mention, three recent entries, and a carried-over item."
+    },
+    "unified": {
+      "medium": "Medium / Unified — four mixed-source rows with initials, previews, and source context.",
+      "large": "Large / Unified — six chronological rows, separated into Today and Earlier."
+    },
+    "grouped": {
+      "medium": "Medium / Grouped — two Slack conversations and two GitHub mentions under distinct source headers.",
+      "large": "Large / Grouped — three entries per platform, with conversation identities and GitHub type markers."
+    },
+    "timeline": {
+      "medium": "Medium / Timeline — four compact entries connected by a quiet chronological rail.",
+      "large": "Large / Timeline — six entries with a dedicated time gutter and a carried-over segment."
+    },
+    "priority": {
+      "medium": "Medium / Priority — the oldest unanswered mention leads, followed by three recent items.",
+      "large": "Large / Priority — two mentions waiting over a day, then a separate four-item recent queue."
+    }
+  }
+}

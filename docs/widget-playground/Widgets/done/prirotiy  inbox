@@ -1,0 +1,1219 @@
+<Scope
+  values={{
+    layout: layouts[density === "medium" ? mediumStyle : largeStyle],
+    selectedMessage: messages.find((mail) => mail.id === selectedId) || null,
+    lead: messages[0],
+  }}
+>
+  <Scope
+    values={{
+      visibleMessages: messages.filter((mail) => layout.ids.includes(mail.id)),
+    }}
+  >
+    <Basic align="center" gap={3}>
+      <Box width="100%" maxWidth={440} gap={3}>
+        <Row justify="between" gap={3} wrap="wrap">
+          <Col gap={0}>
+            <Text value={labels.galleryTitle} size="sm" weight="semibold" />
+            <Caption value={labels.galleryNote} size="sm" />
+          </Col>
+          <SegmentedControl
+            name="appearance"
+            bind="appearance"
+            options={appearances}
+            ariaLabel={labels.appearanceLabel}
+            size="lg"
+          />
+        </Row>
+        <Row align="end" gap={3} wrap="wrap">
+          <Col gap={1} flex={1} minWidth={140}>
+            <Label value={labels.sizeLabel} fieldName="density" />
+            <SegmentedControl
+              name="density"
+              bind="density"
+              options={sizes}
+              ariaLabel={labels.sizeLabel}
+              block
+              size="xl"
+              onChangeAction={{ updateState: { selectedId: "" } }}
+            />
+          </Col>
+          <Col gap={1} flex={1} minWidth={150}>
+            <Label value={labels.compositionLabel} fieldName="composition" />
+            <Select
+              name="composition"
+              bind={density === "medium" ? "mediumStyle" : "largeStyle"}
+              options={density === "medium" ? mediumOptions : largeOptions}
+              block
+              size="xl"
+              onChangeAction={{ updateState: { selectedId: "" } }}
+            />
+          </Col>
+        </Row>
+      </Box>
+      <Box width="100%" maxWidth={440}>
+        <Card size="full" theme={appearance} padding={4} gap={4}>
+          <Row gap={3} align="start">
+            <Col gap={1} flex={1} minWidth={0}>
+              <Row gap={2}>
+                <Icon name="mail" color="secondary" />
+                <Title value={labels.inboxTitle} size="sm" />
+              </Row>
+              <Caption value={layout.subtitle} size="sm" />
+            </Col>
+            <Text
+              value={
+                String(size(visibleMessages.filter((mail) => mail.unread))) +
+                labels.unreadSuffix
+              }
+              size="sm"
+              color="secondary"
+              tabularNums
+            />
+          </Row>
+          <Show when={selectedMessage === null}>
+            <Show when={mediumStyle === "minimal" && density === "medium"}>
+              <Col gap={3}>
+                <Box
+                  background="surface-secondary"
+                  radius="lg"
+                  padding={4}
+                  gap={3}
+                >
+                  <Row gap={1}>
+                    <Icon name="arrow-left" size="xs" color="warning" />
+                    <Caption
+                      value={labels.needsReply}
+                      color="warning"
+                      weight="medium"
+                    />
+                  </Row>
+                  <Col gap={2}>
+                    <Row gap={2}>
+                      <Box size={6} radius="full" background="info" />
+                      <Text value={lead.sender} size="sm" weight="semibold" />
+                      <Spacer />
+                      <Caption value={lead.time} size="sm" tabularNums />
+                    </Row>
+                    <Text
+                      value={lead.subject}
+                      size="xl"
+                      weight="semibold"
+                      color="emphasis"
+                    />
+                    <Text value={lead.preview} size="sm" color="secondary" />
+                  </Col>
+                  <Row>
+                    <Button
+                      label={labels.readMessage}
+                      iconEnd="arrow-right"
+                      variant="outline"
+                      size="xl"
+                      onClickAction={{ updateState: { selectedId: lead.id } }}
+                    />
+                  </Row>
+                </Box>
+                <Each of={visibleMessages.slice(1)} item="mail" index="i">
+                  <Col key={mail.id} gap={2}>
+                    <Show when={i > 0}>
+                      <Divider color="subtle" />
+                    </Show>
+                    <Pressable
+                      padding={{ y: 1 }}
+                      radius="sm"
+                      onClickAction={{ updateState: { selectedId: mail.id } }}
+                    >
+                      <Col gap={1}>
+                        <Row gap={2}>
+                          <Box
+                            size={6}
+                            radius="full"
+                            background={
+                              mail.unread ? "info" : "surface-tertiary"
+                            }
+                          />
+                          <Text
+                            value={mail.sender}
+                            size="sm"
+                            weight={mail.unread ? "semibold" : "medium"}
+                          />
+                          <Spacer />
+                          <Caption value={mail.time} size="sm" tabularNums />
+                        </Row>
+                        <Text value={mail.subject} size="sm" weight="medium" />
+                        <Text
+                          value={mail.preview}
+                          size="sm"
+                          color="secondary"
+                          maxLines={1}
+                        />
+                        <Row gap={2} wrap="wrap">
+                          <Show when={mail.needsReply}>
+                            <Row gap={1}>
+                              <Icon
+                                name="arrow-left"
+                                size="xs"
+                                color="secondary"
+                              />
+                              <Caption value={labels.needsReply} size="sm" />
+                            </Row>
+                          </Show>
+                          <Show when={mail.attachments > 0}>
+                            <Row gap={1}>
+                              <Icon
+                                name="paperclip"
+                                size="xs"
+                                color="secondary"
+                              />
+                              <Caption
+                                value={pluralize(mail.attachments, "file")}
+                                size="sm"
+                              />
+                            </Row>
+                          </Show>
+                        </Row>
+                      </Col>
+                    </Pressable>
+                  </Col>
+                </Each>
+              </Col>
+              <Show.ElseIf
+                when={mediumStyle === "inbox" && density === "medium"}
+              >
+                <Col gap={0}>
+                  <Each of={visibleMessages} item="mail" index="i">
+                    <Col key={mail.id} gap={0}>
+                      <Show when={i > 0}>
+                        <Divider color="subtle" />
+                      </Show>
+                      <Pressable
+                        padding={{ y: 3 }}
+                        radius="sm"
+                        onClickAction={{ updateState: { selectedId: mail.id } }}
+                      >
+                        <Row align="start" gap={3}>
+                          <Box
+                            size={32}
+                            background="surface-secondary"
+                            radius="sm"
+                            align="center"
+                            justify="center"
+                          >
+                            <Text
+                              value={mail.initials}
+                              size="xs"
+                              color="secondary"
+                              weight="medium"
+                            />
+                          </Box>
+                          <Col flex={1} minWidth={0} gap={1}>
+                            <Row gap={2} align="baseline">
+                              <Text
+                                value={mail.sender}
+                                size="sm"
+                                weight={mail.unread ? "semibold" : "normal"}
+                              />
+                              <Spacer />
+                              <Caption
+                                value={mail.time}
+                                size="sm"
+                                tabularNums
+                              />
+                            </Row>
+                            <Row gap={2}>
+                              <Box
+                                size={6}
+                                radius="full"
+                                background={
+                                  mail.unread ? "info" : "surface-tertiary"
+                                }
+                              />
+                              <Text
+                                value={mail.subject}
+                                size="sm"
+                                weight={mail.unread ? "semibold" : "normal"}
+                              />
+                            </Row>
+                            <Text
+                              value={mail.preview}
+                              size="sm"
+                              color="secondary"
+                              maxLines={1}
+                            />
+                            <Row gap={3} wrap="wrap">
+                              <Show when={mail.needsReply}>
+                                <Row gap={1}>
+                                  <Icon
+                                    name="arrow-left"
+                                    size="xs"
+                                    color="secondary"
+                                  />
+                                  <Caption
+                                    value={labels.needsReply}
+                                    size="sm"
+                                  />
+                                </Row>
+                              </Show>
+                              <Show when={mail.attachments > 0}>
+                                <Row gap={1}>
+                                  <Icon
+                                    name="paperclip"
+                                    size="xs"
+                                    color="secondary"
+                                  />
+                                  <Caption
+                                    value={pluralize(mail.attachments, "file")}
+                                    size="sm"
+                                  />
+                                </Row>
+                              </Show>
+                            </Row>
+                          </Col>
+                        </Row>
+                      </Pressable>
+                    </Col>
+                  </Each>
+                </Col>
+              </Show.ElseIf>
+              <Show.ElseIf
+                when={mediumStyle === "mediumEditorial" && density === "medium"}
+              >
+                <Col gap={4}>
+                  <Pressable
+                    radius="sm"
+                    onClickAction={{ updateState: { selectedId: lead.id } }}
+                  >
+                    <Col gap={3}>
+                      <Row gap={2}>
+                        <Box size={6} radius="full" background="info" />
+                        <Caption value={labels.needsReply} color="warning" />
+                        <Spacer />
+                        <Caption value={lead.time} size="sm" tabularNums />
+                      </Row>
+                      <Col gap={1}>
+                        <Text value={lead.sender} size="xl" color="secondary" />
+                        <Text
+                          value={lead.subject}
+                          size="xl"
+                          weight="semibold"
+                          color="emphasis"
+                        />
+                      </Col>
+                      <Text value={lead.preview} size="sm" color="secondary" />
+                      <Row gap={1}>
+                        <Caption value={labels.readMessage} size="sm" />
+                        <Icon
+                          name="arrow-up-right"
+                          size="xs"
+                          color="secondary"
+                        />
+                      </Row>
+                    </Col>
+                  </Pressable>
+                  <Grid
+                    columns="repeat(auto-fit, minmax(min(100%, 140px), 1fr))"
+                    gap={4}
+                  >
+                    <Each of={visibleMessages.slice(1)} item="mail">
+                      <Grid.Item key={mail.id}>
+                        <Pressable
+                          onClickAction={{
+                            updateState: { selectedId: mail.id },
+                          }}
+                          radius="sm"
+                        >
+                          <Col
+                            gap={2}
+                            border={{ top: { size: 1, color: "subtle" } }}
+                            padding={{ top: 3 }}
+                          >
+                            <Row gap={2}>
+                              <Box
+                                size={6}
+                                radius="full"
+                                background={
+                                  mail.unread ? "info" : "surface-tertiary"
+                                }
+                              />
+                              <Text
+                                value={mail.sender}
+                                size="sm"
+                                weight="semibold"
+                              />
+                            </Row>
+                            <Caption value={mail.time} size="sm" tabularNums />
+                            <Text
+                              value={mail.subject}
+                              size="sm"
+                              weight="medium"
+                            />
+                            <Text
+                              value={mail.preview}
+                              size="sm"
+                              color="secondary"
+                              maxLines={2}
+                            />
+                            <Show when={mail.needsReply}>
+                              <Row gap={1}>
+                                <Icon
+                                  name="arrow-left"
+                                  size="xs"
+                                  color="secondary"
+                                />
+                                <Caption value={labels.needsReply} size="sm" />
+                              </Row>
+                            </Show>
+                            <Show when={mail.attachments > 0}>
+                              <Row gap={1}>
+                                <Icon
+                                  name="paperclip"
+                                  size="xs"
+                                  color="secondary"
+                                />
+                                <Caption
+                                  value={pluralize(mail.attachments, "file")}
+                                  size="sm"
+                                />
+                              </Row>
+                            </Show>
+                          </Col>
+                        </Pressable>
+                      </Grid.Item>
+                    </Each>
+                  </Grid>
+                </Col>
+              </Show.ElseIf>
+              <Show.ElseIf
+                when={largeStyle === "grouped" && density === "large"}
+              >
+                <Col gap={4}>
+                  <Each of={layout.groups} item="group">
+                    <Col key={group.id} gap={1}>
+                      <Row gap={2}>
+                        <Icon name={group.icon} size="sm" color={group.tone} />
+                        <Text
+                          value={group.label}
+                          size="sm"
+                          weight="semibold"
+                          color={group.tone}
+                        />
+                        <Spacer />
+                        <Caption
+                          value={String(size(group.ids))}
+                          size="sm"
+                          tabularNums
+                        />
+                      </Row>
+                      <Each
+                        of={messages.filter((mail) =>
+                          group.ids.includes(mail.id),
+                        )}
+                        item="mail"
+                        index="i"
+                      >
+                        <Col key={mail.id} gap={0}>
+                          <Show when={i > 0}>
+                            <Divider color="subtle" />
+                          </Show>
+                          <Pressable
+                            padding={{ y: 2 }}
+                            radius="sm"
+                            onClickAction={{
+                              updateState: { selectedId: mail.id },
+                            }}
+                          >
+                            <Col gap={1}>
+                              <Row gap={2}>
+                                <Box
+                                  size={6}
+                                  radius="full"
+                                  background={
+                                    mail.unread ? "info" : "surface-tertiary"
+                                  }
+                                />
+                                <Text
+                                  value={mail.sender}
+                                  size="sm"
+                                  weight={mail.unread ? "semibold" : "normal"}
+                                />
+                                <Spacer />
+                                <Caption
+                                  value={mail.time}
+                                  size="sm"
+                                  tabularNums
+                                />
+                              </Row>
+                              <Text
+                                value={mail.subject}
+                                size="sm"
+                                weight={mail.unread ? "semibold" : "medium"}
+                              />
+                              <Text
+                                value={mail.preview}
+                                size="sm"
+                                color="secondary"
+                                maxLines={1}
+                              />
+                              <Row gap={3} wrap="wrap">
+                                <Show when={mail.needsReply}>
+                                  <Row gap={1}>
+                                    <Icon
+                                      name="arrow-left"
+                                      size="xs"
+                                      color="secondary"
+                                    />
+                                    <Caption
+                                      value={labels.needsReply}
+                                      size="sm"
+                                    />
+                                  </Row>
+                                </Show>
+                                <Show when={mail.attachments > 0}>
+                                  <Row gap={1}>
+                                    <Icon
+                                      name="paperclip"
+                                      size="xs"
+                                      color="secondary"
+                                    />
+                                    <Caption
+                                      value={pluralize(
+                                        mail.attachments,
+                                        "file",
+                                      )}
+                                      size="sm"
+                                    />
+                                  </Row>
+                                </Show>
+                              </Row>
+                            </Col>
+                          </Pressable>
+                        </Col>
+                      </Each>
+                    </Col>
+                  </Each>
+                </Col>
+              </Show.ElseIf>
+              <Show.ElseIf
+                when={largeStyle === "priority" && density === "large"}
+              >
+                <Col gap={4}>
+                  <Each of={layout.groups} item="group">
+                    <Col key={group.id} gap={2}>
+                      <Row gap={2}>
+                        <Text
+                          value={group.label}
+                          size="sm"
+                          weight="semibold"
+                          color={group.tone}
+                        />
+                        <Spacer />
+                        <Caption value={group.note} size="sm" />
+                      </Row>
+                      <Show when={group.id === "urgent"}>
+                        <Pressable
+                          background="surface-secondary"
+                          radius="md"
+                          padding={3}
+                          onClickAction={{
+                            updateState: { selectedId: lead.id },
+                          }}
+                        >
+                          <Row gap={3} align="start">
+                            <Box
+                              width={3}
+                              minHeight={110}
+                              background="warning"
+                              radius="full"
+                            />
+                            <Col gap={2} flex={1} minWidth={0}>
+                              <Row gap={2}>
+                                <Box size={6} radius="full" background="info" />
+                                <Text
+                                  value={lead.sender}
+                                  size="sm"
+                                  weight="semibold"
+                                />
+                                <Spacer />
+                                <Caption
+                                  value={lead.time}
+                                  size="sm"
+                                  tabularNums
+                                />
+                              </Row>
+                              <Text
+                                value={lead.subject}
+                                size="lg"
+                                weight="semibold"
+                                color="emphasis"
+                              />
+                              <Text
+                                value={lead.preview}
+                                size="sm"
+                                color="secondary"
+                              />
+                              <Row gap={1}>
+                                <Icon
+                                  name="arrow-left"
+                                  size="xs"
+                                  color="warning"
+                                />
+                                <Caption
+                                  value={labels.needsReply}
+                                  color="warning"
+                                  size="sm"
+                                />
+                              </Row>
+                            </Col>
+                          </Row>
+                        </Pressable>
+                        <Show.Else>
+                          <Each
+                            of={messages.filter((mail) =>
+                              group.ids.includes(mail.id),
+                            )}
+                            item="mail"
+                            index="i"
+                          >
+                            <Col key={mail.id} gap={2}>
+                              <Show when={i > 0}>
+                                <Divider color="subtle" />
+                              </Show>
+                              <Pressable
+                                padding={{ y: 1 }}
+                                radius="sm"
+                                onClickAction={{
+                                  updateState: { selectedId: mail.id },
+                                }}
+                              >
+                                <Row gap={3} align="start">
+                                  <Box
+                                    size={24}
+                                    align="center"
+                                    justify="center"
+                                  >
+                                    <Icon
+                                      name={
+                                        group.id === "important"
+                                          ? "flag"
+                                          : "mail"
+                                      }
+                                      size="sm"
+                                      color={group.tone}
+                                    />
+                                  </Box>
+                                  <Col gap={1} flex={1} minWidth={0}>
+                                    <Row gap={2}>
+                                      <Box
+                                        size={6}
+                                        radius="full"
+                                        background={
+                                          mail.unread
+                                            ? "info"
+                                            : "surface-tertiary"
+                                        }
+                                      />
+                                      <Text
+                                        value={mail.sender}
+                                        size="sm"
+                                        weight={
+                                          mail.unread ? "semibold" : "normal"
+                                        }
+                                      />
+                                      <Spacer />
+                                      <Caption
+                                        value={mail.time}
+                                        size="sm"
+                                        tabularNums
+                                      />
+                                    </Row>
+                                    <Text
+                                      value={mail.subject}
+                                      size="sm"
+                                      weight={
+                                        group.id === "important"
+                                          ? "medium"
+                                          : "normal"
+                                      }
+                                    />
+                                    <Text
+                                      value={mail.preview}
+                                      size="sm"
+                                      color="secondary"
+                                      maxLines={1}
+                                    />
+                                    <Row gap={3} wrap="wrap">
+                                      <Show when={mail.needsReply}>
+                                        <Row gap={1}>
+                                          <Icon
+                                            name="arrow-left"
+                                            size="xs"
+                                            color="secondary"
+                                          />
+                                          <Caption
+                                            value={labels.needsReply}
+                                            size="sm"
+                                          />
+                                        </Row>
+                                      </Show>
+                                      <Show when={mail.attachments > 0}>
+                                        <Row gap={1}>
+                                          <Icon
+                                            name="paperclip"
+                                            size="xs"
+                                            color="secondary"
+                                          />
+                                          <Caption
+                                            value={pluralize(
+                                              mail.attachments,
+                                              "file",
+                                            )}
+                                            size="sm"
+                                          />
+                                        </Row>
+                                      </Show>
+                                    </Row>
+                                  </Col>
+                                </Row>
+                              </Pressable>
+                            </Col>
+                          </Each>
+                        </Show.Else>
+                      </Show>
+                    </Col>
+                  </Each>
+                </Col>
+              </Show.ElseIf>
+              <Show.Else>
+                <Col gap={4}>
+                  <Col gap={3}>
+                    <Row gap={2}>
+                      <Caption
+                        value={labels.urgent}
+                        color="warning"
+                        weight="medium"
+                      />
+                      <Spacer />
+                      <Caption value={lead.time} size="sm" tabularNums />
+                    </Row>
+                    <Pressable
+                      radius="sm"
+                      onClickAction={{ updateState: { selectedId: lead.id } }}
+                    >
+                      <Col gap={2}>
+                        <Row gap={2}>
+                          <Box size={6} radius="full" background="info" />
+                          <Text
+                            value={lead.sender}
+                            size="xl"
+                            weight="medium"
+                            color="secondary"
+                          />
+                        </Row>
+                        <Title value={lead.subject} size="lg" />
+                        <Text
+                          value={lead.preview}
+                          size="sm"
+                          color="secondary"
+                        />
+                        <Row gap={1}>
+                          <Icon name="arrow-left" size="xs" color="warning" />
+                          <Caption
+                            value={labels.needsReply}
+                            color="warning"
+                            size="sm"
+                          />
+                        </Row>
+                      </Col>
+                    </Pressable>
+                  </Col>
+                  <Each of={layout.groups} item="group">
+                    <Col key={group.id} gap={2}>
+                      <Divider color="subtle" />
+                      <Row gap={2} padding={{ top: 1 }}>
+                        <Caption
+                          value={group.number}
+                          size="sm"
+                          color="tertiary"
+                        />
+                        <Text value={group.label} size="sm" weight="semibold" />
+                        <Spacer />
+                        <Caption value={String(size(group.ids))} size="sm" />
+                      </Row>
+                      <Each
+                        of={messages.filter((mail) =>
+                          group.ids.includes(mail.id),
+                        )}
+                        item="mail"
+                      >
+                        <Pressable
+                          key={mail.id}
+                          padding={{ y: 1 }}
+                          radius="sm"
+                          onClickAction={{
+                            updateState: { selectedId: mail.id },
+                          }}
+                        >
+                          <Col gap={1}>
+                            <Row gap={2}>
+                              <Box
+                                size={6}
+                                radius="full"
+                                background={
+                                  mail.unread ? "info" : "surface-tertiary"
+                                }
+                              />
+                              <Text
+                                value={mail.sender}
+                                size="sm"
+                                weight={mail.unread ? "semibold" : "normal"}
+                              />
+                              <Spacer />
+                              <Caption
+                                value={mail.time}
+                                size="sm"
+                                tabularNums
+                              />
+                            </Row>
+                            <Text
+                              value={mail.subject}
+                              size="sm"
+                              weight="medium"
+                            />
+                            <Text
+                              value={mail.preview}
+                              size="sm"
+                              color="secondary"
+                              maxLines={1}
+                            />
+                            <Row gap={3} wrap="wrap">
+                              <Show when={mail.needsReply}>
+                                <Row gap={1}>
+                                  <Icon
+                                    name="arrow-left"
+                                    size="xs"
+                                    color="secondary"
+                                  />
+                                  <Caption
+                                    value={labels.needsReply}
+                                    size="sm"
+                                  />
+                                </Row>
+                              </Show>
+                              <Show when={mail.attachments > 0}>
+                                <Row gap={1}>
+                                  <Icon
+                                    name="paperclip"
+                                    size="xs"
+                                    color="secondary"
+                                  />
+                                  <Caption
+                                    value={pluralize(mail.attachments, "file")}
+                                    size="sm"
+                                  />
+                                </Row>
+                              </Show>
+                            </Row>
+                          </Col>
+                        </Pressable>
+                      </Each>
+                    </Col>
+                  </Each>
+                </Col>
+              </Show.Else>
+            </Show>
+            <Divider color="subtle" />
+            <Row gap={2} wrap="wrap">
+              <Box size={6} radius="full" background="info" />
+              <Caption value={labels.legend} size="sm" />
+              <Spacer />
+              <Caption value={labels.demoLabel} size="sm" />
+            </Row>
+            <Show.Else>
+              <Col gap={4}>
+                <Row>
+                  <Button
+                    label={labels.backLabel}
+                    iconStart="arrow-left"
+                    variant="ghost"
+                    size="xl"
+                    onClickAction={{ updateState: { selectedId: "" } }}
+                  />
+                </Row>
+                <Col gap={2}>
+                  <Text
+                    value={selectedMessage.subject}
+                    size="xl"
+                    weight="semibold"
+                    color="emphasis"
+                  />
+                  <Text
+                    value={selectedMessage.sender}
+                    size="sm"
+                    weight="semibold"
+                  />
+                  <Caption value={selectedMessage.email} />
+                  <Caption value={selectedMessage.time + labels.todaySuffix} />
+                </Col>
+                <Row gap={3} wrap="wrap">
+                  <Show when={selectedMessage.unread}>
+                    <Text value={labels.unreadLabel} size="sm" color="info" />
+                  </Show>
+                  <Show when={selectedMessage.needsReply}>
+                    <Row gap={1}>
+                      <Icon name="arrow-left" size="sm" color="warning" />
+                      <Text
+                        value={labels.needsReply}
+                        size="sm"
+                        color="warning"
+                      />
+                    </Row>
+                  </Show>
+                  <Show when={selectedMessage.attachments > 0}>
+                    <Row gap={1}>
+                      <Icon name="paperclip" size="sm" color="secondary" />
+                      <Text
+                        value={pluralize(selectedMessage.attachments, "file")}
+                        size="sm"
+                        color="secondary"
+                      />
+                    </Row>
+                  </Show>
+                </Row>
+                <Divider color="subtle" />
+                <Text
+                  value={selectedMessage.body}
+                  size="sm"
+                  preserveWhitespace
+                />
+                <Row>
+                  <Button
+                    label={labels.draftLabel}
+                    iconStart="write"
+                    size="2xl"
+                    color="primary"
+                    onClickAction={{
+                      type: "send_message",
+                      payload: {
+                        text:
+                          labels.draftPrompt +
+                          selectedMessage.sender +
+                          "\nSubject: " +
+                          selectedMessage.subject +
+                          "\n\n" +
+                          selectedMessage.body,
+                      },
+                    }}
+                  />
+                </Row>
+                <Text value={labels.detailNote} size="sm" color="secondary" />
+              </Col>
+            </Show.Else>
+          </Show>
+        </Card>
+      </Box>
+    </Basic>
+  </Scope>
+</Scope>
+
+
+{
+  "density": "medium",
+  "mediumStyle": "minimal",
+  "largeStyle": "grouped",
+  "appearance": "light",
+  "selectedId": "",
+  "labels": {
+    "galleryTitle": "Inbox studies",
+    "galleryNote": "Six distinct layouts · synthetic messages",
+    "appearanceLabel": "Preview appearance",
+    "sizeLabel": "Density",
+    "compositionLabel": "Composition",
+    "inboxTitle": "Priority Inbox",
+    "unreadSuffix": " unread",
+    "needsReply": "Needs reply",
+    "readMessage": "Read message",
+    "urgent": "Urgent",
+    "legend": "Unread · select a message to read",
+    "demoLabel": "Demo mail",
+    "backLabel": "Back to inbox",
+    "unreadLabel": "Unread",
+    "todaySuffix": " · sample inbox",
+    "draftLabel": "Ask for reply draft",
+    "draftPrompt": "Help me draft a reply to this fictional sample email. Do not send anything.\nFrom: ",
+    "detailNote": "This asks the assistant for a draft. No email is sent, and no account is connected."
+  },
+  "appearances": [
+    {
+      "label": "Light",
+      "value": "light"
+    },
+    {
+      "label": "Dark",
+      "value": "dark"
+    }
+  ],
+  "sizes": [
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "mediumOptions": [
+    {
+      "label": "Minimal",
+      "value": "minimal"
+    },
+    {
+      "label": "Inbox",
+      "value": "inbox"
+    },
+    {
+      "label": "Editorial",
+      "value": "mediumEditorial"
+    }
+  ],
+  "largeOptions": [
+    {
+      "label": "Grouped",
+      "value": "grouped"
+    },
+    {
+      "label": "Priority",
+      "value": "priority"
+    },
+    {
+      "label": "Editorial",
+      "value": "largeEditorial"
+    }
+  ],
+  "layouts": {
+    "minimal": {
+      "subtitle": "One to answer. Two to keep in view.",
+      "ids": [
+        "launch",
+        "design",
+        "plan"
+      ],
+      "groups": []
+    },
+    "inbox": {
+      "subtitle": "Today · four messages worth your attention",
+      "ids": [
+        "launch",
+        "studio",
+        "design",
+        "plan"
+      ],
+      "groups": []
+    },
+    "mediumEditorial": {
+      "subtitle": "The conversation that comes first",
+      "ids": [
+        "launch",
+        "design",
+        "plan"
+      ],
+      "groups": []
+    },
+    "grouped": {
+      "subtitle": "Today · six messages, thoughtfully sorted",
+      "ids": [
+        "launch",
+        "studio",
+        "design",
+        "plan",
+        "platform",
+        "notes"
+      ],
+      "groups": [
+        {
+          "id": "urgent",
+          "label": "Urgent",
+          "icon": "clock",
+          "tone": "warning",
+          "ids": [
+            "launch",
+            "studio"
+          ]
+        },
+        {
+          "id": "important",
+          "label": "Important",
+          "icon": "flag",
+          "tone": "info",
+          "ids": [
+            "design",
+            "plan"
+          ]
+        },
+        {
+          "id": "other",
+          "label": "Other",
+          "icon": "mail",
+          "tone": "secondary",
+          "ids": [
+            "platform",
+            "notes"
+          ]
+        }
+      ]
+    },
+    "priority": {
+      "subtitle": "A clear next step. A quieter rest.",
+      "ids": [
+        "launch",
+        "studio",
+        "design",
+        "platform",
+        "notes"
+      ],
+      "groups": [
+        {
+          "id": "urgent",
+          "label": "Urgent",
+          "tone": "warning",
+          "note": "Decision before 11",
+          "ids": [
+            "launch"
+          ]
+        },
+        {
+          "id": "important",
+          "label": "Important",
+          "tone": "info",
+          "note": "Review next",
+          "ids": [
+            "studio",
+            "design"
+          ]
+        },
+        {
+          "id": "other",
+          "label": "Other",
+          "tone": "secondary",
+          "note": "When you have a moment",
+          "ids": [
+            "platform",
+            "notes"
+          ]
+        }
+      ]
+    },
+    "largeEditorial": {
+      "subtitle": "Your morning, in order of importance",
+      "ids": [
+        "launch",
+        "studio",
+        "design",
+        "plan",
+        "platform",
+        "notes"
+      ],
+      "groups": [
+        {
+          "id": "important",
+          "number": "02",
+          "label": "Important",
+          "ids": [
+            "studio",
+            "design",
+            "plan"
+          ]
+        },
+        {
+          "id": "other",
+          "number": "03",
+          "label": "Other",
+          "ids": [
+            "platform",
+            "notes"
+          ]
+        }
+      ]
+    }
+  },
+  "messages": [
+    {
+      "id": "launch",
+      "sender": "Maya Chen",
+      "initials": "MC",
+      "email": "maya.chen@example.com",
+      "subject": "Approval needed: launch brief",
+      "preview": "Could you confirm the revised timeline before 11?",
+      "time": "9:42 AM",
+      "unread": true,
+      "needsReply": true,
+      "attachments": 0,
+      "body": "Hi Alex,\n\nThe revised launch brief is ready. We moved the internal walkthrough to Thursday and kept the customer announcement on Monday.\n\nCould you confirm the timeline before 11? Once you’re comfortable with it, I’ll share the brief with the team.\n\nThanks,\nMaya"
+    },
+    {
+      "id": "studio",
+      "sender": "Theo Park",
+      "initials": "TP",
+      "email": "theo.park@example.com",
+      "subject": "A quick decision on the studio",
+      "preview": "The space is on hold until noon. Which date works?",
+      "time": "9:18 AM",
+      "unread": false,
+      "needsReply": true,
+      "attachments": 1,
+      "body": "Hi Alex,\n\nThe studio can hold either of the two dates we discussed until noon. Would you prefer Tuesday or Thursday for the team session?\n\nI’ve included the room overview so you can compare the setup. Let me know your preference before I confirm anything.\n\nTheo"
+    },
+    {
+      "id": "design",
+      "sender": "Design Team",
+      "initials": "DT",
+      "email": "design@example.com",
+      "subject": "Updated onboarding screens",
+      "preview": "The latest layouts and review notes are attached.",
+      "time": "8:55 AM",
+      "unread": true,
+      "needsReply": false,
+      "attachments": 2,
+      "body": "Morning Alex,\n\nWe’ve updated the onboarding layouts with the shorter welcome flow and clearer permission copy.\n\nThe latest screens and review notes are attached. No decision is needed this morning; we’ll walk through the changes in the next design review.\n\nDesign Team"
+    },
+    {
+      "id": "plan",
+      "sender": "Nora Ellis",
+      "initials": "NE",
+      "email": "nora.ellis@example.com",
+      "subject": "Your notes on the Q3 plan",
+      "preview": "A few open questions before tomorrow’s review.",
+      "time": "8:26 AM",
+      "unread": true,
+      "needsReply": true,
+      "attachments": 0,
+      "body": "Hi Alex,\n\nI’ve worked your notes into the Q3 plan. Two questions are still open: who owns the research handoff, and should the pilot include the support team?\n\nCould you share your thoughts before tomorrow’s review? A short reply is perfect.\n\nThanks,\nNora"
+    },
+    {
+      "id": "platform",
+      "sender": "Platform Team",
+      "initials": "PT",
+      "email": "platform@example.com",
+      "subject": "Staging is ready for review",
+      "preview": "The new build includes the fixes you flagged.",
+      "time": "7:48 AM",
+      "unread": false,
+      "needsReply": false,
+      "attachments": 0,
+      "body": "Hi Alex,\n\nThe latest staging build includes the layout and keyboard-navigation fixes you flagged last week.\n\nThis is a heads-up for your next review pass. There’s nothing you need to reply to right now.\n\nPlatform Team"
+    },
+    {
+      "id": "notes",
+      "sender": "Studio Notes",
+      "initials": "SN",
+      "email": "notes@example.com",
+      "subject": "This week, in good company",
+      "preview": "Three reads and one idea for a calmer workday.",
+      "time": "Yesterday",
+      "unread": true,
+      "needsReply": false,
+      "attachments": 0,
+      "body": "This week’s studio note\n\nA small collection for a slower moment: an essay on attention, a conversation about creative routines, and a reminder to leave a little space between meetings.\n\nNo reply needed. Save this one for a quiet break.\n\nStudio Notes"
+    }
+  ]
+}

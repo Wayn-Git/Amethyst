@@ -1,0 +1,1126 @@
+<Scope
+  values={{
+    doneCount: size(tasks.filter((task) => task.done)),
+    remainingCount: size(tasks.filter((task) => !task.done)),
+    pending: tasks.filter((task) => !task.done),
+    priorities: tasks.filter((task) => task.priority),
+    next: events[0],
+    top: tasks.find((task) => task.id === topTask),
+  }}
+>
+  <Scope
+    values={{
+      completionLabel:
+        String(doneCount) + " of " + String(size(tasks)) + " completed",
+      remainingLabel: String(remainingCount) + " remaining",
+      percent: round((doneCount / max(1, size(tasks))) * 100),
+      brief:
+        String(doneCount) + " done · " + String(remainingCount) + " remaining",
+    }}
+  >
+    <Basic align="center" gap={4}>
+      <Box width="100%" maxWidth={400} gap={3}>
+        <Col gap={1}>
+          <Title value={title} size="sm" />
+          <Caption value={collectionLabel} />
+        </Col>
+        <Col gap={1}>
+          <Label value={labels.direction} fieldName="direction" />
+          <Select
+            name="direction"
+            bind="direction"
+            options={directions}
+            block
+            size="2xl"
+          />
+        </Col>
+        <Col gap={2}>
+          <SegmentedControl
+            name="widgetSize"
+            bind="widgetSize"
+            ariaLabel={labels.size}
+            options={sizes}
+            block
+            size="2xl"
+          />
+          <Row justify="between" gap={3}>
+            <Caption
+              value={
+                directions.find((item) => item.value === direction).description
+              }
+            />
+            <Toggle
+              name="darkPreview"
+              bind="darkPreview"
+              label={labels.darkPreview}
+              variant="switch"
+            />
+          </Row>
+        </Col>
+      </Box>
+      <Box width="100%" maxWidth={400} align="center">
+        <Card
+          size="full"
+          width={widgetSize === "small" ? 224 : "100%"}
+          padding={widgetSize === "large" ? 5 : 4}
+          gap={0}
+          shadow={false}
+          theme={darkPreview ? "dark" : "light"}
+          background="surface-elevated"
+        >
+          <Show when={direction === "minimal"}>
+            <Show when={widgetSize === "small"}>
+              <Col gap={3}>
+                <Text
+                  value={date.short}
+                  size="sm"
+                  weight="medium"
+                  color={calendarColor}
+                />
+                <Col gap={1}>
+                  <Title value={greeting} size="sm" />
+                  <Text value={brief} size="sm" color="secondary" />
+                </Col>
+                <Divider color="subtle" />
+                <Col gap={1}>
+                  <Caption value={labels.upNext + " · " + next.timeLabel} />
+                  <Text value={next.title} size="sm" weight="medium" />
+                </Col>
+              </Col>
+              <Show.ElseIf when={widgetSize === "medium"}>
+                <Col gap={3}>
+                  <Col gap={1}>
+                    <Caption value={date.full} color={calendarColor} />
+                    <Title value={greeting} size="md" />
+                  </Col>
+                  <Col gap={2}>
+                    <Text value={brief} size="sm" />
+                    <Progress
+                      value={doneCount}
+                      max={size(tasks)}
+                      showValue={false}
+                      color="info"
+                      size="sm"
+                    />
+                  </Col>
+                  <Grid columns={2} gap={4}>
+                    <Col gap={1}>
+                      <Caption value={labels.upNext} />
+                      <Text value={next.title} size="sm" weight="medium" />
+                      <Caption value={next.timeLabel} />
+                    </Col>
+                    <Col gap={1}>
+                      <Caption value={labels.topPriority} />
+                      <Text value={top.title} size="sm" weight="medium" />
+                      <Caption value={top.deadline} />
+                    </Col>
+                  </Grid>
+                </Col>
+              </Show.ElseIf>
+              <Show.Else>
+                <Col gap={4}>
+                  <Col gap={1}>
+                    <Caption value={date.full} color={calendarColor} />
+                    <Title value={greeting} size="md" />
+                    <Text value={dayNote} size="sm" color="secondary" />
+                  </Col>
+                  <Col gap={2}>
+                    <Row justify="between" gap={3}>
+                      <Text value={completionLabel} size="sm" weight="medium" />
+                      <Text
+                        value={remainingLabel}
+                        size="sm"
+                        color="secondary"
+                      />
+                    </Row>
+                    <Progress
+                      value={doneCount}
+                      max={size(tasks)}
+                      showValue={false}
+                      color="info"
+                      size="sm"
+                    />
+                  </Col>
+                  <Divider color="subtle" />
+                  <Col gap={3}>
+                    <Text value={labels.schedule} size="sm" weight="semibold" />
+                    <Each of={events} item="event">
+                      <Row key={event.id} align="baseline" gap={3}>
+                        <Text
+                          value={event.timeLabel}
+                          size="sm"
+                          color="secondary"
+                          width={82}
+                          tabularNums
+                        />
+                        <Text value={event.title} size="sm" />
+                      </Row>
+                    </Each>
+                  </Col>
+                  <Divider color="subtle" />
+                  <Col gap={3}>
+                    <Text
+                      value={labels.priorities}
+                      size="sm"
+                      weight="semibold"
+                    />
+                    <Each of={priorities} item="task">
+                      <Row
+                        key={task.id}
+                        justify="between"
+                        align="baseline"
+                        gap={3}
+                      >
+                        <Text value={task.title} size="sm" />
+                        <Caption value={task.deadline} />
+                      </Row>
+                    </Each>
+                  </Col>
+                </Col>
+              </Show.Else>
+            </Show>
+            <Show.ElseIf when={direction === "progress"}>
+              <Show when={widgetSize === "small"}>
+                <Col gap={3}>
+                  <Caption value={date.short} />
+                  <Row align="end" gap={2}>
+                    <Row align="baseline" gap={1}>
+                      <Title value={String(doneCount)} size="4xl" tabularNums />
+                      <Text
+                        value={"/" + String(size(tasks))}
+                        size="lg"
+                        color="secondary"
+                        tabularNums
+                      />
+                    </Row>
+                    <Spacer />
+                    <Col gap={0} align="end">
+                      <Text
+                        value={String(remainingCount)}
+                        size="xl"
+                        weight="semibold"
+                        tabularNums
+                      />
+                      <Caption value={labels.remaining} />
+                    </Col>
+                  </Row>
+                  <Col gap={2}>
+                    <Row gap={1}>
+                      <Each of={range(size(tasks))} item="segment">
+                        <Box
+                          key={segment}
+                          flex={1}
+                          height={6}
+                          radius="2xs"
+                          background={
+                            segment < doneCount
+                              ? progressColor
+                              : "surface-tertiary"
+                          }
+                        />
+                      </Each>
+                    </Row>
+                    <Caption value={labels.tasksCompleted} />
+                  </Col>
+                  <Col gap={1}>
+                    <Caption value={labels.topPriority} />
+                    <Text value={top.title} size="sm" weight="medium" />
+                    <Caption value={top.deadline} />
+                  </Col>
+                </Col>
+                <Show.ElseIf when={widgetSize === "medium"}>
+                  <Col gap={3}>
+                    <Row align="center" gap={5}>
+                      <Col gap={0} minWidth={100}>
+                        <Title
+                          value={String(percent) + "%"}
+                          size="3xl"
+                          color={progressColor}
+                          tabularNums
+                        />
+                        <Caption value={labels.dailyProgress} />
+                      </Col>
+                      <Col gap={1} flex={1} minWidth={0}>
+                        <Caption value={date.short} />
+                        <Text value={greeting} size="sm" weight="semibold" />
+                        <Text value={completionLabel} size="sm" />
+                        <Caption value={remainingLabel} />
+                      </Col>
+                    </Row>
+                    <Row gap={1}>
+                      <Each of={range(size(tasks))} item="segment">
+                        <Box
+                          key={segment}
+                          flex={1}
+                          height={8}
+                          radius="2xs"
+                          background={
+                            segment < doneCount
+                              ? progressColor
+                              : "surface-tertiary"
+                          }
+                        />
+                      </Each>
+                    </Row>
+                    <Grid columns={2} gap={4}>
+                      <Col gap={1}>
+                        <Caption value={labels.topPriority} />
+                        <Text value={top.title} size="sm" weight="medium" />
+                        <Caption value={top.deadline} />
+                      </Col>
+                      <Col gap={1}>
+                        <Caption
+                          value={labels.upNext + " · " + next.timeLabel}
+                        />
+                        <Text value={next.title} size="sm" weight="medium" />
+                      </Col>
+                    </Grid>
+                  </Col>
+                </Show.ElseIf>
+                <Show.Else>
+                  <Col gap={4}>
+                    <Col gap={1}>
+                      <Caption value={date.full} />
+                      <Text value={greeting} size="sm" weight="medium" />
+                    </Col>
+                    <Row align="end" gap={4}>
+                      <Title
+                        value={String(percent) + "%"}
+                        size="5xl"
+                        color={progressColor}
+                        tabularNums
+                      />
+                      <Col gap={1} padding={{ bottom: 1 }}>
+                        <Text
+                          value={labels.dailyProgress}
+                          size="sm"
+                          weight="semibold"
+                        />
+                        <Caption value={completionLabel} />
+                      </Col>
+                    </Row>
+                    <Col gap={2}>
+                      <Row gap={1}>
+                        <Each of={range(size(tasks))} item="segment">
+                          <Box
+                            key={segment}
+                            flex={1}
+                            height={10}
+                            radius="2xs"
+                            background={
+                              segment < doneCount
+                                ? progressColor
+                                : "surface-tertiary"
+                            }
+                          />
+                        </Each>
+                      </Row>
+                      <Row justify="between" gap={3}>
+                        <Text
+                          value={String(doneCount) + " completed"}
+                          size="sm"
+                        />
+                        <Text
+                          value={remainingLabel}
+                          size="sm"
+                          color="secondary"
+                        />
+                      </Row>
+                    </Col>
+                    <Divider color="subtle" />
+                    <Col gap={3}>
+                      <Text
+                        value={labels.stillToDo}
+                        size="sm"
+                        weight="semibold"
+                      />
+                      <Each of={pending} item="task">
+                        <Row key={task.id} gap={2} align="start">
+                          <Icon
+                            name={task.id === topTask ? "flag" : "empty-circle"}
+                            size="sm"
+                            color={
+                              task.id === topTask ? progressColor : "tertiary"
+                            }
+                          />
+                          <Col flex={1} minWidth={0} gap={0}>
+                            <Text
+                              value={task.title}
+                              size="sm"
+                              weight={
+                                task.id === topTask ? "semibold" : "normal"
+                              }
+                            />
+                            <Show when={task.id === topTask}>
+                              <Caption value={labels.topPriority} />
+                            </Show>
+                          </Col>
+                          <Caption value={task.deadline} />
+                        </Row>
+                      </Each>
+                    </Col>
+                    <Divider color="subtle" />
+                    <Col gap={2}>
+                      <Text
+                        value={labels.schedule}
+                        size="sm"
+                        weight="semibold"
+                      />
+                      <Each of={events} item="event">
+                        <Row key={event.id} justify="between" gap={3}>
+                          <Text value={event.title} size="sm" />
+                          <Caption value={event.timeLabel} />
+                        </Row>
+                      </Each>
+                    </Col>
+                  </Col>
+                </Show.Else>
+              </Show>
+            </Show.ElseIf>
+            <Show.ElseIf when={direction === "timeline"}>
+              <Show when={widgetSize === "small"}>
+                <Col gap={3}>
+                  <Text value={date.short} size="sm" weight="medium" />
+                  <Box
+                    border={{ left: { size: 2, color: progressColor } }}
+                    padding={{ left: 3 }}
+                    gap={1}
+                  >
+                    <Caption value={labels.upNext} />
+                    <Title value={next.timeLabel} size="xl" tabularNums />
+                    <Text value={next.title} size="sm" weight="medium" />
+                    <Caption value={next.duration} />
+                  </Box>
+                  <Col gap={2}>
+                    <Caption value={completionLabel} />
+                    <Progress
+                      value={doneCount}
+                      max={size(tasks)}
+                      showValue={false}
+                      color="info"
+                      size="sm"
+                    />
+                  </Col>
+                </Col>
+                <Show.ElseIf when={widgetSize === "medium"}>
+                  <Col gap={3}>
+                    <Row align="start" gap={3}>
+                      <Col gap={0} width={52}>
+                        <Title
+                          value={date.day}
+                          size="xl"
+                          color={calendarColor}
+                          tabularNums
+                        />
+                        <Caption value={date.monthShort} />
+                      </Col>
+                      <Col gap={1} flex={1}>
+                        <Text value={greeting} size="sm" weight="semibold" />
+                        <Caption value={date.weekday} />
+                      </Col>
+                    </Row>
+                    <List marker="empty-circle" connector gap={2}>
+                      <Each of={events.slice(0, 2)} item="event">
+                        <List.Item key={event.id}>
+                          <Row gap={3} align="baseline">
+                            <Text
+                              value={event.timeLabel}
+                              size="sm"
+                              color="secondary"
+                              width={78}
+                              tabularNums
+                            />
+                            <Text
+                              value={event.title}
+                              size="sm"
+                              weight="medium"
+                            />
+                          </Row>
+                        </List.Item>
+                      </Each>
+                    </List>
+                    <Col gap={2}>
+                      <Row justify="between" gap={2}>
+                        <Caption value={completionLabel} />
+                        <Caption value={remainingLabel} />
+                      </Row>
+                      <Progress
+                        value={doneCount}
+                        max={size(tasks)}
+                        showValue={false}
+                        color="info"
+                        size="sm"
+                      />
+                    </Col>
+                    <Text
+                      value={
+                        labels.priorityPrefix + top.title + " · " + top.deadline
+                      }
+                      size="sm"
+                    />
+                  </Col>
+                </Show.ElseIf>
+                <Show.Else>
+                  <Col gap={4}>
+                    <Row align="center" gap={3}>
+                      <Col width={56} gap={0}>
+                        <Title
+                          value={date.day}
+                          size="2xl"
+                          color={calendarColor}
+                          tabularNums
+                        />
+                        <Caption value={date.monthShort} />
+                      </Col>
+                      <Col gap={1} flex={1}>
+                        <Title value={greeting} size="sm" />
+                        <Caption value={date.weekday + " · " + date.year} />
+                      </Col>
+                    </Row>
+                    <Col gap={2}>
+                      <Text value={brief} size="sm" />
+                      <Progress
+                        value={doneCount}
+                        max={size(tasks)}
+                        showValue={false}
+                        color="info"
+                        size="sm"
+                      />
+                    </Col>
+                    <Col gap={4}>
+                      <Text
+                        value={labels.schedule}
+                        size="sm"
+                        weight="semibold"
+                      />
+                      <List marker="empty-circle" connector gap={4}>
+                        <Each of={events} item="event">
+                          <List.Item key={event.id}>
+                            <Row gap={3} align="start">
+                              <Col width={66} gap={0}>
+                                <Text
+                                  value={event.time}
+                                  size="sm"
+                                  weight="medium"
+                                  tabularNums
+                                />
+                                <Caption value={event.period} />
+                              </Col>
+                              <Col flex={1} minWidth={0} gap={1}>
+                                <Text
+                                  value={event.title}
+                                  size="sm"
+                                  weight="medium"
+                                />
+                                <Caption value={event.detail} />
+                              </Col>
+                            </Row>
+                          </List.Item>
+                        </Each>
+                      </List>
+                    </Col>
+                    <Box
+                      padding={3}
+                      background="surface-secondary"
+                      radius="sm"
+                      gap={3}
+                    >
+                      <Text
+                        value={labels.priorities}
+                        size="sm"
+                        weight="semibold"
+                      />
+                      <Each of={priorities} item="task">
+                        <Row
+                          key={task.id}
+                          justify="between"
+                          align="baseline"
+                          gap={3}
+                        >
+                          <Text value={task.title} size="sm" />
+                          <Caption value={task.deadline} />
+                        </Row>
+                      </Each>
+                    </Box>
+                  </Col>
+                </Show.Else>
+              </Show>
+            </Show.ElseIf>
+            <Show.ElseIf when={direction === "editorial"}>
+              <Show when={widgetSize === "small"}>
+                <Col gap={3}>
+                  <Col gap={0}>
+                    <Caption
+                      value={date.weekday.toUpperCase()}
+                      weight="semibold"
+                      color={calendarColor}
+                    />
+                    <Title value={date.day} size="5xl" tabularNums />
+                    <Caption value={date.month + " " + date.year} />
+                  </Col>
+                  <Text value={completionLabel} size="sm" weight="medium" />
+                  <Divider color="subtle" />
+                  <Col gap={0}>
+                    <Text value={top.title} size="sm" weight="medium" />
+                    <Caption value={top.deadline} />
+                  </Col>
+                </Col>
+                <Show.ElseIf when={widgetSize === "medium"}>
+                  <Col gap={3}>
+                    <Row align="center" gap={5}>
+                      <Title
+                        value={date.day}
+                        size="5xl"
+                        color={calendarColor}
+                        tabularNums
+                      />
+                      <Col gap={1} flex={1} minWidth={0}>
+                        <Text
+                          value={date.weekday}
+                          size="sm"
+                          weight="semibold"
+                        />
+                        <Caption value={date.month + " " + date.year} />
+                        <Text value={greeting} size="sm" />
+                      </Col>
+                    </Row>
+                    <Divider color="subtle" />
+                    <Grid columns={2} gap={4}>
+                      <Col gap={1}>
+                        <Text
+                          value={String(doneCount) + "/" + String(size(tasks))}
+                          size="xl"
+                          weight="semibold"
+                          tabularNums
+                        />
+                        <Caption value={labels.tasksCompleted} />
+                        <Caption value={remainingLabel} />
+                      </Col>
+                      <Col gap={1}>
+                        <Caption
+                          value={next.timeLabel + " · " + labels.upNext}
+                        />
+                        <Text value={next.title} size="sm" weight="medium" />
+                      </Col>
+                    </Grid>
+                    <Text
+                      value={
+                        labels.priorityPrefix + top.title + " · " + top.deadline
+                      }
+                      size="sm"
+                    />
+                  </Col>
+                </Show.ElseIf>
+                <Show.Else>
+                  <Col gap={4}>
+                    <Row align="end" gap={5}>
+                      <Col gap={0}>
+                        <Caption
+                          value={date.month.toUpperCase()}
+                          color={calendarColor}
+                          weight="semibold"
+                        />
+                        <Title value={date.day} size="5xl" tabularNums />
+                      </Col>
+                      <Col gap={1} padding={{ bottom: 1 }} flex={1}>
+                        <Text value={date.weekday} size="lg" weight="medium" />
+                        <Caption value={date.year} />
+                        <Text value={greeting} size="sm" />
+                      </Col>
+                    </Row>
+                    <Divider color="subtle" />
+                    <Row gap={5} align="start">
+                      <Col minWidth={92} gap={1}>
+                        <Text
+                          value={String(doneCount) + "/" + String(size(tasks))}
+                          size="2xl"
+                          weight="semibold"
+                          tabularNums
+                        />
+                        <Caption value={labels.completed} />
+                        <Text value={remainingLabel} size="sm" />
+                      </Col>
+                      <Text value={dayNote} size="sm" color="secondary" />
+                    </Row>
+                    <Col gap={3}>
+                      <Caption
+                        value={labels.onTheCalendar.toUpperCase()}
+                        weight="semibold"
+                      />
+                      <Each of={events} item="event">
+                        <Row
+                          key={event.id}
+                          justify="between"
+                          align="baseline"
+                          gap={3}
+                        >
+                          <Text value={event.title} size="sm" weight="medium" />
+                          <Text
+                            value={event.timeLabel}
+                            size="sm"
+                            color="secondary"
+                            tabularNums
+                          />
+                        </Row>
+                      </Each>
+                    </Col>
+                    <Divider color="subtle" />
+                    <Col gap={3}>
+                      <Caption
+                        value={labels.priorities.toUpperCase()}
+                        weight="semibold"
+                      />
+                      <Each of={priorities} item="task" index="i">
+                        <Row key={task.id} align="baseline" gap={3}>
+                          <Text
+                            value={String(i + 1).padStart(2, "0")}
+                            size="sm"
+                            color={calendarColor}
+                            tabularNums
+                          />
+                          <Text value={task.title} size="sm" weight="medium" />
+                          <Spacer />
+                          <Caption value={task.deadline} />
+                        </Row>
+                      </Each>
+                    </Col>
+                  </Col>
+                </Show.Else>
+              </Show>
+            </Show.ElseIf>
+            <Show.Else>
+              <Show when={widgetSize === "small"}>
+                <Col gap={3}>
+                  <Row gap={3}>
+                    <Box
+                      width={48}
+                      height={48}
+                      background="surface-secondary"
+                      radius="sm"
+                      align="center"
+                      justify="center"
+                    >
+                      <Title
+                        value={date.day}
+                        size="xl"
+                        color={calendarColor}
+                        tabularNums
+                      />
+                    </Box>
+                    <Col gap={0}>
+                      <Text value={date.weekday} size="sm" weight="semibold" />
+                      <Caption value={date.month + " " + date.year} />
+                    </Col>
+                  </Row>
+                  <Col gap={2}>
+                    <Text value={completionLabel} size="sm" weight="medium" />
+                    <Progress
+                      value={doneCount}
+                      max={size(tasks)}
+                      showValue={false}
+                      color="info"
+                      size="sm"
+                    />
+                  </Col>
+                  <Box
+                    padding={2}
+                    background="surface-secondary"
+                    radius="sm"
+                    gap={1}
+                  >
+                    <Caption value={next.timeLabel + " · " + labels.upNext} />
+                    <Text value={next.title} size="sm" weight="medium" />
+                  </Box>
+                </Col>
+                <Show.ElseIf when={widgetSize === "medium"}>
+                  <Col gap={3}>
+                    <Row gap={3} align="center">
+                      <Col gap={1} flex={1} minWidth={0}>
+                        <Title value={greeting} size="sm" />
+                        <Caption value={date.full} />
+                      </Col>
+                      <Box
+                        width={44}
+                        height={44}
+                        background="surface-secondary"
+                        radius="sm"
+                        align="center"
+                        justify="center"
+                      >
+                        <Text
+                          value={date.day}
+                          size="xl"
+                          weight="semibold"
+                          color={calendarColor}
+                          tabularNums
+                        />
+                      </Box>
+                    </Row>
+                    <Grid columns={2} gap={4}>
+                      <Col gap={2}>
+                        <Caption value={labels.tasks} />
+                        <Row align="baseline" gap={1}>
+                          <Text
+                            value={String(doneCount)}
+                            size="2xl"
+                            weight="semibold"
+                            tabularNums
+                          />
+                          <Text
+                            value={"/ " + String(size(tasks))}
+                            size="sm"
+                            color="secondary"
+                            tabularNums
+                          />
+                        </Row>
+                        <Progress
+                          value={doneCount}
+                          max={size(tasks)}
+                          showValue={false}
+                          color="info"
+                          size="sm"
+                        />
+                        <Caption value={remainingLabel} />
+                      </Col>
+                      <Box
+                        border={{ left: { size: 1, color: "subtle" } }}
+                        padding={{ left: 4 }}
+                        gap={2}
+                      >
+                        <Caption value={labels.upNext} />
+                        <Text
+                          value={next.timeLabel}
+                          size="lg"
+                          weight="semibold"
+                          tabularNums
+                        />
+                        <Text value={next.title} size="sm" />
+                      </Box>
+                    </Grid>
+                    <Divider color="subtle" />
+                    <Text
+                      value={
+                        labels.priorityPrefix + top.title + " · " + top.deadline
+                      }
+                      size="sm"
+                    />
+                  </Col>
+                </Show.ElseIf>
+                <Show.Else>
+                  <Col gap={4}>
+                    <Row gap={3}>
+                      <Box
+                        width={54}
+                        height={58}
+                        background="surface-secondary"
+                        radius="md"
+                        align="center"
+                        justify="center"
+                        gap={0}
+                      >
+                        <Caption
+                          value={date.monthShort.toUpperCase()}
+                          color={calendarColor}
+                          weight="semibold"
+                        />
+                        <Title value={date.day} size="xl" tabularNums />
+                      </Box>
+                      <Col flex={1} minWidth={0} gap={1}>
+                        <Title value={greeting} size="sm" />
+                        <Caption value={date.weekday + " · " + date.year} />
+                      </Col>
+                    </Row>
+                    <Col gap={3}>
+                      <Grid columns={2} gap={4}>
+                        <Col gap={0}>
+                          <Text
+                            value={String(doneCount)}
+                            size="2xl"
+                            weight="semibold"
+                            tabularNums
+                          />
+                          <Caption value={labels.completed} />
+                        </Col>
+                        <Col gap={0}>
+                          <Text
+                            value={String(remainingCount)}
+                            size="2xl"
+                            weight="semibold"
+                            tabularNums
+                          />
+                          <Caption value={labels.remaining} />
+                        </Col>
+                      </Grid>
+                      <Progress
+                        value={doneCount}
+                        max={size(tasks)}
+                        label={labels.dailyProgress}
+                        showValue={false}
+                        color="info"
+                        size="sm"
+                      />
+                    </Col>
+                    <Divider color="subtle" />
+                    <Col gap={3}>
+                      <Row gap={2}>
+                        <Icon name="calendar" size="sm" color="secondary" />
+                        <Text
+                          value={labels.schedule}
+                          size="sm"
+                          weight="semibold"
+                        />
+                      </Row>
+                      <Each of={events} item="event">
+                        <Row key={event.id} gap={3} align="start">
+                          <Text
+                            value={event.timeLabel}
+                            size="sm"
+                            color="secondary"
+                            width={82}
+                            tabularNums
+                          />
+                          <Col flex={1} minWidth={0} gap={0}>
+                            <Text
+                              value={event.title}
+                              size="sm"
+                              weight="medium"
+                            />
+                            <Caption value={event.detail} />
+                          </Col>
+                        </Row>
+                      </Each>
+                    </Col>
+                    <Box
+                      padding={3}
+                      background="surface-secondary"
+                      radius="sm"
+                      gap={3}
+                    >
+                      <Row gap={2}>
+                        <Icon name="flag" size="sm" color="secondary" />
+                        <Text
+                          value={labels.priorities}
+                          size="sm"
+                          weight="semibold"
+                        />
+                      </Row>
+                      <Each of={priorities} item="task">
+                        <Row
+                          key={task.id}
+                          justify="between"
+                          gap={3}
+                          align="baseline"
+                        >
+                          <Text
+                            value={task.title}
+                            size="sm"
+                            weight={task.id === topTask ? "semibold" : "normal"}
+                          />
+                          <Caption value={task.deadline} />
+                        </Row>
+                      </Each>
+                    </Box>
+                  </Col>
+                </Show.Else>
+              </Show>
+            </Show.Else>
+          </Show>
+        </Card>
+      </Box>
+      <Box width="100%" maxWidth={400} gap={1}>
+        <Caption value={sampleLabel} size="sm" />
+        <Caption value={previewNote} size="sm" />
+      </Box>
+    </Basic>
+  </Scope>
+</Scope>
+
+
+{
+  "title": "Daily overview",
+  "collectionLabel": "Five directions. Three purpose-built sizes.",
+  "sampleLabel": "Demo day · June 16, 2026 · 9:45 AM",
+  "previewNote": "Switch direction, size, and appearance to explore all 15 layouts.",
+  "direction": "editorial",
+  "widgetSize": "medium",
+  "darkPreview": false,
+  "greeting": "Good morning, Alex",
+  "dayNote": "Design review is next. Keep the proposal on track for 4 PM.",
+  "calendarColor": {
+    "light": "#C33229",
+    "dark": "#FF786F"
+  },
+  "progressColor": {
+    "light": "#0868CE",
+    "dark": "#70AEFF"
+  },
+  "date": {
+    "day": "16",
+    "weekday": "Tuesday",
+    "month": "June",
+    "monthShort": "Jun",
+    "year": "2026",
+    "short": "Tue, Jun 16",
+    "full": "Tuesday, June 16"
+  },
+  "labels": {
+    "direction": "Design direction",
+    "size": "Widget size",
+    "darkPreview": "Dark preview",
+    "upNext": "Up next",
+    "topPriority": "Top priority",
+    "priorityPrefix": "Priority: ",
+    "schedule": "Today's schedule",
+    "priorities": "Priorities & deadlines",
+    "dailyProgress": "Daily progress",
+    "tasksCompleted": "Tasks completed",
+    "completed": "Completed",
+    "remaining": "Remaining",
+    "stillToDo": "Still to do",
+    "onTheCalendar": "On the calendar",
+    "tasks": "Tasks"
+  },
+  "directions": [
+    {
+      "value": "minimal",
+      "label": "01 · Minimal",
+      "description": "Quiet, text-first"
+    },
+    {
+      "value": "progress",
+      "label": "02 · Progress",
+      "description": "Completion takes the lead"
+    },
+    {
+      "value": "timeline",
+      "label": "03 · Timeline",
+      "description": "A schedule-first view"
+    },
+    {
+      "value": "editorial",
+      "label": "04 · Editorial",
+      "description": "Date-led, asymmetric"
+    },
+    {
+      "value": "dashboard",
+      "label": "05 · Dashboard",
+      "description": "Balanced, structured"
+    }
+  ],
+  "sizes": [
+    {
+      "value": "small",
+      "label": "Small"
+    },
+    {
+      "value": "medium",
+      "label": "Medium"
+    },
+    {
+      "value": "large",
+      "label": "Large"
+    }
+  ],
+  "topTask": "proposal",
+  "tasks": [
+    {
+      "id": "inbox",
+      "title": "Clear the inbox",
+      "done": true,
+      "priority": false,
+      "deadline": ""
+    },
+    {
+      "id": "notes",
+      "title": "Review yesterday's notes",
+      "done": true,
+      "priority": false,
+      "deadline": ""
+    },
+    {
+      "id": "brief",
+      "title": "Read the project brief",
+      "done": true,
+      "priority": false,
+      "deadline": ""
+    },
+    {
+      "id": "agenda",
+      "title": "Share the meeting agenda",
+      "done": true,
+      "priority": false,
+      "deadline": ""
+    },
+    {
+      "id": "feedback",
+      "title": "Organize design feedback",
+      "done": true,
+      "priority": false,
+      "deadline": ""
+    },
+    {
+      "id": "files",
+      "title": "Gather reference files",
+      "done": true,
+      "priority": false,
+      "deadline": ""
+    },
+    {
+      "id": "review",
+      "title": "Prepare review",
+      "done": false,
+      "priority": true,
+      "deadline": "Due 10:15 AM"
+    },
+    {
+      "id": "proposal",
+      "title": "Send proposal",
+      "done": false,
+      "priority": true,
+      "deadline": "Due 4 PM"
+    },
+    {
+      "id": "accessibility",
+      "title": "Review accessibility",
+      "done": false,
+      "priority": false,
+      "deadline": "Due 5 PM"
+    },
+    {
+      "id": "tomorrow",
+      "title": "Plan tomorrow",
+      "done": false,
+      "priority": false,
+      "deadline": "Due 5:30 PM"
+    }
+  ],
+  "events": [
+    {
+      "id": "design-review",
+      "title": "Design review",
+      "time": "10:30",
+      "period": "AM",
+      "timeLabel": "10:30 AM",
+      "duration": "45 minutes",
+      "detail": "Studio · 45 min"
+    },
+    {
+      "id": "project-checkin",
+      "title": "Project check-in",
+      "time": "2:00",
+      "period": "PM",
+      "timeLabel": "2 PM",
+      "duration": "30 minutes",
+      "detail": "Video call · 30 min"
+    },
+    {
+      "id": "focus-wrapup",
+      "title": "Focus wrap-up",
+      "time": "4:30",
+      "period": "PM",
+      "timeLabel": "4:30 PM",
+      "duration": "30 minutes",
+      "detail": "Desk · 30 min"
+    }
+  ]
+}

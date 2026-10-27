@@ -1,0 +1,891 @@
+<Scope
+  values={{
+    visible: messages.slice(0, sizeChoice === "medium" ? 4 : 6),
+    oldest: messages[0],
+  }}
+>
+  <Basic gap={3}>
+    <Box width="100%" maxWidth={440} gap={3}>
+      <Caption value={catalogLabel} />
+      <Col gap={1}>
+        <Label value={labels.composition} fieldName="layout" />
+        <Select
+          name="layout"
+          bind="layout"
+          options={layouts}
+          block
+          size="2xl"
+        />
+      </Col>
+      <Row justify="between" wrap="wrap" gap={3}>
+        <SegmentedControl
+          name="sizeChoice"
+          bind="sizeChoice"
+          options={sizes}
+          ariaLabel={labels.sizeLabel}
+          size="2xl"
+        />
+        <Row gap={2}>
+          <Text value={labels.dark} size="sm" color="secondary" />
+          <Toggle
+            name="darkPreview"
+            bind="darkPreview"
+            variant="switch"
+            label={labels.darkAppearance}
+          />
+        </Row>
+      </Row>
+      <Card
+        size="full"
+        width="100%"
+        padding={4}
+        gap={4}
+        theme={darkPreview ? "dark" : "light"}
+      >
+        <Col gap={1}>
+          <Row gap={3} align="baseline">
+            <Title value={title} size="sm" />
+            <Spacer />
+            <Text
+              value={String(size(visible))}
+              size="xl"
+              weight="semibold"
+              color="secondary"
+              tabularNums
+            />
+          </Row>
+          <Caption value={snapshot} size="sm" />
+        </Col>
+        <Show when={layout === "minimal"}>
+          <Col gap={4}>
+            <Box background="surface-secondary" radius="xl" padding={4} gap={3}>
+              <Row gap={2}>
+                <Icon name="clock" size="sm" color="warning" />
+                <Text value={labels.longestWaiting} size="sm" weight="medium" />
+              </Row>
+              <Row align="start" gap={3}>
+                <Box
+                  size={40}
+                  minWidth={40}
+                  radius="full"
+                  background="surface-tertiary"
+                  align="center"
+                  justify="center"
+                >
+                  <Text value={oldest.initials} size="sm" weight="medium" />
+                </Box>
+                <Col flex={1} minWidth={0} gap={1}>
+                  <Text value={oldest.name} weight="semibold" />
+                  <Text value={oldest.subject} size="sm" />
+                  <Caption
+                    value={
+                      (sizeChoice === "large"
+                        ? oldest.sentAt
+                        : oldest.sentDate) +
+                      " · " +
+                      oldest.source
+                    }
+                  />
+                </Col>
+                <Stat
+                  label={labels.waiting}
+                  value={oldest.wait}
+                  size="sm"
+                  align="end"
+                />
+              </Row>
+              <Show when={sizeChoice === "large"}>
+                <Text value={oldest.preview} size="sm" color="secondary" />
+              </Show>
+              <Row>
+                <Button
+                  label={labels.draftFollowUp}
+                  iconStart="write"
+                  variant="outline"
+                  size="2xl"
+                  onClickAction={{
+                    updateState: {
+                      draftOpen: true,
+                      draftTo: oldest.name,
+                      draft:
+                        draftParts.greeting +
+                        oldest.firstName +
+                        draftParts.body +
+                        oldest.subject +
+                        draftParts.ending,
+                    },
+                  }}
+                />
+              </Row>
+            </Box>
+            <Col gap={3}>
+              <Caption
+                value={labels.alsoWaiting + " · " + String(size(visible) - 1)}
+              />
+              <Each of={visible.slice(1)} item="item" index="i">
+                <Col key={item.id} gap={2}>
+                  <Show when={i > 0}>
+                    <Divider color="subtle" />
+                  </Show>
+                  <Row align="start" gap={3}>
+                    <Col flex={1} minWidth={0} gap={1}>
+                      <Text value={item.name} size="sm" weight="semibold" />
+                      <Text value={item.subject} size="sm" />
+                      <Show when={sizeChoice === "large"}>
+                        <Text
+                          value={item.preview}
+                          size="sm"
+                          color="secondary"
+                        />
+                      </Show>
+                      <Caption
+                        value={
+                          (sizeChoice === "large"
+                            ? item.sentAt
+                            : item.sentDate) +
+                          " · " +
+                          item.source
+                        }
+                        size="sm"
+                      />
+                    </Col>
+                    <Col align="end" gap={1} minWidth={58}>
+                      <Text
+                        value={item.wait}
+                        size="sm"
+                        weight="medium"
+                        tabularNums
+                        color={item.due ? "warning" : "secondary"}
+                      />
+                      <Show when={sizeChoice === "large"}>
+                        <Caption
+                          value={item.status}
+                          size="sm"
+                          color={
+                            item.due
+                              ? "warning"
+                              : item.recent
+                                ? "info"
+                                : "secondary"
+                          }
+                        />
+                      </Show>
+                    </Col>
+                  </Row>
+                </Col>
+              </Each>
+            </Col>
+          </Col>
+          <Show.ElseIf when={layout === "inbox"}>
+            <Table columnSizing="auto">
+              <Table.Row header>
+                <Table.Cell header>
+                  <Text value={labels.message} size="xs" color="secondary" />
+                </Table.Cell>
+                <Table.Cell header width={78}>
+                  <Text value={labels.sent} size="xs" color="secondary" />
+                </Table.Cell>
+                <Table.Cell header align="end" width={68}>
+                  <Text value={labels.waiting} size="xs" color="secondary" />
+                </Table.Cell>
+              </Table.Row>
+              <Each of={visible} item="item">
+                <Table.Row key={item.id}>
+                  <Table.Cell vAlign="top">
+                    <Col gap={1} padding={{ y: 1 }}>
+                      <Row gap={2} align="start">
+                        <Box
+                          size={26}
+                          minWidth={26}
+                          radius="full"
+                          background="surface-secondary"
+                          align="center"
+                          justify="center"
+                        >
+                          <Text
+                            value={item.initials}
+                            size="xs"
+                            weight="medium"
+                          />
+                        </Box>
+                        <Text value={item.name} size="sm" weight="semibold" />
+                      </Row>
+                      <Text value={item.subject} size="sm" />
+                      <Show when={sizeChoice === "large"}>
+                        <Text
+                          value={item.preview}
+                          size="sm"
+                          color="secondary"
+                        />
+                      </Show>
+                      <Caption value={item.source} size="sm" />
+                    </Col>
+                  </Table.Cell>
+                  <Table.Cell vAlign="top">
+                    <Col gap={1} padding={{ y: 1 }}>
+                      <Text value={item.sentDay} size="xs" color="secondary" />
+                      <Show when={sizeChoice === "large"}>
+                        <Caption value={item.sentTime} size="sm" />
+                      </Show>
+                    </Col>
+                  </Table.Cell>
+                  <Table.Cell align="end" vAlign="top">
+                    <Col align="end" gap={1} padding={{ y: 1 }}>
+                      <Text
+                        value={item.wait}
+                        size="sm"
+                        weight={item.id === oldest.id ? "semibold" : "medium"}
+                        color={item.due ? "warning" : "secondary"}
+                        tabularNums
+                      />
+                      <Show when={item.id === oldest.id}>
+                        <Text
+                          value={labels.longest}
+                          size="xs"
+                          weight="medium"
+                          color="warning"
+                        />
+                        <Show.Else>
+                          <Show when={sizeChoice === "large"}>
+                            <Caption
+                              value={item.status}
+                              size="sm"
+                              color={
+                                item.due
+                                  ? "warning"
+                                  : item.recent
+                                    ? "info"
+                                    : "secondary"
+                              }
+                            />
+                          </Show>
+                        </Show.Else>
+                      </Show>
+                    </Col>
+                  </Table.Cell>
+                </Table.Row>
+              </Each>
+            </Table>
+          </Show.ElseIf>
+          <Show.ElseIf when={layout === "timeline"}>
+            <Col gap={0}>
+              <Each of={visible} item="item" index="i">
+                <Row key={item.id} align="stretch" gap={3}>
+                  <Col
+                    width={65}
+                    minWidth={65}
+                    gap={1}
+                    padding={{ top: 1, bottom: 4 }}
+                  >
+                    <Text value={item.sentDay} size="sm" weight="medium" />
+                    <Show when={sizeChoice === "large"}>
+                      <Caption value={item.sentTime} size="sm" />
+                    </Show>
+                  </Col>
+                  <Col
+                    flex={1}
+                    minWidth={0}
+                    gap={2}
+                    border={{ left: { size: 1, color: "subtle" } }}
+                    padding={{ left: 4, bottom: 5 }}
+                  >
+                    <Row gap={2}>
+                      <Box
+                        size={28}
+                        minWidth={28}
+                        radius="full"
+                        background="surface-secondary"
+                        align="center"
+                        justify="center"
+                      >
+                        <Text value={item.initials} size="xs" weight="medium" />
+                      </Box>
+                      <Text value={item.name} size="sm" weight="semibold" />
+                    </Row>
+                    <Text value={item.subject} size="sm" />
+                    <Show when={sizeChoice === "large"}>
+                      <Text value={item.preview} size="sm" color="secondary" />
+                    </Show>
+                    <Row gap={2} wrap="wrap">
+                      <Caption value={item.source} size="sm" />
+                      <Text
+                        value={item.wait + labels.waitingSuffix}
+                        size="xs"
+                        color={item.due ? "warning" : "secondary"}
+                        tabularNums
+                      />
+                    </Row>
+                    <Show when={item.id === oldest.id}>
+                      <Row gap={1}>
+                        <Icon name="clock" size="xs" color="warning" />
+                        <Text
+                          value={labels.longestWaiting}
+                          size="xs"
+                          color="warning"
+                        />
+                      </Row>
+                      <Show.Else>
+                        <Show when={sizeChoice === "large"}>
+                          <Text
+                            value={item.status}
+                            size="xs"
+                            color={
+                              item.due
+                                ? "warning"
+                                : item.recent
+                                  ? "info"
+                                  : "secondary"
+                            }
+                          />
+                        </Show>
+                      </Show.Else>
+                    </Show>
+                  </Col>
+                </Row>
+              </Each>
+            </Col>
+          </Show.ElseIf>
+          <Show.ElseIf when={layout === "followup"}>
+            <Col gap={4}>
+              <Col gap={1}>
+                <Row gap={2}>
+                  <Icon name="write" size="sm" color="warning" />
+                  <Text
+                    value={labels.readyForNudge}
+                    size="sm"
+                    weight="semibold"
+                  />
+                  <Spacer />
+                  <Text
+                    value={String(size(visible.filter((item) => item.due)))}
+                    size="sm"
+                    color="warning"
+                    tabularNums
+                  />
+                </Row>
+                <Text
+                  value={labels.overdueExplanation}
+                  size="sm"
+                  color="secondary"
+                />
+              </Col>
+              <Col gap={3}>
+                <Each
+                  of={visible.filter((item) => item.due)}
+                  item="item"
+                  index="i"
+                >
+                  <Col key={item.id} gap={3}>
+                    <Show when={i > 0}>
+                      <Divider color="subtle" />
+                    </Show>
+                    <Row gap={3} align="start">
+                      <Box
+                        size={34}
+                        minWidth={34}
+                        radius="lg"
+                        background="surface-secondary"
+                        align="center"
+                        justify="center"
+                      >
+                        <Text value={item.initials} size="xs" weight="medium" />
+                      </Box>
+                      <Col flex={1} minWidth={0} gap={1}>
+                        <Text value={item.name} size="sm" weight="semibold" />
+                        <Text value={item.subject} size="sm" />
+                        <Show when={sizeChoice === "large"}>
+                          <Text
+                            value={item.preview}
+                            size="sm"
+                            color="secondary"
+                          />
+                        </Show>
+                        <Caption
+                          value={
+                            (sizeChoice === "large"
+                              ? item.sentAt
+                              : item.sentDate) +
+                            " · " +
+                            item.source
+                          }
+                          size="sm"
+                        />
+                      </Col>
+                      <Col align="end" gap={1}>
+                        <Text
+                          value={item.wait}
+                          size="sm"
+                          weight="medium"
+                          color="warning"
+                          tabularNums
+                        />
+                        <Show when={item.id === oldest.id}>
+                          <Caption
+                            value={labels.longest}
+                            color="warning"
+                            size="sm"
+                          />
+                        </Show>
+                        <Button
+                          iconStart="write"
+                          ariaLabel={labels.draftToPrefix + item.name}
+                          uniform
+                          variant="ghost"
+                          size="2xl"
+                          onClickAction={{
+                            updateState: {
+                              draftOpen: true,
+                              draftTo: item.name,
+                              draft:
+                                draftParts.greeting +
+                                item.firstName +
+                                draftParts.body +
+                                item.subject +
+                                draftParts.ending,
+                            },
+                          }}
+                        />
+                      </Col>
+                    </Row>
+                  </Col>
+                </Each>
+              </Col>
+              <Divider />
+              <Col gap={3}>
+                <Caption value={labels.withinWindow} />
+                <Each of={visible.filter((item) => !item.due)} item="item">
+                  <Row key={item.id} align="start" gap={3}>
+                    <Col flex={1} minWidth={0} gap={1}>
+                      <Text value={item.name} size="sm" weight="medium" />
+                      <Text value={item.subject} size="sm" />
+                      <Show when={sizeChoice === "large"}>
+                        <Text
+                          value={item.preview}
+                          size="sm"
+                          color="secondary"
+                        />
+                      </Show>
+                      <Caption
+                        value={
+                          (sizeChoice === "large"
+                            ? item.sentAt
+                            : item.sentDate) +
+                          " · " +
+                          item.source
+                        }
+                        size="sm"
+                      />
+                    </Col>
+                    <Col align="end" gap={1}>
+                      <Text
+                        value={item.wait}
+                        size="sm"
+                        color="secondary"
+                        tabularNums
+                      />
+                      <Show when={sizeChoice === "large"}>
+                        <Caption
+                          value={item.status}
+                          size="sm"
+                          color={item.recent ? "info" : "secondary"}
+                        />
+                      </Show>
+                    </Col>
+                  </Row>
+                </Each>
+              </Col>
+            </Col>
+          </Show.ElseIf>
+          <Show.Else>
+            <Col gap={4}>
+              <Each of={groups} item="group">
+                <Scope
+                  values={{
+                    grouped: visible.filter(
+                      (item) => item.sourceId === group.id,
+                    ),
+                  }}
+                >
+                  <Show when={size(grouped) > 0}>
+                    <Col key={group.id} gap={2}>
+                      <Row gap={2}>
+                        <Icon name={group.icon} size="sm" color="secondary" />
+                        <Text value={group.label} size="sm" weight="semibold" />
+                        <Spacer />
+                        <Caption value={String(size(grouped))} tabularNums />
+                      </Row>
+                      <Each of={grouped} item="item">
+                        <Box
+                          key={item.id}
+                          background={
+                            item.id === oldest.id
+                              ? "surface-secondary"
+                              : "transparent"
+                          }
+                          radius="lg"
+                          padding={2}
+                        >
+                          <Row gap={3} align="start">
+                            <Box
+                              size={30}
+                              minWidth={30}
+                              radius="full"
+                              background="surface-tertiary"
+                              align="center"
+                              justify="center"
+                            >
+                              <Text
+                                value={item.initials}
+                                size="xs"
+                                weight="medium"
+                              />
+                            </Box>
+                            <Col flex={1} minWidth={0} gap={1}>
+                              <Text
+                                value={item.name}
+                                size="sm"
+                                weight="semibold"
+                              />
+                              <Text value={item.subject} size="sm" />
+                              <Show when={sizeChoice === "large"}>
+                                <Text
+                                  value={item.preview}
+                                  size="sm"
+                                  color="secondary"
+                                />
+                              </Show>
+                              <Caption
+                                value={
+                                  sizeChoice === "large"
+                                    ? item.sentAt
+                                    : item.sentDate
+                                }
+                                size="sm"
+                              />
+                            </Col>
+                            <Col align="end" gap={1} minWidth={55}>
+                              <Text
+                                value={item.wait}
+                                size="sm"
+                                color={item.due ? "warning" : "secondary"}
+                                weight="medium"
+                                tabularNums
+                              />
+                              <Show when={item.id === oldest.id}>
+                                <Caption
+                                  value={labels.longest}
+                                  size="sm"
+                                  color="warning"
+                                />
+                                <Show.Else>
+                                  <Show when={sizeChoice === "large"}>
+                                    <Caption
+                                      value={item.status}
+                                      size="sm"
+                                      color={
+                                        item.due
+                                          ? "warning"
+                                          : item.recent
+                                            ? "info"
+                                            : "secondary"
+                                      }
+                                    />
+                                  </Show>
+                                </Show.Else>
+                              </Show>
+                            </Col>
+                          </Row>
+                        </Box>
+                      </Each>
+                    </Col>
+                  </Show>
+                </Scope>
+              </Each>
+            </Col>
+          </Show.Else>
+        </Show>
+        <Col key="preview-footer" gap={2}>
+          <Divider color="subtle" />
+          <Row gap={2} wrap="wrap">
+            <Icon name="history" size="xs" color="secondary" />
+            <Caption
+              value={
+                String(size(visible.filter((item) => item.due))) +
+                labels.followUpsDue +
+                " · " +
+                labels.threshold
+              }
+              size="sm"
+            />
+          </Row>
+          <Show when={sizeChoice === "large"}>
+            <Caption value={labels.recentDefinition} size="sm" />
+          </Show>
+          <Caption value={labels.timeNote} size="sm" />
+        </Col>
+        <Show when={draftOpen}>
+          <Col key="draft-editor" gap={3}>
+            <Divider />
+            <Row gap={2}>
+              <Col flex={1} minWidth={0} gap={1}>
+                <Text value={labels.localDraft} size="sm" weight="semibold" />
+                <Caption
+                  value={labels.toPrefix + draftTo + " · " + labels.notSent}
+                />
+              </Col>
+              <Button
+                iconStart="x"
+                ariaLabel={labels.closeDraft}
+                uniform
+                variant="ghost"
+                size="2xl"
+                onClickAction={{ updateState: { draftOpen: false } }}
+              />
+            </Row>
+            <Col gap={1}>
+              <Label value={labels.draftLabel} fieldName="draft" />
+              <Textarea name="draft" bind="draft" rows={4} />
+            </Col>
+            <Row>
+              <Button
+                label={labels.copyDraft}
+                iconStart="copy"
+                size="2xl"
+                disabled={!has(draft.trim())}
+                onClickAction={{
+                  type: "copy",
+                  handler: "client",
+                  payload: { value: draft },
+                }}
+              />
+            </Row>
+          </Col>
+        </Show>
+      </Card>
+      <Caption
+        value={
+          layouts.find((item) => item.value === layout).specimen +
+          " · " +
+          (sizeChoice === "medium"
+            ? labels.mediumDescription
+            : labels.largeDescription)
+        }
+        size="sm"
+      />
+    </Box>
+  </Basic>
+</Scope>
+
+
+{
+  "catalogLabel": "10 design variations · fictional contacts",
+  "title": "Waiting on replies",
+  "snapshot": "Sample snapshot · Nov 17, 2026 · 10:00 AM UTC",
+  "layout": "minimal",
+  "sizeChoice": "medium",
+  "darkPreview": false,
+  "draftOpen": false,
+  "draftTo": "",
+  "draft": "",
+  "layouts": [
+    {
+      "value": "minimal",
+      "label": "01 · Minimal spotlight",
+      "specimen": "01 / Minimal spotlight"
+    },
+    {
+      "value": "inbox",
+      "label": "02 · Inbox table",
+      "specimen": "02 / Inbox table"
+    },
+    {
+      "value": "timeline",
+      "label": "03 · Sent timeline",
+      "specimen": "03 / Sent timeline"
+    },
+    {
+      "value": "followup",
+      "label": "04 · Follow-up queue",
+      "specimen": "04 / Follow-up queue"
+    },
+    {
+      "value": "grouped",
+      "label": "05 · Grouped by source",
+      "specimen": "05 / Grouped by source"
+    }
+  ],
+  "sizes": [
+    {
+      "value": "medium",
+      "label": "Medium"
+    },
+    {
+      "value": "large",
+      "label": "Large"
+    }
+  ],
+  "labels": {
+    "composition": "Composition",
+    "sizeLabel": "Widget size",
+    "dark": "Dark",
+    "darkAppearance": "Dark preview appearance",
+    "longestWaiting": "Longest waiting",
+    "longest": "Longest",
+    "waiting": "Waiting",
+    "waitingSuffix": " waiting",
+    "draftFollowUp": "Draft follow-up",
+    "draftToPrefix": "Draft follow-up to ",
+    "alsoWaiting": "Also waiting",
+    "message": "Message",
+    "sent": "Sent",
+    "readyForNudge": "Ready for a nudge",
+    "overdueExplanation": "Overdue by your 3-day follow-up rule.",
+    "withinWindow": "Still within the reply window",
+    "followUpsDue": " follow-ups due",
+    "threshold": "Nudge after 3 days",
+    "recentDefinition": "Recent = sent within the last 24 hours.",
+    "timeNote": "Sent times in UTC. Waiting durations rounded down.",
+    "localDraft": "Local follow-up draft",
+    "toPrefix": "To ",
+    "notSent": "Not sent",
+    "closeDraft": "Close follow-up draft",
+    "draftLabel": "Message",
+    "copyDraft": "Copy draft",
+    "mediumDescription": "Medium · 4 pending replies",
+    "largeDescription": "Large · 6 pending replies"
+  },
+  "draftParts": {
+    "greeting": "Hi ",
+    "body": ", just following up on “",
+    "ending": "”. Could you share an update when you have a moment? Thank you."
+  },
+  "groups": [
+    {
+      "id": "email",
+      "label": "Email",
+      "icon": "mail"
+    },
+    {
+      "id": "slack",
+      "label": "Slack",
+      "icon": "message"
+    },
+    {
+      "id": "messages",
+      "label": "Messages",
+      "icon": "mobile"
+    }
+  ],
+  "messages": [
+    {
+      "id": "launch",
+      "name": "Nora Hayes",
+      "firstName": "Nora",
+      "initials": "NH",
+      "subject": "Website launch approval",
+      "preview": "Could you give the revised homepage a final look before we schedule the launch?",
+      "sourceId": "email",
+      "source": "Email",
+      "sentDay": "Nov 10",
+      "sentDate": "Nov 10, 2026",
+      "sentTime": "9:15 AM",
+      "sentAt": "Nov 10 · 9:15 AM",
+      "wait": "7d",
+      "due": true,
+      "recent": false,
+      "status": "Overdue"
+    },
+    {
+      "id": "handoff",
+      "name": "Eli Morgan",
+      "firstName": "Eli",
+      "initials": "EM",
+      "subject": "Design handoff questions",
+      "preview": "Can you confirm the empty-state behavior and which assets engineering should use?",
+      "sourceId": "slack",
+      "source": "Slack",
+      "sentDay": "Nov 12",
+      "sentDate": "Nov 12, 2026",
+      "sentTime": "2:40 PM",
+      "sentAt": "Nov 12 · 2:40 PM",
+      "wait": "4d 19h",
+      "due": true,
+      "recent": false,
+      "status": "Overdue"
+    },
+    {
+      "id": "proposal",
+      "name": "Maya Brooks",
+      "firstName": "Maya",
+      "initials": "MB",
+      "subject": "Workshop proposal",
+      "preview": "I attached the updated outline. Does the shorter afternoon format work for your team?",
+      "sourceId": "email",
+      "source": "Email",
+      "sentDay": "Nov 13",
+      "sentDate": "Nov 13, 2026",
+      "sentTime": "4:20 PM",
+      "sentAt": "Nov 13 · 4:20 PM",
+      "wait": "3d 17h",
+      "due": true,
+      "recent": false,
+      "status": "Overdue"
+    },
+    {
+      "id": "coffee",
+      "name": "Alex Chen",
+      "firstName": "Alex",
+      "initials": "AC",
+      "subject": "Coffee next Thursday?",
+      "preview": "Would 10:30 work? Happy to meet somewhere near the studio.",
+      "sourceId": "messages",
+      "source": "Messages",
+      "sentDay": "Nov 16",
+      "sentDate": "Nov 16, 2026",
+      "sentTime": "9:10 AM",
+      "sentAt": "Nov 16 · 9:10 AM",
+      "wait": "1d 1h",
+      "due": false,
+      "recent": false,
+      "status": "Waiting"
+    },
+    {
+      "id": "proof",
+      "name": "June Ellis",
+      "firstName": "June",
+      "initials": "JE",
+      "subject": "Print proof review",
+      "preview": "The new proof is ready. Could you check the paper stock and cover alignment?",
+      "sourceId": "email",
+      "source": "Email",
+      "sentDay": "Nov 17",
+      "sentDate": "Nov 17, 2026",
+      "sentTime": "8:20 AM",
+      "sentAt": "Nov 17 · 8:20 AM",
+      "wait": "1h 40m",
+      "due": false,
+      "recent": true,
+      "status": "Recent"
+    },
+    {
+      "id": "export",
+      "name": "Leo Rivera",
+      "firstName": "Leo",
+      "initials": "LR",
+      "subject": "Export format",
+      "preview": "Do you need the figures as SVGs, or should I include PNG versions too?",
+      "sourceId": "slack",
+      "source": "Slack",
+      "sentDay": "Nov 17",
+      "sentDate": "Nov 17, 2026",
+      "sentTime": "9:35 AM",
+      "sentAt": "Nov 17 · 9:35 AM",
+      "wait": "25m",
+      "due": false,
+      "recent": true,
+      "status": "Recent"
+    }
+  ]
+}
+
+

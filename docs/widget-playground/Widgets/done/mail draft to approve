@@ -1,0 +1,897 @@
+<Scope
+  values={{
+    visible: sortBy(
+      drafts
+        .map((draft, index) => ({
+          id: draft.id,
+          recipient: draft.recipient,
+          subject: draft.subject,
+          body: draft.body,
+          preview: draft.body.split("\n\n")[1] || draft.body,
+          status: draft.status,
+          statusLabel:
+            draft.status === "awaiting"
+              ? labels.awaiting
+              : draft.status === "approved"
+                ? labels.approved
+                : labels.saved,
+          statusColor: draft.status === "awaiting" ? "warning" : "secondary",
+          edited: draft.edited,
+          editedAt: draft.editedAt,
+          removed: draft.removed,
+          controls: [
+            {
+              id: "edit",
+              label: labels.edit,
+              color: "primary",
+              variant: "outline",
+              disabled: false,
+              action: {
+                updateState: {
+                  editingId: draft.id,
+                  editSubject: draft.subject,
+                  editBody: draft.body,
+                },
+              },
+            },
+            {
+              id: "approve",
+              label:
+                draft.status === "approved" ? labels.approved : labels.approve,
+              color: draft.status === "approved" ? "secondary" : "info",
+              variant: draft.status === "approved" ? "soft" : "solid",
+              disabled: draft.status === "approved",
+              action: {
+                patchState: set(
+                  "drafts." + String(index) + ".status",
+                  "approved",
+                ),
+              },
+            },
+            {
+              id: "remove",
+              label: labels.remove,
+              color: "danger",
+              variant: "ghost",
+              disabled: false,
+              action: {
+                patchState: [
+                  set("drafts." + String(index) + ".removed", true),
+                  set("lastRemoved", draft.id),
+                ],
+              },
+            },
+          ],
+        }))
+        .filter((draft) => !draft.removed),
+      "editedAt",
+      "desc",
+    ),
+  }}
+>
+  <Scope
+    values={{
+      latest: visible[0],
+      selected: visible.find((draft) => draft.id === selectedId) || visible[0],
+    }}
+  >
+    <Basic align="center" gap={3} theme={darkMode ? "dark" : "light"}>
+      <Box width="100%" maxWidth={440} gap={3}>
+        <Col gap={1}>
+          <Title value={labels.galleryTitle} size="sm" />
+          <Caption value={labels.galleryHint} />
+        </Col>
+        <SegmentedControl
+          name="composition"
+          bind="composition"
+          ariaLabel={labels.compositionLabel}
+          options={compositions}
+          block
+          size="xl"
+          textSize="sm"
+        />
+        <Row justify="between" wrap="wrap" gap={3}>
+          <SegmentedControl
+            name="footprint"
+            bind="footprint"
+            ariaLabel={labels.sizeLabel}
+            options={footprints}
+            size="xl"
+          />
+          <Toggle
+            name="darkMode"
+            bind="darkMode"
+            variant="switch"
+            label={labels.darkAppearance}
+          />
+        </Row>
+
+        <Show when={has(editingId)}>
+          <Card
+            size="full"
+            padding={4}
+            gap={4}
+            theme={darkMode ? "dark" : "light"}
+            shadow={false}
+          >
+            <Row gap={2}>
+              <Icon name="write" size="sm" color="secondary" />
+              <Title value={labels.editTitle} size="sm" />
+            </Row>
+            <Text
+              value={
+                drafts.find((draft) => draft.id === editingId)?.recipient
+                  .email || ""
+              }
+              size="sm"
+              color="secondary"
+            />
+            <Form
+              gap={3}
+              onSubmitAction={{
+                patchState: [
+                  set(
+                    "drafts." +
+                      String(
+                        drafts.findIndex((draft) => draft.id === editingId),
+                      ) +
+                      ".subject",
+                    editSubject.trim(),
+                  ),
+                  set(
+                    "drafts." +
+                      String(
+                        drafts.findIndex((draft) => draft.id === editingId),
+                      ) +
+                      ".body",
+                    editBody.trim(),
+                  ),
+                  set(
+                    "drafts." +
+                      String(
+                        drafts.findIndex((draft) => draft.id === editingId),
+                      ) +
+                      ".status",
+                    "awaiting",
+                  ),
+                  set(
+                    "drafts." +
+                      String(
+                        drafts.findIndex((draft) => draft.id === editingId),
+                      ) +
+                      ".editedAt",
+                    now(),
+                  ),
+                  set(
+                    "drafts." +
+                      String(
+                        drafts.findIndex((draft) => draft.id === editingId),
+                      ) +
+                      ".edited",
+                    labels.justEdited,
+                  ),
+                  set("editingId", ""),
+                ],
+              }}
+            >
+              <Col gap={2}>
+                <Label value={labels.subject} fieldName="editSubject" />
+                <Input
+                  name="editSubject"
+                  bind="editSubject"
+                  required
+                  size="2xl"
+                />
+              </Col>
+              <Col gap={2}>
+                <Label value={labels.message} fieldName="editBody" />
+                <Textarea
+                  name="editBody"
+                  bind="editBody"
+                  required
+                  rows={7}
+                  maxRows={12}
+                />
+              </Col>
+              <Text value={labels.editNotice} size="sm" color="secondary" />
+              <Row justify="between" gap={2}>
+                <Button
+                  label={labels.cancel}
+                  variant="ghost"
+                  size="2xl"
+                  onClickAction={{ updateState: { editingId: "" } }}
+                />
+                <Button
+                  label={labels.save}
+                  color="info"
+                  size="2xl"
+                  submit
+                  disabled={!has(editSubject.trim()) || !has(editBody.trim())}
+                />
+              </Row>
+            </Form>
+          </Card>
+          <Show.Else>
+            <Card
+              size="full"
+              padding={0}
+              gap={0}
+              theme={darkMode ? "dark" : "light"}
+              shadow={false}
+            >
+              <Show when={size(visible) > 0}>
+                <Show when={footprint === "medium"}>
+                  <Show when={composition === "minimal"}>
+                    <Col padding={4} gap={4}>
+                      <Row gap={2} wrap="wrap">
+                        <Icon name="mail" size="sm" color="secondary" />
+                        <Caption value={labels.latest} />
+                        <Spacer />
+                        <Badge
+                          label={latest.statusLabel}
+                          color={latest.statusColor}
+                          size="sm"
+                        />
+                      </Row>
+                      <Col gap={2}>
+                        <Caption value={labels.to + latest.recipient.email} />
+                        <Title value={latest.subject} size="sm" />
+                        <Text
+                          value={latest.preview}
+                          size="sm"
+                          color="secondary"
+                          maxLines={3}
+                        />
+                      </Col>
+                      <Caption value={latest.edited} />
+                      <Divider />
+                      <Row justify="between" gap={2}>
+                        <Each of={latest.controls.slice(0, 2)} item="control">
+                          <Button
+                            key={control.id}
+                            label={control.label}
+                            color={control.color}
+                            variant={control.variant}
+                            disabled={control.disabled}
+                            size="2xl"
+                            onClickAction={control.action}
+                          />
+                        </Each>
+                      </Row>
+                    </Col>
+                  </Show>
+
+                  <Show when={composition === "inbox"}>
+                    <Col padding={4} gap={3}>
+                      <Row gap={2}>
+                        <Icon name="inbox" size="sm" color="secondary" />
+                        <Text
+                          value={labels.draftsTitle}
+                          size="sm"
+                          weight="semibold"
+                        />
+                        <Spacer />
+                        <Caption value={labels.latestShort} />
+                      </Row>
+                      <Divider />
+                      <Row align="start" gap={3}>
+                        <Avatar
+                          name={latest.recipient.name}
+                          size={38}
+                          radius="md"
+                        />
+                        <Col flex={1} minWidth={0} gap={1}>
+                          <Text value={latest.subject} weight="semibold" />
+                          <Caption value={labels.to + latest.recipient.email} />
+                          <Text
+                            value={latest.preview}
+                            size="sm"
+                            color="secondary"
+                            maxLines={3}
+                          />
+                        </Col>
+                      </Row>
+                      <Row justify="between" wrap="wrap" gap={2}>
+                        <Badge
+                          label={latest.statusLabel}
+                          color={latest.statusColor}
+                        />
+                        <Caption value={latest.edited} />
+                      </Row>
+                      <Row justify="end" gap={2}>
+                        <Each of={latest.controls.slice(0, 2)} item="control">
+                          <Button
+                            key={control.id}
+                            label={control.label}
+                            color={control.color}
+                            variant={control.variant}
+                            disabled={control.disabled}
+                            size="2xl"
+                            pill={control.id === "approve"}
+                            onClickAction={control.action}
+                          />
+                        </Each>
+                      </Row>
+                    </Col>
+                  </Show>
+
+                  <Show when={composition === "editorial"}>
+                    <Col padding={5} gap={4}>
+                      <Caption
+                        value={labels.latest + labels.separator + latest.edited}
+                      />
+                      <Title value={latest.subject} size="lg" />
+                      <Col gap={1}>
+                        <Text
+                          value={labels.to + latest.recipient.name}
+                          size="sm"
+                          weight="medium"
+                        />
+                        <Caption value={latest.recipient.email} />
+                      </Col>
+                      <Divider />
+                      <Text value={latest.preview} size="md" maxLines={5} />
+                      <Row gap={2} wrap="wrap">
+                        <Badge
+                          label={latest.statusLabel}
+                          color={latest.statusColor}
+                          variant="outline"
+                        />
+                        <Spacer />
+                      </Row>
+                      <Row justify="between" gap={2}>
+                        <Each of={latest.controls.slice(0, 2)} item="control">
+                          <Button
+                            key={control.id}
+                            label={control.label}
+                            color={control.color}
+                            variant={control.variant}
+                            disabled={control.disabled}
+                            size="2xl"
+                            onClickAction={control.action}
+                          />
+                        </Each>
+                      </Row>
+                    </Col>
+                  </Show>
+
+                  <Show when={composition === "review"}>
+                    <Col padding={4} gap={3}>
+                      <Row gap={2}>
+                        <Icon name="document" size="sm" color="secondary" />
+                        <Title value={labels.reviewTitle} size="sm" />
+                        <Spacer />
+                        <Caption value={latest.edited} />
+                      </Row>
+                      <Col gap={1}>
+                        <Text value={latest.subject} weight="semibold" />
+                        <Caption value={labels.to + latest.recipient.email} />
+                      </Col>
+                      <Box
+                        background="surface-secondary"
+                        padding={3}
+                        radius="sm"
+                        gap={2}
+                      >
+                        <Text value={latest.preview} size="sm" maxLines={4} />
+                      </Box>
+                      <Badge
+                        label={latest.statusLabel}
+                        color={latest.statusColor}
+                      />
+                    </Col>
+                    <Box padding={4} background="surface-secondary">
+                      <Row justify="between" gap={2}>
+                        <Each of={latest.controls.slice(0, 2)} item="control">
+                          <Button
+                            key={control.id}
+                            label={control.label}
+                            color={control.color}
+                            variant={control.variant}
+                            disabled={control.disabled}
+                            size="2xl"
+                            onClickAction={control.action}
+                          />
+                        </Each>
+                      </Row>
+                    </Box>
+                  </Show>
+
+                  <Show.Else>
+                    <Show when={composition === "minimal"}>
+                      <Col padding={4} gap={3}>
+                        <Row gap={2}>
+                          <Icon name="mail" size="sm" color="secondary" />
+                          <Title value={labels.draftsTitle} size="sm" />
+                          <Spacer />
+                          <Caption
+                            value={pluralize(
+                              min(3, size(visible)),
+                              labels.draftUnit,
+                            )}
+                          />
+                        </Row>
+                        <Each of={visible.slice(0, 3)} item="draft" index="i">
+                          <Col key={draft.id} gap={3} padding={{ y: 2 }}>
+                            <Show when={i > 0}>
+                              <Divider />
+                            </Show>
+                            <Col gap={1}>
+                              <Caption
+                                value={labels.to + draft.recipient.email}
+                              />
+                              <Text value={draft.subject} weight="semibold" />
+                              <Text
+                                value={draft.preview}
+                                size="sm"
+                                color="secondary"
+                                maxLines={2}
+                              />
+                            </Col>
+                            <Row justify="between" gap={2} wrap="wrap">
+                              <Badge
+                                label={draft.statusLabel}
+                                color={draft.statusColor}
+                              />
+                              <Caption value={draft.edited} />
+                            </Row>
+                            <Row gap={2} wrap="wrap">
+                              <Each of={draft.controls} item="control">
+                                <Button
+                                  key={control.id}
+                                  label={control.label}
+                                  color={control.color}
+                                  variant={control.variant}
+                                  disabled={control.disabled}
+                                  size="2xl"
+                                  onClickAction={control.action}
+                                />
+                              </Each>
+                            </Row>
+                          </Col>
+                        </Each>
+                      </Col>
+                    </Show>
+
+                    <Show when={composition === "inbox"}>
+                      <Col padding={4} gap={0}>
+                        <Row gap={2} padding={{ bottom: 3 }}>
+                          <Icon name="inbox" size="sm" color="secondary" />
+                          <Title value={labels.draftsTitle} size="sm" />
+                          <Spacer />
+                          <Caption
+                            value={pluralize(
+                              min(4, size(visible)),
+                              labels.draftUnit,
+                            )}
+                          />
+                        </Row>
+                        <Each of={visible.slice(0, 4)} item="draft" index="i">
+                          <Col key={draft.id} gap={0}>
+                            <Divider />
+                            <Row align="start" gap={3} padding={{ top: 3 }}>
+                              <Avatar
+                                name={draft.recipient.name}
+                                size={32}
+                                radius="sm"
+                              />
+                              <Col flex={1} minWidth={0} gap={1}>
+                                <Text
+                                  value={draft.subject}
+                                  size="sm"
+                                  weight="semibold"
+                                />
+                                <Caption
+                                  value={labels.to + draft.recipient.email}
+                                />
+                                <Text
+                                  value={draft.preview}
+                                  size="sm"
+                                  color="secondary"
+                                  maxLines={1}
+                                />
+                                <Row gap={2} wrap="wrap" padding={{ top: 1 }}>
+                                  <Badge
+                                    label={draft.statusLabel}
+                                    color={draft.statusColor}
+                                    size="sm"
+                                  />
+                                  <Caption value={draft.edited} />
+                                </Row>
+                              </Col>
+                            </Row>
+                            <Row
+                              gap={2}
+                              wrap="wrap"
+                              padding={{ top: 2, bottom: 3, left: 11 }}
+                            >
+                              <Each of={draft.controls} item="control">
+                                <Button
+                                  key={control.id}
+                                  label={control.label}
+                                  color={control.color}
+                                  variant={control.variant}
+                                  disabled={control.disabled}
+                                  size="2xl"
+                                  pill={control.id === "approve"}
+                                  onClickAction={control.action}
+                                />
+                              </Each>
+                            </Row>
+                          </Col>
+                        </Each>
+                      </Col>
+                    </Show>
+
+                    <Show when={composition === "editorial"}>
+                      <Col padding={5} gap={3}>
+                        <Row gap={2} wrap="wrap">
+                          <Caption value={labels.featured} />
+                          <Spacer />
+                          <Badge
+                            label={latest.statusLabel}
+                            color={latest.statusColor}
+                            variant="outline"
+                          />
+                        </Row>
+                        <Title value={latest.subject} size="lg" />
+                        <Col gap={1}>
+                          <Text
+                            value={labels.to + latest.recipient.name}
+                            size="sm"
+                            weight="medium"
+                          />
+                          <Caption value={latest.recipient.email} />
+                        </Col>
+                        <Text value={latest.preview} size="md" />
+                        <Caption value={latest.edited} />
+                        <Row gap={2} wrap="wrap">
+                          <Each of={latest.controls} item="control">
+                            <Button
+                              key={control.id}
+                              label={control.label}
+                              color={control.color}
+                              variant={control.variant}
+                              disabled={control.disabled}
+                              size="2xl"
+                              onClickAction={control.action}
+                            />
+                          </Each>
+                        </Row>
+                      </Col>
+                      <Show when={size(visible) > 1}>
+                        <Divider flush />
+                        <Col padding={4} gap={4}>
+                          <Text
+                            value={labels.alsoDrafts}
+                            size="sm"
+                            weight="semibold"
+                            color="secondary"
+                          />
+                          <Each of={visible.slice(1, 3)} item="draft" index="i">
+                            <Col key={draft.id} gap={2}>
+                              <Show when={i > 0}>
+                                <Divider />
+                              </Show>
+                              <Text value={draft.subject} weight="semibold" />
+                              <Caption
+                                value={labels.to + draft.recipient.email}
+                              />
+                              <Text
+                                value={draft.preview}
+                                size="sm"
+                                color="secondary"
+                                maxLines={2}
+                              />
+                              <Row gap={2} wrap="wrap">
+                                <Badge
+                                  label={draft.statusLabel}
+                                  color={draft.statusColor}
+                                />
+                                <Caption value={draft.edited} />
+                              </Row>
+                              <Row gap={2} wrap="wrap">
+                                <Each of={draft.controls} item="control">
+                                  <Button
+                                    key={control.id}
+                                    label={control.label}
+                                    color={control.color}
+                                    variant={control.variant}
+                                    disabled={control.disabled}
+                                    size="2xl"
+                                    onClickAction={control.action}
+                                  />
+                                </Each>
+                              </Row>
+                            </Col>
+                          </Each>
+                        </Col>
+                      </Show>
+                    </Show>
+
+                    <Show when={composition === "review"}>
+                      <Col padding={4} gap={3}>
+                        <Row gap={2}>
+                          <Title value={labels.draftsTitle} size="sm" />
+                          <Spacer />
+                          <Caption
+                            value={pluralize(
+                              min(3, size(visible)),
+                              labels.draftUnit,
+                            )}
+                          />
+                        </Row>
+                        <Caption value={labels.queueHint} />
+                        <Col gap={1}>
+                          <Each of={visible.slice(0, 3)} item="draft">
+                            <Pressable
+                              key={draft.id}
+                              padding={3}
+                              radius="sm"
+                              background={
+                                selected.id === draft.id
+                                  ? "surface-secondary"
+                                  : "surface"
+                              }
+                              onClickAction={{
+                                updateState: { selectedId: draft.id },
+                              }}
+                            >
+                              <Col gap={1}>
+                                <Row gap={2}>
+                                  <Text
+                                    value={draft.subject}
+                                    size="sm"
+                                    weight="semibold"
+                                  />
+                                  <Spacer />
+                                  <Show when={selected.id === draft.id}>
+                                    <Icon
+                                      name="chevron-down"
+                                      size="sm"
+                                      color="secondary"
+                                    />
+                                  </Show>
+                                </Row>
+                                <Caption
+                                  value={labels.to + draft.recipient.email}
+                                />
+                                <Text
+                                  value={draft.preview}
+                                  size="sm"
+                                  color="secondary"
+                                  maxLines={1}
+                                />
+                                <Row gap={2} wrap="wrap">
+                                  <Caption
+                                    value={draft.statusLabel}
+                                    color={
+                                      draft.status === "awaiting"
+                                        ? "warning"
+                                        : "secondary"
+                                    }
+                                  />
+                                  <Caption value={draft.edited} />
+                                </Row>
+                              </Col>
+                            </Pressable>
+                          </Each>
+                        </Col>
+                      </Col>
+                      <Divider flush />
+                      <Col padding={4} gap={3}>
+                        <Row gap={2}>
+                          <Icon name="book-open" size="sm" color="secondary" />
+                          <Caption value={labels.selectedDraft} />
+                        </Row>
+                        <Col gap={1}>
+                          <Title value={selected.subject} size="sm" />
+                          <Caption
+                            value={
+                              labels.to +
+                              selected.recipient.name +
+                              labels.separator +
+                              selected.recipient.email
+                            }
+                          />
+                        </Col>
+                        <Text
+                          value={selected.body}
+                          size="sm"
+                          preserveWhitespace
+                        />
+                        <Row gap={2} wrap="wrap">
+                          <Badge
+                            label={selected.statusLabel}
+                            color={selected.statusColor}
+                          />
+                          <Caption value={selected.edited} />
+                        </Row>
+                        <Row gap={2} wrap="wrap">
+                          <Each of={selected.controls} item="control">
+                            <Button
+                              key={control.id}
+                              label={control.label}
+                              color={control.color}
+                              variant={control.variant}
+                              disabled={control.disabled}
+                              size="2xl"
+                              onClickAction={control.action}
+                            />
+                          </Each>
+                        </Row>
+                      </Col>
+                    </Show>
+                  </Show.Else>
+                </Show>
+                <Show.Else>
+                  <EmptyState
+                    icon="mail"
+                    title={labels.emptyTitle}
+                    description={labels.emptyDescription}
+                  />
+                </Show.Else>
+              </Show>
+            </Card>
+          </Show.Else>
+        </Show>
+
+        <Show when={has(lastRemoved)}>
+          <Row gap={2} justify="between" wrap="wrap">
+            <Text value={labels.removedNotice} size="sm" color="secondary" />
+            <Button
+              label={labels.undo}
+              variant="outline"
+              size="2xl"
+              onClickAction={{
+                patchState: [
+                  set(
+                    "drafts." +
+                      String(
+                        drafts.findIndex((draft) => draft.id === lastRemoved),
+                      ) +
+                      ".removed",
+                    false,
+                  ),
+                  set("lastRemoved", ""),
+                ],
+              }}
+            />
+          </Row>
+        </Show>
+        <Text value={labels.localNotice} size="sm" color="secondary" />
+      </Box>
+    </Basic>
+  </Scope>
+</Scope>
+
+
+
+{
+  "composition": "minimal",
+  "footprint": "medium",
+  "darkMode": false,
+  "selectedId": "launch",
+  "editingId": "",
+  "editSubject": "",
+  "editBody": "",
+  "lastRemoved": "",
+  "compositions": [
+    {
+      "label": "Minimal",
+      "value": "minimal"
+    },
+    {
+      "label": "Inbox",
+      "value": "inbox"
+    },
+    {
+      "label": "Editorial",
+      "value": "editorial"
+    },
+    {
+      "label": "Review",
+      "value": "review"
+    }
+  ],
+  "footprints": [
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "labels": {
+    "galleryTitle": "Mail drafts to approve",
+    "galleryHint": "Four directions, two sizes. Explore all eight studies.",
+    "compositionLabel": "Widget composition",
+    "sizeLabel": "Widget size",
+    "darkAppearance": "Dark appearance",
+    "draftsTitle": "Drafts to approve",
+    "draftUnit": "draft",
+    "latest": "Most recently saved",
+    "latestShort": "Latest",
+    "to": "To: ",
+    "separator": " · ",
+    "awaiting": "Awaiting approval",
+    "saved": "Saved draft",
+    "approved": "Approved",
+    "edit": "Edit",
+    "approve": "Approve",
+    "remove": "Remove",
+    "reviewTitle": "Review draft",
+    "featured": "The latest draft",
+    "alsoDrafts": "Also in drafts",
+    "queueHint": "Select a draft to read and review below.",
+    "selectedDraft": "Selected draft · review actions below",
+    "editTitle": "Edit draft",
+    "subject": "Subject",
+    "message": "Message",
+    "cancel": "Cancel",
+    "save": "Save draft locally",
+    "editNotice": "Saving updates this preview and returns the draft to awaiting approval.",
+    "justEdited": "Edited just now",
+    "emptyTitle": "No drafts in this preview",
+    "emptyDescription": "Undo the last removal to bring a draft back.",
+    "removedNotice": "Draft removed from this preview.",
+    "undo": "Undo removal",
+    "localNotice": "Demo emails. Edits, approvals and removals stay here; no email is sent."
+  },
+  "drafts": [
+    {
+      "id": "launch",
+      "recipient": {
+        "name": "Maya Chen",
+        "email": "maya@example.com"
+      },
+      "subject": "Revised launch timeline",
+      "body": "Hi Maya,\n\nWe’ve moved the internal review to Thursday so the team has time to incorporate your feedback. The public launch stays on Monday. Could you confirm the revised milestones before I share the timeline?\n\nThanks,\nAlex",
+      "status": "awaiting",
+      "edited": "Edited 8 min ago",
+      "editedAt": 1780303920000,
+      "removed": false
+    },
+    {
+      "id": "studio",
+      "recipient": {
+        "name": "Noah Ellis",
+        "email": "noah@example.com"
+      },
+      "subject": "Notes from our studio visit",
+      "body": "Hi Noah,\n\nThank you for showing us around the studio. The material samples were especially helpful. I’ve pulled together our notes and would love to arrange a short follow-up next week to talk through the two directions we discussed.\n\nBest,\nAlex",
+      "status": "awaiting",
+      "edited": "Edited 24 min ago",
+      "editedAt": 1780302960000,
+      "removed": false
+    },
+    {
+      "id": "agenda",
+      "recipient": {
+        "name": "Lena Park",
+        "email": "lena@example.com"
+      },
+      "subject": "Friday’s review agenda",
+      "body": "Hi Lena,\n\nFor Friday’s review, let’s start with the updated prototypes, then leave fifteen minutes for open questions. Please add any decisions you need from the group so we can keep the discussion focused.\n\nThanks,\nAlex",
+      "status": "saved",
+      "edited": "Edited 1 hr ago",
+      "editedAt": 1780300800000,
+      "removed": false
+    },
+    {
+      "id": "series",
+      "recipient": {
+        "name": "Theo Morgan",
+        "email": "theo@example.com"
+      },
+      "subject": "Proposal for the autumn series",
+      "body": "Hi Theo,\n\nI’d like to propose three small workshops for the autumn series, each built around a different making process. If the outline feels right, I can put together a more detailed brief with materials and a suggested schedule.\n\nBest,\nAlex",
+      "status": "awaiting",
+      "edited": "Edited 2 hr ago",
+      "editedAt": 1780297200000,
+      "removed": false
+    }
+  ]
+}

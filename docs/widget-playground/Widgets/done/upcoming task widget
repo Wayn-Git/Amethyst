@@ -1,0 +1,884 @@
+<Scope
+  values={{
+    appearance: darkPreview ? "dark" : "light",
+    completed: size(tasks.filter((task) => task.done)),
+    remaining: size(tasks.filter((task) => !task.done)),
+    next: tasks.find((task) => !task.done),
+    openTasks: tasks.filter((task) => !task.done),
+    directionInfo: directions.find((item) => item.value === direction),
+  }}
+>
+  <Basic theme={appearance} align="center" gap={4}>
+    <Box width="100%" maxWidth={400} gap={4}>
+      <Col gap={1}>
+        <Title value={labels.title} size="md" />
+        <Caption value={labels.subtitle} />
+      </Col>
+      <Col gap={3}>
+        <Col gap={1}>
+          <Label value={labels.direction} fieldName="direction" />
+          <Select
+            name="direction"
+            bind="direction"
+            options={directions}
+            block
+            size="2xl"
+          />
+        </Col>
+        <Row gap={3} wrap="wrap" justify="between">
+          <SegmentedControl
+            name="widgetSize"
+            bind="widgetSize"
+            options={sizes}
+            ariaLabel={labels.size}
+            size="lg"
+          />
+          <Row gap={2}>
+            <Text value={labels.dark} size="sm" color="secondary" />
+            <Toggle
+              name="darkPreview"
+              bind="darkPreview"
+              label={labels.darkAppearance}
+              variant="switch"
+            />
+          </Row>
+        </Row>
+        <Text value={directionInfo.description} size="sm" color="secondary" />
+      </Col>
+      <Box align="center" width="100%">
+        <Card
+          size="full"
+          width={widgetSize === "small" ? 248 : "100%"}
+          padding={4}
+          gap={3}
+          theme={appearance}
+        >
+          <Show when={remaining > 0 || widgetSize === "large"}>
+            <Show when={direction === "minimal"}>
+              <Show when={widgetSize === "small"}>
+                <Col gap={3}>
+                  <Caption value={labels.upNext} size="sm" />
+                  <Checkbox
+                    bind={"tasks." + String(next.slot) + ".done"}
+                    label={next.title}
+                    lineThrough
+                  />
+                  <Caption value={next.due} />
+                  <Row gap={1}>
+                    <Icon name="flag" size="xs" color={next.tone} />
+                    <Caption
+                      value={next.priority + labels.prioritySuffix}
+                      color={next.tone}
+                    />
+                  </Row>
+                </Col>
+                <Show.ElseIf when={widgetSize === "medium"}>
+                  <Col gap={3}>
+                    <Title value={labels.upcoming} size="sm" />
+                    <Each of={openTasks.slice(0, 3)} item="task">
+                      <Col key={task.id} gap={1}>
+                        <Checkbox
+                          bind={"tasks." + String(task.slot) + ".done"}
+                          label={task.title}
+                          lineThrough
+                        />
+                        <Box padding={{ left: 6 }}>
+                          <Caption
+                            value={task.due + " · " + task.priority}
+                            color={task.tone}
+                          />
+                        </Box>
+                      </Col>
+                    </Each>
+                  </Col>
+                </Show.ElseIf>
+                <Show.Else>
+                  <Col gap={3}>
+                    <Title value={labels.upcoming} size="sm" />
+                    <Each of={groups} item="group">
+                      <Col key={group.id} gap={2}>
+                        <Caption
+                          value={group.label}
+                          weight="semibold"
+                          color={group.tone}
+                        />
+                        <Each
+                          of={tasks.filter((task) => task.group === group.id)}
+                          item="task"
+                        >
+                          <Col key={task.id} gap={0}>
+                            <Checkbox
+                              bind={"tasks." + String(task.slot) + ".done"}
+                              label={task.title}
+                              lineThrough
+                            />
+                            <Box padding={{ left: 6 }}>
+                              <Caption
+                                value={task.due + " · " + task.priority}
+                                color={task.done ? "secondary" : task.tone}
+                              />
+                            </Box>
+                          </Col>
+                        </Each>
+                      </Col>
+                    </Each>
+                  </Col>
+                </Show.Else>
+              </Show>
+            </Show>
+            <Show when={direction === "list"}>
+              <Show when={widgetSize === "small"}>
+                <Col gap={3}>
+                  <Row gap={2}>
+                    <Icon name="check-circle" size="sm" color="secondary" />
+                    <Text value={labels.yourList} size="sm" weight="semibold" />
+                  </Row>
+                  <Row gap={2} align="start">
+                    <Col flex={1} minWidth={0}>
+                      <Checkbox
+                        bind={"tasks." + String(next.slot) + ".done"}
+                        label={next.title}
+                        lineThrough
+                      />
+                    </Col>
+                    <Col gap={0} align="end">
+                      <Caption value={next.shortDue} />
+                      <Text
+                        value={next.priority}
+                        size="xs"
+                        color={next.tone}
+                        weight="medium"
+                      />
+                    </Col>
+                  </Row>
+                  <Caption value={next.day} />
+                </Col>
+                <Show.ElseIf when={widgetSize === "medium"}>
+                  <Col gap={0}>
+                    <Row gap={2} padding={{ bottom: 2 }}>
+                      <Icon name="check-circle" size="sm" color="secondary" />
+                      <Title value={labels.yourList} size="sm" />
+                    </Row>
+                    <Each of={openTasks.slice(0, 4)} item="task" index="i">
+                      <Col key={task.id} gap={0}>
+                        <Show when={i > 0}>
+                          <Divider color="subtle" />
+                        </Show>
+                        <Row gap={3} align="start" padding={{ y: 2 }}>
+                          <Col flex={1} minWidth={0}>
+                            <Checkbox
+                              bind={"tasks." + String(task.slot) + ".done"}
+                              label={task.title}
+                              lineThrough
+                            />
+                          </Col>
+                          <Col align="end" gap={0}>
+                            <Caption value={task.day + " · " + task.shortDue} />
+                            <Text
+                              value={task.priority}
+                              size="xs"
+                              color={task.tone}
+                              weight="medium"
+                            />
+                          </Col>
+                        </Row>
+                      </Col>
+                    </Each>
+                  </Col>
+                </Show.ElseIf>
+                <Show.Else>
+                  <Col gap={3}>
+                    <Row gap={2}>
+                      <Icon name="check-circle" size="sm" color="secondary" />
+                      <Title value={labels.yourList} size="sm" />
+                      <Spacer />
+                      <Caption value={labels.workPersonal} />
+                    </Row>
+                    <Each of={groups} item="group" index="g">
+                      <Col key={group.id} gap={1}>
+                        <Show when={g > 0}>
+                          <Divider color="subtle" spacing={1} />
+                        </Show>
+                        <Row gap={2} padding={{ y: 1 }}>
+                          <Text
+                            value={group.label}
+                            size="xs"
+                            weight="semibold"
+                            color={group.tone}
+                          />
+                          <Spacer />
+                          <Caption
+                            value={String(
+                              size(
+                                tasks.filter((task) => task.group === group.id),
+                              ),
+                            )}
+                          />
+                        </Row>
+                        <Each
+                          of={tasks.filter((task) => task.group === group.id)}
+                          item="task"
+                        >
+                          <Row
+                            key={task.id}
+                            gap={3}
+                            align="start"
+                            padding={{ y: 1 }}
+                          >
+                            <Col flex={1} minWidth={0}>
+                              <Checkbox
+                                bind={"tasks." + String(task.slot) + ".done"}
+                                label={task.title}
+                                lineThrough
+                              />
+                            </Col>
+                            <Col align="end" gap={0}>
+                              <Caption value={task.shortDue} />
+                              <Text
+                                value={task.priority}
+                                size="xs"
+                                color={task.done ? "secondary" : task.tone}
+                              />
+                            </Col>
+                          </Row>
+                        </Each>
+                      </Col>
+                    </Each>
+                  </Col>
+                </Show.Else>
+              </Show>
+            </Show>
+            <Show when={direction === "timeline"}>
+              <Show when={widgetSize === "small"}>
+                <Col gap={3}>
+                  <Caption value={next.day} weight="semibold" />
+                  <Row gap={3} align="start">
+                    <Col gap={0}>
+                      <Title value={next.time} size="lg" tabularNums />
+                      <Caption value={next.meridiem} />
+                    </Col>
+                    <Col flex={1} minWidth={0} gap={2}>
+                      <Checkbox
+                        bind={"tasks." + String(next.slot) + ".done"}
+                        label={next.title}
+                        lineThrough
+                      />
+                      <Caption
+                        value={next.priority + labels.prioritySuffix}
+                        color={next.tone}
+                      />
+                    </Col>
+                  </Row>
+                </Col>
+                <Show.ElseIf when={widgetSize === "medium"}>
+                  <Col gap={3}>
+                    <Title value={labels.horizon} size="sm" />
+                    <Each of={openTasks.slice(0, 3)} item="task">
+                      <Row key={task.id} gap={3} align="start">
+                        <Col width={68} gap={0}>
+                          <Text
+                            value={task.time}
+                            size="lg"
+                            weight="medium"
+                            tabularNums
+                          />
+                          <Caption value={task.meridiem} />
+                          <Caption
+                            value={task.day}
+                            color={
+                              task.group === "overdue" ? "danger" : "secondary"
+                            }
+                          />
+                        </Col>
+                        <Col
+                          flex={1}
+                          minWidth={0}
+                          gap={1}
+                          border={{ left: { size: 1, color: "subtle" } }}
+                          padding={{ left: 3, y: 1 }}
+                        >
+                          <Checkbox
+                            bind={"tasks." + String(task.slot) + ".done"}
+                            label={task.title}
+                            lineThrough
+                          />
+                          <Box padding={{ left: 6 }}>
+                            <Caption
+                              value={task.priority + labels.prioritySuffix}
+                              color={task.tone}
+                            />
+                          </Box>
+                        </Col>
+                      </Row>
+                    </Each>
+                  </Col>
+                </Show.ElseIf>
+                <Show.Else>
+                  <Col gap={3}>
+                    <Title value={labels.horizon} size="sm" />
+                    <Each of={groups} item="group">
+                      <Col key={group.id} gap={2}>
+                        <Row gap={2} align="baseline" wrap="wrap">
+                          <Text
+                            value={group.label}
+                            size="sm"
+                            weight="semibold"
+                            color={group.tone}
+                          />
+                          <Caption value={group.date} />
+                        </Row>
+                        <Col gap={2}>
+                          <Each
+                            of={tasks.filter((task) => task.group === group.id)}
+                            item="task"
+                          >
+                            <Row key={task.id} gap={3} align="start">
+                              <Col width={62} gap={0}>
+                                <Text
+                                  value={task.time}
+                                  size="sm"
+                                  weight="medium"
+                                  tabularNums
+                                  color={task.done ? "secondary" : "primary"}
+                                />
+                                <Caption value={task.meridiem} />
+                              </Col>
+                              <Col
+                                flex={1}
+                                minWidth={0}
+                                border={{ left: { size: 1, color: "subtle" } }}
+                                padding={{ left: 3 }}
+                                gap={0}
+                              >
+                                <Checkbox
+                                  bind={"tasks." + String(task.slot) + ".done"}
+                                  label={task.title}
+                                  lineThrough
+                                />
+                                <Box padding={{ left: 6 }}>
+                                  <Caption
+                                    value={
+                                      (task.group === "upcoming"
+                                        ? task.day + " · "
+                                        : "") + task.priority
+                                    }
+                                    color={task.done ? "secondary" : task.tone}
+                                  />
+                                </Box>
+                              </Col>
+                            </Row>
+                          </Each>
+                        </Col>
+                      </Col>
+                    </Each>
+                  </Col>
+                </Show.Else>
+              </Show>
+            </Show>
+            <Show when={direction === "progress"}>
+              <Col gap={3}>
+                <Show when={widgetSize === "large"}>
+                  <Title value={labels.steadyProgress} size="sm" />
+                </Show>
+                <Row align="end" justify="between" gap={3}>
+                  <Stat
+                    label={labels.completed}
+                    value={String(completed) + " / " + String(size(tasks))}
+                    size={widgetSize === "small" ? "md" : "lg"}
+                  />
+                  <Col gap={0} align="end">
+                    <Text
+                      value={
+                        String(round((completed / max(1, size(tasks))) * 100)) +
+                        "%"
+                      }
+                      size="xl"
+                      weight="semibold"
+                      tabularNums
+                    />
+                    <Caption
+                      value={String(remaining) + labels.remainingSuffix}
+                    />
+                  </Col>
+                </Row>
+                <Progress
+                  value={completed}
+                  max={max(1, size(tasks))}
+                  showValue={false}
+                  color="info"
+                  size="sm"
+                />
+                <Show when={widgetSize === "small"}>
+                  <Col gap={2}>
+                    <Caption value={labels.upNext} size="sm" />
+                    <Checkbox
+                      bind={"tasks." + String(next.slot) + ".done"}
+                      label={next.title}
+                      lineThrough
+                    />
+                    <Caption
+                      value={next.due + " · " + next.priority}
+                      color={next.tone}
+                    />
+                  </Col>
+                  <Show.ElseIf when={widgetSize === "medium"}>
+                    <Col gap={3}>
+                      <Each of={openTasks.slice(0, 3)} item="task">
+                        <Col key={task.id} gap={0}>
+                          <Checkbox
+                            bind={"tasks." + String(task.slot) + ".done"}
+                            label={task.title}
+                            lineThrough
+                          />
+                          <Box padding={{ left: 6 }}>
+                            <Caption
+                              value={task.due + " · " + task.priority}
+                              color={task.tone}
+                            />
+                          </Box>
+                        </Col>
+                      </Each>
+                    </Col>
+                  </Show.ElseIf>
+                  <Show.Else>
+                    <Divider color="subtle" />
+                    <Each of={groups} item="group">
+                      <Col key={group.id} gap={2}>
+                        <Row gap={2}>
+                          <Text
+                            value={group.label}
+                            size="xs"
+                            weight="semibold"
+                            color={group.tone}
+                          />
+                          <Spacer />
+                          <Caption
+                            value={
+                              String(
+                                size(
+                                  tasks.filter(
+                                    (task) =>
+                                      task.group === group.id && !task.done,
+                                  ),
+                                ),
+                              ) + labels.remainingSuffix
+                            }
+                          />
+                        </Row>
+                        <Each
+                          of={tasks.filter((task) => task.group === group.id)}
+                          item="task"
+                        >
+                          <Col key={task.id} gap={0}>
+                            <Checkbox
+                              bind={"tasks." + String(task.slot) + ".done"}
+                              label={task.title}
+                              lineThrough
+                            />
+                            <Box padding={{ left: 6 }}>
+                              <Caption
+                                value={task.due + " · " + task.priority}
+                                color={task.done ? "secondary" : task.tone}
+                              />
+                            </Box>
+                          </Col>
+                        </Each>
+                      </Col>
+                    </Each>
+                  </Show.Else>
+                </Show>
+              </Col>
+            </Show>
+            <Show when={direction === "editorial"}>
+              <Show when={widgetSize === "small"}>
+                <Col gap={3}>
+                  <Caption
+                    value={next.day.toUpperCase() + " / " + next.shortDue}
+                    size="sm"
+                  />
+                  <Title value={next.title} size="2xl" weight="medium" />
+                  <Row gap={2} wrap="wrap" justify="between">
+                    <Checkbox
+                      bind={"tasks." + String(next.slot) + ".done"}
+                      label={labels.markComplete}
+                    />
+                    <Text
+                      value={next.priority}
+                      size="xs"
+                      color={next.tone}
+                      weight="medium"
+                    />
+                  </Row>
+                </Col>
+                <Show.ElseIf when={widgetSize === "medium"}>
+                  <Col gap={3}>
+                    <Row gap={3} align="center">
+                      <Title
+                        value={labels.dateNumber}
+                        size="3xl"
+                        weight="medium"
+                        tabularNums
+                      />
+                      <Col gap={0}>
+                        <Text
+                          value={labels.weekday}
+                          size="sm"
+                          weight="semibold"
+                        />
+                        <Caption value={labels.monthYear} />
+                      </Col>
+                      <Spacer />
+                      <Icon
+                        name="notebook-pencil"
+                        size="lg"
+                        color="secondary"
+                      />
+                    </Row>
+                    <Divider color="subtle" />
+                    <Each of={openTasks.slice(0, 3)} item="task" index="i">
+                      <Row key={task.id} gap={3} align="start">
+                        <Caption value={String(i + 1).padStart(2, "0")} />
+                        <Col flex={1} minWidth={0} gap={0}>
+                          <Checkbox
+                            bind={"tasks." + String(task.slot) + ".done"}
+                            label={task.title}
+                            lineThrough
+                          />
+                          <Box padding={{ left: 6 }}>
+                            <Caption
+                              value={task.due + " / " + task.priority}
+                              color={task.tone}
+                            />
+                          </Box>
+                        </Col>
+                      </Row>
+                    </Each>
+                  </Col>
+                </Show.ElseIf>
+                <Show.Else>
+                  <Col gap={3}>
+                    <Row gap={4} align="start">
+                      <Col gap={0}>
+                        <Title
+                          value={labels.dateNumber}
+                          size="3xl"
+                          weight="medium"
+                          tabularNums
+                        />
+                        <Caption value={labels.monthShort} />
+                      </Col>
+                      <Col flex={1} minWidth={0} gap={1}>
+                        <Title
+                          value={labels.editorialHeading}
+                          size="lg"
+                          weight="medium"
+                        />
+                        <Caption value={labels.weekday} />
+                      </Col>
+                    </Row>
+                    <Divider color="subtle" />
+                    <Each of={groups} item="group">
+                      <Col key={group.id} gap={2}>
+                        <Row gap={2} wrap="wrap" align="baseline">
+                          <Text
+                            value={group.label.toUpperCase()}
+                            size="xs"
+                            weight="semibold"
+                            color={group.tone}
+                          />
+                          <Caption value={group.date} />
+                        </Row>
+                        <Each
+                          of={tasks.filter((task) => task.group === group.id)}
+                          item="task"
+                        >
+                          <Col key={task.id} gap={0}>
+                            <Checkbox
+                              bind={"tasks." + String(task.slot) + ".done"}
+                              label={task.title}
+                              lineThrough
+                            />
+                            <Box padding={{ left: 6 }}>
+                              <Caption
+                                value={task.due + " / " + task.priority}
+                                color={task.done ? "secondary" : task.tone}
+                              />
+                            </Box>
+                          </Col>
+                        </Each>
+                      </Col>
+                    </Each>
+                  </Col>
+                </Show.Else>
+              </Show>
+            </Show>
+            <Show when={direction !== "progress"}>
+              <Divider color="subtle" />
+              <Show when={widgetSize === "large"}>
+                <Col gap={2}>
+                  <Row gap={2} justify="between" wrap="wrap">
+                    <Caption
+                      value={
+                        String(completed) +
+                        labels.of +
+                        String(size(tasks)) +
+                        labels.completedSuffix
+                      }
+                    />
+                    <Caption
+                      value={String(remaining) + labels.remainingSuffix}
+                    />
+                  </Row>
+                  <Progress
+                    value={completed}
+                    max={max(1, size(tasks))}
+                    showValue={false}
+                    size="sm"
+                    color="info"
+                  />
+                </Col>
+                <Show.Else>
+                  <Caption
+                    value={
+                      String(remaining) +
+                      labels.remainingSuffix +
+                      (widgetSize === "medium"
+                        ? " · " + String(completed) + labels.completedSuffix
+                        : "")
+                    }
+                  />
+                </Show.Else>
+              </Show>
+            </Show>
+            <Show.Else>
+              <EmptyState
+                icon="check-circle"
+                title={labels.allDone}
+                description={labels.allDoneNote}
+                padding={2}
+              />
+            </Show.Else>
+          </Show>
+        </Card>
+      </Box>
+      <Row gap={3} justify="between" align="start" wrap="wrap">
+        <Col gap={0}>
+          <Caption value={labels.sampleDate} size="sm" />
+          <Caption value={labels.localNote} size="sm" />
+        </Col>
+        <Button
+          label={labels.reset}
+          variant="ghost"
+          size="lg"
+          $onClickAction='{ patchState: tasks.map(task => set("tasks." + String(task.slot) + ".done", task.initialDone)) }'
+        />
+      </Row>
+    </Box>
+  </Basic>
+</Scope>
+
+
+
+{
+  "direction": "minimal",
+  "widgetSize": "small",
+  "darkPreview": false,
+  "labels": {
+    "title": "Upcoming tasks",
+    "subtitle": "Five directions · fifteen purpose-built layouts",
+    "direction": "Design direction",
+    "size": "Widget size",
+    "dark": "Dark",
+    "darkAppearance": "Use dark appearance",
+    "upNext": "UP NEXT",
+    "upcoming": "Upcoming",
+    "yourList": "Your list",
+    "workPersonal": "Work & personal",
+    "horizon": "On the horizon",
+    "steadyProgress": "Steady progress",
+    "completed": "Completed",
+    "remainingSuffix": " remaining",
+    "completedSuffix": " completed",
+    "prioritySuffix": " priority",
+    "of": " of ",
+    "markComplete": "Mark complete",
+    "dateNumber": "17",
+    "weekday": "Wednesday",
+    "monthYear": "June 2026",
+    "monthShort": "JUNE",
+    "editorialHeading": "Make space for what’s next.",
+    "sampleDate": "Sample schedule · Jun 17, 2026",
+    "localNote": "Checks stay in this preview.",
+    "reset": "Reset checks",
+    "allDone": "A clear list.",
+    "allDoneNote": "Every task is checked. Reset checks to explore again."
+  },
+  "directions": [
+    {
+      "value": "minimal",
+      "label": "01 · Minimal",
+      "description": "Quiet hierarchy. One clear next step, with details kept close."
+    },
+    {
+      "value": "list",
+      "label": "02 · List-focused",
+      "description": "A compact checklist with aligned deadlines and explicit priorities."
+    },
+    {
+      "value": "timeline",
+      "label": "03 · Timeline",
+      "description": "Time leads the composition; deadline columns organize the day."
+    },
+    {
+      "value": "progress",
+      "label": "04 · Progress-focused",
+      "description": "Completion takes the lead, with the remaining work immediately below."
+    },
+    {
+      "value": "editorial",
+      "label": "05 · Editorial",
+      "description": "Expressive system typography, a strong date, and deliberate reading order."
+    }
+  ],
+  "sizes": [
+    {
+      "label": "Small",
+      "value": "small"
+    },
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "groups": [
+    {
+      "id": "overdue",
+      "label": "Overdue",
+      "date": "Yesterday · Jun 16",
+      "tone": "danger"
+    },
+    {
+      "id": "today",
+      "label": "Today",
+      "date": "Wed · Jun 17",
+      "tone": "secondary"
+    },
+    {
+      "id": "upcoming",
+      "label": "Upcoming",
+      "date": "Jun 18–19",
+      "tone": "secondary"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "launch",
+      "slot": 0,
+      "title": "Review launch brief",
+      "group": "today",
+      "day": "Today",
+      "due": "Today, 10:30 AM",
+      "shortDue": "10:30 AM",
+      "time": "10:30",
+      "meridiem": "AM",
+      "priority": "High",
+      "tone": "danger",
+      "done": false,
+      "initialDone": false
+    },
+    {
+      "id": "proposal",
+      "slot": 1,
+      "title": "Send revised proposal",
+      "group": "overdue",
+      "day": "Yesterday",
+      "due": "Overdue · Yesterday, 4 PM",
+      "shortDue": "4 PM",
+      "time": "4:00",
+      "meridiem": "PM",
+      "priority": "High",
+      "tone": "danger",
+      "done": false,
+      "initialDone": false
+    },
+    {
+      "id": "dentist",
+      "slot": 2,
+      "title": "Book dentist appointment",
+      "group": "today",
+      "day": "Today",
+      "due": "Today, 2 PM",
+      "shortDue": "2 PM",
+      "time": "2:00",
+      "meridiem": "PM",
+      "priority": "Normal",
+      "tone": "secondary",
+      "done": false,
+      "initialDone": false
+    },
+    {
+      "id": "expenses",
+      "slot": 3,
+      "title": "Submit expense report",
+      "group": "today",
+      "day": "Today",
+      "due": "Today, 5 PM",
+      "shortDue": "5 PM",
+      "time": "5:00",
+      "meridiem": "PM",
+      "priority": "Normal",
+      "tone": "secondary",
+      "done": true,
+      "initialDone": true
+    },
+    {
+      "id": "sprint",
+      "slot": 4,
+      "title": "Plan next sprint",
+      "group": "upcoming",
+      "day": "Tomorrow",
+      "due": "Tomorrow, 9 AM",
+      "shortDue": "9 AM",
+      "time": "9:00",
+      "meridiem": "AM",
+      "priority": "Medium",
+      "tone": "warning",
+      "done": false,
+      "initialDone": false
+    },
+    {
+      "id": "library",
+      "slot": 5,
+      "title": "Renew library books",
+      "group": "upcoming",
+      "day": "Fri, Jun 19",
+      "due": "Fri, Jun 19, noon",
+      "shortDue": "Noon",
+      "time": "12:00",
+      "meridiem": "PM",
+      "priority": "Normal",
+      "tone": "secondary",
+      "done": false,
+      "initialDone": false
+    },
+    {
+      "id": "notes",
+      "slot": 6,
+      "title": "Organize project notes",
+      "group": "upcoming",
+      "day": "Fri, Jun 19",
+      "due": "Fri, Jun 19, 4 PM",
+      "shortDue": "4 PM",
+      "time": "4:00",
+      "meridiem": "PM",
+      "priority": "Normal",
+      "tone": "secondary",
+      "done": true,
+      "initialDone": true
+    }
+  ]
+}

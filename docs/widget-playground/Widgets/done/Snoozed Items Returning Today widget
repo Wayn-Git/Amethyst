@@ -1,0 +1,746 @@
+<Scope values={{ visible: items.slice(0, sizeChoice === "medium" ? 4 : 7) }}>
+  <Basic align="center" theme={appearance} padding={1}>
+    <Box width="100%" maxWidth={400} gap={3}>
+      <Col gap={3}>
+        <Row gap={2} justify="between" wrap="wrap">
+          <Text value={ui.collectionTitle} size="sm" weight="semibold" />
+          <Caption value={ui.collectionNote} />
+        </Row>
+        <Row gap={2} wrap="wrap" justify="between">
+          <SegmentedControl
+            name="sizeChoice"
+            bind="sizeChoice"
+            options={sizes}
+            ariaLabel={ui.sizeLabel}
+            size="xl"
+          />
+          <SegmentedControl
+            name="appearance"
+            bind="appearance"
+            options={appearances}
+            ariaLabel={ui.appearanceLabel}
+            size="xl"
+          />
+        </Row>
+        <Col gap={1}>
+          <Label value={ui.layoutLabel} fieldName="layoutChoice" />
+          <Select
+            name="layoutChoice"
+            bind="layoutChoice"
+            options={layouts}
+            block
+            size="2xl"
+          />
+        </Col>
+      </Col>
+      <Card
+        key={layoutChoice + sizeChoice}
+        size="full"
+        width="100%"
+        padding={4}
+        gap={4}
+        theme={appearance}
+      >
+        <Col gap={1}>
+          <Row align="baseline" gap={2} justify="between" wrap="wrap">
+            <Title value={ui.title} size="sm" />
+            <Text
+              value={String(size(items)) + ui.itemSuffix}
+              size="xs"
+              color="secondary"
+              tabularNums
+            />
+          </Row>
+          <Caption value={ui.fixtureNote} />
+        </Col>
+        <Show when={size(visible) > 0}>
+          <Show when={layoutChoice === "minimal"}>
+            <Col gap={3}>
+              <Box
+                background="surface-secondary"
+                radius="lg"
+                padding={3}
+                gap={2}
+              >
+                <Row justify="between" gap={2}>
+                  <Text
+                    value={ui.nextUp}
+                    size="xs"
+                    weight="medium"
+                    color="secondary"
+                  />
+                  <Text
+                    value={visible[0].time}
+                    size="sm"
+                    weight="semibold"
+                    tabularNums
+                  />
+                </Row>
+                <Title
+                  value={visible[0].title}
+                  size={sizeChoice === "large" ? "md" : "sm"}
+                />
+                <Text value={visible[0].context} size="sm" color="secondary" />
+                <Caption
+                  value={
+                    visible[0].type +
+                    (sizeChoice === "large"
+                      ? " · " +
+                        visible[0].source +
+                        " · " +
+                        visible[0].priority +
+                        ui.prioritySuffix
+                      : "")
+                  }
+                />
+              </Box>
+              <Show when={sizeChoice === "large"}>
+                <Text value={ui.laterToday} size="sm" weight="semibold" />
+              </Show>
+              <Col gap={0}>
+                <Each of={visible.slice(1)} item="item" index="i">
+                  <Show when={i > 0}>
+                    <Divider color="subtle" />
+                  </Show>
+                  <Row key={item.id} gap={3} align="start" padding={{ y: 2 }}>
+                    <Col flex={1} minWidth={0} gap={1}>
+                      <Text value={item.title} size="sm" weight="medium" />
+                      <Caption value={item.context} />
+                      <Caption
+                        value={
+                          item.type +
+                          (sizeChoice === "large"
+                            ? " · " +
+                              item.source +
+                              " · " +
+                              item.priority +
+                              ui.prioritySuffix
+                            : "")
+                        }
+                        size="sm"
+                      />
+                    </Col>
+                    <Text
+                      value={item.time}
+                      size="sm"
+                      color="secondary"
+                      tabularNums
+                    />
+                  </Row>
+                </Each>
+              </Col>
+            </Col>
+            <Show.ElseIf when={layoutChoice === "timeline"}>
+              <Col gap={0}>
+                <Each of={visible} item="item" index="i">
+                  <Row key={item.id} align="stretch" gap={3}>
+                    <Col width={42} minWidth={42} gap={1} padding={{ top: 1 }}>
+                      <Text
+                        value={item.time}
+                        size="xs"
+                        color={i === 0 ? "primary" : "secondary"}
+                        weight={i === 0 ? "semibold" : "normal"}
+                        tabularNums
+                      />
+                    </Col>
+                    <Col
+                      width={8}
+                      minWidth={8}
+                      align="center"
+                      gap={1}
+                      padding={{ top: 2 }}
+                    >
+                      <Box
+                        size={6}
+                        radius="full"
+                        background={i === 0 ? "emphasis" : "surface-tertiary"}
+                        border={{
+                          size: 1,
+                          color: i === 0 ? "strong" : "default",
+                        }}
+                      />
+                      <Show when={i < size(visible) - 1}>
+                        <Box
+                          width={1}
+                          flex={1}
+                          minHeight={24}
+                          background="default"
+                        />
+                      </Show>
+                    </Col>
+                    <Col
+                      flex={1}
+                      minWidth={0}
+                      gap={1}
+                      padding={{ bottom: i < size(visible) - 1 ? 4 : 0 }}
+                    >
+                      <Show
+                        when={
+                          sizeChoice === "large" &&
+                          (i === 0 || item.period !== visible[i - 1].period)
+                        }
+                      >
+                        <Text
+                          value={
+                            periods.find((part) => part.id === item.period)
+                              .label
+                          }
+                          size="xs"
+                          weight="medium"
+                          color="secondary"
+                        />
+                      </Show>
+                      <Show when={i === 0}>
+                        <Caption
+                          value={ui.nextUp}
+                          color="primary"
+                          weight="medium"
+                        />
+                      </Show>
+                      <Text
+                        value={item.title}
+                        size="sm"
+                        weight={i === 0 ? "semibold" : "medium"}
+                      />
+                      <Caption value={item.context} />
+                      <Caption
+                        value={
+                          item.type +
+                          (sizeChoice === "large"
+                            ? " · " +
+                              item.source +
+                              " · " +
+                              item.priority +
+                              ui.prioritySuffix
+                            : "")
+                        }
+                        size="sm"
+                      />
+                    </Col>
+                  </Row>
+                </Each>
+              </Col>
+            </Show.ElseIf>
+            <Show.ElseIf when={layoutChoice === "grouped"}>
+              <Col gap={4}>
+                <Each of={groups} item="group">
+                  <Scope
+                    values={{
+                      groupedItems: visible.filter(
+                        (item) => item.kind === group.id,
+                      ),
+                    }}
+                  >
+                    <Show when={size(groupedItems) > 0}>
+                      <Box
+                        key={group.id}
+                        direction={sizeChoice === "large" ? "row" : "col"}
+                        gap={3}
+                      >
+                        <Col
+                          width={sizeChoice === "large" ? 76 : "100%"}
+                          minWidth={sizeChoice === "large" ? 76 : 0}
+                          gap={1}
+                        >
+                          <Row gap={2} wrap="wrap">
+                            <Show when={sizeChoice === "large"}>
+                              <Icon
+                                name={group.icon}
+                                size="sm"
+                                color="secondary"
+                              />
+                            </Show>
+                            <Text
+                              value={group.label}
+                              size="xs"
+                              weight="semibold"
+                              color="secondary"
+                            />
+                            <Show when={sizeChoice === "medium"}>
+                              <Caption
+                                value={String(size(groupedItems))}
+                                tabularNums
+                              />
+                            </Show>
+                          </Row>
+                          <Show when={sizeChoice === "large"}>
+                            <Caption
+                              value={pluralize(size(groupedItems), "item")}
+                              size="sm"
+                            />
+                          </Show>
+                        </Col>
+                        <Col flex={1} minWidth={0} gap={0}>
+                          <Each of={groupedItems} item="item" index="i">
+                            <Show when={i > 0}>
+                              <Divider color="subtle" />
+                            </Show>
+                            <Row
+                              key={item.id}
+                              align="start"
+                              gap={2}
+                              padding={{ top: i > 0 ? 2 : 0, bottom: 2 }}
+                            >
+                              <Col flex={1} minWidth={0} gap={1}>
+                                <Show when={item.id === items[0].id}>
+                                  <Caption
+                                    value={ui.nextUp}
+                                    color="primary"
+                                    weight="medium"
+                                  />
+                                </Show>
+                                <Text
+                                  value={item.title}
+                                  size="sm"
+                                  weight={
+                                    item.id === items[0].id
+                                      ? "semibold"
+                                      : "medium"
+                                  }
+                                />
+                                <Caption value={item.context} />
+                                <Show when={sizeChoice === "large"}>
+                                  <Caption
+                                    value={
+                                      item.source +
+                                      " · " +
+                                      item.priority +
+                                      ui.prioritySuffix
+                                    }
+                                    size="sm"
+                                  />
+                                </Show>
+                              </Col>
+                              <Text
+                                value={item.time}
+                                size="xs"
+                                color={
+                                  item.id === items[0].id
+                                    ? "primary"
+                                    : "secondary"
+                                }
+                                weight={
+                                  item.id === items[0].id
+                                    ? "semibold"
+                                    : "normal"
+                                }
+                                tabularNums
+                              />
+                            </Row>
+                          </Each>
+                        </Col>
+                      </Box>
+                    </Show>
+                  </Scope>
+                </Each>
+              </Col>
+            </Show.ElseIf>
+            <Show.ElseIf when={layoutChoice === "agenda"}>
+              <Col gap={4}>
+                <Each of={periods} item="part">
+                  <Scope
+                    values={{
+                      appointments: visible.filter(
+                        (item) => item.period === part.id,
+                      ),
+                    }}
+                  >
+                    <Show when={size(appointments) > 0}>
+                      <Col key={part.id} gap={3}>
+                        <Row align="baseline" justify="between" gap={2}>
+                          <Text
+                            value={part.label}
+                            size={sizeChoice === "large" ? "lg" : "sm"}
+                            weight="semibold"
+                          />
+                          <Caption value={part.range} size="sm" tabularNums />
+                        </Row>
+                        <Col gap={3}>
+                          <Each of={appointments} item="item" index="i">
+                            <Show when={sizeChoice === "medium" && i > 0}>
+                              <Divider color="subtle" />
+                            </Show>
+                            <Row key={item.id} align="start" gap={3}>
+                              <Show when={sizeChoice === "large"}>
+                                <Col
+                                  width={42}
+                                  minWidth={42}
+                                  padding={{ top: 1 }}
+                                >
+                                  <Text
+                                    value={item.time}
+                                    size="xs"
+                                    weight={
+                                      item.id === items[0].id
+                                        ? "semibold"
+                                        : "normal"
+                                    }
+                                    color={
+                                      item.id === items[0].id
+                                        ? "primary"
+                                        : "secondary"
+                                    }
+                                    tabularNums
+                                  />
+                                </Col>
+                              </Show>
+                              <Box
+                                flex={1}
+                                minWidth={0}
+                                gap={1}
+                                border={{
+                                  left: {
+                                    size: sizeChoice === "large" ? 2 : 0,
+                                    color:
+                                      item.id === items[0].id
+                                        ? "strong"
+                                        : "subtle",
+                                  },
+                                }}
+                                padding={{
+                                  left: sizeChoice === "large" ? 3 : 0,
+                                }}
+                              >
+                                <Row align="start" gap={2}>
+                                  <Col flex={1} minWidth={0}>
+                                    <Text
+                                      value={item.title}
+                                      size="sm"
+                                      weight={
+                                        item.id === items[0].id
+                                          ? "semibold"
+                                          : "medium"
+                                      }
+                                    />
+                                  </Col>
+                                  <Show when={sizeChoice === "medium"}>
+                                    <Text
+                                      value={item.time}
+                                      size="xs"
+                                      color="secondary"
+                                      tabularNums
+                                    />
+                                  </Show>
+                                </Row>
+                                <Caption value={item.context} />
+                                <Row gap={2} wrap="wrap">
+                                  <Caption
+                                    value={
+                                      item.type +
+                                      (sizeChoice === "large"
+                                        ? " · " +
+                                          item.source +
+                                          " · " +
+                                          item.priority +
+                                          ui.prioritySuffix
+                                        : "")
+                                    }
+                                    size="sm"
+                                  />
+                                  <Show when={item.id === items[0].id}>
+                                    <Caption
+                                      value={ui.nextUp}
+                                      color="primary"
+                                      weight="medium"
+                                      size="sm"
+                                    />
+                                  </Show>
+                                </Row>
+                              </Box>
+                            </Row>
+                          </Each>
+                        </Col>
+                      </Col>
+                    </Show>
+                  </Scope>
+                </Each>
+              </Col>
+            </Show.ElseIf>
+            <Show.Else>
+              <Col gap={0}>
+                <Show when={sizeChoice === "large"}>
+                  <Row gap={2} align="start" padding={{ x: 2, bottom: 2 }}>
+                    <Box width={42} minWidth={42}>
+                      <Caption value={ui.timeLabel} size="sm" />
+                    </Box>
+                    <Col flex={1} minWidth={0}>
+                      <Caption value={ui.itemLabel} size="sm" />
+                    </Col>
+                    <Box width={44} minWidth={44}>
+                      <Caption
+                        value={ui.priorityLabel}
+                        size="sm"
+                        textAlign="end"
+                      />
+                    </Box>
+                  </Row>
+                  <Divider color="subtle" />
+                </Show>
+                <Each of={visible} item="item" index="i">
+                  <Show when={i > 0}>
+                    <Divider color="subtle" />
+                  </Show>
+                  <Row
+                    key={item.id}
+                    align="start"
+                    gap={2}
+                    padding={2}
+                    radius="sm"
+                    background={i === 0 ? "surface-secondary" : "transparent"}
+                  >
+                    <Col width={42} minWidth={42} gap={1}>
+                      <Text
+                        value={item.time}
+                        size="xs"
+                        weight={i === 0 ? "semibold" : "normal"}
+                        color={i === 0 ? "primary" : "secondary"}
+                        tabularNums
+                      />
+                      <Show when={i === 0}>
+                        <Caption
+                          value={ui.nextShort}
+                          size="sm"
+                          color="primary"
+                        />
+                      </Show>
+                    </Col>
+                    <Col flex={1} minWidth={0} gap={1}>
+                      <Text
+                        value={item.title}
+                        size="sm"
+                        weight={i === 0 ? "semibold" : "medium"}
+                      />
+                      <Caption value={item.context} />
+                      <Caption
+                        value={
+                          item.type +
+                          (sizeChoice === "large" ? " · " + item.source : "")
+                        }
+                        size="sm"
+                      />
+                    </Col>
+                    <Show when={sizeChoice === "large"}>
+                      <Col width={44} minWidth={44} align="end">
+                        <Text
+                          value={item.priority}
+                          size="xs"
+                          color={
+                            item.priority === "High" ? "primary" : "secondary"
+                          }
+                          weight={
+                            item.priority === "High" ? "semibold" : "normal"
+                          }
+                          textAlign="end"
+                        />
+                      </Col>
+                    </Show>
+                  </Row>
+                </Each>
+              </Col>
+            </Show.Else>
+          </Show>
+          <Caption
+            value={
+              sizeChoice === "medium"
+                ? ui.showingPrefix +
+                  String(size(visible)) +
+                  ui.ofLabel +
+                  String(size(items)) +
+                  ui.localSuffix
+                : ui.allTimesLocal
+            }
+            size="sm"
+          />
+          <Show.Else>
+            <EmptyState
+              icon="moon"
+              title={ui.emptyTitle}
+              description={ui.emptyDescription}
+              padding={4}
+            />
+          </Show.Else>
+        </Show>
+      </Card>
+    </Box>
+  </Basic>
+</Scope>
+
+
+{
+  "sizeChoice": "medium",
+  "appearance": "light",
+  "layoutChoice": "minimal",
+  "sizes": [
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "appearances": [
+    {
+      "label": "Light",
+      "value": "light"
+    },
+    {
+      "label": "Dark",
+      "value": "dark"
+    }
+  ],
+  "layouts": [
+    {
+      "label": "01 · Minimal",
+      "value": "minimal"
+    },
+    {
+      "label": "02 · Timeline",
+      "value": "timeline"
+    },
+    {
+      "label": "03 · Grouped",
+      "value": "grouped"
+    },
+    {
+      "label": "04 · Agenda",
+      "value": "agenda"
+    },
+    {
+      "label": "05 · Compact list",
+      "value": "compact"
+    }
+  ],
+  "groups": [
+    {
+      "id": "task",
+      "label": "Tasks",
+      "icon": "check-circle"
+    },
+    {
+      "id": "reminder",
+      "label": "Reminders",
+      "icon": "bell"
+    },
+    {
+      "id": "followup",
+      "label": "Follow-ups",
+      "icon": "message"
+    }
+  ],
+  "periods": [
+    {
+      "id": "morning",
+      "label": "Morning",
+      "range": "09:00–12:00"
+    },
+    {
+      "id": "afternoon",
+      "label": "Afternoon",
+      "range": "12:00–18:00"
+    }
+  ],
+  "ui": {
+    "collectionTitle": "Snoozed items",
+    "collectionNote": "10 variations",
+    "sizeLabel": "Widget size",
+    "appearanceLabel": "Widget appearance",
+    "layoutLabel": "Composition",
+    "title": "Returning today",
+    "itemSuffix": " items",
+    "fixtureNote": "Demo schedule · preview at 09:12",
+    "nextUp": "Next up",
+    "nextShort": "Next",
+    "laterToday": "Later today",
+    "prioritySuffix": " priority",
+    "timeLabel": "Time",
+    "itemLabel": "Item / snooze context",
+    "priorityLabel": "Priority",
+    "showingPrefix": "Next ",
+    "ofLabel": " of ",
+    "localSuffix": " shown · local times",
+    "allTimesLocal": "All return times are local.",
+    "emptyTitle": "Nothing returning today",
+    "emptyDescription": "Items scheduled to leave snooze today will appear here."
+  },
+  "items": [
+    {
+      "id": "launch-brief",
+      "title": "Finalize launch brief",
+      "context": "Yesterday · awaiting revised copy",
+      "time": "09:30",
+      "kind": "task",
+      "type": "Task",
+      "source": "Projects",
+      "priority": "High",
+      "period": "morning"
+    },
+    {
+      "id": "supplier-estimate",
+      "title": "Reply to supplier estimate",
+      "context": "Yesterday · waiting on updated pricing",
+      "time": "11:00",
+      "kind": "followup",
+      "type": "Follow-up",
+      "source": "Mail",
+      "priority": "Normal",
+      "period": "morning"
+    },
+    {
+      "id": "library-books",
+      "title": "Renew library books",
+      "context": "Monday · deferred until this morning",
+      "time": "11:45",
+      "kind": "reminder",
+      "type": "Reminder",
+      "source": "Reminders",
+      "priority": "Normal",
+      "period": "morning"
+    },
+    {
+      "id": "homepage-prototype",
+      "title": "Review homepage prototype",
+      "context": "Yesterday · waiting for design revisions",
+      "time": "14:00",
+      "kind": "task",
+      "type": "Task",
+      "source": "Projects",
+      "priority": "High",
+      "period": "afternoon"
+    },
+    {
+      "id": "meeting-recap",
+      "title": "Send meeting recap",
+      "context": "This morning · after the planning call",
+      "time": "15:15",
+      "kind": "followup",
+      "type": "Follow-up",
+      "source": "Mail",
+      "priority": "Normal",
+      "period": "afternoon"
+    },
+    {
+      "id": "annual-checkup",
+      "title": "Book annual checkup",
+      "context": "Monday afternoon · moved to today",
+      "time": "16:00",
+      "kind": "reminder",
+      "type": "Reminder",
+      "source": "Reminders",
+      "priority": "Normal",
+      "period": "afternoon"
+    },
+    {
+      "id": "weekly-priorities",
+      "title": "Prepare weekly priorities",
+      "context": "This morning · after the team check-in",
+      "time": "17:15",
+      "kind": "task",
+      "type": "Task",
+      "source": "Notes",
+      "priority": "Low",
+      "period": "afternoon"
+    }
+  ]
+}

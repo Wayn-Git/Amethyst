@@ -1,0 +1,1436 @@
+<Scope
+  values={{
+    today: week.find((day) => day.id === todayId),
+    selected: week.find((day) => day.id === selectedDay) || week[2],
+    layout: sizeChoice === "medium" ? mediumLayout : largeLayout,
+  }}
+>
+  <Scope
+    values={{
+      upcoming: today.events.filter((event) => event.start >= nowMinute),
+    }}
+  >
+    <Basic gap={3} align="center" theme={appearance}>
+      <Box width="100%" maxWidth={560} gap={2}>
+        <Row gap={3}>
+          <Col gap={0} flex={1}>
+            <Text value={labels.collection} size="sm" weight="semibold" />
+            <Caption value={labels.collectionNote} />
+          </Col>
+          <Button
+            uniform
+            size="2xl"
+            variant="ghost"
+            iconStart={appearance === "light" ? "moon" : "sun"}
+            ariaLabel={
+              appearance === "light" ? labels.darkAction : labels.lightAction
+            }
+            onClickAction={{
+              updateState: {
+                appearance: appearance === "light" ? "dark" : "light",
+              },
+            }}
+          />
+        </Row>
+        <Row gap={3} wrap="wrap" align="end">
+          <Col gap={1}>
+            <Label value={labels.size} fieldName="sizeChoice" />
+            <SegmentedControl
+              name="sizeChoice"
+              bind="sizeChoice"
+              options={sizes}
+              ariaLabel={labels.size}
+              size="2xl"
+            />
+          </Col>
+          <Col gap={1} flex={1} minWidth={150}>
+            <Label value={labels.layout} fieldName="layoutChoice" />
+            <Select
+              name="layoutChoice"
+              bind={sizeChoice === "medium" ? "mediumLayout" : "largeLayout"}
+              options={sizeChoice === "medium" ? mediumOptions : largeOptions}
+              size="2xl"
+              block
+            />
+          </Col>
+        </Row>
+        <Caption value={labels.snapshot} />
+      </Box>
+
+      <Card
+        size={sizeChoice === "medium" ? "md" : "lg"}
+        theme={appearance}
+        padding={4}
+        gap={4}
+      >
+        <Show when={sizeChoice === "medium" && layout === "agenda"}>
+          <Row align="start" gap={3}>
+            <Col gap={1} flex={1}>
+              <Caption value={labels.monthYear} />
+              <Title value={today.name} size="lg" />
+              <Text value={labels.agendaSubtitle} size="sm" color="secondary" />
+            </Col>
+            <Title
+              value={today.number}
+              size="3xl"
+              color={calendarRed}
+              tabularNums
+            />
+          </Row>
+          <Row gap={2}>
+            <Box size={5} radius="full" background={calendarRed} />
+            <Text
+              value={labels.nowShort}
+              size="xs"
+              color={calendarRed}
+              weight="semibold"
+              tabularNums
+            />
+            <Spacer />
+            <Caption value={pluralize(size(upcoming), "upcoming event")} />
+          </Row>
+          <Col gap={1}>
+            <Each of={upcoming} item="event" index="i">
+              <Row
+                key={event.id}
+                gap={3}
+                padding={2}
+                radius={i === 0 ? "lg" : "sm"}
+                background={i === 0 ? "surface-secondary" : "surface-elevated"}
+                align="start"
+              >
+                <Col width={48} gap={1}>
+                  <Text
+                    value={event.time}
+                    size="sm"
+                    weight="semibold"
+                    tabularNums
+                  />
+                  <Caption value={String(event.duration) + " min"} size="sm" />
+                </Col>
+                <Box
+                  width={3}
+                  height={36}
+                  radius="full"
+                  background={categoryColors[event.category]}
+                />
+                <Col flex={1} minWidth={0} gap={1}>
+                  <Show when={event.id === nextId}>
+                    <Text
+                      value={labels.nextIn}
+                      size="xs"
+                      color={calendarRed}
+                      weight="semibold"
+                    />
+                  </Show>
+                  <Text value={event.title} size="sm" weight="semibold" />
+                  <Row gap={1}>
+                    <Icon name={event.icon} size="xs" color="secondary" />
+                    <Caption value={event.location} />
+                  </Row>
+                  <Show when={event.overlap}>
+                    <Text
+                      value={labels.overlapShort}
+                      size="xs"
+                      color="secondary"
+                    />
+                  </Show>
+                </Col>
+              </Row>
+            </Each>
+          </Col>
+        </Show>
+
+        <Show when={sizeChoice === "medium" && layout === "strip"}>
+          <Row gap={3} align="baseline">
+            <Title value={labels.monthTitle} size="sm" />
+            <Spacer />
+            <Text
+              value={labels.nowShort}
+              size="xs"
+              color={calendarRed}
+              tabularNums
+            />
+          </Row>
+          <Col gap={2}>
+            <Caption value={labels.stripLegend} size="sm" />
+            <Grid columns={7} gap={1}>
+              <Each of={week} item="day">
+                <Pressable
+                  key={day.id}
+                  padding={{ x: 1, y: 2 }}
+                  radius={selectedDay === day.id ? "lg" : "sm"}
+                  background={
+                    selectedDay === day.id
+                      ? "surface-tertiary"
+                      : "surface-elevated"
+                  }
+                  onClickAction={{ updateState: { selectedDay: day.id } }}
+                >
+                  <Col align="center" gap={1}>
+                    <Caption value={day.short} size="sm" />
+                    <Text
+                      value={day.number}
+                      size="lg"
+                      weight="semibold"
+                      color={day.isToday ? calendarRed : "primary"}
+                      tabularNums
+                    />
+                    <Caption
+                      value={String(size(day.events))}
+                      size="sm"
+                      tabularNums
+                    />
+                  </Col>
+                </Pressable>
+              </Each>
+            </Grid>
+          </Col>
+          <Col gap={2}>
+            <Row gap={2}>
+              <Text value={selected.label} size="sm" weight="semibold" />
+              <Spacer />
+              <Caption value={labels.selected} size="sm" />
+            </Row>
+            <Each of={selected.allDay} item="item">
+              <Row gap={2}>
+                <Box
+                  width={3}
+                  height={14}
+                  radius="full"
+                  background={categoryColors[item.category]}
+                />
+                <Caption value={labels.allDay + " · " + item.title} />
+              </Row>
+            </Each>
+            <Each
+              of={selected.events
+                .filter(
+                  (event) => !selected.isToday || event.start >= nowMinute,
+                )
+                .slice(0, 4)}
+              item="event"
+              index="i"
+            >
+              <Col key={event.id} gap={2}>
+                <Row gap={3} align="start">
+                  <Col width={48} gap={1}>
+                    <Text
+                      value={event.time}
+                      size="sm"
+                      weight="medium"
+                      tabularNums
+                    />
+                    <Caption
+                      value={String(event.duration) + " min"}
+                      size="sm"
+                    />
+                  </Col>
+                  <Box
+                    width={3}
+                    height={32}
+                    radius="full"
+                    background={categoryColors[event.category]}
+                  />
+                  <Col flex={1} minWidth={0} gap={1}>
+                    <Text value={event.title} size="sm" weight="semibold" />
+                    <Row gap={1}>
+                      <Icon name={event.icon} size="xs" color="secondary" />
+                      <Caption value={event.location} />
+                    </Row>
+                    <Show when={event.id === nextId}>
+                      <Text
+                        value={labels.nextIn}
+                        size="xs"
+                        color={calendarRed}
+                      />
+                    </Show>
+                    <Show when={event.overlap}>
+                      <Text
+                        value={labels.overlapShort}
+                        size="xs"
+                        color="secondary"
+                      />
+                    </Show>
+                  </Col>
+                </Row>
+                <Show when={i < 3}>
+                  <Divider color="subtle" />
+                </Show>
+              </Col>
+            </Each>
+          </Col>
+        </Show>
+
+        <Show when={sizeChoice === "medium" && layout === "minimal"}>
+          <Row align="baseline" gap={2}>
+            <Title value={today.label} size="sm" />
+            <Spacer />
+            <Caption value={labels.timezone} />
+          </Row>
+          <Col gap={2}>
+            <Row gap={2}>
+              <Text
+                value={labels.nowShort}
+                size="xs"
+                weight="semibold"
+                color={calendarRed}
+                tabularNums
+              />
+              <Box height={1} flex={1} background={calendarRed} />
+            </Row>
+            <Row align="baseline" gap={3}>
+              <Title value={upcoming[0].time} size="3xl" tabularNums />
+              <Text value={labels.inTenMinutes} size="sm" color="secondary" />
+            </Row>
+            <Text value={upcoming[0].title} size="xl" weight="semibold" />
+            <Row gap={2} wrap="wrap">
+              <Box
+                width={3}
+                height={14}
+                radius="full"
+                background={categoryColors[upcoming[0].category]}
+              />
+              <Text
+                value={
+                  String(upcoming[0].duration) +
+                  " min · " +
+                  upcoming[0].location
+                }
+                size="sm"
+                color="secondary"
+              />
+            </Row>
+          </Col>
+          <Divider color="subtle" />
+          <Col gap={3}>
+            <Each of={upcoming.slice(1, 4)} item="event">
+              <Row key={event.id} gap={3} align="start">
+                <Text
+                  value={event.time}
+                  width={48}
+                  size="sm"
+                  color="secondary"
+                  tabularNums
+                />
+                <Col flex={1} minWidth={0} gap={1}>
+                  <Text value={event.title} size="sm" weight="medium" />
+                  <Caption
+                    value={String(event.duration) + " min · " + event.location}
+                  />
+                  <Show when={event.overlap}>
+                    <Caption value={labels.overlapShort} />
+                  </Show>
+                </Col>
+              </Row>
+            </Each>
+          </Col>
+        </Show>
+
+        <Show when={sizeChoice === "large"}>
+          <Row align="start" gap={3}>
+            <Col gap={1} flex={1}>
+              <Caption value={labels.monthYear} />
+              <Title value={labels.weekTitle} size="md" />
+              <Text
+                value={layoutDescriptions[layout]}
+                size="sm"
+                color="secondary"
+              />
+            </Col>
+            <Col align="end" gap={1}>
+              <Text
+                value={labels.nowTime}
+                size="lg"
+                weight="semibold"
+                color={calendarRed}
+                tabularNums
+              />
+              <Caption value={labels.nowDay} size="sm" />
+            </Col>
+          </Row>
+
+          <Show when={layout === "timeline"}>
+            <Col gap={2}>
+              <Caption value={labels.weekCountLegend} size="sm" />
+              <Grid columns={7} gap={1}>
+                <Each of={week} item="day">
+                  <Pressable
+                    key={day.id}
+                    padding={{ x: 1, y: 2 }}
+                    radius="lg"
+                    background={
+                      selectedDay === day.id
+                        ? "surface-tertiary"
+                        : "surface-elevated"
+                    }
+                    onClickAction={{ updateState: { selectedDay: day.id } }}
+                  >
+                    <Col align="center" gap={1}>
+                      <Caption value={day.short} size="sm" />
+                      <Text
+                        value={day.number}
+                        size="lg"
+                        weight="semibold"
+                        color={day.isToday ? calendarRed : "primary"}
+                        tabularNums
+                      />
+                      <Caption
+                        value={
+                          String(size(day.events)) +
+                          "/" +
+                          String(size(day.allDay))
+                        }
+                        size="sm"
+                        tabularNums
+                      />
+                    </Col>
+                  </Pressable>
+                </Each>
+              </Grid>
+            </Col>
+            <Col gap={2}>
+              <Row gap={2}>
+                <Text value={selected.label} size="sm" weight="semibold" />
+                <Spacer />
+                <Caption value={labels.selected} size="sm" />
+              </Row>
+              <Each of={selected.allDay} item="item">
+                <Row gap={2}>
+                  <Box
+                    width={3}
+                    height={15}
+                    radius="full"
+                    background={categoryColors[item.category]}
+                  />
+                  <Text value={labels.allDay + " · " + item.title} size="sm" />
+                </Row>
+              </Each>
+              <Caption value={selected.timelineLabel} />
+            </Col>
+            <Grid
+              columns="42px repeat(2, minmax(0, 1fr))"
+              rows="repeat(24, 10px)"
+              gap={0}
+            >
+              <Each
+                of={range(
+                  selected.timelineStart,
+                  selected.timelineStart + 120,
+                  5,
+                )}
+                item="minute"
+              >
+                <Grid.Item>
+                  <Text
+                    value={
+                      selected.isToday && minute === nowMinute
+                        ? labels.now
+                        : minute % 60 === 0
+                          ? String(floor(minute / 60)).padStart(2, "0") + ":00"
+                          : ""
+                    }
+                    size="xs"
+                    color={
+                      selected.isToday && minute === nowMinute
+                        ? calendarRed
+                        : "secondary"
+                    }
+                    tabularNums
+                  />
+                </Grid.Item>
+                <Each of={[0, 1]} item="lane">
+                  <Scope
+                    values={{
+                      starting: selected.events.find(
+                        (event) =>
+                          event.start === minute && event.lane === lane,
+                      ),
+                      occupied: selected.events.some(
+                        (event) =>
+                          event.start < minute &&
+                          event.start + event.duration > minute &&
+                          event.lane === lane,
+                      ),
+                    }}
+                  >
+                    <Show when={Boolean(starting)}>
+                      <Grid.Item
+                        rowSpan={starting.duration / 5}
+                        background={categorySurfaces[starting.category]}
+                        radius="sm"
+                        padding={1}
+                      >
+                        <Col gap={0}>
+                          <Text
+                            value={starting.title}
+                            size="xs"
+                            weight="semibold"
+                          />
+                          <Caption
+                            value={
+                              starting.time +
+                              " · " +
+                              String(starting.duration) +
+                              "m"
+                            }
+                            size="sm"
+                          />
+                          <Caption value={starting.location} size="sm" />
+                        </Col>
+                      </Grid.Item>
+                      <Show.ElseIf when={!occupied}>
+                        <Grid.Item>
+                          <Box height={10}>
+                            <Show
+                              when={selected.isToday && minute === nowMinute}
+                            >
+                              <Box
+                                height={1}
+                                width="100%"
+                                background={calendarRed}
+                              />
+                              <Show.ElseIf when={minute % 60 === 0}>
+                                <Box
+                                  height={1}
+                                  width="100%"
+                                  background="surface-tertiary"
+                                />
+                              </Show.ElseIf>
+                            </Show>
+                          </Box>
+                        </Grid.Item>
+                      </Show.ElseIf>
+                    </Show>
+                  </Scope>
+                </Each>
+              </Each>
+            </Grid>
+            <Show when={has(selected.overlapNote)}>
+              <Text value={selected.overlapNote} size="sm" color="secondary" />
+            </Show>
+            <Col gap={3}>
+              <Caption value={labels.later} />
+              <Each
+                of={selected.events.filter(
+                  (event) => event.start >= selected.timelineStart + 120,
+                )}
+                item="event"
+              >
+                <Row key={event.id} gap={3} align="start">
+                  <Col width={48} gap={1}>
+                    <Text
+                      value={event.time}
+                      size="sm"
+                      weight="medium"
+                      tabularNums
+                    />
+                    <Caption
+                      value={String(event.duration) + " min"}
+                      size="sm"
+                    />
+                  </Col>
+                  <Box
+                    width={3}
+                    height={32}
+                    radius="full"
+                    background={categoryColors[event.category]}
+                  />
+                  <Col flex={1} gap={1}>
+                    <Text value={event.title} size="sm" weight="semibold" />
+                    <Row gap={1}>
+                      <Icon name={event.icon} size="xs" color="secondary" />
+                      <Caption value={event.location} />
+                    </Row>
+                  </Col>
+                </Row>
+              </Each>
+            </Col>
+          </Show>
+
+          <Show when={layout === "split"}>
+            <Grid
+              columns="repeat(auto-fit, minmax(min(100%, 220px), 1fr))"
+              gap={5}
+            >
+              <Col gap={2}>
+                <Caption value={labels.weekOverview} />
+                <Each of={week} item="day">
+                  <Pressable
+                    key={day.id}
+                    padding={2}
+                    radius={selectedDay === day.id ? "lg" : "sm"}
+                    background={
+                      selectedDay === day.id
+                        ? "surface-secondary"
+                        : "surface-elevated"
+                    }
+                    onClickAction={{ updateState: { selectedDay: day.id } }}
+                  >
+                    <Row gap={3}>
+                      <Col width={30} align="center" gap={0}>
+                        <Caption value={day.short} size="sm" />
+                        <Text
+                          value={day.number}
+                          size="lg"
+                          weight="semibold"
+                          color={day.isToday ? calendarRed : "primary"}
+                          tabularNums
+                        />
+                      </Col>
+                      <Col flex={1} minWidth={0} gap={1}>
+                        <Text
+                          value={day.preview}
+                          size="sm"
+                          weight={
+                            selectedDay === day.id ? "semibold" : "normal"
+                          }
+                        />
+                        <Caption
+                          value={
+                            String(size(day.events)) +
+                            " timed · " +
+                            String(size(day.allDay)) +
+                            " all-day"
+                          }
+                          size="sm"
+                        />
+                      </Col>
+                      <Show when={selectedDay === day.id}>
+                        <Icon
+                          name="chevron-right"
+                          size="xs"
+                          color="secondary"
+                        />
+                      </Show>
+                    </Row>
+                  </Pressable>
+                </Each>
+              </Col>
+              <Col gap={3}>
+                <Col gap={1}>
+                  <Caption value={labels.selected} />
+                  <Text value={selected.label} weight="semibold" />
+                </Col>
+                <Each of={selected.allDay} item="item">
+                  <Row gap={2} align="start">
+                    <Box
+                      width={3}
+                      height={30}
+                      radius="full"
+                      background={categoryColors[item.category]}
+                    />
+                    <Col gap={0}>
+                      <Text value={item.title} size="sm" />
+                      <Caption value={labels.allDay} size="sm" />
+                    </Col>
+                  </Row>
+                </Each>
+                <Show when={selected.isToday}>
+                  <Row gap={2}>
+                    <Text
+                      value={labels.nowShort}
+                      size="xs"
+                      color={calendarRed}
+                      weight="semibold"
+                      tabularNums
+                    />
+                    <Box height={1} flex={1} background={calendarRed} />
+                  </Row>
+                </Show>
+                <Each of={selected.events} item="event" index="i">
+                  <Col key={event.id} gap={2}>
+                    <Row align="start" gap={2}>
+                      <Box
+                        width={3}
+                        height={48}
+                        radius="full"
+                        background={categoryColors[event.category]}
+                      />
+                      <Col flex={1} minWidth={0} gap={1}>
+                        <Row gap={2}>
+                          <Text
+                            value={event.time}
+                            size="xs"
+                            weight="semibold"
+                            tabularNums
+                          />
+                          <Spacer />
+                          <Caption
+                            value={String(event.duration) + " min"}
+                            size="sm"
+                          />
+                        </Row>
+                        <Text value={event.title} size="sm" weight="semibold" />
+                        <Row gap={1}>
+                          <Icon name={event.icon} size="xs" color="secondary" />
+                          <Caption value={event.location} size="sm" />
+                        </Row>
+                        <Show when={event.id === nextId}>
+                          <Text
+                            value={labels.nextIn}
+                            size="xs"
+                            color={calendarRed}
+                          />
+                        </Show>
+                        <Show when={event.overlap}>
+                          <Text
+                            value={labels.overlapShort}
+                            size="xs"
+                            color="secondary"
+                          />
+                        </Show>
+                      </Col>
+                    </Row>
+                    <Show when={i < size(selected.events) - 1}>
+                      <Divider color="subtle" />
+                    </Show>
+                  </Col>
+                </Each>
+              </Col>
+            </Grid>
+          </Show>
+
+          <Show when={layout === "grid"}>
+            <Col gap={2}>
+              <Caption value={labels.gridLegend} />
+              <Grid columns="44px repeat(7, minmax(0, 1fr))" gap={1}>
+                <Grid.Item>
+                  <Box height={48} justify="center">
+                    <Caption value={labels.septemberShort} size="sm" />
+                  </Box>
+                </Grid.Item>
+                <Each of={week} item="day">
+                  <Pressable
+                    key={day.id}
+                    padding={{ x: 0, y: 1 }}
+                    radius="md"
+                    background={
+                      selectedDay === day.id
+                        ? "surface-tertiary"
+                        : "surface-elevated"
+                    }
+                    onClickAction={{ updateState: { selectedDay: day.id } }}
+                  >
+                    <Col align="center" gap={0}>
+                      <Caption value={day.short} size="sm" />
+                      <Text
+                        value={day.number}
+                        size="lg"
+                        weight="semibold"
+                        color={day.isToday ? calendarRed : "primary"}
+                        tabularNums
+                      />
+                    </Col>
+                  </Pressable>
+                </Each>
+                <Each of={bands} item="band">
+                  <Grid.Item>
+                    <Box height={34} justify="center">
+                      <Text value={band.label} size="xs" color="secondary" />
+                    </Box>
+                  </Grid.Item>
+                  <Each of={week} item="day">
+                    <Scope
+                      values={{
+                        count:
+                          band.id === "all"
+                            ? size(day.allDay)
+                            : size(
+                                day.events.filter(
+                                  (event) =>
+                                    event.start >= band.start &&
+                                    event.start < band.end,
+                                ),
+                              ),
+                      }}
+                    >
+                      <Grid.Item>
+                        <Box
+                          height={34}
+                          align="center"
+                          justify="center"
+                          radius="xs"
+                          background={
+                            selectedDay === day.id
+                              ? "surface-secondary"
+                              : "surface-elevated"
+                          }
+                        >
+                          <Text
+                            value={String(count)}
+                            size="sm"
+                            color={count > 0 ? "primary" : "tertiary"}
+                            weight={count > 0 ? "medium" : "normal"}
+                            tabularNums
+                          />
+                        </Box>
+                      </Grid.Item>
+                    </Scope>
+                  </Each>
+                </Each>
+              </Grid>
+            </Col>
+            <Divider color="subtle" />
+            <Col gap={3}>
+              <Row gap={2}>
+                <Title value={selected.label} size="sm" />
+                <Spacer />
+                <Caption value={labels.selected} size="sm" />
+              </Row>
+              <Each of={selected.allDay} item="item">
+                <Row gap={2}>
+                  <Box
+                    width={3}
+                    height={16}
+                    radius="full"
+                    background={categoryColors[item.category]}
+                  />
+                  <Text value={labels.allDay + " · " + item.title} size="sm" />
+                </Row>
+              </Each>
+              <Show when={selected.isToday}>
+                <Row gap={2}>
+                  <Text
+                    value={labels.nowShort}
+                    size="xs"
+                    weight="semibold"
+                    color={calendarRed}
+                    tabularNums
+                  />
+                  <Box height={1} flex={1} background={calendarRed} />
+                </Row>
+              </Show>
+              <Each of={selected.events} item="event" index="i">
+                <Col key={event.id} gap={3}>
+                  <Row gap={3} align="start">
+                    <Col width={48} gap={1}>
+                      <Text
+                        value={event.time}
+                        size="sm"
+                        weight="semibold"
+                        tabularNums
+                      />
+                      <Caption
+                        value={String(event.duration) + " min"}
+                        size="sm"
+                      />
+                    </Col>
+                    <Box
+                      width={3}
+                      height={34}
+                      radius="full"
+                      background={categoryColors[event.category]}
+                    />
+                    <Col flex={1} minWidth={0} gap={1}>
+                      <Row wrap="wrap" gap={2}>
+                        <Text value={event.title} size="sm" weight="semibold" />
+                        <Show when={event.id === nextId}>
+                          <Text
+                            value={labels.next}
+                            size="xs"
+                            color={calendarRed}
+                            weight="semibold"
+                          />
+                        </Show>
+                      </Row>
+                      <Row gap={1}>
+                        <Icon name={event.icon} size="xs" color="secondary" />
+                        <Caption
+                          value={event.location + " · until " + event.endTime}
+                        />
+                      </Row>
+                      <Show when={event.overlap}>
+                        <Text
+                          value={selected.overlapNote}
+                          size="xs"
+                          color="secondary"
+                        />
+                      </Show>
+                    </Col>
+                  </Row>
+                  <Show when={i < size(selected.events) - 1}>
+                    <Divider color="subtle" />
+                  </Show>
+                </Col>
+              </Each>
+            </Col>
+          </Show>
+        </Show>
+      </Card>
+    </Basic>
+  </Scope>
+</Scope>
+
+
+{
+  "appearance": "light",
+  "sizeChoice": "medium",
+  "mediumLayout": "agenda",
+  "largeLayout": "split",
+  "selectedDay": "wed",
+  "todayId": "wed",
+  "nowMinute": 620,
+  "nextId": "wed-review",
+  "calendarRed": {
+    "light": "#b8433e",
+    "dark": "#f18b82"
+  },
+  "categoryColors": {
+    "work": {
+      "light": "#577ba9",
+      "dark": "#8dadd5"
+    },
+    "personal": {
+      "light": "#70876d",
+      "dark": "#a3bb9d"
+    },
+    "focus": {
+      "light": "#9275a7",
+      "dark": "#bca0cf"
+    }
+  },
+  "categorySurfaces": {
+    "work": {
+      "light": "#edf2f8",
+      "dark": "#253243"
+    },
+    "personal": {
+      "light": "#eff3ec",
+      "dark": "#2b372c"
+    },
+    "focus": {
+      "light": "#f2edf6",
+      "dark": "#352b3e"
+    }
+  },
+  "labels": {
+    "collection": "Calendar studies",
+    "collectionNote": "Six layouts · three Medium, three Large",
+    "size": "Size",
+    "layout": "Layout",
+    "darkAction": "Switch to dark appearance",
+    "lightAction": "Switch to light appearance",
+    "snapshot": "Sample calendar · frozen at 10:20 PDT, Wed 16 Sep 2026.",
+    "monthYear": "SEPTEMBER 2026",
+    "monthTitle": "September 2026",
+    "agendaSubtitle": "A little space between the important things.",
+    "nowShort": "10:20 NOW",
+    "nowTime": "10:20",
+    "nowDay": "NOW · WED · PDT",
+    "now": "NOW",
+    "timezone": "PDT",
+    "nextIn": "Next · in 10 min",
+    "next": "Next",
+    "inTenMinutes": "in 10 minutes",
+    "overlapShort": "Overlaps design review · 15 min",
+    "selected": "Selected day",
+    "allDay": "All day",
+    "stripLegend": "14–20 Sep · timed events per day",
+    "weekTitle": "September 14–20",
+    "weekCountLegend": "Each day: timed events / all-day events",
+    "weekOverview": "THIS WEEK",
+    "later": "LATER IN THE DAY",
+    "gridLegend": "Event counts · AM before noon, PM from noon",
+    "septemberShort": "SEP"
+  },
+  "layoutDescriptions": {
+    "timeline": "A time-scaled morning, with overlapping meetings side by side.",
+    "split": "The whole week, with one day in focus.",
+    "grid": "A quiet weekly grid, followed by the selected day."
+  },
+  "sizes": [
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "mediumOptions": [
+    {
+      "label": "Chronological agenda",
+      "value": "agenda"
+    },
+    {
+      "label": "Seven-day strip",
+      "value": "strip"
+    },
+    {
+      "label": "Minimal next up",
+      "value": "minimal"
+    }
+  ],
+  "largeOptions": [
+    {
+      "label": "Split week + agenda",
+      "value": "split"
+    },
+    {
+      "label": "Vertical timeline",
+      "value": "timeline"
+    },
+    {
+      "label": "Weekly calendar grid",
+      "value": "grid"
+    }
+  ],
+  "bands": [
+    {
+      "id": "all",
+      "label": "All day",
+      "start": 0,
+      "end": 1440
+    },
+    {
+      "id": "am",
+      "label": "AM",
+      "start": 0,
+      "end": 720
+    },
+    {
+      "id": "pm",
+      "label": "PM",
+      "start": 720,
+      "end": 1440
+    }
+  ],
+  "week": [
+    {
+      "id": "mon",
+      "short": "Mon",
+      "name": "Monday",
+      "number": "14",
+      "label": "Monday, 14 Sep",
+      "isToday": false,
+      "preview": "Plan the week",
+      "timelineStart": 540,
+      "timelineLabel": "Morning window · 09:00–11:00 · time-scaled",
+      "overlapNote": "",
+      "allDay": [
+        {
+          "title": "Brand sprint · day 1",
+          "category": "work"
+        }
+      ],
+      "events": [
+        {
+          "id": "mon-plan",
+          "title": "Team planning",
+          "time": "09:00",
+          "endTime": "09:45",
+          "start": 540,
+          "duration": 45,
+          "location": "Studio 2",
+          "icon": "map-pin",
+          "category": "work",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "mon-roadmap",
+          "title": "Roadmap review",
+          "time": "10:00",
+          "endTime": "11:00",
+          "start": 600,
+          "duration": 60,
+          "location": "Video call",
+          "icon": "video",
+          "category": "work",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "mon-focus",
+          "title": "Focus block",
+          "time": "14:00",
+          "endTime": "15:30",
+          "start": 840,
+          "duration": 90,
+          "location": "Desk",
+          "icon": "desktop",
+          "category": "focus",
+          "lane": 0,
+          "overlap": false
+        }
+      ]
+    },
+    {
+      "id": "tue",
+      "short": "Tue",
+      "name": "Tuesday",
+      "number": "15",
+      "label": "Tuesday, 15 Sep",
+      "isToday": false,
+      "preview": "Research & making",
+      "timelineStart": 540,
+      "timelineLabel": "Morning window · 09:00–11:00 · time-scaled",
+      "overlapNote": "",
+      "allDay": [
+        {
+          "title": "Brand sprint · day 2",
+          "category": "work"
+        }
+      ],
+      "events": [
+        {
+          "id": "tue-research",
+          "title": "Research debrief",
+          "time": "09:00",
+          "endTime": "09:45",
+          "start": 540,
+          "duration": 45,
+          "location": "Video call",
+          "icon": "video",
+          "category": "work",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "tue-prototype",
+          "title": "Prototype lab",
+          "time": "10:00",
+          "endTime": "11:00",
+          "start": 600,
+          "duration": 60,
+          "location": "Studio 1",
+          "icon": "map-pin",
+          "category": "focus",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "tue-dentist",
+          "title": "Dentist",
+          "time": "15:00",
+          "endTime": "15:45",
+          "start": 900,
+          "duration": 45,
+          "location": "Demo Dental",
+          "icon": "map-pin",
+          "category": "personal",
+          "lane": 0,
+          "overlap": false
+        }
+      ]
+    },
+    {
+      "id": "wed",
+      "short": "Wed",
+      "name": "Wednesday",
+      "number": "16",
+      "label": "Wednesday, 16 Sep",
+      "isToday": true,
+      "preview": "Reviews & focus",
+      "timelineStart": 600,
+      "timelineLabel": "Morning window · 10:00–12:00 · time-scaled",
+      "overlapNote": "11:00–11:15 · Design review and Partner sync overlap.",
+      "allDay": [
+        {
+          "title": "Brand sprint · day 3",
+          "category": "work"
+        }
+      ],
+      "events": [
+        {
+          "id": "wed-review",
+          "title": "Design review",
+          "time": "10:30",
+          "endTime": "11:15",
+          "start": 630,
+          "duration": 45,
+          "location": "Studio 2",
+          "icon": "map-pin",
+          "category": "work",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "wed-partner",
+          "title": "Partner sync",
+          "time": "11:00",
+          "endTime": "11:30",
+          "start": 660,
+          "duration": 30,
+          "location": "Video call",
+          "icon": "video",
+          "category": "work",
+          "lane": 1,
+          "overlap": true
+        },
+        {
+          "id": "wed-lunch",
+          "title": "Lunch with Sam",
+          "time": "12:30",
+          "endTime": "13:15",
+          "start": 750,
+          "duration": 45,
+          "location": "Courtyard",
+          "icon": "map-pin",
+          "category": "personal",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "wed-focus",
+          "title": "Focus block",
+          "time": "14:00",
+          "endTime": "15:30",
+          "start": 840,
+          "duration": 90,
+          "location": "Desk",
+          "icon": "desktop",
+          "category": "focus",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "wed-launch",
+          "title": "Launch check-in",
+          "time": "16:00",
+          "endTime": "16:30",
+          "start": 960,
+          "duration": 30,
+          "location": "Video call",
+          "icon": "video",
+          "category": "work",
+          "lane": 0,
+          "overlap": false
+        }
+      ]
+    },
+    {
+      "id": "thu",
+      "short": "Thu",
+      "name": "Thursday",
+      "number": "17",
+      "label": "Thursday, 17 Sep",
+      "isToday": false,
+      "preview": "Refine the details",
+      "timelineStart": 570,
+      "timelineLabel": "Morning window · 09:30–11:30 · time-scaled",
+      "overlapNote": "",
+      "allDay": [
+        {
+          "title": "Brand sprint · day 4",
+          "category": "work"
+        }
+      ],
+      "events": [
+        {
+          "id": "thu-sprint",
+          "title": "Sprint check-in",
+          "time": "09:30",
+          "endTime": "10:00",
+          "start": 570,
+          "duration": 30,
+          "location": "Video call",
+          "icon": "video",
+          "category": "work",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "thu-content",
+          "title": "Content review",
+          "time": "10:30",
+          "endTime": "11:15",
+          "start": 630,
+          "duration": 45,
+          "location": "Studio 2",
+          "icon": "map-pin",
+          "category": "work",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "thu-focus",
+          "title": "Focus block",
+          "time": "14:00",
+          "endTime": "15:30",
+          "start": 840,
+          "duration": 90,
+          "location": "Desk",
+          "icon": "desktop",
+          "category": "focus",
+          "lane": 0,
+          "overlap": false
+        }
+      ]
+    },
+    {
+      "id": "fri",
+      "short": "Fri",
+      "name": "Friday",
+      "number": "18",
+      "label": "Friday, 18 Sep",
+      "isToday": false,
+      "preview": "Wrap & release",
+      "timelineStart": 540,
+      "timelineLabel": "Morning window · 09:00–11:00 · time-scaled",
+      "overlapNote": "",
+      "allDay": [
+        {
+          "title": "Brand sprint · day 5",
+          "category": "work"
+        }
+      ],
+      "events": [
+        {
+          "id": "fri-retro",
+          "title": "Team retro",
+          "time": "09:00",
+          "endTime": "09:45",
+          "start": 540,
+          "duration": 45,
+          "location": "Studio 1",
+          "icon": "map-pin",
+          "category": "work",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "fri-release",
+          "title": "Release review",
+          "time": "10:00",
+          "endTime": "10:45",
+          "start": 600,
+          "duration": 45,
+          "location": "Video call",
+          "icon": "video",
+          "category": "work",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "fri-wrap",
+          "title": "Weekly wrap",
+          "time": "15:00",
+          "endTime": "15:30",
+          "start": 900,
+          "duration": 30,
+          "location": "Desk",
+          "icon": "desktop",
+          "category": "focus",
+          "lane": 0,
+          "overlap": false
+        }
+      ]
+    },
+    {
+      "id": "sat",
+      "short": "Sat",
+      "name": "Saturday",
+      "number": "19",
+      "label": "Saturday, 19 Sep",
+      "isToday": false,
+      "preview": "Out of office",
+      "timelineStart": 540,
+      "timelineLabel": "Morning window · 09:00–11:00 · time-scaled",
+      "overlapNote": "",
+      "allDay": [],
+      "events": [
+        {
+          "id": "sat-coffee",
+          "title": "Coffee with Alex",
+          "time": "09:00",
+          "endTime": "09:45",
+          "start": 540,
+          "duration": 45,
+          "location": "Corner café",
+          "icon": "map-pin",
+          "category": "personal",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "sat-gallery",
+          "title": "Gallery visit",
+          "time": "10:00",
+          "endTime": "11:00",
+          "start": 600,
+          "duration": 60,
+          "location": "Demo Gallery",
+          "icon": "map-pin",
+          "category": "personal",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "sat-walk",
+          "title": "Long walk",
+          "time": "14:00",
+          "endTime": "15:30",
+          "start": 840,
+          "duration": 90,
+          "location": "Riverside park",
+          "icon": "map-pin",
+          "category": "personal",
+          "lane": 0,
+          "overlap": false
+        }
+      ]
+    },
+    {
+      "id": "sun",
+      "short": "Sun",
+      "name": "Sunday",
+      "number": "20",
+      "label": "Sunday, 20 Sep",
+      "isToday": false,
+      "preview": "Slow Sunday",
+      "timelineStart": 540,
+      "timelineLabel": "Morning window · 09:00–11:00 · time-scaled",
+      "overlapNote": "",
+      "allDay": [
+        {
+          "title": "Personal day",
+          "category": "personal"
+        }
+      ],
+      "events": [
+        {
+          "id": "sun-market",
+          "title": "Market run",
+          "time": "09:00",
+          "endTime": "09:45",
+          "start": 540,
+          "duration": 45,
+          "location": "Sunday market",
+          "icon": "map-pin",
+          "category": "personal",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "sun-brunch",
+          "title": "Brunch",
+          "time": "10:00",
+          "endTime": "11:00",
+          "start": 600,
+          "duration": 60,
+          "location": "Home",
+          "icon": "home",
+          "category": "personal",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "sun-planning",
+          "title": "Week planning",
+          "time": "17:00",
+          "endTime": "17:30",
+          "start": 1020,
+          "duration": 30,
+          "location": "Desk",
+          "icon": "desktop",
+          "category": "focus",
+          "lane": 0,
+          "overlap": false
+        }
+      ]
+    }
+  ]
+}

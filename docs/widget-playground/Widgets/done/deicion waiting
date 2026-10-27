@@ -1,0 +1,703 @@
+<Scope
+  values={{
+    pending: decisions.filter(
+      (decision) => outcomes[decision.id] === "waiting",
+    ),
+  }}
+>
+  <Scope
+    values={{ visible: sizeMode === "medium" ? pending.slice(0, 1) : pending }}
+  >
+    <Basic align="center" theme={appearance} gap={3}>
+      <Box width="100%" maxWidth={400} gap={3}>
+        <Col gap={1}>
+          <Title value={labels.galleryTitle} size="sm" />
+          <Caption value={labels.gallerySubtitle} />
+        </Col>
+        <Col gap={2}>
+          <Label value={labels.direction} fieldName="direction" />
+          <Select
+            name="direction"
+            bind="direction"
+            options={directions}
+            block
+            size="2xl"
+          />
+          <Row justify="between" wrap="wrap" gap={2}>
+            <SegmentedControl
+              key="size-picker"
+              name="sizeMode"
+              bind="sizeMode"
+              options={sizes}
+              ariaLabel={labels.size}
+              size="2xl"
+            />
+            <Button
+              label={appearance === "light" ? labels.dark : labels.light}
+              iconStart={appearance === "light" ? "moon" : "sun"}
+              variant="ghost"
+              size="2xl"
+              ariaLabel={
+                appearance === "light" ? labels.switchDark : labels.switchLight
+              }
+              onClickAction={{
+                updateState: {
+                  appearance: appearance === "light" ? "dark" : "light",
+                },
+              }}
+            />
+          </Row>
+        </Col>
+        <Text value={labels.demoNote} size="sm" color="secondary" />
+        <Card
+          size="full"
+          theme={appearance}
+          padding={sizeMode === "medium" ? 5 : 4}
+          gap={4}
+        >
+          <Show when={size(pending) > 0}>
+            <Show when={sizeMode === "large"}>
+              <Row gap={2} align="center">
+                <Icon
+                  name={directionInfo[direction].icon}
+                  size="sm"
+                  color="secondary"
+                />
+                <Text
+                  value={directionInfo[direction].title}
+                  size="sm"
+                  weight="semibold"
+                />
+                <Spacer />
+                <Caption value={String(size(pending)) + labels.waitingSuffix} />
+              </Row>
+            </Show>
+            <Each of={visible} item="decision" index="index">
+              <Scope
+                values={{
+                  selectedOption: decision.options.find(
+                    (option) => option.value === selections[decision.id],
+                  ),
+                }}
+              >
+                <Col key={decision.id} gap={3}>
+                  <Show
+                    when={
+                      index > 0 &&
+                      direction !== "inbox" &&
+                      direction !== "priority"
+                    }
+                  >
+                    <Divider />
+                  </Show>
+                  <Row align="stretch" gap={3}>
+                    <Show when={direction === "priority"}>
+                      <Box
+                        width={3}
+                        radius="xs"
+                        background={
+                          decision.urgent ? "warning" : "surface-tertiary"
+                        }
+                      />
+                    </Show>
+                    <Col
+                      flex={1}
+                      minWidth={0}
+                      gap={3}
+                      padding={direction === "inbox" ? 3 : 0}
+                      background={
+                        direction === "inbox"
+                          ? "surface-secondary"
+                          : "transparent"
+                      }
+                      radius="lg"
+                    >
+                      <Show when={direction === "minimal"}>
+                        <Col gap={2}>
+                          <Show when={sizeMode === "medium"}>
+                            <Row gap={2}>
+                              <Icon name="clock" size="sm" color="secondary" />
+                              <Caption value={labels.waitingForAnswer} />
+                            </Row>
+                          </Show>
+                          <Title
+                            value={decision.question}
+                            size={sizeMode === "medium" ? "lg" : "md"}
+                          />
+                          <Text
+                            value={decision.context}
+                            size="sm"
+                            color="secondary"
+                          />
+                        </Col>
+                        <Row gap={2} wrap="wrap">
+                          <Each of={decision.options} item="option">
+                            <Col key={option.value} flex={1} minWidth={120}>
+                              <Button
+                                label={option.label}
+                                size="2xl"
+                                block
+                                color={
+                                  selections[decision.id] === option.value
+                                    ? "info"
+                                    : "secondary"
+                                }
+                                variant={
+                                  selections[decision.id] === option.value
+                                    ? "soft"
+                                    : "outline"
+                                }
+                                iconStart={
+                                  selections[decision.id] === option.value
+                                    ? "check"
+                                    : undefined
+                                }
+                                $onClickAction='{ patchState: set("selections." + decision.id, option.value) }'
+                              />
+                            </Col>
+                          </Each>
+                        </Row>
+                        <Show.ElseIf when={direction === "inbox"}>
+                          <Row gap={2} align="center">
+                            <Box
+                              size={30}
+                              radius="sm"
+                              background="surface-tertiary"
+                              align="center"
+                              justify="center"
+                            >
+                              <Icon
+                                name={decision.agentIcon}
+                                size="sm"
+                                color="secondary"
+                              />
+                            </Box>
+                            <Col flex={1} minWidth={0} gap={0}>
+                              <Text
+                                value={decision.agent}
+                                size="sm"
+                                weight="medium"
+                              />
+                              <Caption
+                                value={decision.wait + labels.agoSuffix}
+                              />
+                            </Col>
+                            <Badge
+                              label={labels.waiting}
+                              variant="outline"
+                              color="secondary"
+                            />
+                          </Row>
+                          <Col gap={1}>
+                            <Title
+                              value={decision.question}
+                              size={sizeMode === "medium" ? "lg" : "sm"}
+                            />
+                            <Text
+                              value={decision.context}
+                              size="sm"
+                              color="secondary"
+                            />
+                          </Col>
+                          <RadioGroup
+                            key={"inbox-" + decision.id}
+                            name={"choice-" + decision.id}
+                            bind={"selections." + decision.id}
+                            options={decision.options.map((option) => ({
+                              label: option.label,
+                              value: option.value,
+                            }))}
+                            direction={sizeMode === "medium" ? "col" : "row"}
+                            ariaLabel={decision.question}
+                          />
+                        </Show.ElseIf>
+                        <Show.ElseIf when={direction === "comparison"}>
+                          <Col gap={2}>
+                            <Row gap={2} justify="between">
+                              <Caption value={decision.category} />
+                              <Badge
+                                label={labels.waiting}
+                                color="secondary"
+                                variant="outline"
+                              />
+                            </Row>
+                            <Title
+                              value={decision.question}
+                              size={sizeMode === "medium" ? "lg" : "md"}
+                            />
+                            <Text
+                              value={decision.context}
+                              size="sm"
+                              color="secondary"
+                            />
+                          </Col>
+                          <Grid
+                            columns="repeat(auto-fit, minmax(min(100%, 136px), 1fr))"
+                            gap={2}
+                          >
+                            <Each of={decision.options} item="option">
+                              <Pressable
+                                key={option.value}
+                                padding={3}
+                                radius="md"
+                                background={
+                                  selections[decision.id] === option.value
+                                    ? selectionWash
+                                    : "surface-secondary"
+                                }
+                                $onClickAction='{ patchState: set("selections." + decision.id, option.value) }'
+                              >
+                                <Col minHeight={112} gap={2} justify="between">
+                                  <Row justify="between" gap={2} align="start">
+                                    <Text
+                                      value={option.label}
+                                      size="sm"
+                                      weight="semibold"
+                                    />
+                                    <Icon
+                                      name={
+                                        selections[decision.id] === option.value
+                                          ? "check-circle-filled"
+                                          : "empty-circle"
+                                      }
+                                      size="sm"
+                                      color={
+                                        selections[decision.id] === option.value
+                                          ? "info"
+                                          : "tertiary"
+                                      }
+                                    />
+                                  </Row>
+                                  <Text
+                                    value={option.consequence}
+                                    size="sm"
+                                    color="secondary"
+                                  />
+                                </Col>
+                              </Pressable>
+                            </Each>
+                          </Grid>
+                        </Show.ElseIf>
+                        <Show.ElseIf when={direction === "priority"}>
+                          <Col gap={2}>
+                            <Row gap={2} wrap="wrap">
+                              <Icon
+                                name={
+                                  decision.urgent ? "clock" : "empty-circle"
+                                }
+                                size="sm"
+                                color={
+                                  decision.urgent ? "warning" : "secondary"
+                                }
+                              />
+                              <Text
+                                value={decision.priority}
+                                size="sm"
+                                weight="semibold"
+                                color={
+                                  decision.urgent ? "warning" : "secondary"
+                                }
+                              />
+                              <Spacer />
+                              <Caption
+                                value={labels.waiting + " " + decision.wait}
+                              />
+                            </Row>
+                            <Text
+                              value={decision.deadline}
+                              size="sm"
+                              weight={decision.urgent ? "medium" : "normal"}
+                            />
+                            <Title
+                              value={decision.question}
+                              size={
+                                sizeMode === "medium" || index === 0
+                                  ? "lg"
+                                  : "sm"
+                              }
+                            />
+                            <Text
+                              value={decision.context}
+                              size="sm"
+                              color="secondary"
+                            />
+                          </Col>
+                          <RadioGroup
+                            key={"priority-" + decision.id}
+                            name={"choice-" + decision.id}
+                            bind={"selections." + decision.id}
+                            options={decision.options.map((option) => ({
+                              label: option.label,
+                              value: option.value,
+                            }))}
+                            direction={
+                              sizeMode === "large" && index > 0 ? "row" : "col"
+                            }
+                            ariaLabel={decision.question}
+                          />
+                        </Show.ElseIf>
+                        <Show.Else>
+                          <Row gap={3} align="start">
+                            <Show when={sizeMode === "large"}>
+                              <Text
+                                value={String(index + 1).padStart(2, "0")}
+                                size="xl"
+                                color="tertiary"
+                                tabularNums
+                              />
+                            </Show>
+                            <Col flex={1} minWidth={0} gap={2}>
+                              <Show when={sizeMode === "medium"}>
+                                <Caption value={labels.editorialEyebrow} />
+                              </Show>
+                              <Title
+                                value={decision.question}
+                                size={
+                                  sizeMode === "medium"
+                                    ? "xl"
+                                    : index === 0
+                                      ? "lg"
+                                      : "md"
+                                }
+                              />
+                              <Text
+                                value={decision.context}
+                                size="sm"
+                                color="secondary"
+                              />
+                            </Col>
+                          </Row>
+                          <Col gap={1}>
+                            <Each
+                              of={decision.options}
+                              item="option"
+                              index="optionIndex"
+                            >
+                              <Pressable
+                                key={option.value}
+                                padding={{ x: 2, y: 2 }}
+                                radius="sm"
+                                background={
+                                  selections[decision.id] === option.value
+                                    ? "surface-secondary"
+                                    : "transparent"
+                                }
+                                $onClickAction='{ patchState: set("selections." + decision.id, option.value) }'
+                              >
+                                <Row gap={3} align="start">
+                                  <Text
+                                    value={choiceLetters[optionIndex]}
+                                    size="sm"
+                                    color="secondary"
+                                    weight="medium"
+                                  />
+                                  <Col flex={1} minWidth={0} gap={1}>
+                                    <Text
+                                      value={option.label}
+                                      size="sm"
+                                      weight="semibold"
+                                    />
+                                    <Show
+                                      when={
+                                        sizeMode === "medium" || index === 0
+                                      }
+                                    >
+                                      <Text
+                                        value={option.consequence}
+                                        size="sm"
+                                        color="secondary"
+                                      />
+                                    </Show>
+                                  </Col>
+                                  <Icon
+                                    name={
+                                      selections[decision.id] === option.value
+                                        ? "check"
+                                        : "arrow-up-right"
+                                    }
+                                    size="sm"
+                                    color={
+                                      selections[decision.id] === option.value
+                                        ? "info"
+                                        : "tertiary"
+                                    }
+                                  />
+                                </Row>
+                              </Pressable>
+                            </Each>
+                          </Col>
+                        </Show.Else>
+                      </Show>
+                      <Show
+                        when={
+                          has(selectedOption) &&
+                          direction !== "comparison" &&
+                          !(
+                            direction === "editorial" &&
+                            (sizeMode === "medium" || index === 0)
+                          )
+                        }
+                      >
+                        <Text
+                          key={"consequence-" + decision.id}
+                          value={selectedOption.consequence}
+                          size="sm"
+                          color="secondary"
+                        />
+                      </Show>
+                      <Col key={"metadata-" + decision.id} gap={1}>
+                        <Show when={direction !== "inbox"}>
+                          <Caption
+                            value={
+                              direction === "priority"
+                                ? decision.agent
+                                : decision.agent +
+                                  " · " +
+                                  labels.waiting.toLowerCase() +
+                                  " " +
+                                  decision.wait
+                            }
+                          />
+                        </Show>
+                        <Show
+                          when={
+                            direction !== "priority" &&
+                            (sizeMode === "large" || decision.urgent)
+                          }
+                        >
+                          <Row gap={1}>
+                            <Icon
+                              name="clock"
+                              size="xs"
+                              color={decision.urgent ? "warning" : "secondary"}
+                            />
+                            <Caption
+                              value={decision.deadline}
+                              color={decision.urgent ? "warning" : "secondary"}
+                            />
+                          </Row>
+                        </Show>
+                      </Col>
+                      <Row key={"actions-" + decision.id} gap={2}>
+                        <Button
+                          label={labels.answer}
+                          size="2xl"
+                          color="info"
+                          disabled={!has(selectedOption)}
+                          $onClickAction='{ patchState: set("outcomes." + decision.id, "answered"), updateState: { feedback: decision.question + " — " + (selectedOption?.label || "") + ". Recorded only in this preview." } }'
+                        />
+                        <Button
+                          label={labels.dismiss}
+                          size="2xl"
+                          color="secondary"
+                          variant="ghost"
+                          $onClickAction='{ patchState: set("outcomes." + decision.id, "dismissed"), updateState: { feedback: decision.question + " — dismissed from this preview." } }'
+                        />
+                      </Row>
+                    </Col>
+                  </Row>
+                </Col>
+              </Scope>
+            </Each>
+            <Show.Else>
+              <EmptyState
+                icon="check-circle"
+                title={labels.emptyTitle}
+                description={labels.emptyDescription}
+                action={{ label: labels.reset, action: resetAction }}
+              />
+            </Show.Else>
+          </Show>
+        </Card>
+        <Show when={has(feedback)}>
+          <Callout
+            color="neutral"
+            icon="info"
+            title={labels.feedbackTitle}
+            description={feedback}
+          />
+        </Show>
+        <Show
+          when={
+            has(feedback) ||
+            has(selections.release) ||
+            has(selections.onboarding)
+          }
+        >
+          <Row>
+            <Button
+              label={labels.reset}
+              iconStart="reload"
+              variant="ghost"
+              size="xl"
+              onClickAction={resetAction}
+            />
+          </Row>
+        </Show>
+      </Box>
+    </Basic>
+  </Scope>
+</Scope>
+
+{
+  "direction": "minimal",
+  "sizeMode": "medium",
+  "appearance": "light",
+  "feedback": "",
+  "selectionWash": {
+    "light": "#edf5ff",
+    "dark": "#1b2c42"
+  },
+  "selections": {
+    "release": "",
+    "onboarding": ""
+  },
+  "outcomes": {
+    "release": "waiting",
+    "onboarding": "waiting"
+  },
+  "labels": {
+    "galleryTitle": "Decision studies",
+    "gallerySubtitle": "Five distinct directions · Medium and Large",
+    "direction": "Design direction",
+    "size": "Widget size",
+    "dark": "Dark",
+    "light": "Light",
+    "switchDark": "Switch to dark appearance",
+    "switchLight": "Switch to light appearance",
+    "demoNote": "Demo queue. Answer and Dismiss only update this preview.",
+    "waiting": "Waiting",
+    "waitingSuffix": " waiting",
+    "waitingForAnswer": "Waiting for your answer",
+    "agoSuffix": " ago",
+    "editorialEyebrow": "YOUR CALL · ANSWER PENDING",
+    "answer": "Answer",
+    "dismiss": "Dismiss",
+    "reset": "Reset demo",
+    "feedbackTitle": "Preview updated",
+    "emptyTitle": "No decisions waiting",
+    "emptyDescription": "Both demo decisions have been answered or dismissed. Reset to explore the other compositions."
+  },
+  "directions": [
+    {
+      "label": "01 · Minimal",
+      "value": "minimal"
+    },
+    {
+      "label": "02 · Inbox",
+      "value": "inbox"
+    },
+    {
+      "label": "03 · Comparison",
+      "value": "comparison"
+    },
+    {
+      "label": "04 · Priority",
+      "value": "priority"
+    },
+    {
+      "label": "05 · Editorial",
+      "value": "editorial"
+    }
+  ],
+  "sizes": [
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "directionInfo": {
+    "minimal": {
+      "title": "Decisions waiting",
+      "icon": "empty-circle"
+    },
+    "inbox": {
+      "title": "Decision inbox",
+      "icon": "inbox"
+    },
+    "comparison": {
+      "title": "Compare & decide",
+      "icon": "layers"
+    },
+    "priority": {
+      "title": "Needs your attention",
+      "icon": "clock"
+    },
+    "editorial": {
+      "title": "Two questions. Your call.",
+      "icon": "write"
+    }
+  },
+  "choiceLetters": [
+    "A",
+    "B",
+    "C"
+  ],
+  "decisions": [
+    {
+      "id": "release",
+      "question": "Ship the release today?",
+      "context": "Checks passed. The accessibility review is still open.",
+      "category": "Release timing",
+      "agent": "Release agent",
+      "agentIcon": "cube",
+      "wait": "18 min",
+      "deadline": "Answer due in 30 min",
+      "priority": "Time-sensitive",
+      "urgent": true,
+      "options": [
+        {
+          "value": "release",
+          "label": "Release now",
+          "consequence": "Keeps today’s target; the review stays open."
+        },
+        {
+          "value": "test",
+          "label": "Run more tests",
+          "consequence": "More validation; launch moves to tomorrow."
+        }
+      ]
+    },
+    {
+      "id": "onboarding",
+      "question": "Which onboarding should we use?",
+      "context": "Both flows are ready for the next pilot.",
+      "category": "Pilot experience",
+      "agent": "Product agent",
+      "agentIcon": "compass",
+      "wait": "42 min",
+      "deadline": "Answer due tomorrow",
+      "priority": "Normal priority",
+      "urgent": false,
+      "options": [
+        {
+          "value": "guided",
+          "label": "Guided setup",
+          "consequence": "More guidance; adds one setup step."
+        },
+        {
+          "value": "quick",
+          "label": "Quick start",
+          "consequence": "Faster entry; less help along the way."
+        }
+      ]
+    }
+  ],
+  "resetAction": {
+    "updateState": {
+      "selections": {
+        "release": "",
+        "onboarding": ""
+      },
+      "outcomes": {
+        "release": "waiting",
+        "onboarding": "waiting"
+      },
+      "feedback": ""
+    }
+  }
+}

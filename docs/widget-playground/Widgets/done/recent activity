@@ -1,0 +1,876 @@
+<Scope
+  values={{
+    selected:
+      directions.find((item) => item.value === direction) || directions[0],
+    latest: events[0],
+    visible: events.slice(
+      0,
+      sizeChoice === "small" ? 1 : sizeChoice === "medium" ? 4 : 7,
+    ),
+  }}
+>
+  <Basic gap={4} align="center" theme={darkAppearance ? "dark" : "light"}>
+    <Col width="100%" maxWidth={440} gap={3}>
+      <Row justify="between" gap={3} wrap="wrap">
+        <Title value={labels.galleryTitle} size="sm" />
+        <Caption value={labels.galleryCount} />
+      </Row>
+      <Col gap={1}>
+        <Label value={labels.direction} fieldName="direction" />
+        <Select
+          name="direction"
+          bind="direction"
+          options={directions.map((item) => ({
+            value: item.value,
+            label: item.label,
+          }))}
+          block
+          size="2xl"
+        />
+      </Col>
+      <Row justify="between" gap={3} wrap="wrap">
+        <SegmentedControl
+          name="sizeChoice"
+          bind="sizeChoice"
+          options={sizeOptions}
+          ariaLabel={labels.size}
+          size="xl"
+        />
+        <Row gap={2}>
+          <Text value={labels.dark} size="sm" color="secondary" />
+          <Toggle
+            name="darkAppearance"
+            bind="darkAppearance"
+            variant="switch"
+            label={labels.darkAppearance}
+          />
+        </Row>
+      </Row>
+      <Caption value={labels.sample} />
+    </Col>
+    <Col
+      width="100%"
+      maxWidth={
+        sizeChoice === "small" ? 280 : sizeChoice === "medium" ? 400 : 440
+      }
+      gap={2}
+    >
+      <Row justify="between" gap={2} wrap="wrap">
+        <Caption
+          value={selected.code + " · " + selected.label}
+          weight="medium"
+        />
+        <Caption
+          value={
+            sizeOptions.find((item) => item.value === sizeChoice).label +
+            " · " +
+            pluralize(size(visible), "activity", "activities")
+          }
+        />
+      </Row>
+      <Card
+        size="full"
+        padding={4}
+        gap={4}
+        theme={darkAppearance ? "dark" : "light"}
+      >
+        <Show when={size(events) > 0}>
+          <Show when={direction === "minimal"}>
+            <Show when={sizeChoice === "small"}>
+              <Col gap={3}>
+                <Caption value={labels.recent} />
+                <Row gap={3} align="start">
+                  <Box
+                    size={32}
+                    minWidth={32}
+                    radius="sm"
+                    background="surface-secondary"
+                    align="center"
+                    justify="center"
+                  >
+                    <Icon name={latest.icon} size="md" color="success" />
+                  </Box>
+                  <Col flex={1} minWidth={0} gap={1}>
+                    <Text value={latest.title} size="sm" weight="semibold" />
+                    <Caption value={latest.meta} />
+                    <Caption value={latest.time} />
+                  </Col>
+                </Row>
+              </Col>
+              <Show.ElseIf when={sizeChoice === "medium"}>
+                <Col gap={3}>
+                  <Title value={labels.recent} size="sm" />
+                  <Col gap={0}>
+                    <Each of={visible} item="event" index="i">
+                      <Col key={event.id} gap={0}>
+                        <Show when={i > 0}>
+                          <Divider spacing={3} color="subtle" />
+                        </Show>
+                        <Row gap={3} align="start">
+                          <Icon
+                            name={event.icon}
+                            size="sm"
+                            color={event.important ? "success" : "secondary"}
+                          />
+                          <Col flex={1} minWidth={0} gap={1}>
+                            <Text
+                              value={event.title}
+                              size="sm"
+                              weight={event.important ? "semibold" : "medium"}
+                            />
+                            <Caption value={event.description} />
+                            <Caption value={event.time} />
+                          </Col>
+                        </Row>
+                      </Col>
+                    </Each>
+                  </Col>
+                </Col>
+              </Show.ElseIf>
+              <Show.Else>
+                <Col gap={4}>
+                  <Title value={labels.recent} size="sm" />
+                  <Each of={days} item="day">
+                    <Col key={day.id} gap={2}>
+                      <Row gap={2}>
+                        <Text value={day.label} size="sm" weight="medium" />
+                        <Caption value={day.date} />
+                      </Row>
+                      <List
+                        marker="empty-circle"
+                        connector
+                        gap={3}
+                        maxMarkerSize={12}
+                      >
+                        <Each
+                          of={visible.filter((event) => event.day === day.id)}
+                          item="event"
+                        >
+                          <List.Item
+                            key={event.id}
+                            marker={
+                              event.important ? "check-circle" : "empty-circle"
+                            }
+                          >
+                            <Col gap={1}>
+                              <Text
+                                value={event.title}
+                                size="sm"
+                                weight={event.important ? "semibold" : "medium"}
+                              />
+                              <Caption value={event.meta} />
+                              <Caption
+                                value={event.clock + " · " + event.actor}
+                              />
+                            </Col>
+                          </List.Item>
+                        </Each>
+                      </List>
+                    </Col>
+                  </Each>
+                </Col>
+              </Show.Else>
+            </Show>
+          </Show>
+          <Show when={direction === "timeline"}>
+            <Col gap={4}>
+              <Row gap={2}>
+                <Icon name="history" size="sm" color="secondary" />
+                <Title value={labels.timeline} size="sm" />
+              </Row>
+              <Show when={sizeChoice === "small"}>
+                <Row gap={3} align="stretch">
+                  <Col width={18} minWidth={18} align="center" gap={2}>
+                    <Icon name={latest.icon} size="sm" color="success" />
+                    <Box
+                      width={1}
+                      flex={1}
+                      minHeight={32}
+                      background="surface-tertiary"
+                    />
+                  </Col>
+                  <Col flex={1} minWidth={0} gap={1}>
+                    <Caption value={latest.time} />
+                    <Text value={latest.title} size="sm" weight="semibold" />
+                    <Caption value={latest.description} />
+                  </Col>
+                </Row>
+                <Show.Else>
+                  <Each of={days} item="day">
+                    <Scope
+                      values={{
+                        dayEvents: visible.filter(
+                          (event) => event.day === day.id,
+                        ),
+                      }}
+                    >
+                      <Show when={size(dayEvents) > 0}>
+                        <Col key={day.id} gap={3}>
+                          <Show when={sizeChoice === "large"}>
+                            <Row gap={2}>
+                              <Text
+                                value={day.label}
+                                size="sm"
+                                weight="semibold"
+                              />
+                              <Caption value={day.date} />
+                            </Row>
+                          </Show>
+                          <Col gap={0}>
+                            <Each of={dayEvents} item="event" index="i">
+                              <Row key={event.id} gap={3} align="stretch">
+                                <Col
+                                  width={58}
+                                  minWidth={58}
+                                  align="end"
+                                  gap={1}
+                                >
+                                  <Caption
+                                    value={event.clock}
+                                    textAlign="end"
+                                  />
+                                  <Show
+                                    when={
+                                      sizeChoice === "medium" &&
+                                      day.id !== "today"
+                                    }
+                                  >
+                                    <Caption
+                                      value={day.label}
+                                      textAlign="end"
+                                    />
+                                  </Show>
+                                </Col>
+                                <Col
+                                  width={12}
+                                  minWidth={12}
+                                  align="center"
+                                  gap={1}
+                                >
+                                  <Box
+                                    size={7}
+                                    margin={{ top: 1 }}
+                                    radius="full"
+                                    background={
+                                      event.important
+                                        ? "success"
+                                        : "surface-tertiary"
+                                    }
+                                    border={
+                                      event.important
+                                        ? 0
+                                        : { size: 1, color: "strong" }
+                                    }
+                                  />
+                                  <Show when={i < size(dayEvents) - 1}>
+                                    <Box
+                                      width={1}
+                                      flex={1}
+                                      minHeight={30}
+                                      background="surface-tertiary"
+                                    />
+                                  </Show>
+                                </Col>
+                                <Col
+                                  flex={1}
+                                  minWidth={0}
+                                  gap={1}
+                                  padding={{
+                                    bottom: i < size(dayEvents) - 1 ? 4 : 0,
+                                  }}
+                                >
+                                  <Text
+                                    value={event.title}
+                                    size="sm"
+                                    weight={
+                                      event.important ? "semibold" : "medium"
+                                    }
+                                  />
+                                  <Caption value={event.description} />
+                                  <Show when={sizeChoice === "large"}>
+                                    <Caption value={event.meta} />
+                                  </Show>
+                                </Col>
+                              </Row>
+                            </Each>
+                          </Col>
+                        </Col>
+                      </Show>
+                    </Scope>
+                  </Each>
+                </Show.Else>
+              </Show>
+            </Col>
+          </Show>
+          <Show when={direction === "grouped"}>
+            <Col gap={4}>
+              <Title value={labels.recent} size="sm" />
+              <Each of={days} item="day">
+                <Scope
+                  values={{
+                    dayEvents: visible.filter((event) => event.day === day.id),
+                  }}
+                >
+                  <Show when={size(dayEvents) > 0}>
+                    <Col key={day.id} gap={2}>
+                      <Row justify="between" gap={2}>
+                        <Text value={day.label} size="sm" weight="semibold" />
+                        <Show when={sizeChoice !== "small"}>
+                          <Caption value={day.date} />
+                        </Show>
+                      </Row>
+                      <Box
+                        background="surface-secondary"
+                        radius={sizeChoice === "small" ? "md" : "sm"}
+                        padding={3}
+                        gap={0}
+                      >
+                        <Each of={dayEvents} item="event" index="i">
+                          <Col key={event.id} gap={0}>
+                            <Show when={i > 0 && sizeChoice !== "large"}>
+                              <Divider spacing={2} color="subtle" />
+                            </Show>
+                            <Row gap={3} align="stretch">
+                              <Col
+                                width={18}
+                                minWidth={18}
+                                align="center"
+                                gap={1}
+                              >
+                                <Icon
+                                  name={event.icon}
+                                  size="sm"
+                                  color={
+                                    event.important ? "success" : "secondary"
+                                  }
+                                />
+                                <Show
+                                  when={
+                                    sizeChoice === "large" &&
+                                    i < size(dayEvents) - 1
+                                  }
+                                >
+                                  <Box
+                                    width={1}
+                                    flex={1}
+                                    minHeight={24}
+                                    background="surface-tertiary"
+                                  />
+                                </Show>
+                              </Col>
+                              <Col
+                                flex={1}
+                                minWidth={0}
+                                gap={1}
+                                padding={{
+                                  bottom:
+                                    sizeChoice === "large" &&
+                                    i < size(dayEvents) - 1
+                                      ? 3
+                                      : 0,
+                                }}
+                              >
+                                <Text
+                                  value={event.title}
+                                  size="sm"
+                                  weight={
+                                    event.important ? "semibold" : "medium"
+                                  }
+                                />
+                                <Show when={sizeChoice === "small"}>
+                                  <Caption value={event.meta} />
+                                  <Show.Else>
+                                    <Caption
+                                      value={
+                                        sizeChoice === "large"
+                                          ? event.actor + " · " + event.meta
+                                          : event.description
+                                      }
+                                    />
+                                  </Show.Else>
+                                </Show>
+                                <Caption
+                                  value={
+                                    sizeChoice === "large"
+                                      ? event.clock
+                                      : event.time
+                                  }
+                                />
+                              </Col>
+                            </Row>
+                          </Col>
+                        </Each>
+                      </Box>
+                    </Col>
+                  </Show>
+                </Scope>
+              </Each>
+            </Col>
+          </Show>
+          <Show when={direction === "feed"}>
+            <Col gap={4}>
+              <Row justify="between" gap={2}>
+                <Title value={labels.feed} size="sm" />
+                <Icon name="users" size="sm" color="secondary" />
+              </Row>
+              <Show when={sizeChoice === "small"}>
+                <Col gap={3}>
+                  <Row gap={2}>
+                    <Avatar name={latest.actor} size={28} />
+                    <Col gap={0}>
+                      <Text value={latest.actor} size="sm" weight="medium" />
+                      <Caption value={latest.time} />
+                    </Col>
+                  </Row>
+                  <Row gap={2} align="start">
+                    <Icon name={latest.icon} size="sm" color="success" />
+                    <Text value={latest.title} size="sm" weight="semibold" />
+                  </Row>
+                  <Caption value={latest.meta} />
+                </Col>
+                <Show.Else>
+                  <Each of={days} item="day">
+                    <Scope
+                      values={{
+                        dayEvents: visible.filter(
+                          (event) => event.day === day.id,
+                        ),
+                      }}
+                    >
+                      <Show when={size(dayEvents) > 0}>
+                        <Col key={day.id} gap={3}>
+                          <Show when={sizeChoice === "large"}>
+                            <Row gap={2}>
+                              <Text
+                                value={day.label}
+                                size="sm"
+                                weight="semibold"
+                              />
+                              <Caption value={day.date} />
+                            </Row>
+                          </Show>
+                          <List
+                            marker={
+                              sizeChoice === "large" ? "empty-circle" : "none"
+                            }
+                            connector={sizeChoice === "large"}
+                            gap={4}
+                            maxMarkerSize={12}
+                          >
+                            <Each of={dayEvents} item="event">
+                              <List.Item key={event.id}>
+                                <Col gap={2}>
+                                  <Row gap={2} wrap="wrap">
+                                    <Show when={event.kind === "comment"}>
+                                      <Avatar name={event.actor} size={24} />
+                                    </Show>
+                                    <Text
+                                      value={event.actor}
+                                      size="xs"
+                                      weight="medium"
+                                    />
+                                    <Spacer />
+                                    <Caption
+                                      value={
+                                        sizeChoice === "large"
+                                          ? event.clock
+                                          : event.time
+                                      }
+                                    />
+                                  </Row>
+                                  <Text
+                                    value={event.title}
+                                    size="sm"
+                                    weight={
+                                      event.important ? "semibold" : "medium"
+                                    }
+                                  />
+                                  <Show when={event.kind === "upload"}>
+                                    <Box
+                                      background="surface-secondary"
+                                      radius="xs"
+                                      padding={2}
+                                    >
+                                      <Row gap={2}>
+                                        <Icon
+                                          name="folder"
+                                          size="md"
+                                          color="secondary"
+                                        />
+                                        <Col gap={0} minWidth={0}>
+                                          <Text
+                                            value={uploadPreview.name}
+                                            size="sm"
+                                            weight="medium"
+                                          />
+                                          <Caption
+                                            value={uploadPreview.detail}
+                                          />
+                                        </Col>
+                                      </Row>
+                                    </Box>
+                                    <Show.ElseIf
+                                      when={event.kind === "comment"}
+                                    >
+                                      <Box
+                                        padding={{ left: 3 }}
+                                        border={{
+                                          left: { size: 2, color: "subtle" },
+                                        }}
+                                      >
+                                        <Text
+                                          value={commentPreview}
+                                          size="sm"
+                                          color="secondary"
+                                        />
+                                      </Box>
+                                    </Show.ElseIf>
+                                    <Show.ElseIf
+                                      when={event.kind === "meeting"}
+                                    >
+                                      <Row gap={3}>
+                                        <Box
+                                          size={34}
+                                          minWidth={34}
+                                          radius="xs"
+                                          background="surface-secondary"
+                                          align="center"
+                                          justify="center"
+                                        >
+                                          <Text
+                                            value={meetingPreview.day}
+                                            size="lg"
+                                            weight="semibold"
+                                            tabularNums
+                                          />
+                                        </Box>
+                                        <Col gap={0}>
+                                          <Text
+                                            value={meetingPreview.title}
+                                            size="sm"
+                                            weight="medium"
+                                          />
+                                          <Caption
+                                            value={meetingPreview.detail}
+                                          />
+                                        </Col>
+                                      </Row>
+                                    </Show.ElseIf>
+                                    <Show.Else>
+                                      <Caption value={event.meta} />
+                                    </Show.Else>
+                                  </Show>
+                                  <Show
+                                    when={
+                                      sizeChoice === "large" &&
+                                      (event.kind === "upload" ||
+                                        event.kind === "comment" ||
+                                        event.kind === "meeting")
+                                    }
+                                  >
+                                    <Caption value={event.meta} />
+                                  </Show>
+                                </Col>
+                              </List.Item>
+                            </Each>
+                          </List>
+                        </Col>
+                      </Show>
+                    </Scope>
+                  </Each>
+                </Show.Else>
+              </Show>
+            </Col>
+          </Show>
+          <Show when={direction === "editorial"}>
+            <Col gap={4}>
+              <Row justify="between" gap={2} wrap="wrap">
+                <Caption value={labels.editorialEyebrow} weight="medium" />
+                <Caption value={latest.time} />
+              </Row>
+              <Col gap={2}>
+                <Box maxWidth={230}>
+                  <Title
+                    value={heroTitle}
+                    size={sizeChoice === "small" ? "lg" : "2xl"}
+                  />
+                </Box>
+                <Text
+                  value={
+                    sizeChoice === "small" ? latest.meta : latest.description
+                  }
+                  size="sm"
+                  color="secondary"
+                />
+                <Row gap={2} align="start">
+                  <Icon name={latest.icon} size="sm" color="success" />
+                  <Caption
+                    value={
+                      sizeChoice === "large"
+                        ? latest.actor + " · " + latest.meta
+                        : latest.actor
+                    }
+                  />
+                </Row>
+              </Col>
+              <Show when={sizeChoice === "medium"}>
+                <Divider color="subtle" />
+                <Grid columns={2} gap={4}>
+                  <Each of={visible.slice(1)} item="event" index="i">
+                    <Grid.Item key={event.id} span={i === 0 ? 2 : 1}>
+                      <Col gap={1}>
+                        <Row gap={2} wrap="wrap">
+                          <Icon name={event.icon} size="sm" color="secondary" />
+                          <Caption value={event.time} />
+                        </Row>
+                        <Text value={event.title} size="sm" weight="medium" />
+                        <Caption value={event.meta} />
+                      </Col>
+                    </Grid.Item>
+                  </Each>
+                </Grid>
+              </Show>
+              <Show when={sizeChoice === "large"}>
+                <Divider color="subtle" />
+                <Each of={days} item="day">
+                  <Col key={day.id} gap={2}>
+                    <Row gap={2}>
+                      <Text value={day.label} size="sm" weight="semibold" />
+                      <Caption value={day.date} />
+                    </Row>
+                    <List
+                      marker="empty-circle"
+                      connector
+                      gap={3}
+                      maxMarkerSize={10}
+                    >
+                      <Each
+                        of={visible
+                          .slice(1)
+                          .filter((event) => event.day === day.id)}
+                        item="event"
+                      >
+                        <List.Item key={event.id}>
+                          <Col gap={1}>
+                            <Caption
+                              value={event.clock + " · " + event.actor}
+                            />
+                            <Text
+                              value={event.title}
+                              size="sm"
+                              weight={event.important ? "semibold" : "medium"}
+                            />
+                            <Caption value={event.meta} />
+                          </Col>
+                        </List.Item>
+                      </Each>
+                    </List>
+                  </Col>
+                </Each>
+              </Show>
+            </Col>
+          </Show>
+          <Show.Else>
+            <EmptyState
+              icon="history"
+              title={labels.emptyTitle}
+              description={labels.emptyDescription}
+            />
+          </Show.Else>
+        </Show>
+      </Card>
+      <Caption value={selected.description} />
+      <Caption value={labels.snapshot} />
+    </Col>
+  </Basic>
+</Scope>
+
+
+{
+  "direction": "minimal",
+  "sizeChoice": "medium",
+  "darkAppearance": false,
+  "labels": {
+    "galleryTitle": "Recent activity studies",
+    "galleryCount": "15 layouts",
+    "direction": "Design direction",
+    "size": "Widget size",
+    "dark": "Dark",
+    "darkAppearance": "Dark appearance",
+    "sample": "Synthetic activity · Switch direction, size and appearance",
+    "recent": "Recent activity",
+    "timeline": "Activity timeline",
+    "feed": "Team updates",
+    "editorialEyebrow": "LATEST DECISION",
+    "snapshot": "Fixed preview · Nov 11, 2026 at 10:50 AM",
+    "emptyTitle": "No recent activity",
+    "emptyDescription": "New updates will appear here."
+  },
+  "directions": [
+    {
+      "value": "minimal",
+      "label": "Minimal",
+      "code": "01",
+      "description": "Icon-led summaries, quiet dividers and a restrained expanded history."
+    },
+    {
+      "value": "timeline",
+      "label": "Timeline",
+      "code": "02",
+      "description": "A dedicated time column and fine connecting rail make chronology explicit."
+    },
+    {
+      "value": "grouped",
+      "label": "Grouped",
+      "code": "03",
+      "description": "Date headings and softly inset sections create distinct, readable clusters."
+    },
+    {
+      "value": "feed",
+      "label": "Feed-focused",
+      "code": "04",
+      "description": "People, file attachments, comments and calendar details each get their own treatment."
+    },
+    {
+      "value": "editorial",
+      "label": "Editorial",
+      "code": "05",
+      "description": "A typographic lead gives the latest decision prominence; supporting activity stays secondary."
+    }
+  ],
+  "sizeOptions": [
+    {
+      "value": "small",
+      "label": "Small"
+    },
+    {
+      "value": "medium",
+      "label": "Medium"
+    },
+    {
+      "value": "large",
+      "label": "Large"
+    }
+  ],
+  "days": [
+    {
+      "id": "today",
+      "label": "Today",
+      "date": "Nov 11"
+    },
+    {
+      "id": "yesterday",
+      "label": "Yesterday",
+      "date": "Nov 10"
+    },
+    {
+      "id": "earlier",
+      "label": "Earlier",
+      "date": "Mon, Nov 9"
+    }
+  ],
+  "heroTitle": "Homepage, approved.",
+  "uploadPreview": {
+    "name": "Launch assets",
+    "detail": "6 files · 18 MB · Shared folder"
+  },
+  "commentPreview": "“The shorter headline reads better. Ready for review.”",
+  "meetingPreview": {
+    "day": "12",
+    "title": "Team kickoff",
+    "detail": "Thu, Nov 12 · 11:00 AM"
+  },
+  "events": [
+    {
+      "id": "homepage-approval",
+      "kind": "approval",
+      "title": "Homepage revisions approved",
+      "description": "Maya Chen signed off on the final layout.",
+      "actor": "Maya Chen",
+      "meta": "Website refresh · Round 3",
+      "time": "8 min ago",
+      "clock": "10:42 AM",
+      "day": "today",
+      "icon": "check-circle",
+      "important": true
+    },
+    {
+      "id": "launch-upload",
+      "kind": "upload",
+      "title": "Launch assets uploaded",
+      "description": "Theo Park added six launch files.",
+      "actor": "Theo Park",
+      "meta": "Launch kit · Shared with the team",
+      "time": "24 min ago",
+      "clock": "10:26 AM",
+      "day": "today",
+      "icon": "upload",
+      "important": false
+    },
+    {
+      "id": "brief-comment",
+      "kind": "comment",
+      "title": "New comment on project brief",
+      "description": "Lena Ortiz left feedback on the brief.",
+      "actor": "Lena Ortiz",
+      "meta": "Project brief · Headline feedback",
+      "time": "1 hr ago",
+      "clock": "9:50 AM",
+      "day": "today",
+      "icon": "message",
+      "important": false
+    },
+    {
+      "id": "kickoff-scheduled",
+      "kind": "meeting",
+      "title": "Kickoff meeting scheduled",
+      "description": "Jules Reed scheduled the team kickoff.",
+      "actor": "Jules Reed",
+      "meta": "Team calendar · 5 guests",
+      "time": "Yesterday, 4:20 PM",
+      "clock": "4:20 PM",
+      "day": "yesterday",
+      "icon": "calendar",
+      "important": false
+    },
+    {
+      "id": "review-completed",
+      "kind": "milestone",
+      "title": "Design review completed",
+      "description": "Maya Chen closed the design review.",
+      "actor": "Maya Chen",
+      "meta": "Website refresh · 4 decisions recorded",
+      "time": "Yesterday, 2:10 PM",
+      "clock": "2:10 PM",
+      "day": "yesterday",
+      "icon": "check-circle",
+      "important": true
+    },
+    {
+      "id": "brief-updated",
+      "kind": "document",
+      "title": "Project brief updated",
+      "description": "Theo Park published version 4.",
+      "actor": "Theo Park",
+      "meta": "Project brief · Version 4",
+      "time": "Monday, 3:35 PM",
+      "clock": "3:35 PM",
+      "day": "earlier",
+      "icon": "document",
+      "important": false
+    },
+    {
+      "id": "workspace-created",
+      "kind": "workspace",
+      "title": "Workspace created",
+      "description": "Jules Reed created the project space.",
+      "actor": "Jules Reed",
+      "meta": "Website refresh · 5 members",
+      "time": "Monday, 9:00 AM",
+      "clock": "9:00 AM",
+      "day": "earlier",
+      "icon": "users",
+      "important": false
+    }
+  ]
+}

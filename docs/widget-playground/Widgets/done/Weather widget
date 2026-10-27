@@ -1,0 +1,1402 @@
+<Basic theme={appearance} align="center" gap={4}>
+  <Box width="100%" maxWidth={400} gap={5}>
+    <Col gap={2}>
+      <Title value={title} size="md" />
+      <Text value={sampleNote} size="sm" color="secondary" />
+      <Row gap={2} wrap="wrap" justify="between">
+        <SegmentedControl
+          bind="sizeChoice"
+          options={sizes}
+          ariaLabel={sizeLabel}
+          size="2xl"
+        />
+        <SegmentedControl
+          bind="appearance"
+          options={appearances}
+          ariaLabel={appearanceLabel}
+          size="2xl"
+        />
+      </Row>
+    </Col>
+    <Each of={directions} item="direction">
+      <Col key={direction.id} gap={2} align="start" width="100%">
+        <Row gap={2} width="100%" align="baseline">
+          <Text value={direction.number} size="sm" color="secondary" />
+          <Text value={direction.label} size="sm" weight="semibold" />
+          <Spacer />
+          <Caption value={direction.detail} />
+        </Row>
+        <Card
+          size="full"
+          width={sizeChoice === "small" ? 232 : "100%"}
+          padding={0}
+          gap={0}
+          theme={appearance}
+        >
+          <Show when={direction.id === "minimal"}>
+            <Show when={sizeChoice === "small"}>
+              <Col padding={4} gap={3}>
+                <Row align="center">
+                  <Title
+                    value={String(current.temp) + "°"}
+                    size="5xl"
+                    weight="normal"
+                    tabularNums
+                  />
+                  <Spacer />
+                  <Icon name={current.icon} size="3xl" color="secondary" />
+                </Row>
+                <Col gap={1}>
+                  <Text value={current.location} size="sm" weight="semibold" />
+                  <Text value={current.condition} size="sm" color="secondary" />
+                </Col>
+                <Caption value={current.highLow} />
+              </Col>
+              <Show.ElseIf when={sizeChoice === "medium"}>
+                <Col padding={4} gap={3}>
+                  <Row gap={3}>
+                    <Col flex={1} gap={1} minWidth={0}>
+                      <Text value={current.location} weight="medium" />
+                      <Text
+                        value={current.condition}
+                        size="sm"
+                        color="secondary"
+                      />
+                    </Col>
+                    <Title
+                      value={String(current.temp) + "°"}
+                      size="3xl"
+                      weight="normal"
+                    />
+                    <Icon name={current.icon} size="2xl" color="secondary" />
+                  </Row>
+                  <Divider />
+                  <Row justify="between" gap={1}>
+                    <Each of={hours} item="hour">
+                      <Col key={hour.time} align="center" gap={2}>
+                        <Caption value={hour.time} />
+                        <Icon name={hour.icon} size="md" color="secondary" />
+                        <Text
+                          value={String(hour.temp) + "°"}
+                          size="sm"
+                          tabularNums
+                        />
+                      </Col>
+                    </Each>
+                  </Row>
+                  <Divider />
+                  <Row wrap="wrap" gap={2} justify="between">
+                    <Caption value={current.highLow} />
+                    <Caption value={labels.feels + " " + metrics.feels.value} />
+                    <Caption
+                      value={
+                        labels.rain + " " + String(current.precipitation) + "%"
+                      }
+                    />
+                  </Row>
+                </Col>
+              </Show.ElseIf>
+              <Show.Else>
+                <Col padding={4} gap={4}>
+                  <Row gap={4} align="center">
+                    <Col gap={1}>
+                      <Title
+                        value={String(current.temp) + "°"}
+                        size="5xl"
+                        weight="normal"
+                      />
+                      <Caption value={current.highLow} />
+                    </Col>
+                    <Spacer />
+                    <Col gap={2} align="end">
+                      <Icon name={current.icon} size="3xl" color="secondary" />
+                      <Text value={current.location} weight="medium" />
+                      <Text
+                        value={current.condition}
+                        size="sm"
+                        color="secondary"
+                      />
+                    </Col>
+                  </Row>
+                  <Divider />
+                  <Col gap={3}>
+                    <Row justify="between">
+                      <Text value={labels.hours} size="sm" weight="medium" />
+                      <Caption
+                        value={
+                          labels.rain +
+                          " " +
+                          String(current.precipitation) +
+                          "%"
+                        }
+                      />
+                    </Row>
+                    <Row justify="between" gap={1}>
+                      <Each of={hours} item="hour">
+                        <Col key={hour.time} align="center" gap={2}>
+                          <Caption value={hour.time} />
+                          <Icon name={hour.icon} size="md" color="secondary" />
+                          <Text
+                            value={String(hour.temp) + "°"}
+                            size="sm"
+                            tabularNums
+                          />
+                        </Col>
+                      </Each>
+                    </Row>
+                  </Col>
+                  <Divider />
+                  <Col gap={3}>
+                    <Row justify="between">
+                      <Text value={labels.days} size="sm" weight="medium" />
+                      <Caption value={labels.lowHigh} />
+                    </Row>
+                    <Each of={days} item="day">
+                      <Row key={day.day} gap={3}>
+                        <Text value={day.day} size="sm" width={65} />
+                        <Icon name={day.icon} size="sm" color="secondary" />
+                        <Spacer />
+                        <Text
+                          value={String(day.low) + "°"}
+                          size="sm"
+                          color="secondary"
+                          width={32}
+                          textAlign="end"
+                          tabularNums
+                        />
+                        <Text
+                          value={String(day.high) + "°"}
+                          size="sm"
+                          width={32}
+                          textAlign="end"
+                          tabularNums
+                        />
+                      </Row>
+                    </Each>
+                  </Col>
+                  <Divider />
+                  <Grid columns={2} gap={3}>
+                    <Each of={metricOrder} item="metricKey">
+                      <Col key={metricKey} gap={1}>
+                        <Caption value={metrics[metricKey].label} />
+                        <Text
+                          value={
+                            metrics[metricKey].value +
+                            (metricKey === "wind"
+                              ? " " + metrics.wind.detail
+                              : metricKey === "uv"
+                                ? " · " + metrics.uv.detail
+                                : "")
+                          }
+                          size="sm"
+                        />
+                      </Col>
+                    </Each>
+                  </Grid>
+                  <Row justify="between" gap={2} wrap="wrap">
+                    <Caption value={labels.sunrise + " " + current.sunrise} />
+                    <Caption value={labels.sunset + " " + current.sunset} />
+                  </Row>
+                </Col>
+              </Show.Else>
+            </Show>
+            <Show.ElseIf when={direction.id === "forecast"}>
+              <Show when={sizeChoice === "small"}>
+                <Col padding={4} gap={3}>
+                  <Text value={current.location} size="sm" weight="medium" />
+                  <Row gap={2} align="center">
+                    <Title
+                      value={String(current.temp) + "°"}
+                      size="5xl"
+                      weight="normal"
+                    />
+                    <Spacer />
+                    <Col gap={1} align="end">
+                      <Caption value={labels.next} />
+                      <Icon name={hours[1].icon} size="md" color="secondary" />
+                      <Text
+                        value={
+                          hours[1].time + " · " + String(hours[1].temp) + "°"
+                        }
+                        size="sm"
+                      />
+                    </Col>
+                  </Row>
+                  <Text value={current.condition} size="sm" color="secondary" />
+                  <Divider />
+                  <Row justify="between">
+                    <Caption value={current.highLow} />
+                    <Icon name={current.icon} size="md" color="secondary" />
+                  </Row>
+                </Col>
+                <Show.ElseIf when={sizeChoice === "medium"}>
+                  <Col padding={4} gap={3}>
+                    <Row gap={3}>
+                      <Col flex={1} gap={1}>
+                        <Text value={current.location} weight="medium" />
+                        <Caption value={current.condition} />
+                      </Col>
+                      <Icon name={current.icon} size="xl" color="secondary" />
+                      <Title
+                        value={String(current.temp) + "°"}
+                        size="2xl"
+                        weight="normal"
+                      />
+                    </Row>
+                    <Col gap={2}>
+                      <Sparkline
+                        data={hours.map((hour) => hour.temp)}
+                        height={38}
+                        fill={false}
+                      />
+                      <Row justify="between" gap={1}>
+                        <Each of={hours} item="hour">
+                          <Col key={hour.time} align="center" gap={2}>
+                            <Caption value={hour.time} />
+                            <Text
+                              value={String(hour.temp) + "°"}
+                              weight="medium"
+                              tabularNums
+                            />
+                            <Icon
+                              name={hour.icon}
+                              size="sm"
+                              color="secondary"
+                            />
+                          </Col>
+                        </Each>
+                      </Row>
+                    </Col>
+                    <Divider />
+                    <Row wrap="wrap" gap={2} justify="between">
+                      <Caption value={current.highLow} />
+                      <Caption
+                        value={labels.feels + " " + metrics.feels.value}
+                      />
+                      <Caption
+                        value={
+                          labels.rain +
+                          " " +
+                          String(current.precipitation) +
+                          "%"
+                        }
+                      />
+                    </Row>
+                  </Col>
+                </Show.ElseIf>
+                <Show.Else>
+                  <Col padding={4} gap={4}>
+                    <Row gap={3}>
+                      <Col flex={1} gap={1}>
+                        <Text value={current.location} weight="medium" />
+                        <Caption
+                          value={current.condition + " · " + current.highLow}
+                        />
+                      </Col>
+                      <Icon name={current.icon} size="xl" color="secondary" />
+                      <Title
+                        value={String(current.temp) + "°"}
+                        size="3xl"
+                        weight="normal"
+                      />
+                    </Row>
+                    <Col gap={3}>
+                      <Text value={current.peakNote} size="sm" />
+                      <Sparkline
+                        data={hours.map((hour) => hour.temp)}
+                        height={64}
+                        fill={false}
+                        strokeWidth={2}
+                      />
+                      <Row justify="between" gap={1}>
+                        <Each of={hours} item="hour">
+                          <Col key={hour.time} align="center" gap={2}>
+                            <Caption value={hour.time} />
+                            <Text
+                              value={String(hour.temp) + "°"}
+                              weight="medium"
+                              tabularNums
+                            />
+                            <Icon
+                              name={hour.icon}
+                              size="md"
+                              color="secondary"
+                            />
+                          </Col>
+                        </Each>
+                      </Row>
+                    </Col>
+                    <Divider />
+                    <Col gap={3}>
+                      <Text
+                        value={labels.rangeScale}
+                        size="sm"
+                        color="secondary"
+                      />
+                      <Each of={days} item="day">
+                        <Row key={day.day} gap={2}>
+                          <Text value={day.day} size="sm" width={48} />
+                          <Icon name={day.icon} size="sm" color="secondary" />
+                          <Spacer />
+                          <Text
+                            value={String(day.low) + "°"}
+                            size="sm"
+                            color="secondary"
+                            width={26}
+                            textAlign="end"
+                            tabularNums
+                          />
+                          <Box
+                            direction="row"
+                            width={84}
+                            height={4}
+                            background="surface-tertiary"
+                            radius="full"
+                            clip
+                          >
+                            <Box width={(day.low - 10) * 6} height={4} />
+                            <Box
+                              width={(day.high - day.low) * 6}
+                              height={4}
+                              background={
+                                appearance === "dark" ? "#8fc9ec" : "#387da7"
+                              }
+                              radius="full"
+                            />
+                          </Box>
+                          <Text
+                            value={String(day.high) + "°"}
+                            size="sm"
+                            width={26}
+                            textAlign="end"
+                            tabularNums
+                          />
+                        </Row>
+                      </Each>
+                    </Col>
+                    <Divider />
+                    <Grid columns={2} gap={3}>
+                      <Each of={metricOrder} item="metricKey">
+                        <Row key={metricKey} gap={2} align="start">
+                          <Icon
+                            name={metrics[metricKey].icon}
+                            size="sm"
+                            color="secondary"
+                          />
+                          <Col gap={1}>
+                            <Caption value={metrics[metricKey].label} />
+                            <Text
+                              value={metrics[metricKey].value}
+                              size="sm"
+                              weight="medium"
+                            />
+                            <Show
+                              when={metricKey === "wind" || metricKey === "uv"}
+                            >
+                              <Caption value={metrics[metricKey].detail} />
+                            </Show>
+                          </Col>
+                        </Row>
+                      </Each>
+                    </Grid>
+                    <Row gap={2} justify="between" wrap="wrap">
+                      <Caption
+                        value={
+                          labels.rain +
+                          " " +
+                          String(current.precipitation) +
+                          "%"
+                        }
+                      />
+                      <Caption
+                        value={
+                          current.sunrise +
+                          " " +
+                          labels.sunrise.toLowerCase() +
+                          " · " +
+                          current.sunset +
+                          " " +
+                          labels.sunset.toLowerCase()
+                        }
+                      />
+                    </Row>
+                  </Col>
+                </Show.Else>
+              </Show>
+            </Show.ElseIf>
+            <Show.ElseIf when={direction.id === "atmospheric"}>
+              <Show when={sizeChoice === "small"}>
+                <Box
+                  background={art[appearance].background}
+                  padding={4}
+                  gap={3}
+                >
+                  <Text value={current.location} size="sm" weight="medium" />
+                  <Row gap={1}>
+                    <Title
+                      value={String(current.temp) + "°"}
+                      size="5xl"
+                      weight="normal"
+                    />
+                    <Spacer />
+                    <Svg
+                      viewBox="0 0 120 90"
+                      width={92}
+                      height={76}
+                      paths={art[appearance].symbol}
+                      title={labels.skyDescription}
+                    />
+                  </Row>
+                  <Col gap={1}>
+                    <Text value={current.condition} size="sm" />
+                    <Caption value={current.highLow} />
+                  </Col>
+                </Box>
+                <Show.ElseIf when={sizeChoice === "medium"}>
+                  <Col gap={0}>
+                    <Box
+                      background={art[appearance].background}
+                      padding={4}
+                      gap={2}
+                    >
+                      <Row gap={2}>
+                        <Col flex={1} gap={1}>
+                          <Text
+                            value={current.location}
+                            size="sm"
+                            weight="medium"
+                          />
+                          <Title
+                            value={String(current.temp) + "°"}
+                            size="4xl"
+                            weight="normal"
+                          />
+                          <Text value={current.condition} size="sm" />
+                        </Col>
+                        <Svg
+                          viewBox="0 0 120 90"
+                          width={124}
+                          height={94}
+                          paths={art[appearance].symbol}
+                          title={labels.skyDescription}
+                        />
+                      </Row>
+                      <Caption value={current.highLow} />
+                    </Box>
+                    <Col padding={4} gap={3}>
+                      <Row justify="between" gap={1}>
+                        <Each of={hours} item="hour">
+                          <Col key={hour.time} align="center" gap={2}>
+                            <Caption value={hour.time} />
+                            <Icon
+                              name={hour.icon}
+                              size="md"
+                              color="secondary"
+                            />
+                            <Text
+                              value={String(hour.temp) + "°"}
+                              size="sm"
+                              tabularNums
+                            />
+                          </Col>
+                        </Each>
+                      </Row>
+                      <Divider />
+                      <Row justify="between" gap={2} wrap="wrap">
+                        <Caption
+                          value={labels.feels + " " + metrics.feels.value}
+                        />
+                        <Caption
+                          value={
+                            labels.rain +
+                            " " +
+                            String(current.precipitation) +
+                            "%"
+                          }
+                        />
+                      </Row>
+                    </Col>
+                  </Col>
+                </Show.ElseIf>
+                <Show.Else>
+                  <Col gap={0}>
+                    <Box background={art[appearance].background} gap={0}>
+                      <Row padding={{ x: 4, top: 4 }} gap={3} align="center">
+                        <Col flex={1} gap={1}>
+                          <Text value={current.location} weight="medium" />
+                          <Title
+                            value={String(current.temp) + "°"}
+                            size="5xl"
+                            weight="normal"
+                          />
+                        </Col>
+                        <Col gap={2} align="end">
+                          <Text value={current.condition} size="sm" />
+                          <Caption value={current.highLow} />
+                          <Caption value={current.time} />
+                        </Col>
+                      </Row>
+                      <Svg
+                        viewBox="0 0 360 100"
+                        width="100%"
+                        height={96}
+                        paths={art[appearance].panorama}
+                        title={labels.skyDescription}
+                      />
+                    </Box>
+                    <Col padding={4} gap={4}>
+                      <Col gap={3}>
+                        <Row justify="between">
+                          <Text
+                            value={labels.hours}
+                            size="sm"
+                            weight="medium"
+                          />
+                          <Caption
+                            value={
+                              labels.rain +
+                              " " +
+                              String(current.precipitation) +
+                              "%"
+                            }
+                          />
+                        </Row>
+                        <Row justify="between" gap={1}>
+                          <Each of={hours} item="hour">
+                            <Col key={hour.time} align="center" gap={2}>
+                              <Caption value={hour.time} />
+                              <Icon
+                                name={hour.icon}
+                                size="md"
+                                color="secondary"
+                              />
+                              <Text
+                                value={String(hour.temp) + "°"}
+                                size="sm"
+                                tabularNums
+                              />
+                            </Col>
+                          </Each>
+                        </Row>
+                      </Col>
+                      <Divider />
+                      <Col gap={3}>
+                        <Text value={labels.days} size="sm" weight="medium" />
+                        <Each of={days} item="day">
+                          <Row key={day.day} gap={3}>
+                            <Text value={day.day} size="sm" width={52} />
+                            <Icon name={day.icon} size="md" color="secondary" />
+                            <Caption value={String(day.rain) + "%"} />
+                            <Spacer />
+                            <Text
+                              value={String(day.low) + "°"}
+                              size="sm"
+                              color="secondary"
+                              width={28}
+                              textAlign="end"
+                              tabularNums
+                            />
+                            <Text
+                              value={String(day.high) + "°"}
+                              size="sm"
+                              width={28}
+                              textAlign="end"
+                              tabularNums
+                            />
+                          </Row>
+                        </Each>
+                      </Col>
+                      <Divider />
+                      <Grid columns={2} gap={3}>
+                        <Each of={metricOrder} item="metricKey">
+                          <Col key={metricKey} gap={1}>
+                            <Caption value={metrics[metricKey].label} />
+                            <Text
+                              value={
+                                metrics[metricKey].value +
+                                (metricKey === "wind"
+                                  ? " · " + metrics.wind.detail
+                                  : metricKey === "uv"
+                                    ? " · " + metrics.uv.detail
+                                    : "")
+                              }
+                              size="sm"
+                              weight="medium"
+                            />
+                          </Col>
+                        </Each>
+                      </Grid>
+                      <Row gap={3} justify="between" wrap="wrap">
+                        <Row gap={1}>
+                          <Icon name="sunrise" size="sm" color="secondary" />
+                          <Caption
+                            value={labels.sunrise + " " + current.sunrise}
+                          />
+                        </Row>
+                        <Row gap={1}>
+                          <Icon name="sunset" size="sm" color="secondary" />
+                          <Caption
+                            value={labels.sunset + " " + current.sunset}
+                          />
+                        </Row>
+                      </Row>
+                    </Col>
+                  </Col>
+                </Show.Else>
+              </Show>
+            </Show.ElseIf>
+            <Show.ElseIf when={direction.id === "data"}>
+              <Show when={sizeChoice === "small"}>
+                <Col padding={4} gap={3}>
+                  <Row gap={2}>
+                    <Icon name={current.icon} size="sm" color="secondary" />
+                    <Text
+                      value={current.location}
+                      size="sm"
+                      weight="semibold"
+                    />
+                  </Row>
+                  <Row gap={2} align="center">
+                    <Title
+                      value={String(current.temp) + "°"}
+                      size="4xl"
+                      weight="normal"
+                    />
+                    <Spacer />
+                    <Col gap={1} align="end">
+                      <Text
+                        value={current.condition}
+                        size="sm"
+                        textAlign="end"
+                      />
+                      <Caption
+                        value={labels.feels + " " + metrics.feels.value}
+                      />
+                    </Col>
+                  </Row>
+                  <Caption value={current.highLow} />
+                  <Divider />
+                  <Row gap={3} justify="between">
+                    <Col gap={1}>
+                      <Caption value={metrics.humidity.label} />
+                      <Text
+                        value={metrics.humidity.value}
+                        size="sm"
+                        weight="medium"
+                      />
+                    </Col>
+                    <Col gap={1} align="end">
+                      <Caption value={metrics.wind.label} />
+                      <Text
+                        value={metrics.wind.value}
+                        size="sm"
+                        weight="medium"
+                      />
+                    </Col>
+                  </Row>
+                </Col>
+                <Show.ElseIf when={sizeChoice === "medium"}>
+                  <Col padding={4} gap={3}>
+                    <Row align="stretch" gap={4}>
+                      <Col flex={1} minWidth={0} gap={1}>
+                        <Text
+                          value={current.location}
+                          size="sm"
+                          weight="semibold"
+                        />
+                        <Title
+                          value={String(current.temp) + "°"}
+                          size="4xl"
+                          weight="normal"
+                        />
+                        <Row gap={1} wrap="wrap">
+                          <Icon
+                            name={current.icon}
+                            size="sm"
+                            color="secondary"
+                          />
+                          <Text
+                            value={current.condition}
+                            size="sm"
+                            color="secondary"
+                          />
+                        </Row>
+                        <Caption value={current.highLow} />
+                      </Col>
+                      <Col flex={1} minWidth={0} gap={3} justify="center">
+                        <KeyValue
+                          gap={2}
+                          rows={[
+                            { label: labels.feels, value: metrics.feels.value },
+                            {
+                              label: labels.rain,
+                              value: String(current.precipitation) + "%",
+                            },
+                            {
+                              label: metrics.humidity.label,
+                              value: metrics.humidity.value,
+                            },
+                            {
+                              label: metrics.wind.label,
+                              value: metrics.wind.value,
+                            },
+                          ]}
+                        />
+                      </Col>
+                    </Row>
+                    <Divider />
+                    <Row justify="between" gap={1}>
+                      <Each of={hours} item="hour">
+                        <Col key={hour.time} align="center" gap={2}>
+                          <Caption value={hour.time} />
+                          <Icon name={hour.icon} size="sm" color="secondary" />
+                          <Text
+                            value={String(hour.temp) + "°"}
+                            size="sm"
+                            tabularNums
+                          />
+                        </Col>
+                      </Each>
+                    </Row>
+                  </Col>
+                </Show.ElseIf>
+                <Show.Else>
+                  <Col padding={4} gap={4}>
+                    <Row gap={3} align="center">
+                      <Col gap={1} flex={1}>
+                        <Text value={current.location} weight="semibold" />
+                        <Row gap={2}>
+                          <Icon
+                            name={current.icon}
+                            size="md"
+                            color="secondary"
+                          />
+                          <Text
+                            value={current.condition}
+                            size="sm"
+                            color="secondary"
+                          />
+                        </Row>
+                        <Caption value={current.highLow} />
+                      </Col>
+                      <Title
+                        value={String(current.temp) + "°"}
+                        size="4xl"
+                        weight="normal"
+                      />
+                    </Row>
+                    <Grid columns={2} gap={2}>
+                      <Each of={metricOrder} item="metricKey">
+                        <Box
+                          key={metricKey}
+                          background="surface-secondary"
+                          padding={3}
+                          radius="md"
+                          gap={2}
+                        >
+                          <Row gap={2}>
+                            <Icon
+                              name={metrics[metricKey].icon}
+                              size="sm"
+                              color="secondary"
+                            />
+                            <Caption value={metrics[metricKey].label} />
+                          </Row>
+                          <Text
+                            value={metrics[metricKey].value}
+                            size="xl"
+                            weight="medium"
+                            tabularNums
+                          />
+                          <Caption value={metrics[metricKey].detail} />
+                        </Box>
+                      </Each>
+                    </Grid>
+                    <Col gap={3}>
+                      <Row justify="between">
+                        <Text value={labels.hours} size="sm" weight="medium" />
+                        <Caption
+                          value={
+                            labels.rain +
+                            " " +
+                            String(current.precipitation) +
+                            "%"
+                          }
+                        />
+                      </Row>
+                      <Row justify="between" gap={1}>
+                        <Each of={hours} item="hour">
+                          <Col key={hour.time} align="center" gap={2}>
+                            <Caption value={hour.time} />
+                            <Icon
+                              name={hour.icon}
+                              size="sm"
+                              color="secondary"
+                            />
+                            <Text
+                              value={String(hour.temp) + "°"}
+                              size="sm"
+                              tabularNums
+                            />
+                          </Col>
+                        </Each>
+                      </Row>
+                    </Col>
+                    <Divider />
+                    <Col gap={2}>
+                      <Text value={labels.days} size="sm" weight="medium" />
+                      <Table columnSizing="auto">
+                        <Table.Row header>
+                          <Table.Cell header>
+                            <Caption value={labels.day} />
+                          </Table.Cell>
+                          <Table.Cell header align="end">
+                            <Caption value={labels.lowHigh} />
+                          </Table.Cell>
+                          <Table.Cell header align="end">
+                            <Caption value={labels.rain} />
+                          </Table.Cell>
+                        </Table.Row>
+                        <Each of={days} item="day">
+                          <Table.Row key={day.day}>
+                            <Table.Cell>
+                              <Row gap={2}>
+                                <Icon
+                                  name={day.icon}
+                                  size="sm"
+                                  color="secondary"
+                                />
+                                <Text value={day.day} size="sm" />
+                              </Row>
+                            </Table.Cell>
+                            <Table.Cell align="end">
+                              <Text
+                                value={
+                                  String(day.low) +
+                                  "° / " +
+                                  String(day.high) +
+                                  "°"
+                                }
+                                size="sm"
+                                tabularNums
+                              />
+                            </Table.Cell>
+                            <Table.Cell align="end">
+                              <Text
+                                value={String(day.rain) + "%"}
+                                size="sm"
+                                color="secondary"
+                                tabularNums
+                              />
+                            </Table.Cell>
+                          </Table.Row>
+                        </Each>
+                      </Table>
+                    </Col>
+                    <Row gap={2} justify="between" wrap="wrap">
+                      <Caption value={labels.sunrise + " " + current.sunrise} />
+                      <Caption value={labels.sunset + " " + current.sunset} />
+                    </Row>
+                  </Col>
+                </Show.Else>
+              </Show>
+            </Show.ElseIf>
+            <Show.Else>
+              <Show when={sizeChoice === "small"}>
+                <Col padding={4} gap={3}>
+                  <Caption
+                    value={current.location.toUpperCase()}
+                    weight="medium"
+                  />
+                  <Row align="baseline" gap={3}>
+                    <Title
+                      value={String(current.temp) + "°"}
+                      size="5xl"
+                      weight="normal"
+                    />
+                    <Icon name={current.icon} size="xl" color="secondary" />
+                  </Row>
+                  <Text value={current.condition} size="sm" weight="medium" />
+                  <Divider />
+                  <Row justify="between">
+                    <Caption
+                      value={labels.high + " " + String(current.high) + "°"}
+                    />
+                    <Caption
+                      value={labels.low + " " + String(current.low) + "°"}
+                    />
+                  </Row>
+                </Col>
+                <Show.ElseIf when={sizeChoice === "medium"}>
+                  <Col padding={4} gap={3}>
+                    <Row gap={3} align="stretch">
+                      <Col flex={1} minWidth={0} gap={2}>
+                        <Caption
+                          value={current.location.toUpperCase()}
+                          weight="medium"
+                        />
+                        <Title
+                          value={String(current.temp) + "°"}
+                          size="5xl"
+                          weight="normal"
+                        />
+                        <Row gap={2}>
+                          <Icon
+                            name={current.icon}
+                            size="md"
+                            color="secondary"
+                          />
+                          <Text value={current.condition} size="sm" />
+                        </Row>
+                        <Caption value={current.highLow} />
+                      </Col>
+                      <Col
+                        width={132}
+                        minWidth={118}
+                        padding={{ left: 3 }}
+                        border={{ left: { size: 1, color: "subtle" } }}
+                        gap={3}
+                        justify="between"
+                      >
+                        <Each of={hours} item="hour">
+                          <Row key={hour.time} gap={2}>
+                            <Caption value={hour.time} />
+                            <Spacer />
+                            <Icon
+                              name={hour.icon}
+                              size="sm"
+                              color="secondary"
+                            />
+                            <Text
+                              value={String(hour.temp) + "°"}
+                              size="sm"
+                              width={25}
+                              textAlign="end"
+                              tabularNums
+                            />
+                          </Row>
+                        </Each>
+                      </Col>
+                    </Row>
+                    <Divider />
+                    <Row gap={2} justify="between" wrap="wrap">
+                      <Caption
+                        value={labels.feels + " " + metrics.feels.value}
+                      />
+                      <Caption
+                        value={
+                          labels.rain +
+                          " " +
+                          String(current.precipitation) +
+                          "%"
+                        }
+                      />
+                    </Row>
+                  </Col>
+                </Show.ElseIf>
+                <Show.Else>
+                  <Col padding={4} gap={4}>
+                    <Col gap={2}>
+                      <Row justify="between" gap={2}>
+                        <Caption
+                          value={current.location.toUpperCase()}
+                          weight="medium"
+                        />
+                        <Caption value={current.period} />
+                      </Row>
+                      <Row gap={3} align="center">
+                        <Title
+                          value={String(current.temp) + "°"}
+                          size="5xl"
+                          weight="normal"
+                        />
+                        <Spacer />
+                        <Svg
+                          viewBox="0 0 120 90"
+                          width={108}
+                          height={76}
+                          paths={art[appearance].symbol}
+                          title={labels.skyDescription}
+                        />
+                      </Row>
+                      <Text value={labels.outlook} size="xl" weight="medium" />
+                      <Row gap={2} justify="between" wrap="wrap">
+                        <Caption value={current.condition} />
+                        <Caption value={current.highLow} />
+                        <Caption
+                          value={
+                            labels.rain +
+                            " " +
+                            String(current.precipitation) +
+                            "%"
+                          }
+                        />
+                      </Row>
+                    </Col>
+                    <Divider />
+                    <Row justify="between" gap={1}>
+                      <Each of={hours} item="hour">
+                        <Col key={hour.time} align="center" gap={2}>
+                          <Caption value={hour.time} />
+                          <Icon name={hour.icon} size="sm" color="secondary" />
+                          <Text
+                            value={String(hour.temp) + "°"}
+                            size="sm"
+                            tabularNums
+                          />
+                        </Col>
+                      </Each>
+                    </Row>
+                    <Divider />
+                    <Col gap={3}>
+                      <Text
+                        value={labels.editorialDays}
+                        size="sm"
+                        weight="medium"
+                      />
+                      <Each of={days} item="day">
+                        <Row key={day.day} gap={3}>
+                          <Col flex={1} gap={1} minWidth={0}>
+                            <Text value={day.name} size="sm" weight="medium" />
+                            <Caption value={day.condition} />
+                          </Col>
+                          <Icon name={day.icon} size="md" color="secondary" />
+                          <Text
+                            value={String(day.low) + "°"}
+                            size="sm"
+                            color="secondary"
+                            width={28}
+                            textAlign="end"
+                            tabularNums
+                          />
+                          <Text
+                            value={String(day.high) + "°"}
+                            size="sm"
+                            width={28}
+                            textAlign="end"
+                            tabularNums
+                          />
+                        </Row>
+                      </Each>
+                    </Col>
+                    <Divider />
+                    <Grid columns={2} gap={3}>
+                      <Each of={metricOrder} item="metricKey">
+                        <Col key={metricKey} gap={1}>
+                          <Caption value={metrics[metricKey].label} />
+                          <Text
+                            value={
+                              metrics[metricKey].value +
+                              (metricKey === "wind"
+                                ? " · " + metrics.wind.detail
+                                : metricKey === "uv"
+                                  ? " · " + metrics.uv.detail
+                                  : "")
+                            }
+                            size="sm"
+                          />
+                        </Col>
+                      </Each>
+                    </Grid>
+                    <Caption
+                      value={
+                        labels.sunrise +
+                        " " +
+                        current.sunrise +
+                        "  /  " +
+                        labels.sunset +
+                        " " +
+                        current.sunset
+                      }
+                    />
+                  </Col>
+                </Show.Else>
+              </Show>
+            </Show.Else>
+          </Show>
+        </Card>
+      </Col>
+    </Each>
+  </Box>
+</Basic>
+
+
+{
+  "title": "Weather, five ways",
+  "sampleNote": "15 purpose-built layouts. Switch size or appearance to compare. Illustrative Madrid weather—not live. °C · km/h.",
+  "sizeChoice": "medium",
+  "appearance": "light",
+  "sizeLabel": "Weather widget size",
+  "appearanceLabel": "Weather widget appearance",
+  "sizes": [
+    {
+      "label": "Small",
+      "value": "small"
+    },
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "appearances": [
+    {
+      "label": "Light",
+      "value": "light"
+    },
+    {
+      "label": "Dark",
+      "value": "dark"
+    }
+  ],
+  "directions": [
+    {
+      "id": "minimal",
+      "number": "01",
+      "label": "Minimal",
+      "detail": "Quiet essentials"
+    },
+    {
+      "id": "forecast",
+      "number": "02",
+      "label": "Forecast-focused",
+      "detail": "Time & temperature"
+    },
+    {
+      "id": "atmospheric",
+      "number": "03",
+      "label": "Atmospheric",
+      "detail": "Illustrated sky"
+    },
+    {
+      "id": "data",
+      "number": "04",
+      "label": "Data-focused",
+      "detail": "Precise readings"
+    },
+    {
+      "id": "editorial",
+      "number": "05",
+      "label": "Editorial",
+      "detail": "Type & rhythm"
+    }
+  ],
+  "current": {
+    "location": "Madrid",
+    "temp": 17,
+    "condition": "Mostly cloudy",
+    "icon": "cloud-sun",
+    "high": 20,
+    "low": 12,
+    "highLow": "H:20°  L:12°",
+    "precipitation": 20,
+    "time": "14:00 CEST",
+    "period": "Thursday afternoon",
+    "sunrise": "07:02",
+    "sunset": "21:20",
+    "peakNote": "17° now, reaching 20° at 17:00."
+  },
+  "hours": [
+    {
+      "time": "Now",
+      "temp": 17,
+      "icon": "cloud-sun",
+      "rain": 20
+    },
+    {
+      "time": "15:00",
+      "temp": 18,
+      "icon": "cloud-sun",
+      "rain": 15
+    },
+    {
+      "time": "16:00",
+      "temp": 19,
+      "icon": "cloud-sun",
+      "rain": 10
+    },
+    {
+      "time": "17:00",
+      "temp": 20,
+      "icon": "sun",
+      "rain": 5
+    },
+    {
+      "time": "18:00",
+      "temp": 19,
+      "icon": "cloud-sun",
+      "rain": 10
+    }
+  ],
+  "days": [
+    {
+      "day": "Today",
+      "name": "Today",
+      "condition": "Mostly cloudy",
+      "icon": "cloud-sun",
+      "low": 12,
+      "high": 20,
+      "rain": 20
+    },
+    {
+      "day": "Fri",
+      "name": "Friday",
+      "condition": "Partly cloudy",
+      "icon": "cloud-sun",
+      "low": 13,
+      "high": 21,
+      "rain": 10
+    },
+    {
+      "day": "Sat",
+      "name": "Saturday",
+      "condition": "Sunny",
+      "icon": "sun",
+      "low": 14,
+      "high": 23,
+      "rain": 5
+    },
+    {
+      "day": "Sun",
+      "name": "Sunday",
+      "condition": "Partly cloudy",
+      "icon": "cloud-sun",
+      "low": 13,
+      "high": 22,
+      "rain": 15
+    },
+    {
+      "day": "Mon",
+      "name": "Monday",
+      "condition": "Showers",
+      "icon": "cloud-rain",
+      "low": 12,
+      "high": 19,
+      "rain": 60
+    }
+  ],
+  "metricOrder": [
+    "humidity",
+    "wind",
+    "uv",
+    "feels"
+  ],
+  "metrics": {
+    "humidity": {
+      "label": "Humidity",
+      "value": "64%",
+      "detail": "Relative humidity",
+      "icon": "droplet"
+    },
+    "wind": {
+      "label": "Wind",
+      "value": "11 km/h",
+      "detail": "WNW",
+      "icon": "wind"
+    },
+    "uv": {
+      "label": "UV index",
+      "value": "3",
+      "detail": "Moderate",
+      "icon": "sun"
+    },
+    "feels": {
+      "label": "Feels like",
+      "value": "16°",
+      "detail": "Perceived temperature",
+      "icon": "thermometer"
+    }
+  },
+  "labels": {
+    "hours": "Hourly forecast",
+    "days": "5-day forecast",
+    "editorialDays": "The next five days",
+    "next": "Next hour",
+    "feels": "Feels like",
+    "rain": "Rain",
+    "day": "Day",
+    "high": "High",
+    "low": "Low",
+    "lowHigh": "Low / high",
+    "sunrise": "Sunrise",
+    "sunset": "Sunset",
+    "rangeScale": "Daily temperature range · 10–24°C",
+    "outlook": "Clouds, with brighter breaks.",
+    "skyDescription": "A muted sun behind softly layered clouds, illustrating mostly cloudy daytime conditions."
+  },
+  "art": {
+    "light": {
+      "background": "linear-gradient(155deg, #e7edf2 0%, #c8dbe8 65%, #dce6eb 100%)",
+      "symbol": [
+        {
+          "d": "M91 30a21 21 0 1 1-42 0a21 21 0 1 1 42 0",
+          "fill": "#e6be70"
+        },
+        {
+          "d": "M22 62C12 62 9 55 11 48C13 41 20 37 28 39C31 27 42 21 53 24C63 26 69 34 70 43C81 40 91 47 91 57C91 66 85 71 75 71H27C24 71 22 67 22 62Z",
+          "fill": "#b9cad8"
+        },
+        {
+          "d": "M24 75C13 75 8 69 10 61C12 53 21 49 29 52C33 40 42 35 53 37C65 39 70 47 70 56C78 52 88 54 92 61C103 59 112 64 112 72C112 80 105 83 97 83H27C24 83 22 79 24 75Z",
+          "fill": "#f8fbfd"
+        }
+      ],
+      "panorama": [
+        {
+          "d": "M281 34a27 27 0 1 1-54 0a27 27 0 1 1 54 0",
+          "fill": "#e7c88f"
+        },
+        {
+          "d": "M0 65C20 49 37 52 49 59C54 35 78 26 97 36C109 42 114 50 116 61C137 47 160 55 168 71C184 56 210 56 222 69C236 40 268 34 289 51C302 41 319 45 329 60C342 56 352 59 360 65V100H0Z",
+          "fill": "#b7cbd9"
+        },
+        {
+          "d": "M0 81C23 64 43 65 59 78C73 60 95 56 113 65C127 71 133 79 134 88C158 72 184 74 200 87C214 68 239 66 256 80C277 64 304 65 322 81C336 72 349 74 360 79V100H0Z",
+          "fill": "#dce7ee"
+        },
+        {
+          "d": "M0 94C28 80 55 82 77 94C96 84 117 85 137 96C162 86 188 86 213 96C238 86 265 87 286 96C310 85 338 86 360 94V100H0Z",
+          "fill": "#f7fafc"
+        }
+      ]
+    },
+    "dark": {
+      "background": "linear-gradient(155deg, #233b50 0%, #172b3e 65%, #2c4050 100%)",
+      "symbol": [
+        {
+          "d": "M91 30a21 21 0 1 1-42 0a21 21 0 1 1 42 0",
+          "fill": "#d4b77d"
+        },
+        {
+          "d": "M22 62C12 62 9 55 11 48C13 41 20 37 28 39C31 27 42 21 53 24C63 26 69 34 70 43C81 40 91 47 91 57C91 66 85 71 75 71H27C24 71 22 67 22 62Z",
+          "fill": "#688499"
+        },
+        {
+          "d": "M24 75C13 75 8 69 10 61C12 53 21 49 29 52C33 40 42 35 53 37C65 39 70 47 70 56C78 52 88 54 92 61C103 59 112 64 112 72C112 80 105 83 97 83H27C24 83 22 79 24 75Z",
+          "fill": "#b7c9d6"
+        }
+      ],
+      "panorama": [
+        {
+          "d": "M281 34a27 27 0 1 1-54 0a27 27 0 1 1 54 0",
+          "fill": "#d3b680"
+        },
+        {
+          "d": "M0 65C20 49 37 52 49 59C54 35 78 26 97 36C109 42 114 50 116 61C137 47 160 55 168 71C184 56 210 56 222 69C236 40 268 34 289 51C302 41 319 45 329 60C342 56 352 59 360 65V100H0Z",
+          "fill": "#49657d"
+        },
+        {
+          "d": "M0 81C23 64 43 65 59 78C73 60 95 56 113 65C127 71 133 79 134 88C158 72 184 74 200 87C214 68 239 66 256 80C277 64 304 65 322 81C336 72 349 74 360 79V100H0Z",
+          "fill": "#688296"
+        },
+        {
+          "d": "M0 94C28 80 55 82 77 94C96 84 117 85 137 96C162 86 188 86 213 96C238 86 265 87 286 96C310 85 338 86 360 94V100H0Z",
+          "fill": "#91a6b5"
+        }
+      ]
+    }
+  }
+}

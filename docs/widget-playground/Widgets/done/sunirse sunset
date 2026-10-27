@@ -1,0 +1,1143 @@
+<Scope
+  values={{
+    palette: palettes[appearance],
+    design: families.find((item) => item.id === family) || families[0],
+  }}
+>
+  <Scope
+    values={{
+      arc: drawings.arc.map((shape) => ({
+        d: shape.d,
+        fill: shape.fill ? palette[shape.fill] : "none",
+        stroke: shape.stroke ? palette[shape.stroke] : "none",
+        strokeWidth: shape.w,
+      })),
+      shallow: drawings.shallow.map((shape) => ({
+        d: shape.d,
+        fill: shape.fill ? palette[shape.fill] : "none",
+        stroke: shape.stroke ? palette[shape.stroke] : "none",
+        strokeWidth: shape.w,
+      })),
+      landscape: drawings.landscape.map((shape) => ({
+        d: shape.d,
+        fill: shape.fill ? palette[shape.fill] : "none",
+        stroke: shape.stroke ? palette[shape.stroke] : "none",
+        strokeWidth: shape.w,
+      })),
+      ring: drawings.ring.map((shape) => ({
+        d: shape.d,
+        fill: shape.fill ? palette[shape.fill] : "none",
+        stroke: shape.stroke ? palette[shape.stroke] : "none",
+        strokeWidth: shape.w,
+      })),
+      track: drawings.track.map((shape) => ({
+        d: shape.d,
+        fill: shape.fill ? palette[shape.fill] : "none",
+        stroke: shape.stroke ? palette[shape.stroke] : "none",
+        strokeWidth: shape.w,
+      })),
+      dayband: drawings.dayband.map((shape) => ({
+        d: shape.d,
+        fill: shape.fill ? palette[shape.fill] : "none",
+        stroke: shape.stroke ? palette[shape.stroke] : "none",
+        strokeWidth: shape.w,
+      })),
+    }}
+  >
+    <Basic theme={appearance} align="center" padding={1}>
+      <Col width="100%" maxWidth={420} gap={4}>
+        <Col gap={1}>
+          <Caption value={labels.collection} />
+          <Title value={labels.title} size="md" />
+          <Text value={labels.sample} size="sm" color="secondary" />
+        </Col>
+        <Row wrap="wrap" gap={3} align="end">
+          <Col flex={1} minWidth={160} gap={2}>
+            <Label value={labels.direction} fieldName="family" />
+            <Select
+              name="family"
+              bind="family"
+              options={families.map((item) => ({
+                value: item.id,
+                label: item.label,
+              }))}
+              block
+              size="2xl"
+            />
+          </Col>
+          <Col gap={2}>
+            <Text value={labels.appearance} size="sm" color="secondary" />
+            <SegmentedControl
+              name="appearance"
+              bind="appearance"
+              options={appearances}
+              ariaLabel={labels.appearance}
+              size="2xl"
+            />
+          </Col>
+        </Row>
+        <Text value={design.description} size="sm" color="secondary" />
+        <Each of={sizes} item="preview" index="index">
+          <Col key={preview.id} gap={2}>
+            <Caption value={preview.label} weight="medium" />
+            <Box
+              width={preview.width}
+              height={preview.height}
+              padding={4}
+              radius={design.radii[index]}
+              background={palette[design.surface]}
+              border={{ size: 1, color: palette.edge }}
+              clip
+              align="stretch"
+            >
+              <Show when={preview.id === "small"}>
+                <Show when={family === "minimal"}>
+                  <Col flex={1} justify="between" gap={2}>
+                    <Row gap={2}>
+                      <Icon name="sunset" color={palette.sun} size="lg" />
+                      <Caption value={solar.nextEvent} />
+                    </Row>
+                    <Title value={solar.sunset} size="3xl" tabularNums />
+                    <Text value={solar.status} size="sm" />
+                  </Col>
+                  <Show.ElseIf when={family === "horizon"}>
+                    <Col flex={1} gap={1}>
+                      <Row>
+                        <Caption value={solar.nextEvent} />
+                        <Spacer />
+                        <Icon name="sunset" color={palette.sun} size="sm" />
+                      </Row>
+                      <Title value={solar.sunset} size="2xl" tabularNums />
+                      <Text value={solar.status} size="sm" />
+                      <Spacer />
+                      <Svg
+                        paths={landscape}
+                        viewBox="0 0 320 160"
+                        width="100%"
+                        height={54}
+                        title={labels.horizonAlt}
+                      />
+                    </Col>
+                  </Show.ElseIf>
+                  <Show.ElseIf when={family === "circular"}>
+                    <Col flex={1} align="center" justify="between" gap={1}>
+                      <Svg
+                        paths={ring}
+                        viewBox="70 0 180 180"
+                        width={108}
+                        height={94}
+                        title={labels.ringAlt}
+                      />
+                      <Text
+                        value={solar.sunset}
+                        size="xl"
+                        weight="semibold"
+                        tabularNums
+                      />
+                      <Text value={solar.status} size="sm" />
+                    </Col>
+                  </Show.ElseIf>
+                  <Show.ElseIf when={family === "timeline"}>
+                    <Col flex={1} justify="between" gap={1}>
+                      <Row gap={2}>
+                        <Icon name="sunset" size="sm" color={palette.sun} />
+                        <Caption value={solar.nextEvent} />
+                      </Row>
+                      <Title value={solar.sunset} size="2xl" tabularNums />
+                      <Text value={solar.status} size="sm" />
+                      <Svg
+                        paths={track}
+                        viewBox="0 0 320 40"
+                        width="100%"
+                        height={24}
+                        title={labels.progressAlt}
+                      />
+                    </Col>
+                  </Show.ElseIf>
+                  <Show.Else>
+                    <Col flex={1} gap={1}>
+                      <Caption value={labels.sunsetUpper} size="sm" />
+                      <Title
+                        value={solar.sunset}
+                        size="3xl"
+                        weight="normal"
+                        tabularNums
+                      />
+                      <Text value={solar.status} size="sm" />
+                      <Spacer />
+                      <Row justify="between">
+                        <Caption value={labels.stillLight} />
+                        <Icon name="sun" size="lg" color={palette.sun} />
+                      </Row>
+                    </Col>
+                  </Show.Else>
+                </Show>
+                <Show.ElseIf when={preview.id === "medium"}>
+                  <Show when={family === "minimal"}>
+                    <Col flex={1} justify="between" gap={2}>
+                      <Row justify="between" gap={4}>
+                        <Each
+                          of={events.filter((event) => event.id !== "noon")}
+                          item="event"
+                          index="eventIndex"
+                        >
+                          <Col
+                            gap={1}
+                            align={eventIndex === 0 ? "start" : "end"}
+                          >
+                            <Row gap={1}>
+                              <Icon
+                                name={event.icon}
+                                size="sm"
+                                color={palette.muted}
+                              />
+                              <Caption value={event.label} />
+                            </Row>
+                            <Title value={event.time} size="xl" tabularNums />
+                          </Col>
+                        </Each>
+                      </Row>
+                      <Svg
+                        paths={shallow}
+                        viewBox="0 0 320 56"
+                        width="100%"
+                        height={32}
+                        title={labels.progressAlt}
+                      />
+                      <Row justify="between" gap={2}>
+                        <Text
+                          value={solar.daylight + " " + labels.daylightLower}
+                          size="sm"
+                        />
+                        <Caption value={solar.elapsed} />
+                      </Row>
+                    </Col>
+                    <Show.ElseIf when={family === "horizon"}>
+                      <Col flex={1} justify="between" gap={1}>
+                        <Row justify="between" gap={4}>
+                          <Each
+                            of={events.filter((event) => event.id !== "noon")}
+                            item="event"
+                            index="eventIndex"
+                          >
+                            <Col
+                              gap={0}
+                              align={eventIndex === 0 ? "start" : "end"}
+                            >
+                              <Caption value={event.label} />
+                              <Text
+                                value={event.time}
+                                size="xl"
+                                weight="medium"
+                                tabularNums
+                              />
+                            </Col>
+                          </Each>
+                        </Row>
+                        <Svg
+                          paths={landscape}
+                          viewBox="0 0 320 160"
+                          width="100%"
+                          height={76}
+                          title={labels.horizonAlt}
+                        />
+                        <Row justify="between" gap={2}>
+                          <Caption
+                            value={solar.daylight + " " + labels.daylightLower}
+                          />
+                          <Caption value={solar.elapsed} />
+                        </Row>
+                      </Col>
+                    </Show.ElseIf>
+                    <Show.ElseIf when={family === "circular"}>
+                      <Row flex={1} gap={3} align="center">
+                        <Svg
+                          paths={ring}
+                          viewBox="70 0 180 180"
+                          width={122}
+                          height={142}
+                          title={labels.ringAlt}
+                        />
+                        <Col flex={1} minWidth={0} gap={2}>
+                          <Col gap={0}>
+                            <Title
+                              value={solar.daylight}
+                              size="xl"
+                              tabularNums
+                            />
+                            <Caption value={labels.daylight} />
+                          </Col>
+                          <KeyValue
+                            rows={events
+                              .filter((event) => event.id !== "noon")
+                              .map((event) => ({
+                                label: event.label,
+                                value: event.time,
+                              }))}
+                            gap={1}
+                          />
+                          <Caption value={solar.elapsed} />
+                        </Col>
+                      </Row>
+                    </Show.ElseIf>
+                    <Show.ElseIf when={family === "timeline"}>
+                      <Col flex={1} justify="between" gap={1}>
+                        <Row justify="between">
+                          <Text
+                            value={labels.daylight}
+                            size="sm"
+                            weight="medium"
+                          />
+                          <Text
+                            value={solar.daylight}
+                            size="lg"
+                            weight="semibold"
+                            tabularNums
+                          />
+                        </Row>
+                        <Svg
+                          paths={track}
+                          viewBox="0 0 320 40"
+                          width="100%"
+                          height={34}
+                          title={labels.progressAlt}
+                        />
+                        <Row justify="between" gap={3}>
+                          <Each
+                            of={events.filter((event) => event.id !== "noon")}
+                            item="event"
+                            index="eventIndex"
+                          >
+                            <Col
+                              gap={0}
+                              align={eventIndex === 0 ? "start" : "end"}
+                            >
+                              <Caption value={event.label} />
+                              <Text
+                                value={event.time}
+                                size="sm"
+                                weight="medium"
+                                tabularNums
+                              />
+                            </Col>
+                          </Each>
+                        </Row>
+                        <Caption value={solar.elapsed} />
+                      </Col>
+                    </Show.ElseIf>
+                    <Show.Else>
+                      <Col flex={1} justify="between" gap={2}>
+                        <Row gap={3} justify="between" align="start">
+                          <Col gap={0}>
+                            <Caption value={labels.sunsetUpper} size="sm" />
+                            <Title
+                              value={solar.sunset}
+                              size="3xl"
+                              weight="normal"
+                              tabularNums
+                            />
+                            <Text value={solar.status} size="sm" />
+                          </Col>
+                          <Col width={100} align="end" gap={1}>
+                            <Svg
+                              paths={landscape}
+                              viewBox="190 20 130 140"
+                              width={90}
+                              height={64}
+                              title={labels.positionAlt}
+                            />
+                            <Caption value={solar.elapsed} size="sm" />
+                          </Col>
+                        </Row>
+                        <Divider color="subtle" />
+                        <Row justify="between" gap={3}>
+                          <Col gap={0}>
+                            <Caption value={labels.sunrise} />
+                            <Text
+                              value={solar.sunrise}
+                              size="sm"
+                              weight="medium"
+                              tabularNums
+                            />
+                          </Col>
+                          <Col gap={0} align="end">
+                            <Caption value={labels.daylight} />
+                            <Text
+                              value={solar.daylight}
+                              size="sm"
+                              weight="medium"
+                              tabularNums
+                            />
+                          </Col>
+                        </Row>
+                      </Col>
+                    </Show.Else>
+                  </Show>
+                </Show.ElseIf>
+                <Show.Else>
+                  <Show when={family === "minimal"}>
+                    <Col flex={1} justify="between" gap={2}>
+                      <Row gap={2}>
+                        <Icon name="sun" size="sm" color={palette.sun} />
+                        <Text
+                          value={labels.daylight}
+                          size="sm"
+                          weight="medium"
+                        />
+                        <Spacer />
+                        <Caption
+                          value={solar.current + " · " + solar.elapsed}
+                          size="sm"
+                        />
+                      </Row>
+                      <Svg
+                        paths={arc}
+                        viewBox="0 0 320 152"
+                        width="100%"
+                        height={112}
+                        title={labels.arcAlt}
+                      />
+                      <Row justify="between" align="start" gap={2}>
+                        <Each of={events} item="event" index="eventIndex">
+                          <Col
+                            flex={1}
+                            gap={1}
+                            align={
+                              eventIndex === 0
+                                ? "start"
+                                : eventIndex === 2
+                                  ? "end"
+                                  : "center"
+                            }
+                          >
+                            <Caption value={event.label} size="sm" />
+                            <Text
+                              value={event.time}
+                              size="sm"
+                              weight="medium"
+                              tabularNums
+                            />
+                          </Col>
+                        </Each>
+                      </Row>
+                      <Divider color="subtle" />
+                      <Row justify="between" gap={4}>
+                        <Each of={metrics} item="metric" index="metricIndex">
+                          <Col
+                            gap={1}
+                            align={metricIndex === 0 ? "start" : "end"}
+                          >
+                            <Caption value={metric.label} />
+                            <Text
+                              value={metric.value}
+                              size="xl"
+                              weight="medium"
+                              tabularNums
+                            />
+                          </Col>
+                        </Each>
+                      </Row>
+                    </Col>
+                    <Show.ElseIf when={family === "horizon"}>
+                      <Col flex={1} justify="between" gap={2}>
+                        <Row justify="between" gap={2} align="start">
+                          <Col gap={1}>
+                            <Title value={labels.horizonHeadline} size="sm" />
+                            <Caption value={solar.status} />
+                          </Col>
+                          <Text value={solar.current} size="sm" tabularNums />
+                        </Row>
+                        <Svg
+                          paths={landscape}
+                          viewBox="0 0 320 160"
+                          width="100%"
+                          height={122}
+                          title={labels.horizonAlt}
+                        />
+                        <Row justify="between" align="start" gap={2}>
+                          <Each of={events} item="event" index="eventIndex">
+                            <Col
+                              flex={1}
+                              gap={1}
+                              align={
+                                eventIndex === 0
+                                  ? "start"
+                                  : eventIndex === 2
+                                    ? "end"
+                                    : "center"
+                              }
+                            >
+                              <Caption value={event.label} size="sm" />
+                              <Text
+                                value={event.time}
+                                size="sm"
+                                weight="medium"
+                                tabularNums
+                              />
+                            </Col>
+                          </Each>
+                        </Row>
+                        <Row justify="between" gap={3}>
+                          <Col gap={0}>
+                            <Caption value={labels.totalDaylight} />
+                            <Text
+                              value={solar.daylight}
+                              size="lg"
+                              weight="medium"
+                              tabularNums
+                            />
+                          </Col>
+                          <Col gap={0} align="end">
+                            <Caption value={labels.remaining} />
+                            <Text
+                              value={solar.remaining}
+                              size="lg"
+                              weight="medium"
+                              tabularNums
+                            />
+                          </Col>
+                        </Row>
+                      </Col>
+                    </Show.ElseIf>
+                    <Show.ElseIf when={family === "circular"}>
+                      <Col flex={1} align="stretch" justify="between" gap={1}>
+                        <Row justify="center" align="baseline" gap={2}>
+                          <Title
+                            value={solar.daylight}
+                            size="2xl"
+                            tabularNums
+                          />
+                          <Caption value={labels.daylightLower} />
+                        </Row>
+                        <Row justify="center">
+                          <Svg
+                            paths={ring}
+                            viewBox="70 0 180 180"
+                            width={190}
+                            height={150}
+                            title={labels.ringAlt}
+                          />
+                        </Row>
+                        <Row justify="between" align="start" gap={2}>
+                          <Each of={events} item="event" index="eventIndex">
+                            <Col
+                              flex={1}
+                              gap={1}
+                              align={
+                                eventIndex === 0
+                                  ? "start"
+                                  : eventIndex === 2
+                                    ? "end"
+                                    : "center"
+                              }
+                            >
+                              <Caption value={event.label} size="sm" />
+                              <Text
+                                value={event.time}
+                                size="sm"
+                                weight="medium"
+                                tabularNums
+                              />
+                            </Col>
+                          </Each>
+                        </Row>
+                        <Row justify="between" gap={2}>
+                          <Text
+                            value={
+                              solar.remaining + " " + labels.remainingLower
+                            }
+                            size="sm"
+                          />
+                          <Caption value={solar.elapsed} />
+                        </Row>
+                      </Col>
+                    </Show.ElseIf>
+                    <Show.ElseIf when={family === "timeline"}>
+                      <Col flex={1} justify="between" gap={3}>
+                        <Row gap={3} align="center">
+                          <Title
+                            value={solar.remaining}
+                            size="2xl"
+                            tabularNums
+                          />
+                          <Col gap={0}>
+                            <Text
+                              value={labels.daylightLeft}
+                              size="sm"
+                              weight="medium"
+                            />
+                            <Caption value={solar.status} />
+                          </Col>
+                        </Row>
+                        <Svg
+                          paths={dayband}
+                          viewBox="0 0 320 100"
+                          width="100%"
+                          height={88}
+                          title={labels.timelineAlt}
+                        />
+                        <Row justify="between" align="start" gap={2}>
+                          <Each of={events} item="event" index="eventIndex">
+                            <Col
+                              flex={1}
+                              gap={1}
+                              align={
+                                eventIndex === 0
+                                  ? "start"
+                                  : eventIndex === 2
+                                    ? "end"
+                                    : "center"
+                              }
+                            >
+                              <Caption value={event.label} size="sm" />
+                              <Text
+                                value={event.time}
+                                size="sm"
+                                weight="medium"
+                                tabularNums
+                              />
+                            </Col>
+                          </Each>
+                        </Row>
+                        <Divider color="subtle" />
+                        <Row justify="between" gap={3}>
+                          <Col gap={1}>
+                            <Caption value={labels.totalDaylight} />
+                            <Text
+                              value={solar.daylight}
+                              size="lg"
+                              weight="medium"
+                              tabularNums
+                            />
+                          </Col>
+                          <Col gap={1} align="end">
+                            <Caption value={labels.now + " " + solar.current} />
+                            <Text
+                              value={solar.elapsed}
+                              size="sm"
+                              weight="medium"
+                            />
+                          </Col>
+                        </Row>
+                      </Col>
+                    </Show.ElseIf>
+                    <Show.Else>
+                      <Col flex={1} justify="between" gap={2}>
+                        <Row align="center" justify="between" gap={3}>
+                          <Title
+                            value={solar.sunset}
+                            size="4xl"
+                            weight="normal"
+                            tabularNums
+                          />
+                          <Col gap={1} align="end">
+                            <Caption value={labels.sunsetUpper} size="sm" />
+                            <Text
+                              value={
+                                solar.remaining + " " + labels.remainingLower
+                              }
+                              size="sm"
+                            />
+                          </Col>
+                        </Row>
+                        <Divider color="subtle" />
+                        <Row justify="between">
+                          <Caption value={labels.now + " " + solar.current} />
+                          <Caption value={solar.elapsed} />
+                        </Row>
+                        <Svg
+                          paths={shallow}
+                          viewBox="0 0 320 56"
+                          width="100%"
+                          height={58}
+                          title={labels.progressAlt}
+                        />
+                        <Row justify="between" align="start" gap={2}>
+                          <Each of={events} item="event" index="eventIndex">
+                            <Col
+                              flex={1}
+                              gap={1}
+                              align={
+                                eventIndex === 0
+                                  ? "start"
+                                  : eventIndex === 2
+                                    ? "end"
+                                    : "center"
+                              }
+                            >
+                              <Caption value={event.label} size="sm" />
+                              <Text
+                                value={event.time}
+                                size="sm"
+                                weight="medium"
+                                tabularNums
+                              />
+                            </Col>
+                          </Each>
+                        </Row>
+                        <Row justify="between" gap={3}>
+                          <Caption value={labels.totalDaylight} />
+                          <Text
+                            value={solar.daylight}
+                            size="lg"
+                            weight="medium"
+                            tabularNums
+                          />
+                        </Row>
+                      </Col>
+                    </Show.Else>
+                  </Show>
+                </Show.Else>
+              </Show>
+            </Box>
+          </Col>
+        </Each>
+        <Caption value={labels.disclaimer} size="sm" />
+      </Col>
+    </Basic>
+  </Scope>
+</Scope>
+
+
+
+{
+  "family": "horizon",
+  "appearance": "light",
+  "labels": {
+    "collection": "Five directions · three sizes each",
+    "title": "Sunrise & sunset",
+    "sample": "Sample solar day · now 18:35",
+    "direction": "Design direction",
+    "appearance": "Appearance",
+    "daylight": "Daylight",
+    "daylightLower": "daylight",
+    "totalDaylight": "Total daylight",
+    "remaining": "Remaining daylight",
+    "remainingLower": "remaining",
+    "daylightLeft": "of daylight left",
+    "sunrise": "Sunrise",
+    "sunsetUpper": "SUNSET",
+    "stillLight": "Still light",
+    "now": "Now",
+    "horizonHeadline": "The last light of the day.",
+    "arcAlt": "Schematic daylight arc from sunrise at 06:18 through solar noon at 12:44 to sunset at 19:10. The current sun is near the sunset endpoint.",
+    "horizonAlt": "An illustrated layered horizon with a low amber sun near sunset and a schematic daylight arc.",
+    "ringAlt": "A circular daylight path, almost fully elapsed, with a sun marker near the sunset endpoint.",
+    "progressAlt": "Daylight is 95.5 percent elapsed. The sun marker is close to the sunset endpoint.",
+    "positionAlt": "A low amber sun above a layered horizon, indicating approaching sunset.",
+    "timelineAlt": "A daylight timeline from 06:18 to 19:10, with solar noon at the midpoint and the current marker at 18:35.",
+    "disclaimer": "Synthetic solar data · 24-hour times · schematic paths, not measured solar elevation. Appearance and design choices change only these previews."
+  },
+  "solar": {
+    "sunrise": "06:18",
+    "noon": "12:44",
+    "sunset": "19:10",
+    "current": "18:35",
+    "nextEvent": "Sunset",
+    "status": "Sunset in 35 min",
+    "daylight": "12h 52m",
+    "remaining": "35 min",
+    "elapsed": "95.5% elapsed"
+  },
+  "appearances": [
+    {
+      "label": "Light",
+      "value": "light"
+    },
+    {
+      "label": "Dark",
+      "value": "dark"
+    }
+  ],
+  "families": [
+    {
+      "id": "minimal",
+      "label": "01 · Minimal",
+      "description": "Quiet precision: paired times, a fine solar trace, and only the information that matters.",
+      "surface": "surface",
+      "radii": [
+        "xl",
+        "xl",
+        "2xl"
+      ]
+    },
+    {
+      "id": "horizon",
+      "label": "02 · Horizon",
+      "description": "A low amber sun, layered terrain, and a restrained wash of evening atmosphere.",
+      "surface": "sky",
+      "radii": [
+        "2xl",
+        "2xl",
+        "3xl"
+      ]
+    },
+    {
+      "id": "circular",
+      "label": "03 · Circular",
+      "description": "An open orbital dial turns elapsed daylight into a compact, legible instrument.",
+      "surface": "orbital",
+      "radii": [
+        "3xl",
+        "2xl",
+        "3xl"
+      ]
+    },
+    {
+      "id": "timeline",
+      "label": "04 · Timeline",
+      "description": "Daylight as a horizontal interval: a precise now marker and a visible sliver left to go.",
+      "surface": "timeline",
+      "radii": [
+        "lg",
+        "lg",
+        "xl"
+      ]
+    },
+    {
+      "id": "editorial",
+      "label": "05 · Editorial",
+      "description": "Time takes the lead, balanced by asymmetric spacing and a small atmospheric counterpoint.",
+      "surface": "paper",
+      "radii": [
+        "md",
+        "lg",
+        "xl"
+      ]
+    }
+  ],
+  "sizes": [
+    {
+      "id": "small",
+      "label": "Small",
+      "width": 184,
+      "height": 184
+    },
+    {
+      "id": "medium",
+      "label": "Medium",
+      "width": "100%",
+      "height": 190
+    },
+    {
+      "id": "large",
+      "label": "Large",
+      "width": "100%",
+      "height": 320
+    }
+  ],
+  "events": [
+    {
+      "id": "sunrise",
+      "label": "Sunrise",
+      "time": "06:18",
+      "icon": "sunrise"
+    },
+    {
+      "id": "noon",
+      "label": "Solar noon",
+      "time": "12:44",
+      "icon": "sun"
+    },
+    {
+      "id": "sunset",
+      "label": "Sunset",
+      "time": "19:10",
+      "icon": "sunset"
+    }
+  ],
+  "metrics": [
+    {
+      "label": "Total daylight",
+      "value": "12h 52m"
+    },
+    {
+      "label": "Remaining",
+      "value": "35 min"
+    }
+  ],
+  "palettes": {
+    "light": {
+      "surface": "#ffffff",
+      "sky": "linear-gradient(180deg, #e5edf4 0%, #f1e8df 58%, #ead5c4 100%)",
+      "orbital": "#f3f5f7",
+      "timeline": "#faf9f6",
+      "paper": "#f5f0e8",
+      "edge": "#dedfe280",
+      "ink": "#20252d",
+      "muted": "#696c73",
+      "sun": "#b87319",
+      "line": "#c5c5c7",
+      "active": "#8d775a",
+      "track": "#dedee2",
+      "landFar": "#c0c6ca",
+      "landNear": "#9eaeb6",
+      "water": "#b6c7cd",
+      "dayWash": "#eee4d0",
+      "elapsedWash": "#d8bd82",
+      "nightWash": "#e4e6eb"
+    },
+    "dark": {
+      "surface": "#202124",
+      "sky": "linear-gradient(180deg, #172438 0%, #40344c 58%, #674c4b 100%)",
+      "orbital": "#1c2330",
+      "timeline": "#252525",
+      "paper": "#28232a",
+      "edge": "#ffffff15",
+      "ink": "#f3f1ee",
+      "muted": "#b7b3bd",
+      "sun": "#ffd18b",
+      "line": "#706779",
+      "active": "#d4b18c",
+      "track": "#45414d",
+      "landFar": "#4d5368",
+      "landNear": "#303b50",
+      "water": "#26364b",
+      "dayWash": "#4c4338",
+      "elapsedWash": "#987b49",
+      "nightWash": "#353640"
+    }
+  },
+  "drawings": {
+    "arc": [
+      {
+        "d": "M24 136A136 112 0 0 1 296 136",
+        "fill": null,
+        "stroke": "track",
+        "w": 2
+      },
+      {
+        "d": "M24 136A136 112 0 0 1 294.6 120.1",
+        "fill": null,
+        "stroke": "active",
+        "w": 2
+      },
+      {
+        "d": "M24 136H296",
+        "fill": null,
+        "stroke": "line",
+        "w": 0.7
+      },
+      {
+        "d": "M24 132V141M160 20V28M296 132V141",
+        "fill": null,
+        "stroke": "muted",
+        "w": 1
+      },
+      {
+        "d": "M26.5 136a2.5 2.5 0 1 1-5 0a2.5 2.5 0 1 1 5 0M162.5 24a2.5 2.5 0 1 1-5 0a2.5 2.5 0 1 1 5 0M298.5 136a2.5 2.5 0 1 1-5 0a2.5 2.5 0 1 1 5 0",
+        "fill": "muted",
+        "stroke": null,
+        "w": 0
+      },
+      {
+        "d": "M301.1 120.1a6.5 6.5 0 1 1-13 0a6.5 6.5 0 1 1 13 0",
+        "fill": "sun",
+        "stroke": null,
+        "w": 0
+      },
+      {
+        "d": "M294.6 108V111M294.6 129V132M282.6 120.1H285.6M303.6 120.1H306.6",
+        "fill": null,
+        "stroke": "sun",
+        "w": 1.2
+      }
+    ],
+    "shallow": [
+      {
+        "d": "M24 44A136 32 0 0 1 296 44",
+        "fill": null,
+        "stroke": "track",
+        "w": 1.5
+      },
+      {
+        "d": "M24 44A136 32 0 0 1 294.6 39.5",
+        "fill": null,
+        "stroke": "active",
+        "w": 1.5
+      },
+      {
+        "d": "M24 49H296",
+        "fill": null,
+        "stroke": "line",
+        "w": 0.6
+      },
+      {
+        "d": "M299.6 39.5a5 5 0 1 1-10 0a5 5 0 1 1 10 0",
+        "fill": "sun",
+        "stroke": null,
+        "w": 0
+      },
+      {
+        "d": "M24 41V47M160 9V15M296 41V47",
+        "fill": null,
+        "stroke": "line",
+        "w": 1
+      }
+    ],
+    "landscape": [
+      {
+        "d": "M0 132C46 109 76 127 116 120C163 111 190 136 229 124C270 113 290 126 320 115V160H0Z",
+        "fill": "landFar",
+        "stroke": null,
+        "w": 0
+      },
+      {
+        "d": "M0 146C51 135 89 142 128 136C174 129 220 145 261 136C286 131 306 135 320 131V160H0Z",
+        "fill": "landNear",
+        "stroke": null,
+        "w": 0
+      },
+      {
+        "d": "M0 151C88 148 157 154 220 149C263 146 294 150 320 148V160H0Z",
+        "fill": "water",
+        "stroke": null,
+        "w": 0
+      },
+      {
+        "d": "M24 132A136 108 0 0 1 296 132",
+        "fill": null,
+        "stroke": "line",
+        "w": 1
+      },
+      {
+        "d": "M24 132A136 108 0 0 1 294.6 116.7",
+        "fill": null,
+        "stroke": "active",
+        "w": 1.2
+      },
+      {
+        "d": "M24 128V135M160 20V28M296 128V135",
+        "fill": null,
+        "stroke": "active",
+        "w": 1
+      },
+      {
+        "d": "M301.6 116.7a7 7 0 1 1-14 0a7 7 0 1 1 14 0",
+        "fill": "sun",
+        "stroke": null,
+        "w": 0
+      },
+      {
+        "d": "M278 147H305M284 151H299",
+        "fill": null,
+        "stroke": "active",
+        "w": 0.8
+      }
+    ],
+    "ring": [
+      {
+        "d": "M104.85 145.15A78 78 0 1 1 215.15 145.15",
+        "fill": null,
+        "stroke": "track",
+        "w": 3
+      },
+      {
+        "d": "M104.85 145.15A78 78 0 1 1 225.6 132.2",
+        "fill": null,
+        "stroke": "active",
+        "w": 3
+      },
+      {
+        "d": "M108.35 145.15a3.5 3.5 0 1 1-7 0a3.5 3.5 0 1 1 7 0M218.65 145.15a3.5 3.5 0 1 1-7 0a3.5 3.5 0 1 1 7 0",
+        "fill": "muted",
+        "stroke": null,
+        "w": 0
+      },
+      {
+        "d": "M160 8V16",
+        "fill": null,
+        "stroke": "muted",
+        "w": 1.5
+      },
+      {
+        "d": "M231.6 132.2a6 6 0 1 1-12 0a6 6 0 1 1 12 0",
+        "fill": "sun",
+        "stroke": null,
+        "w": 0
+      },
+      {
+        "d": "M170 85a10 10 0 1 1-20 0a10 10 0 1 1 20 0",
+        "fill": "sun",
+        "stroke": null,
+        "w": 0
+      },
+      {
+        "d": "M160 66V71M160 99V104M141 85H146M174 85H179M146.6 71.6L150.1 75.1M169.9 94.9L173.4 98.4M146.6 98.4L150.1 94.9M169.9 75.1L173.4 71.6",
+        "fill": null,
+        "stroke": "sun",
+        "w": 1.5
+      }
+    ],
+    "track": [
+      {
+        "d": "M24 22H296",
+        "fill": null,
+        "stroke": "track",
+        "w": 4
+      },
+      {
+        "d": "M24 22H283.7",
+        "fill": null,
+        "stroke": "active",
+        "w": 4
+      },
+      {
+        "d": "M24 16V28M160 18V26M296 16V28",
+        "fill": null,
+        "stroke": "muted",
+        "w": 1
+      },
+      {
+        "d": "M290.7 22a7 7 0 1 1-14 0a7 7 0 1 1 14 0",
+        "fill": "sun",
+        "stroke": null,
+        "w": 0
+      }
+    ],
+    "dayband": [
+      {
+        "d": "M0 37H320V70H0Z",
+        "fill": "nightWash",
+        "stroke": null,
+        "w": 0
+      },
+      {
+        "d": "M24 37H296V70H24Z",
+        "fill": "dayWash",
+        "stroke": null,
+        "w": 0
+      },
+      {
+        "d": "M24 37H283.7V70H24Z",
+        "fill": "elapsedWash",
+        "stroke": null,
+        "w": 0
+      },
+      {
+        "d": "M24 33V80M160 37V80M296 33V80",
+        "fill": null,
+        "stroke": "muted",
+        "w": 1
+      },
+      {
+        "d": "M283.7 18V87",
+        "fill": null,
+        "stroke": "sun",
+        "w": 1.5
+      },
+      {
+        "d": "M290.7 18a7 7 0 1 1-14 0a7 7 0 1 1 14 0",
+        "fill": "sun",
+        "stroke": null,
+        "w": 0
+      },
+      {
+        "d": "M279 6V3M271 18H268M296 18H299",
+        "fill": null,
+        "stroke": "sun",
+        "w": 1
+      }
+    ]
+  }
+}
