@@ -53,7 +53,7 @@ async def test_health_success_minimal_cache_and_audit(db, calendar, account_stat
     assert "secret-fixture" not in cached and "raw_payload" not in cached
     assert cache_read("task.agenda")["payload"]["items"] == []
     logs = db.execute("SELECT * FROM execution_logs WHERE tool_source='mcp'").fetchall()
-    assert len(logs) == 3 and all(r["confirmation_decision"] for r in logs)
+    assert len(logs) == 4 and all(r["confirmation_decision"] for r in logs)
     assert "secret-fixture" not in json.dumps([dict(r) for r in logs])
     assert len(calls) == 1
 
@@ -360,3 +360,27 @@ async def test_connect_enables_declared_calendar_toolkit(db, calendar, account_s
     assert "googlecalendar" in connectors.toolkits()
     await connectors.connect("googlecalendar")
     update.assert_called_once_with(["gmail", "googlecalendar"])
+
+
+async def test_external_reconnect_and_disconnect_invalidate_widget_cache(db, calendar, account_state):
+    accounts, reauth = account_state
+    await connectors.health()
+    cache_write("task.agenda", {"items": [{"title": "Old account"}]}, "ok")
+    accounts["googlecalendar"] = {"id": "external-account"}
+    await connectors.health(force=True)
+    assert cache_read("task.agenda")["payload"] is None
+    assert cache_read("task.agenda")["state"] == "loading"
+    assert (str(service.paths().db), "task.agenda") not in service.RETRY_AFTER
+    accounts.clear()
+    await connectors.health(force=True)
+    assert cache_read("task.agenda")["state"] == "not-connected"
+
+
+async def test_reconnect_outside_dashboard_clears_expired_state(db, calendar, account_state):
+    accounts, reauth = account_state
+    await connectors.health()
+    connectors.failed("googlecalendar", RuntimeError("401 Unauthorized"))
+    assert "googlecalendar" in reauth
+    accounts["googlecalendar"] = {"id": "external-new-account"}
+    assert next(row for row in (await connectors.health())["items"] if row["id"] == "googlecalendar")["status"] == "connected"
+    assert "googlecalendar" not in reauth

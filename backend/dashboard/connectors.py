@@ -89,8 +89,8 @@ def failed(toolkit, error):
         composio_service.mark_reauth_required(toolkit, reason="Dashboard authentication expired")
         with transaction() as conn:
             conn.execute(
-                "UPDATE dashboard_connector_health SET needs_reconnect=1 WHERE toolkit=?",
-                (toolkit,),
+                "UPDATE dashboard_connector_health SET needs_reconnect=1,reconnect_started=? WHERE toolkit=?",
+                (stamp(), toolkit),
             )
         return SourceUnavailable()
     current = state(toolkit)
@@ -178,13 +178,14 @@ async def _read(widget_id, toolkit, slug, arguments):
             or is_provider_overridden_by_local(toolkit)
         ):
             raise SourceUnavailable
-        if current["needs_reconnect"] or composio_service.is_reauth_required(toolkit):
-            raise SourceUnavailable
         if current["retry_at"] > time.time():
             raise ConnectorBackoff(current["retry_at"])
         if connection("composio") is None:
             raise RuntimeError("Connector transport unavailable")
-        if toolkit not in await accounts():
+        connected = await accounts(include_reauth=True)
+        account = connected.get(toolkit)
+        current = reconcile(toolkit, account)
+        if not account or current["needs_reconnect"] or composio_service.is_reauth_required(toolkit):
             raise SourceUnavailable
         tool = get_manager().registry.resolve_tool(slug)
         if not tool or tool.server_name != "composio" or tool.source != ToolSource.MCP:
@@ -263,6 +264,10 @@ async def _read(widget_id, toolkit, slug, arguments):
             or composio_service.is_reauth_required(toolkit)
         ):
             raise SourceUnavailable
+        latest = (await accounts(include_reauth=True)).get(toolkit)
+        if not latest or latest.get("id") != account.get("id"):
+            read_cache.clear()
+            raise SourceUnavailable
         with transaction() as conn:
             conn.execute(
                 "UPDATE dashboard_connector_health SET last_success=?,failures=0,retry_at=0 "
@@ -287,36 +292,55 @@ async def _read(widget_id, toolkit, slug, arguments):
         finish_turn_trace(trace, watchdog, token)
 
 
-async def health():
+def reconcile(toolkit, account):
+    """Share account changes with widget caches, including OAuth completed elsewhere."""
+    current = state(toolkit)
+    if account and current["reconnect_started"]:
+        updated = account.get("updated_at") or account.get("created_at")
+        try:
+            changed = updated and datetime.fromisoformat(updated.replace("Z", "+00:00")) > datetime.fromisoformat(current["reconnect_started"])
+        except (ValueError, TypeError):
+            changed = False
+        if account.get("id") != current["account_id"] or changed:
+            composio_service.clear_reauth_required(toolkit)
+            with transaction() as conn:
+                conn.execute("UPDATE dashboard_connector_health SET needs_reconnect=0,reconnect_started=NULL,failures=0,retry_at=0 WHERE toolkit=?", (toolkit,))
+            current = state(toolkit)
+    account_id = account.get("id") if account else None
+    if account_id != current["account_id"]:
+        from backend.dashboard.registry import REGISTRY
+        from backend.dashboard.service import RETRY_AFTER
+        from backend.dashboard.store import cache_write
+
+        with transaction() as conn:
+            conn.execute("UPDATE dashboard_connector_health SET account_id=?,failures=0,retry_at=0 WHERE toolkit=?", (account_id, toolkit))
+        # Accounts must never share cached mail/calendar projections.
+        read_cache.clear()
+        for widget_id, entry in REGISTRY.items():
+            sources = entry["manifest"]["source"]
+            sources = sources if isinstance(sources, list) else [sources]
+            if any(source.get("toolkit") == toolkit for source in sources):
+                cache_write(widget_id, None, "loading" if account else "not-connected")
+                RETRY_AFTER.pop((str(paths().db), widget_id), None)
+        current = state(toolkit)
+    return current
+
+
+async def health(force=False):
     configured = composio_service.is_configured()
-    connections = await accounts(include_reauth=True) if configured else {}
+    connections = await accounts(include_reauth=True, force=force) if configured else {}
+    enabled = composio_service.get_enabled_toolkits() if configured else []
     items = []
     for toolkit in sorted(toolkits() | set(connections)):
         if is_provider_overridden_by_local(toolkit):
             continue
-        current = state(toolkit)
         account = connections.get(toolkit)
-        if account and current["reconnect_started"]:
-            updated = account.get("updated_at") or account.get("created_at")
-            try:
-                changed = updated and datetime.fromisoformat(
-                    updated.replace("Z", "+00:00")
-                ) > datetime.fromisoformat(current["reconnect_started"])
-            except (ValueError, TypeError):
-                changed = False
-            if account.get("id") != current["account_id"] or changed:
-                composio_service.clear_reauth_required(toolkit)
-                with transaction() as conn:
-                    conn.execute(
-                        "UPDATE dashboard_connector_health SET needs_reconnect=0,"
-                        "reconnect_started=NULL,"
-                        "failures=0,retry_at=0 WHERE toolkit=?",
-                        (toolkit,),
-                    )
-                current = state(toolkit)
+        current = reconcile(toolkit, account)
         status = (
             "needs reconnect"
             if current["needs_reconnect"] or composio_service.is_reauth_required(toolkit)
+            else "disabled"
+            if account and toolkit not in enabled
             else "connected"
             if account
             else "not set up"
@@ -325,6 +349,7 @@ async def health():
             {
                 "id": toolkit,
                 "status": status,
+                "account_id": account.get("id") if account else None,
                 "last_success": current["last_success"],
                 "retry_at": current["retry_at"] if current["retry_at"] > time.time() else None,
                 "circuit_open": current["failures"] >= 3 and current["retry_at"] > time.time(),

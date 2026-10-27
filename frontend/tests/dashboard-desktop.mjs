@@ -21,8 +21,9 @@ try {
   ['glance.next-event', 'Next event', 'calendar', 's'],
  ]
  const manifests = manifestRows.map(([id, title, icon, smallest]) => ({ enabled: true, manifest: { id, title, icon, description: `Capability of ${title}.`, group: 'glance', sizes: smallest === 's' ? ['s', 'm', 'l'] : ['m', 'l'], requires: [], source: { type: 'local' }, refresh: { mode: 'manual' }, empty: `No ${title.toLowerCase()} fixture.` } }))
+ manifests.find(row => row.manifest.id === 'glance.next-event').manifest.source = { type: 'composio', toolkit: 'googlecalendar' }
  const original = { widgets: manifests.map(({ manifest }) => ({ id: manifest.id, size: manifest.id === 'glance.clock' ? 'l' : 'm', height: 3 })) }
- let layout = structuredClone(original), failSearch = false
+ let layout = structuredClone(original), failSearch = false, calendarConnected = false
  let weatherSettings = { latitude: 12, longitude: 34 }, travelSettings = { home: 'Saved origin', enabled: true }
  const payloads = {
   'glance.clock': {},
@@ -42,6 +43,8 @@ try {
   requests.push({ path, body, query: url.search })
   let json = {}
   if (path === '/api/widgets') json = { widgets: manifests }
+  else if (path === '/api/connectors/health') json = { configured: true, items: [{ id: 'googlecalendar', status: calendarConnected ? 'connected' : 'not set up', account_id: calendarConnected ? 'calendar-fixture' : null, can_connect: true }] }
+  else if (path === '/api/connectors/googlecalendar/connect') json = { redirect_url: 'https://connect.composio.dev/fixture' }
   else if (path === '/api/layout') { if (body) layout = body; json = layout }
   else if (path === '/api/widgets/glance.weather/settings') { if (body) weatherSettings = body; json = weatherSettings }
   else if (path === '/api/widgets/glance.travel/settings') { if (body) travelSettings = body; json = travelSettings }
@@ -51,7 +54,7 @@ try {
   }
   else if (/\/(data|refresh)$/.test(path)) {
    const id = path.split('/')[3]
-   json = { state: id === 'glance.next-event' ? 'not-connected' : id === 'glance.music' ? 'empty' : 'ok', payload: payloads[id] || {}, synced_at: '2026-10-26T12:00:00Z' }
+   json = { state: id === 'glance.next-event' && !calendarConnected ? 'not-connected' : id === 'glance.music' ? 'empty' : 'ok', payload: id === 'glance.next-event' && calendarConnected ? { items: [{ title: 'Connected calendar fixture', start: '2026-10-27T10:00:00Z' }] } : payloads[id] || {}, synced_at: '2026-10-26T12:00:00Z' }
   }
   else if (path.endsWith('/health')) json = { status: 'ok', providers: [], capabilities: [], mcp_servers: [], tools: 0, skills: 0 }
   else if (['/conversations', '/confirmations', '/models', '/providers', '/journal', '/mcp/servers'].some(p => path.endsWith(p))) json = []
@@ -61,6 +64,22 @@ try {
  await page.locator('.home-layout-grid .bento-grid').waitFor()
  const card = id => page.locator(`.home-layout-grid [data-widget="${id}"]`)
  await card('glance.air').getByText('European AQI', { exact: true }).waitFor()
+ await card('glance.next-event').getByRole('button', { name: 'Connect Google Calendar', exact: true }).click()
+ const settings = page.getByRole('dialog', { name: 'Home settings', exact: true })
+ assert.equal(await settings.getByRole('tab', { name: 'Connections', exact: true }).getAttribute('aria-selected'), 'true')
+ await settings.getByRole('button', { name: 'Connect Google Calendar', exact: true }).click()
+ await settings.getByRole('link', { name: 'Continue sign-in for googlecalendar', exact: true }).waitFor()
+ assert.equal(await settings.getByRole('link', { name: 'Continue sign-in for googlecalendar', exact: true }).getAttribute('href'), 'https://connect.composio.dev/fixture')
+ calendarConnected = true
+ await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+ await card('glance.next-event').getByText('Connected calendar fixture', { exact: true }).waitFor()
+ await settings.getByText('connected', { exact: true }).waitFor()
+ assert(requests.some(r => r.path === '/api/widgets/glance.next-event/refresh'))
+ calendarConnected = false
+ await page.evaluate(() => window.dispatchEvent(new StorageEvent('storage', { key: 'amethyst.connectors.changed', newValue: String(Date.now()) })))
+ await card('glance.next-event').getByRole('button', { name: 'Connect Google Calendar', exact: true }).waitFor()
+ assert.equal(await card('glance.next-event').getByText('Connected calendar fixture', { exact: true }).count(), 0)
+ await page.keyboard.press('Escape')
  await page.getByRole('button', { name: 'Change location', exact: true }).click()
  const weather = page.getByRole('dialog', { name: 'Weather', exact: true })
  await weather.getByRole('button', { name: 'Use device location', exact: true }).click()

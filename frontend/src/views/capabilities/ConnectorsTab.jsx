@@ -15,6 +15,7 @@ import {
   Search,
 } from 'lucide-react'
 import { api } from '../../api.js'
+import { notifyConnectorsChanged } from '../../components/connectorState.js'
 import { useApp } from '../../store.jsx'
 import PluginsDirectory from './plugins/PluginsDirectory.jsx'
 import CategoryView from './plugins/CategoryView.jsx'
@@ -26,6 +27,7 @@ import '../../styles/connectors.css'
 // Module-level cache with short TTL so reopening never flashes empty but stays real-time
 let cachedConnectorStatus = null
 let cachedConnectorStatusAt = 0
+let cachedConnectorConfigured = null
 const CONNECTOR_STATUS_CACHE_MS = 5_000
 
 export function reserveConnectionPage() {
@@ -149,6 +151,8 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
     try {
       const res = await api.connectorsConnected()
       const services = res.services || {}
+      if (JSON.stringify(services) !== JSON.stringify(cachedConnectorStatus) || cachedConnectorConfigured !== Boolean(res.configured)) notifyConnectorsChanged()
+      cachedConnectorConfigured = Boolean(res.configured)
       cachedConnectorStatus = services
       cachedConnectorStatusAt = Date.now()
       setStatus(services)
@@ -190,8 +194,11 @@ export default function ConnectorsTab({ query = '', setQuery, newOpen, setNewOpe
     const handleFocus = () => {
       loadConnectedStatus(true)
     }
+    const changed = () => loadConnectedStatus(true)
+    const storage = event => { if (event.key === 'amethyst.connectors.changed') changed() }
+    window.addEventListener('storage', storage)
     window.addEventListener('focus', handleFocus)
-    return () => window.removeEventListener('focus', handleFocus)
+    return () => { window.removeEventListener('focus', handleFocus); window.removeEventListener('storage', storage) }
   }, [loadConnectedStatus])
 
   const handleManualSync = async () => {

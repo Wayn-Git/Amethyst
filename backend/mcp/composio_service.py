@@ -2458,8 +2458,11 @@ class ComposioService:
                 headers=headers,
                 timeout=15.0,
             )
-            self._connections_cache = None
-            return res.status_code in (200, 204)
+            if res.status_code in (200, 204):
+                self._on_fetch_success({key: account for key, account in self._last_good_connections.items() if account.get("id") != account_id})
+                self._connections_expires_at = 0
+                return True
+            return False
         except Exception as exc:
             log.warning("Failed to remove Composio connected account %s: %s", account_id, exc)
             return False
@@ -2740,6 +2743,7 @@ class ComposioService:
                     error_detail = f"Composio gateway error (HTTP {res.status_code})"
                 elif res.status_code == 200:
                     data = res.json()
+                    self._on_fetch_success(self._parse_connected_accounts_json(data))
                     for item in data.get("items", []):
                         tk = item.get("toolkit") or {}
                         slug = tk.get("slug") if isinstance(tk, dict) else tk
@@ -2814,7 +2818,11 @@ class ComposioService:
 
     def authorize_service(self, slug: str, alias: str | None = None) -> dict[str, Any]:
         """Authorize a service and return { url }."""
+        slug = self._canonical_toolkit_slug(slug)
         url = self.initiate_connection(slug, alias=alias)
+        enabled = self.get_enabled_toolkits()
+        if slug not in enabled:
+            self.update_toolkits([*enabled, slug])
         return {"url": url}
 
     def remove_account(self, slug: str, account_id: str) -> dict[str, Any]:

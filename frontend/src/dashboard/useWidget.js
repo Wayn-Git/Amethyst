@@ -47,6 +47,12 @@ export function useWidget(manifest, quiet, refreshVersion, onData) {
     return () => window.removeEventListener('dashboard-location-changed', changed)
   }, [load, manifest.id])
   useEffect(() => {
+    const sources = (Array.isArray(manifest.source) ? manifest.source : [manifest.source]).filter(Boolean)
+    const changed = event => { if (sources.some(source => event.detail?.toolkits?.includes(source.toolkit))) load(true) }
+    window.addEventListener('dashboard-connectors-changed', changed)
+    return () => window.removeEventListener('dashboard-connectors-changed', changed)
+  }, [manifest.source, load])
+  useEffect(() => {
     onData?.(manifest.id, data)
   }, [manifest.id, data, onData])
   useEffect(() => {

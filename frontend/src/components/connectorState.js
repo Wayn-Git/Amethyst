@@ -37,3 +37,8 @@ export function connectorState(cap, busy) {
   if (cap.enabled) return { tone: 'idle', label: 'not running', dot: 'faint' }
   return { tone: 'off', label: 'off', dot: 'faint' }
 }
+
+export function notifyConnectorsChanged() {
+  window.dispatchEvent(new Event('connectors-changed'))
+  try { localStorage.setItem('amethyst.connectors.changed', String(Date.now())) } catch { /* Same-window notification still works. */ }
+}

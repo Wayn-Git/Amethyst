@@ -176,3 +176,12 @@
 .widget-home .music-player-picker .ui-select { width: 100%; min-width: 0; max-width: 100%; }
 .widget-home .music-art { flex: none; overflow: hidden; }
 .widget-home .music-art img { display: block; width: 72px; height: 72px; object-fit: cover; }
+
+.widget-setup { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: var(--tile-space-3); min-height: 160px; }
+.widget-setup-icon { display: grid; place-items: center; padding: var(--tile-space-3); border-radius: var(--tile-radius); background: color-mix(in srgb, currentColor 7%, transparent); }
+.widget-setup p { white-space: normal; max-width: 32ch; margin: 0; }
+.widget-setup .ui-button { margin-top: var(--tile-space-2); }
+.connection-settings { display: grid; gap: var(--tile-space-4); }
+.connection-settings .widget-list > li { padding: var(--tile-space-4); background: var(--ui-panel); border: 1px solid var(--ui-border); border-radius: var(--ui-panel-radius); }
+.connection-settings .widget-list > li > div { display: grid; gap: var(--tile-space-2); width: 100%; }
+.connection-link { display: inline-flex; align-items: center; min-height: 44px; text-decoration: underline; }

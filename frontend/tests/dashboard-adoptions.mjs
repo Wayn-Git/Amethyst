@@ -241,7 +241,7 @@ try {
   if (next === 'loading') await page.getByLabel('Loading widget…').first().waitFor()
   if (next === 'error') await page.getByText('Fixture error', { exact: true }).first().waitFor()
   if (next === 'stale') await page.getByText('Stale', { exact: true }).first().waitFor()
-  if (next === 'not-connected') await page.getByRole('button', { name: 'Connect', exact: true }).first().waitFor()
+  if (next === 'not-connected') await page.getByRole('button', { name: /^Connect /  }).first().waitFor()
   if (next === 'empty') await page.getByText('Fixture empty', { exact: true }).first().waitFor()
   if (next === 'ready') await page.waitForFunction(() => !document.querySelector('.widget-skeleton') && !document.querySelector('.home-connect'))
  }

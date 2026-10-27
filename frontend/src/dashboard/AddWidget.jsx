@@ -7,10 +7,10 @@ import Icon from '../components/Icon.jsx'
 const GROUPS = [['glance', 'Glance', 'clock'], ['needs-you', 'Needs you', 'mail'], ['communication', 'Communication', 'chat'], ['agent', 'Agent', 'sparkle'], ['library', 'Library', 'bookmark'], ['tasks', 'Tasks', 'tasks'], ['developer', 'Developer', 'branch'], ['student', 'Student', 'book'], ['feed', 'Feed', 'globe'], ['life', 'Life', 'sun'], ['system', 'System', 'settings'], ['proactive', 'Proactive', 'bell'], ['dashboard', 'Home', 'grid']]
 const categoryOf = manifest => GROUPS.some(([group]) => group === manifest.group) ? manifest.group : 'system'
 const sources = manifest => (Array.isArray(manifest.source) ? manifest.source : [manifest.source]).filter(Boolean)
-const connectors = manifest => [...new Set([...manifest.requires.filter(value => value.startsWith('connector:')).map(value => value.slice(10)), ...sources(manifest).filter(source => source.type === 'composio').map(source => source.toolkit).filter(Boolean)])]
+const connectors = manifest => [...new Set([...(manifest.requires || []).filter(value => value.startsWith('connector:')).map(value => value.slice(10)), ...sources(manifest).filter(source => source.type === 'composio').map(source => source.toolkit).filter(Boolean)])]
 const sourceNames = { googlecalendar: 'Google Calendar', gmail: 'Gmail', github: 'GitHub', slack: 'Slack' }
 
-function CatalogCard({ manifest: m, added, addWidget, removeWidget, openWidget }) {
+function CatalogCard({ manifest: m, added, addWidget, removeWidget, openWidget, connections, connectSource }) {
   const [size, setSize] = useState(() => preferredWidgetSize(m))
   const system = SYSTEM_WIDGETS.includes(m.id)
   return <article className="today-catalog-row home-catalog-row" aria-label={m.title}>
@@ -20,13 +20,13 @@ function CatalogCard({ manifest: m, added, addWidget, removeWidget, openWidget }
       <span className="catalog-preview-label">Layout preview</span>
     </div>
     <div className="today-catalog-copy"><h4>{m.title}</h4><p title={m.description || `View ${m.title.toLowerCase()}.`}>{m.description || `View ${m.title.toLowerCase()}.`}</p></div>
-    <div className="catalog-connectors">{connectors(m).map(source => <Chip key={source}><span>{sourceNames[source] || source}</span><a href="/capabilities" aria-label={`Connect ${sourceNames[source] || source} for ${m.title}`}>Connect</a></Chip>)}</div>
+    <div className="catalog-connectors">{connectors(m).map(source => <Chip key={source}><span>{sourceNames[source] || source}</span>{connections?.data?.items?.find(item => item.id === source)?.status === 'connected' ? <span>Connected</span> : <Button size="small" variant="ghost" onClick={() => connectSource(source)} aria-label={`Connect ${sourceNames[source] || source} for ${m.title}`}>Connect</Button>}</Chip>)}</div>
     <div className="catalog-card-actions"><Segmented aria-label={`Size for ${m.title}`} value={size} onValueChange={setSize} options={m.sizes.map(value => ({ value, label: value.toUpperCase() }))} />{system ? <Button size="small" onClick={() => openWidget(m.id)}>Open</Button> : added ? <div className="catalog-membership"><span><Icon name="check-simple" size={14} />On Home</span><Button size="small" variant="ghost" onClick={() => removeWidget(m.id)}>Remove</Button></div> : <Button size="small" variant="primary" onClick={() => addWidget(m.id, size)}><Icon name="plus" size={14} />Add</Button>}</div>
   </article>
 }
 
 export default function AddWidget({ compact = false }) {
-  const { manifests, layout, addWidget, removeWidget, openWidget } = useDashboard()
+  const { manifests, layout, addWidget, removeWidget, openWidget, connections, connectSource } = useDashboard()
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('all')
   const availableGroups = GROUPS.filter(([group]) => manifests.some(m => categoryOf(m) === group))
@@ -40,7 +40,7 @@ export default function AddWidget({ compact = false }) {
       <label className="today-catalog-mobile-category">Category<Select aria-label="Widget category" value={category} onChange={event => setCategory(event.target.value)}>{categories.map(([id, title]) => <option key={id} value={id}>{title} ({count(id)})</option>)}</Select></label>
       <div className="today-catalog-results">
         <div className="today-catalog-results-heading"><h3>{categories.find(([id]) => id === category)?.[1]}</h3><span role="status">{matches.length} available</span></div>
-        {availableGroups.filter(([group]) => matches.some(m => categoryOf(m) === group)).map(([group, title]) => <section className="today-catalog-group" key={group} aria-label={title}>{category === 'all' && <h4>{title}</h4>}<div className="catalog-card-grid">{matches.filter(m => categoryOf(m) === group).map(m => <CatalogCard key={m.id} manifest={m} added={layout.widgets.some(item => item.id === m.id)} {...{ addWidget, removeWidget, openWidget }} />)}</div></section>)}
+        {availableGroups.filter(([group]) => matches.some(m => categoryOf(m) === group)).map(([group, title]) => <section className="today-catalog-group" key={group} aria-label={title}>{category === 'all' && <h4>{title}</h4>}<div className="catalog-card-grid">{matches.filter(m => categoryOf(m) === group).map(m => <CatalogCard key={m.id} manifest={m} added={layout.widgets.some(item => item.id === m.id)} {...{ addWidget, removeWidget, openWidget, connections, connectSource }} />)}</div></section>)}
         {!matches.length && <div className="today-catalog-empty" role="status"><Icon name="search" size={24} /><strong>No matching widgets</strong><p>Try another name or category.</p><Button size="small" onClick={() => { setQuery(''); setCategory('all') }}>Clear filters</Button></div>}
       </div>
     </div>

@@ -324,10 +324,10 @@ async def item_decision(widget_id: str, draft_id: str, body: DraftDecision):
 
 
 @router.get("/connectors/health")
-async def connector_health():
+async def connector_health(force: bool = False):
     from backend.dashboard.connectors import health
 
-    return await health()
+    return await health(force=force)
 
 
 @router.post("/connectors/{toolkit}/connect")
