@@ -1,0 +1,2339 @@
+[
+  {
+    "id": "glance.clock",
+    "title": "Clock",
+    "group": "glance",
+    "tier": "mvp",
+    "sizes": [
+      "s",
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "Nothing to show yet.",
+    "description": "Local time and your saved time zones.",
+    "icon": "clock"
+  },
+  {
+    "id": "feed.news",
+    "title": "News by topic",
+    "group": "feed",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "rss"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 1800
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No feed items. Add and tag feeds in the RSS reader.",
+    "description": "Headlines from your feeds, grouped by topic.",
+    "icon": "globe"
+  },
+  {
+    "id": "feed.rss",
+    "title": "RSS reader",
+    "group": "feed",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "rss"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 1800
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Add",
+        "gate": true
+      },
+      {
+        "id": "edit",
+        "label": "Edit",
+        "gate": true
+      },
+      {
+        "id": "delete",
+        "label": "Delete",
+        "gate": true
+      }
+    ],
+    "empty": "Add a feed. No default feeds are installed.",
+    "description": "Read and manage your RSS subscriptions.",
+    "icon": "list"
+  },
+  {
+    "id": "glance.music",
+    "title": "Desktop music",
+    "group": "glance",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 10
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "play",
+        "label": "Play",
+        "gate": true
+      },
+      {
+        "id": "pause",
+        "label": "Pause",
+        "gate": true
+      },
+      {
+        "id": "previous",
+        "label": "Previous",
+        "gate": true
+      },
+      {
+        "id": "next",
+        "label": "Next",
+        "gate": true
+      }
+    ],
+    "empty": "Open a desktop music player to start listening.",
+    "description": "See and control your desktop music player.",
+    "icon": "music"
+  },
+  {
+    "id": "glance.air",
+    "title": "Air quality",
+    "group": "glance",
+    "tier": "mvp",
+    "sizes": [
+      "s",
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "api"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 3600
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "Set location.",
+    "description": "Air quality readings for your saved location.",
+    "icon": "wind"
+  },
+  {
+    "id": "glance.sun",
+    "title": "Sunrise and sunset",
+    "group": "glance",
+    "tier": "mvp",
+    "sizes": [
+      "s",
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "api"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 3600
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "Set location.",
+    "description": "Sunrise and sunset times for your location.",
+    "icon": "sun"
+  },
+  {
+    "id": "glance.weather",
+    "title": "Weather",
+    "group": "glance",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "api"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 1800
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "Set location.",
+    "description": "Current weather and forecast for your location.",
+    "icon": "cloud"
+  },
+  {
+    "id": "need.mentions",
+    "title": "Unanswered mentions",
+    "group": "needs-you",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": [
+      {
+        "type": "composio",
+        "toolkit": "slack"
+      },
+      {
+        "type": "composio",
+        "toolkit": "github"
+      }
+    ],
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No unanswered mentions.",
+    "description": "Unanswered mentions from Slack and GitHub.",
+    "icon": "chat"
+  },
+  {
+    "id": "need.inbox",
+    "title": "Priority inbox",
+    "group": "needs-you",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": [
+      {
+        "type": "composio",
+        "toolkit": "gmail"
+      },
+      {
+        "type": "llm"
+      }
+    ],
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [
+      "connector:gmail"
+    ],
+    "actions": [],
+    "empty": "No mail needs a reply.",
+    "description": "Mail that may need your attention or a reply.",
+    "icon": "mail"
+  },
+  {
+    "id": "need.drafts",
+    "title": "Mail drafts to approve",
+    "group": "needs-you",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Add",
+        "gate": true
+      },
+      {
+        "id": "edit",
+        "label": "Edit",
+        "gate": true
+      },
+      {
+        "id": "approve",
+        "label": "Approve",
+        "gate": true
+      }
+    ],
+    "empty": "No drafts waiting.",
+    "description": "Review and approve your saved mail drafts.",
+    "icon": "edit"
+  },
+  {
+    "id": "need.waiting",
+    "title": "Waiting on replies",
+    "group": "needs-you",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": [
+      {
+        "type": "composio",
+        "toolkit": "gmail"
+      },
+      {
+        "type": "llm"
+      }
+    ],
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [
+      "connector:gmail"
+    ],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Add",
+        "gate": true
+      },
+      {
+        "id": "complete",
+        "label": "Complete",
+        "gate": true
+      },
+      {
+        "id": "nudge",
+        "label": "Nudge",
+        "gate": true
+      }
+    ],
+    "empty": "No unanswered mail or manual items.",
+    "description": "Track messages and items awaiting a reply.",
+    "icon": "memory"
+  },
+  {
+    "id": "need.lor-slack",
+    "title": "Unreplied Slack DMs",
+    "group": "needs-you",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": [
+      {
+        "type": "composio",
+        "toolkit": "slack"
+      }
+    ],
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No matching items.",
+    "description": "Slack direct messages still awaiting your reply.",
+    "icon": "chat-dots"
+  },
+  {
+    "id": "comm.thread-summary",
+    "title": "Long-thread summaries",
+    "group": "communication",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": [
+      {
+        "type": "composio",
+        "toolkit": "gmail"
+      },
+      {
+        "type": "composio",
+        "toolkit": "slack"
+      },
+      {
+        "type": "llm"
+      }
+    ],
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No matching items.",
+    "description": "Generate summaries of long mail and Slack threads.",
+    "icon": "paperclip"
+  },
+  {
+    "id": "comm.newsletters",
+    "title": "Newsletter digest",
+    "group": "communication",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": [
+      {
+        "type": "composio",
+        "toolkit": "gmail"
+      },
+      {
+        "type": "llm"
+      }
+    ],
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No matching items.",
+    "description": "Summarize newsletters from your mailbox.",
+    "icon": "envelope"
+  },
+  {
+    "id": "comm.contacts",
+    "title": "Contact cards",
+    "group": "communication",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": [
+      {
+        "type": "local"
+      },
+      {
+        "type": "composio",
+        "toolkit": "gmail"
+      },
+      {
+        "type": "composio",
+        "toolkit": "slack"
+      }
+    ],
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No matching items.",
+    "description": "Browse contacts from mail, Slack and local notes.",
+    "icon": "user"
+  },
+  {
+    "id": "comm.reachout",
+    "title": "Birthdays and reach-out nudges",
+    "group": "communication",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": [
+      {
+        "type": "local"
+      },
+      {
+        "type": "composio",
+        "toolkit": "gmail"
+      },
+      {
+        "type": "composio",
+        "toolkit": "slack"
+      }
+    ],
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "configure",
+        "label": "Configure local reminders",
+        "gate": true
+      }
+    ],
+    "empty": "No matching items.",
+    "description": "Track birthdays and reminders to reach out.",
+    "icon": "bell"
+  },
+  {
+    "id": "comm.unread",
+    "title": "Unread by person",
+    "group": "communication",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "composio",
+      "toolkit": "gmail"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [
+      "connector:gmail"
+    ],
+    "actions": [],
+    "empty": "No unread mail.",
+    "description": "See unread mail grouped by person.",
+    "icon": "mail-open"
+  },
+  {
+    "id": "comm.tone",
+    "title": "Reply tone picker",
+    "group": "communication",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": [
+      {
+        "type": "local"
+      },
+      {
+        "type": "llm"
+      }
+    ],
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "rewrite",
+        "label": "Rewrite",
+        "gate": true
+      }
+    ],
+    "empty": "Save a local mail draft to rewrite its tone.",
+    "description": "Rewrite a saved draft in a chosen tone.",
+    "icon": "type"
+  },
+  {
+    "id": "comm.templates",
+    "title": "Draft templates",
+    "group": "communication",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Add",
+        "gate": true
+      },
+      {
+        "id": "edit",
+        "label": "Edit",
+        "gate": true
+      },
+      {
+        "id": "delete",
+        "label": "Delete",
+        "gate": true
+      },
+      {
+        "id": "use",
+        "label": "Use",
+        "gate": true
+      }
+    ],
+    "empty": "No draft templates. Create one here.",
+    "description": "Create and reuse local mail draft templates.",
+    "icon": "copy"
+  },
+  {
+    "id": "sys.connectors",
+    "title": "Connector health and reconnect",
+    "group": "system",
+    "tier": "mvp",
+    "sizes": [
+      "s",
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "composio"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 10
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No connectors enabled.",
+    "description": "Check connected sources and reconnect them.",
+    "icon": "connectors"
+  },
+  {
+    "id": "sys.model",
+    "title": "Active model",
+    "group": "system",
+    "tier": "mvp",
+    "sizes": [
+      "s",
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "director"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "switch",
+        "label": "Switch model",
+        "gate": true
+      }
+    ],
+    "empty": "No notifications.",
+    "description": "View and switch the active language model.",
+    "icon": "cpu"
+  },
+  {
+    "id": "sys.notify",
+    "title": "Notification center",
+    "group": "system",
+    "tier": "mvp",
+    "sizes": [
+      "s",
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No notifications.",
+    "description": "Review dashboard notifications.",
+    "icon": "tray"
+  },
+  {
+    "id": "sys.vault",
+    "title": "Vault size and storage",
+    "group": "system",
+    "tier": "mvp",
+    "sizes": [
+      "s",
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "library"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No notifications.",
+    "description": "Check library storage and vault size.",
+    "icon": "database"
+  },
+  {
+    "id": "agent.brief",
+    "title": "Daily brief and evening wrap-up",
+    "group": "agent",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "llm"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "Nothing to report from cached widgets.",
+    "description": "Generate a daily brief or evening wrap-up.",
+    "icon": "page"
+  },
+  {
+    "id": "agent.next",
+    "title": "One suggested next action",
+    "group": "agent",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "llm"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No existing action to suggest.",
+    "description": "Review one suggested next action.",
+    "icon": "arrow-right"
+  },
+  {
+    "id": "agent.running",
+    "title": "Running tasks",
+    "group": "agent",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "director"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 10
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "stop",
+        "label": "Stop",
+        "gate": true
+      }
+    ],
+    "empty": "No activity.",
+    "description": "Follow agent tasks currently in progress.",
+    "icon": "play"
+  },
+  {
+    "id": "agent.feed",
+    "title": "Activity feed",
+    "group": "agent",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "director"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 10
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No activity.",
+    "description": "Review the agent\u2019s recent activity.",
+    "icon": "menu"
+  },
+  {
+    "id": "need.decisions",
+    "title": "Decisions waiting",
+    "group": "needs-you",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "director"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 10
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "answer",
+        "label": "Answer",
+        "gate": true
+      },
+      {
+        "id": "dismiss",
+        "label": "Dismiss",
+        "gate": true
+      }
+    ],
+    "empty": "No activity.",
+    "description": "Review decisions waiting for your input.",
+    "icon": "crosshair"
+  },
+  {
+    "id": "need.approvals",
+    "title": "Permission approvals",
+    "group": "needs-you",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "director"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 10
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "approve",
+        "label": "Approve",
+        "gate": true
+      },
+      {
+        "id": "deny",
+        "label": "Deny",
+        "gate": true
+      }
+    ],
+    "empty": "No activity.",
+    "description": "Approve or deny pending agent tool requests.",
+    "icon": "shield-check"
+  },
+  {
+    "id": "agent.errors",
+    "title": "Errors and retries",
+    "group": "agent",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "director"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 10
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No activity.",
+    "description": "Inspect failed agent actions and retry them.",
+    "icon": "minus-circle"
+  },
+  {
+    "id": "agent.audit",
+    "title": "Tool-call audit log",
+    "group": "agent",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "director"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 10
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No activity.",
+    "description": "Inspect the agent\u2019s recorded tool calls.",
+    "icon": "code"
+  },
+  {
+    "id": "agent.usage",
+    "title": "Model usage meter",
+    "group": "agent",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "director"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 10
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No activity.",
+    "description": "Review recorded model usage.",
+    "icon": "dash"
+  },
+  {
+    "id": "agent.knows",
+    "title": "What Amethyst knows about me",
+    "group": "agent",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "library"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 10
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "edit",
+        "label": "Edit",
+        "gate": true
+      },
+      {
+        "id": "delete",
+        "label": "Delete",
+        "gate": true
+      }
+    ],
+    "empty": "No activity.",
+    "description": "Review the memory Amethyst keeps about you.",
+    "icon": "brain"
+  },
+  {
+    "id": "agent.skills",
+    "title": "Skills",
+    "group": "agent",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 10
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "toggle",
+        "label": "Toggle",
+        "gate": true
+      }
+    ],
+    "empty": "No activity.",
+    "description": "Browse installed agent skills.",
+    "icon": "skills"
+  },
+  {
+    "id": "agent.rules",
+    "title": "Permission rules manager",
+    "group": "agent",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "director"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 10
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "set",
+        "label": "Set",
+        "gate": true
+      }
+    ],
+    "empty": "No activity.",
+    "description": "Review and manage tool permission rules.",
+    "icon": "shield"
+  },
+  {
+    "id": "agent.watchers",
+    "title": "Page and mailbox watchers",
+    "group": "agent",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "director"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Add",
+        "gate": true
+      },
+      {
+        "id": "delete",
+        "label": "Delete",
+        "gate": true
+      }
+    ],
+    "empty": "No activity.",
+    "description": "Manage page and mailbox watchers.",
+    "icon": "eye"
+  },
+  {
+    "id": "agent.research",
+    "title": "Background research jobs with results",
+    "group": "agent",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "director"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 10
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Add",
+        "gate": true
+      }
+    ],
+    "empty": "No activity.",
+    "description": "Track background research and open its results.",
+    "icon": "binoculars"
+  },
+  {
+    "id": "agent.delegated",
+    "title": "Delegated tasks board",
+    "group": "agent",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "director"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 10
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Add",
+        "gate": true
+      }
+    ],
+    "empty": "No activity.",
+    "description": "Review tasks delegated to other agents.",
+    "icon": "share"
+  },
+  {
+    "id": "agent.jobs",
+    "title": "Scheduled and recurring agent jobs",
+    "group": "agent",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "director"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 10
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Add",
+        "gate": true
+      },
+      {
+        "id": "delete",
+        "label": "Delete",
+        "gate": true
+      }
+    ],
+    "empty": "No activity.",
+    "description": "Manage scheduled and recurring agent jobs.",
+    "icon": "automations"
+  },
+  {
+    "id": "dev.ci",
+    "title": "CI status",
+    "group": "developer",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "composio",
+      "toolkit": "github"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [
+      "connector:github"
+    ],
+    "actions": [],
+    "empty": "No GitHub repositories.",
+    "description": "Check CI runs for your connected repositories.",
+    "icon": "check-circle"
+  },
+  {
+    "id": "dev.issues",
+    "title": "Assigned issues",
+    "group": "developer",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "composio",
+      "toolkit": "github"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [
+      "connector:github"
+    ],
+    "actions": [],
+    "empty": "No assigned open issues.",
+    "description": "See GitHub issues assigned to you.",
+    "icon": "warning"
+  },
+  {
+    "id": "dev.prs",
+    "title": "Pull requests",
+    "group": "developer",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "composio",
+      "toolkit": "github"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [
+      "connector:github"
+    ],
+    "actions": [],
+    "empty": "No PRs awaiting review or open PRs.",
+    "description": "Review pull requests from GitHub.",
+    "icon": "branch"
+  },
+  {
+    "id": "dev.appeal",
+    "title": "Support cases",
+    "group": "developer",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": [
+      {
+        "type": "local"
+      },
+      {
+        "type": "composio",
+        "toolkit": "gmail"
+      },
+      {
+        "type": "llm"
+      }
+    ],
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Add",
+        "gate": true
+      },
+      {
+        "id": "reply",
+        "label": "Reply",
+        "gate": true
+      },
+      {
+        "id": "follow-up",
+        "label": "Follow-Up",
+        "gate": true
+      },
+      {
+        "id": "unwatch",
+        "label": "Unwatch",
+        "gate": true
+      }
+    ],
+    "empty": "No items.",
+    "description": "Track support cases and prepare follow-ups.",
+    "icon": "send"
+  },
+  {
+    "id": "dev.recovery",
+    "title": "Recovery checklist",
+    "group": "developer",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Add",
+        "gate": true
+      },
+      {
+        "id": "edit",
+        "label": "Edit",
+        "gate": true
+      },
+      {
+        "id": "complete",
+        "label": "Complete",
+        "gate": true
+      },
+      {
+        "id": "delete",
+        "label": "Delete",
+        "gate": true
+      }
+    ],
+    "empty": "No items.",
+    "description": "Manage a local account recovery checklist.",
+    "icon": "wrench"
+  },
+  {
+    "id": "dev.unpushed",
+    "title": "Unpushed commits and dirty branches",
+    "group": "developer",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "git"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No items.",
+    "description": "Find unpushed commits and working-tree changes.",
+    "icon": "upload"
+  },
+  {
+    "id": "dev.backup",
+    "title": "Backup status",
+    "group": "developer",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "git"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No items.",
+    "description": "Check recorded backup status.",
+    "icon": "archive"
+  },
+  {
+    "id": "lib.inbox",
+    "title": "Saved items inbox",
+    "group": "library",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "library"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No saved items.",
+    "description": "Review items saved to your library inbox.",
+    "icon": "folder"
+  },
+  {
+    "id": "lib.resurface",
+    "title": "Resurfaced old notes",
+    "group": "library",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "library"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No saved items.",
+    "description": "Revisit older notes from your library.",
+    "icon": "books"
+  },
+  {
+    "id": "lib.capture",
+    "title": "Quick capture",
+    "group": "library",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "library"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Save note",
+        "gate": true
+      }
+    ],
+    "empty": "Capture a note to the vault.",
+    "description": "Save a quick note to your library.",
+    "icon": "plus"
+  },
+  {
+    "id": "lib.search",
+    "title": "Library search",
+    "group": "library",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "library"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No saved items.",
+    "description": "Search saved notes and library items.",
+    "icon": "search"
+  },
+  {
+    "id": "lib.recent",
+    "title": "Recently edited notes",
+    "group": "library",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "library"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No saved items.",
+    "description": "Find recently edited library notes.",
+    "icon": "notebook"
+  },
+  {
+    "id": "lib.dupes",
+    "title": "Duplicates found",
+    "group": "library",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "library"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No saved items.",
+    "description": "Review potential duplicate library items.",
+    "icon": "layers"
+  },
+  {
+    "id": "lib.ask",
+    "title": "Ask your library",
+    "group": "library",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": [
+      {
+        "type": "library"
+      },
+      {
+        "type": "llm"
+      }
+    ],
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No saved items.",
+    "description": "Ask questions using your saved library material.",
+    "icon": "sparkle"
+  },
+  {
+    "id": "lib.readlater",
+    "title": "Read later",
+    "group": "library",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": [
+      {
+        "type": "library"
+      },
+      {
+        "type": "llm"
+      }
+    ],
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Save URL",
+        "gate": true
+      }
+    ],
+    "empty": "No saved items.",
+    "description": "Browse articles you saved to read later.",
+    "icon": "bookmark"
+  },
+  {
+    "id": "lib.highlights",
+    "title": "Article highlights",
+    "group": "library",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "library"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Add highlight",
+        "gate": true
+      }
+    ],
+    "empty": "No saved items.",
+    "description": "Revisit highlights from saved articles.",
+    "icon": "quote"
+  },
+  {
+    "id": "lib.daily",
+    "title": "Daily note",
+    "group": "library",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "library"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "create",
+        "label": "Create today's note",
+        "gate": true
+      }
+    ],
+    "empty": "No saved items.",
+    "description": "Open or create your daily library note.",
+    "icon": "book"
+  },
+  {
+    "id": "lib.collections",
+    "title": "Collections and tags",
+    "group": "library",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "library"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Create collection",
+        "gate": true
+      },
+      {
+        "id": "tag",
+        "label": "Tag note",
+        "gate": true
+      }
+    ],
+    "empty": "No saved items.",
+    "description": "Browse library collections and tags.",
+    "icon": "grid"
+  },
+  {
+    "id": "need.overdue",
+    "title": "Overdue items",
+    "group": "needs-you",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No items.",
+    "description": "Review tasks and deadlines past their due date.",
+    "icon": "alert-triangle"
+  },
+  {
+    "id": "need.snoozed",
+    "title": "Snoozed items returning today",
+    "group": "needs-you",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "No items.",
+    "description": "See snoozed items returning today.",
+    "icon": "undo"
+  },
+  {
+    "id": "glance.travel",
+    "title": "Travel time to next event",
+    "group": "glance",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": [
+      {
+        "type": "composio",
+        "toolkit": "googlecalendar"
+      },
+      {
+        "type": "composio",
+        "toolkit": "google_maps"
+      }
+    ],
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [
+      "connector:googlecalendar"
+    ],
+    "actions": [],
+    "empty": "No items.",
+    "description": "Estimate travel time to your next calendar event.",
+    "icon": "globe-west"
+  },
+  {
+    "id": "task.agenda",
+    "title": "Agenda and week view",
+    "group": "tasks",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "composio",
+      "toolkit": "googlecalendar"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [
+      "connector:googlecalendar"
+    ],
+    "actions": [],
+    "empty": "No events this week.",
+    "description": "Browse your calendar agenda and week.",
+    "icon": "calendar"
+  },
+  {
+    "id": "task.plan",
+    "title": "Proposed day plan",
+    "group": "tasks",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": [
+      {
+        "type": "local"
+      },
+      {
+        "type": "composio",
+        "toolkit": "googlecalendar"
+      }
+    ],
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [
+      "connector:googlecalendar"
+    ],
+    "actions": [],
+    "empty": "No items.",
+    "description": "Review a proposed plan for your day.",
+    "icon": "calendar-check"
+  },
+  {
+    "id": "task.free",
+    "title": "Free-slot finder",
+    "group": "tasks",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": [
+      {
+        "type": "local"
+      },
+      {
+        "type": "composio",
+        "toolkit": "googlecalendar"
+      }
+    ],
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [
+      "connector:googlecalendar"
+    ],
+    "actions": [],
+    "empty": "No items.",
+    "description": "Find open slots in your calendar.",
+    "icon": "square"
+  },
+  {
+    "id": "task.conflicts",
+    "title": "Calendar conflicts",
+    "group": "tasks",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": [
+      {
+        "type": "local"
+      },
+      {
+        "type": "composio",
+        "toolkit": "googlecalendar"
+      }
+    ],
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [
+      "connector:googlecalendar"
+    ],
+    "actions": [],
+    "empty": "No items.",
+    "description": "Identify overlapping calendar events.",
+    "icon": "convert"
+  },
+  {
+    "id": "task.risk",
+    "title": "Deadline risk",
+    "group": "tasks",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": [
+      {
+        "type": "local"
+      },
+      {
+        "type": "composio",
+        "toolkit": "googlecalendar"
+      }
+    ],
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [
+      "connector:googlecalendar"
+    ],
+    "actions": [],
+    "empty": "No items.",
+    "description": "Review deadlines that may be at risk.",
+    "icon": "shield-warning"
+  },
+  {
+    "id": "glance.next-event",
+    "title": "Next event",
+    "group": "glance",
+    "tier": "mvp",
+    "sizes": [
+      "s",
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "composio",
+      "toolkit": "googlecalendar"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 900
+    },
+    "requires": [
+      "connector:googlecalendar"
+    ],
+    "actions": [],
+    "empty": "No upcoming events this week.",
+    "description": "See the next event on your calendar.",
+    "icon": "arrow-up-right"
+  },
+  {
+    "id": "task.focus",
+    "title": "Focus timer",
+    "group": "tasks",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "configure",
+        "label": "Configure",
+        "gate": true
+      },
+      {
+        "id": "start",
+        "label": "Start",
+        "gate": true
+      },
+      {
+        "id": "stop",
+        "label": "Stop",
+        "gate": true
+      }
+    ],
+    "empty": "No items.",
+    "description": "Run a focus timer for your current task.",
+    "icon": "target"
+  },
+  {
+    "id": "task.habits",
+    "title": "Habit streaks",
+    "group": "tasks",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Add",
+        "gate": true
+      },
+      {
+        "id": "checkin",
+        "label": "Checkin",
+        "gate": true
+      }
+    ],
+    "empty": "No items.",
+    "description": "Record habit check-ins and review streaks.",
+    "icon": "check-square"
+  },
+  {
+    "id": "task.goals",
+    "title": "Goals",
+    "group": "tasks",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Add",
+        "gate": true
+      },
+      {
+        "id": "progress",
+        "label": "Progress",
+        "gate": true
+      }
+    ],
+    "empty": "No items.",
+    "description": "Track progress toward your saved goals.",
+    "icon": "trend-up"
+  },
+  {
+    "id": "task.kanban",
+    "title": "Mini kanban per project",
+    "group": "tasks",
+    "tier": "v2",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "project",
+        "label": "Project",
+        "gate": true
+      },
+      {
+        "id": "configure",
+        "label": "Configure",
+        "gate": true
+      },
+      {
+        "id": "move",
+        "label": "Move",
+        "gate": true
+      }
+    ],
+    "empty": "No items.",
+    "description": "Move project tasks between kanban columns.",
+    "icon": "sidebar"
+  },
+  {
+    "id": "task.today",
+    "title": "Today list",
+    "group": "tasks",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Add",
+        "gate": true
+      },
+      {
+        "id": "edit",
+        "label": "Edit",
+        "gate": true
+      },
+      {
+        "id": "complete",
+        "label": "Complete",
+        "gate": true
+      },
+      {
+        "id": "delete",
+        "label": "Delete",
+        "gate": true
+      }
+    ],
+    "empty": "No items.",
+    "description": "Manage the tasks on your Today list.",
+    "icon": "tasks"
+  },
+  {
+    "id": "task.backlog",
+    "title": "Backlog",
+    "group": "tasks",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Add",
+        "gate": true
+      },
+      {
+        "id": "edit",
+        "label": "Edit",
+        "gate": true
+      },
+      {
+        "id": "complete",
+        "label": "Complete",
+        "gate": true
+      },
+      {
+        "id": "delete",
+        "label": "Delete",
+        "gate": true
+      }
+    ],
+    "empty": "No items.",
+    "description": "Collect tasks to work on later.",
+    "icon": "download"
+  },
+  {
+    "id": "task.deadlines",
+    "title": "Deadline countdowns",
+    "group": "tasks",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Add",
+        "gate": true
+      },
+      {
+        "id": "edit",
+        "label": "Edit",
+        "gate": true
+      },
+      {
+        "id": "complete",
+        "label": "Complete",
+        "gate": true
+      },
+      {
+        "id": "delete",
+        "label": "Delete",
+        "gate": true
+      }
+    ],
+    "empty": "No items.",
+    "description": "See countdowns to your saved deadlines.",
+    "icon": "flag"
+  },
+  {
+    "id": "task.reminders",
+    "title": "Reminders",
+    "group": "tasks",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Add",
+        "gate": true
+      },
+      {
+        "id": "edit",
+        "label": "Edit",
+        "gate": true
+      },
+      {
+        "id": "complete",
+        "label": "Complete",
+        "gate": true
+      },
+      {
+        "id": "delete",
+        "label": "Delete",
+        "gate": true
+      }
+    ],
+    "empty": "No items.",
+    "description": "Manage reminders and their due times.",
+    "icon": "info"
+  },
+  {
+    "id": "dash.palette",
+    "title": "Command palette and global search",
+    "group": "dashboard",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": [
+      {
+        "type": "local"
+      },
+      {
+        "type": "library"
+      }
+    ],
+    "refresh": {
+      "mode": "manual"
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "Nothing to show yet.",
+    "description": "Search your workspace and capture new items.",
+    "icon": "command"
+  },
+  {
+    "id": "dash.pin",
+    "title": "Pinned answers",
+    "group": "dashboard",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "director"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [
+      {
+        "id": "add",
+        "label": "Add",
+        "gate": true
+      },
+      {
+        "id": "delete",
+        "label": "Delete",
+        "gate": true
+      }
+    ],
+    "empty": "Pin a chat answer to Home.",
+    "description": "Keep selected chat answers on Home.",
+    "icon": "pin"
+  },
+  {
+    "id": "dash.gallery",
+    "title": "Widget gallery",
+    "group": "dashboard",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "Nothing to show yet.",
+    "description": "Browse widgets and choose what appears on Home.",
+    "icon": "layout"
+  },
+  {
+    "id": "dash.sync",
+    "title": "Refresh status",
+    "group": "dashboard",
+    "tier": "mvp",
+    "sizes": [
+      "s",
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "Nothing to show yet.",
+    "description": "Check freshness and refresh dashboard sources.",
+    "icon": "refresh"
+  },
+  {
+    "id": "dash.quiet",
+    "title": "Quiet hours",
+    "group": "dashboard",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "Nothing to show yet.",
+    "description": "Set quiet hours and pause dashboard refreshes.",
+    "icon": "moon"
+  },
+  {
+    "id": "dash.shortcuts",
+    "title": "Keyboard shortcuts",
+    "group": "dashboard",
+    "tier": "mvp",
+    "sizes": [
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 60
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "Nothing to show yet.",
+    "description": "Look up Home keyboard shortcuts.",
+    "icon": "keyboard"
+  }
+]

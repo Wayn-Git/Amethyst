@@ -226,3 +226,6 @@ amethyst.db-wal
 docker-compose.override.yml
 frontend/pnpm-lock.yaml
 benchmark_results.json
+
+# Local visual review artifacts
+/ui-review/
