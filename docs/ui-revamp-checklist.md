@@ -112,14 +112,14 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [ ] `feed.social` — bento adoption pending.
 - [ ] `feed.sports` — bento adoption pending.
 - [ ] `feed.watchlater` — bento adoption pending.
-- [x] `glance.air` — group adoption; see ui-widget-patterns.md.
-- [x] `glance.clock` — session 4 pilot; see ui-widget-patterns.md.
+- [x] `glance.air` — reference adoption verified; ui-review/glance-contact-sheet.png.
+- [x] `glance.clock` — reference adoption verified; ui-review/glance-contact-sheet.png.
 - [ ] `glance.listen-stats` — no shipped widget/provider; requires separate feature scope.
-- [x] `glance.music` — group adoption; see ui-widget-patterns.md.
-- [x] `glance.next-event` — group adoption; see ui-widget-patterns.md.
-- [x] `glance.sun` — group adoption; see ui-widget-patterns.md.
-- [x] `glance.travel` — group adoption; see ui-widget-patterns.md.
-- [x] `glance.weather` — session 4 pilot; see ui-widget-patterns.md.
+- [x] `glance.music` — reference adoption verified; ui-review/glance-contact-sheet.png.
+- [x] `glance.next-event` — reference adoption verified; ui-review/glance-contact-sheet.png.
+- [x] `glance.sun` — reference adoption verified; ui-review/glance-contact-sheet.png.
+- [x] `glance.travel` — reference adoption verified; ui-review/glance-contact-sheet.png.
+- [x] `glance.weather` — reference adoption verified; ui-review/glance-contact-sheet.png.
 - [ ] `lib.ask` — bento adoption pending.
 - [ ] `lib.capture` — bento adoption pending.
 - [ ] `lib.collections` — bento adoption pending.

@@ -16,3 +16,5 @@ Common implementation commits: 6f8e400 (atlas/map), 08d0609 (controls/gallery), 
 Remaining verification: finish captures and expanded contrast sweep, update group receipts, final build/exclusion check. Known fidelity and validation limits are in ui-open-questions.md. No live account/OAuth or hardware profiling is claimed.
 
 ## Group completion receipts
+
+- [x] **glance** — 7 IDs / 18 sizes; six states; Paper/Graphite × 1440/390; nine-theme responsive and contrast checks. Contact sheet: `ui-review/glance-contact-sheet.png`.

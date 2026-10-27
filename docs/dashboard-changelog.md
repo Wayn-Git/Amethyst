@@ -206,3 +206,13 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-27 · need.drafts / need.waiting: move composers, approval reviews and waiting settings into existing modal sheets; retain unfinished fields on close and approval gates. Needs browser fixtures pass across source states, nine themes and narrow/wide layouts.
 - 2026-10-27 · sys.connectors follow-up: register pinned dashboard read schemas before later account connections, prefer newest active account, and distinguish connected-but-unavailable sources. Eight fast-lane tests pass; runtime execution gates remain unchanged.
 - 2026-10-27 · dash.gallery / glance.clock: bound shared grid tracks and scroll long previews, reserve card controls, size the clock dial, commit drag reorder on release and cancel old animations; gallery reveals one widget’s options at a time. Needs/Glance fixtures and production preview cover themes, widths, containment, gallery and drag/undo; typography deferred. Frontend rebuilt; desktop backend unavailable for live checks.
+
+## 2026-10-27 — glance reference verification
+
+- `glance.clock`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `glance.music`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `glance.air`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `glance.sun`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `glance.weather`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `glance.travel`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+- `glance.next-event`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
