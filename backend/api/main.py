@@ -2653,7 +2653,105 @@ def poll_openrouter_auth_route(state: str) -> dict[str, Any]:
     return get_auth_state(state)
 
 
+class MicrosoftStartRequest(BaseModel):
+    redirect_uri: str | None = None
+    client_id: str | None = None
+
+
+@app.post("/api/auth/microsoft/start")
+def start_microsoft_auth_route(body: MicrosoftStartRequest, request: Request) -> dict[str, str]:
+    """Initiate a Microsoft Graph OAuth PKCE flow as a public client."""
+    from backend.auth.microsoft import create_auth_url
+
+    callback_url = body.redirect_uri or f"{str(request.base_url).rstrip('/')}/api/auth/microsoft/callback"
+    return create_auth_url(callback_url, client_id=body.client_id)
+
+
+@app.get("/api/auth/microsoft/callback")
+async def microsoft_callback_route(code: str, state: str) -> Response:
+    """Handle callback from Microsoft identity platform, exchange code, store tokens in vault."""
+    from fastapi.responses import HTMLResponse
+    from backend.auth.microsoft import exchange_code_for_tokens
+
+    try:
+        await exchange_code_for_tokens(code, state)
+
+        html_content = """<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Microsoft To Do Connected - Amethyst</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0f1115; color: #f1f5f9; display: grid; place-items: center; height: 100vh; margin: 0; }
+    .card { background: #1e222a; padding: 32px; border-radius: 16px; border: 1px solid #334155; text-align: center; max-width: 400px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+    h1 { font-size: 20px; font-weight: 600; margin-bottom: 8px; color: #10b981; }
+    p { color: #94a3b8; font-size: 14px; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>✓ Microsoft To Do Connected</h1>
+    <p>Your tokens have been stored securely in your local vault. You can close this tab and return to Amethyst.</p>
+  </div>
+  <script>
+    if (window.opener) {
+      window.opener.postMessage({ type: 'microsoft_auth_success' }, '*');
+    }
+    setTimeout(() => { window.close(); }, 2000);
+  </script>
+</body>
+</html>"""
+        return HTMLResponse(content=html_content, status_code=200)
+    except Exception as exc:
+        log.exception("Microsoft OAuth callback failed: %s", exc)
+        html_err = f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Authentication Failed - Amethyst</title>
+  <style>
+    body {{ font-family: system-ui, -apple-system, sans-serif; background: #0f1115; color: #f1f5f9; display: grid; place-items: center; height: 100vh; margin: 0; }}
+    .card {{ background: #1e222a; padding: 32px; border-radius: 16px; border: 1px solid #ef4444; text-align: center; max-width: 400px; }}
+    h1 {{ font-size: 20px; font-weight: 600; margin-bottom: 8px; color: #ef4444; }}
+    p {{ color: #94a3b8; font-size: 14px; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Authentication Failed</h1>
+    <p>{str(exc)}</p>
+  </div>
+</body>
+</html>"""
+        return HTMLResponse(content=html_err, status_code=400)
+
+
+@app.get("/api/auth/microsoft/poll/{state}")
+def poll_microsoft_auth_route(state: str) -> dict[str, Any]:
+    """Poll completion of a Microsoft OAuth PKCE authorization session."""
+    from backend.auth.microsoft import get_auth_state
+
+    return get_auth_state(state)
+
+
+@app.get("/api/auth/microsoft/status")
+def microsoft_status_route() -> dict[str, Any]:
+    """Check whether Microsoft To Do is connected via vault tokens."""
+    from backend.auth.microsoft import get_connection_status
+
+    return get_connection_status()
+
+
+@app.post("/api/auth/microsoft/disconnect")
+def microsoft_disconnect_route() -> dict[str, Any]:
+    """Disconnect Microsoft To Do and remove credentials from vault."""
+    from backend.auth.microsoft import disconnect
+
+    return {"ok": disconnect()}
+
+
 class VerifyCloudflareRequest(BaseModel):
+
     api_token: str
     account_id: str | None = None
 

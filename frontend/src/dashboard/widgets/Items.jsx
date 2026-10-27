@@ -1,6 +1,7 @@
 import { WidgetRow, WidgetChip, StateView } from '../primitives.jsx'
 import { useEffect, useState } from 'react'
 import { request } from '../api.js'
+import { api } from '../../api.js'
 import { Checkbox, Ring, Stat } from '../../components/ui/bento/index.jsx'
 import Button from '../../components/ui/AppButton.jsx'
 import { Input } from '../../components/ui/input.tsx'
@@ -26,6 +27,71 @@ export default function Items({ data, summaryData = data, widgetId }) {
   const [draft, setDraft] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [msConnected, setMsConnected] = useState(false)
+  const [msConnecting, setMsConnecting] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    if (widgetId?.startsWith('task.')) {
+      api.microsoftStatus?.().then(res => {
+        if (!cancelled && res?.connected) {
+          setMsConnected(true)
+        }
+      }).catch(() => {})
+    }
+    return () => { cancelled = true }
+  }, [widgetId])
+
+  useEffect(() => {
+    function handleMessage(event) {
+      if (event.data?.type === 'microsoft_auth_success') {
+        setMsConnected(true)
+        setMsConnecting(false)
+        window.dispatchEvent(new Event('dashboard-items-changed'))
+      }
+    }
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [])
+
+  async function connectMicrosoft() {
+    setMsConnecting(true)
+    setError('')
+    try {
+      const res = await api.startMicrosoftAuth?.()
+      if (res?.auth_url) {
+        window.open(res.auth_url, '_blank')
+        if (res.state) {
+          const pollTimer = setInterval(async () => {
+            try {
+              const status = await api.pollMicrosoftAuth?.(res.state)
+              if (status?.connected) {
+                clearInterval(pollTimer)
+                setMsConnected(true)
+                setMsConnecting(false)
+                window.dispatchEvent(new Event('dashboard-items-changed'))
+              } else if (status?.status === 'failed') {
+                clearInterval(pollTimer)
+                setMsConnecting(false)
+                setError(status.error || 'Microsoft authentication failed')
+              }
+            } catch {
+              clearInterval(pollTimer)
+              setMsConnecting(false)
+            }
+          }, 1500)
+        }
+      } else {
+        window.dispatchEvent(new CustomEvent('amethyst:open-connectors', {
+          detail: { connectorId: 'microsoft-todo', service: 'Microsoft To Do' }
+        }))
+        setMsConnecting(false)
+      }
+    } catch (e) {
+      setError(e.message)
+      setMsConnecting(false)
+    }
+  }
   async function propose(action, item) {
     setBusy(true); setError('')
     try {
@@ -87,6 +153,18 @@ export default function Items({ data, summaryData = data, widgetId }) {
           </div></details> : <span className="task-source-note">Edit in connected source.</span>}
         </WidgetRow>
       })}</ul>
+      {!(data?.items?.length) && widgetId?.startsWith('task.') && !msConnected && !editing && (
+        <div className="widget-empty-connect" style={{ padding: '16px 8px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+          <Button
+            size="small"
+            variant="primary"
+            disabled={msConnecting}
+            onClick={connectMicrosoft}
+          >
+            {msConnecting ? 'Connecting…' : 'Connect Microsoft To Do'}
+          </Button>
+        </div>
+      )}
     </>}
   </div>
 }
