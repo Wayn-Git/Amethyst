@@ -1373,19 +1373,17 @@ class MCPManager:
             if not composio_service.is_configured():
                 return 0
             connections = composio_service.get_connections()
-            connected_toolkits = [
-                tk for tk in FAST_LANE_CONFIG if (not connections or tk in connections)
-            ]
-            if not connected_toolkits:
-                return 0
 
             cached_tools = self._tool_cache.get(config.name)
             cached_by_name = {t.name: t for t in cached_tools} if cached_tools else {}
 
-            for tk in connected_toolkits:
+            for tk in FAST_LANE_CONFIG:
                 fast_tools = composio_service.get_fast_lane_tools(tk)
                 for tool_def in fast_tools:
                     slug = tool_def["slug"]
+                    # Read schemas must exist for accounts connected after transport startup.
+                    if connections and tk not in connections and slug not in PINNED_READ_ONLY_SLUGS:
+                        continue
                     key = mcp_tool_key(slug, config.name)
                     handler = self._make_composio_fast_lane_handler(config.name, slug)
                     cached = cached_by_name.get(key)

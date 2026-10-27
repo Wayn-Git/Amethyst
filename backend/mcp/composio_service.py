@@ -2236,6 +2236,8 @@ class ComposioService:
                 slug = tk.get("slug") if isinstance(tk, dict) else tk
                 if slug:
                     s_slug = str(slug).lower()
+                    if s_slug in active:
+                        continue  # API results are newest first.
                     active[s_slug] = {
                         "id": item.get("id", ""),
                         "status": "ACTIVE",

@@ -200,3 +200,27 @@ async def test_fast_lane_execution_unpacks_response():
     # The output is cleanly unpacked to response.data directly!
     assert "events" in data
     assert data["events"][0]["summary"] == "Design Sync"
+
+
+def test_dashboard_reads_registered_before_account_connects(monkeypatch):
+    from backend.mcp.manager import MCPManager
+    from backend.mcp.config import ServerConfig
+
+    monkeypatch.setattr(composio_service, "is_configured", lambda: True)
+    monkeypatch.setattr(composio_service, "get_connections", lambda: {"gmail": {"id": "mail"}})
+    monkeypatch.setattr(composio_service, "get_fast_lane_tools", lambda toolkit: [
+        {"slug": "GOOGLECALENDAR_FIND_EVENT", "description": "Read calendar", "parameters": {"type": "object"}},
+    ] if toolkit == "googlecalendar" else [])
+    manager = MCPManager(registry=ToolRegistry())
+    manager._register_composio_fast_lane_tools(ServerConfig(name="composio", transport="http", url="https://example.com/mcp"), [])
+    tool = manager.registry.resolve_tool("GOOGLECALENDAR_FIND_EVENT")
+    assert tool is not None
+    assert tool.server_name == "composio"
+
+
+def test_newest_connected_account_wins():
+    result = composio_service._parse_connected_accounts_json({"items": [
+        {"toolkit": {"slug": "gmail"}, "status": "ACTIVE", "id": "new"},
+        {"toolkit": {"slug": "gmail"}, "status": "ACTIVE", "id": "old"},
+    ]})
+    assert result["gmail"]["id"] == "new"
