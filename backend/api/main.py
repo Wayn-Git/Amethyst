@@ -1319,7 +1319,6 @@ async def _director(
     conversation_id: str | None = None,
     guard: str | None = None,
     depth: str | None = None,
-    remote_device: bool = False,
 ) -> Director:
     from backend.agent.director import Guards
     from backend.config import load_max_iterations
@@ -1350,11 +1349,6 @@ async def _director(
 
         guarded = GuardedConfirmationService(guard, callback=_await_confirmation)
         registry = registry.with_confirmation(guarded)
-
-    if remote_device and guard != "read-only":
-        registry = registry.with_confirmation(ConfirmationService(
-            callback=_await_confirmation, require_write_approval=True,
-        ))
 
     guards = Guards(max_iterations=load_max_iterations())
     # Resolve effort: override > saved > session > catalog default
@@ -3929,8 +3923,6 @@ async def run_turn(
     request: Request,
 ) -> StreamingResponse:
     global _connectors_warm
-    if request.scope.get("device") and body.guard not in {None, "guard", "read-only"}:
-        raise HTTPException(403, "Remote devices cannot weaken the permission gate")
     if ConversationRepository().get(conversation_id) is None:
         raise HTTPException(404, "no such conversation")
     if body.mode not in TURN_MODES:
@@ -3999,7 +3991,7 @@ async def run_turn(
             # and just need a quick health check, not a cold start wait.
             reconcile_deadline = CONNECTOR_WARM_DEADLINE if _connectors_warm else TURN_STARTUP_SECONDS
             build = asyncio.ensure_future(
-                _director(body.workspace, body.mode, reconcile_deadline=reconcile_deadline, effort=body.effort, variant=body.variant, model_id=body.model, conversation_id=conversation_id, guard=body.guard, depth=body.depth, remote_device=bool(request.scope.get("device")))
+                _director(body.workspace, body.mode, reconcile_deadline=reconcile_deadline, effort=body.effort, variant=body.variant, model_id=body.model, conversation_id=conversation_id, guard=body.guard, depth=body.depth)
             )
             try:
                 while True:

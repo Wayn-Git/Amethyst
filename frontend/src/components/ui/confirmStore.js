@@ -29,12 +29,11 @@ export function confirm(options) {
     const raw = safeStorage.getItem('amethyst.ui.v1')
     prefs = raw ? JSON.parse(raw) : {}
   } catch (e) { prefs = {}; }
-  if (!options.required && prefs.confirmDestructive === false) {
+  if (prefs.confirmDestructive === false) {
     return Promise.resolve(true);
   }
 
   return new Promise((resolve) => {
-    state?.resolve(false)
     state = { ...options, resolve }
     emit()
   })

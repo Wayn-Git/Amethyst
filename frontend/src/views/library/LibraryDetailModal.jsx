@@ -15,7 +15,6 @@ import LibraryDetectedSection from './LibraryDetectedSection.jsx'
 import LibraryRightRail from './LibraryRightRail.jsx'
 import LibraryQueuePopover from './LibraryQueuePopover.jsx'
 import LibraryShortcutsModal from './LibraryShortcutsModal.jsx'
-import AppButton from '../../components/ui/AppButton.jsx'
 import './library-detail.css'
 
 export function formatModelDisplayName(modelStr) {
@@ -348,7 +347,7 @@ export default function LibraryDetailModal({
         if (parsed >= 28 && parsed <= 65) return parsed
       }
     } catch {}
-    return 42
+    return 38
   })
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false)
 
@@ -390,14 +389,10 @@ export default function LibraryDetailModal({
     }
 
     // Reset container scroll position
-    const mainEl = document.querySelector('main.view-swap, .main.view-swap')
+    const mainEl = document.querySelector('.main.view-swap')
     if (mainEl) mainEl.scrollTop = 0
     const viewEl = document.querySelector('.lib-view')
     if (viewEl) viewEl.scrollTop = 0
-    const bodyEl = document.querySelector('.lib-page-body')
-    if (bodyEl) bodyEl.scrollTop = 0
-    const centerEl = document.querySelector('.lib-page-center-col')
-    if (centerEl) centerEl.scrollTop = 0
     window.scrollTo(0, 0)
 
     if (initialItem?.id) {
@@ -564,10 +559,10 @@ export default function LibraryDetailModal({
     return u.includes('/reel/') || u.includes('/reels/') || u.includes('/shorts/') || u.includes('tiktok.com')
   }, [item.is_reel, item.url])
 
-  // Display title without forced sentence-case lowercasing
+  // Display title with sentence-casing fallback
   const displayTitle = useMemo(() => {
     const raw = item.title || 'Untitled Resource'
-    return cleanTitleText(raw)
+    return formatSentenceCase(cleanTitleText(raw))
   }, [item.title])
 
   // Platform source info
@@ -853,17 +848,16 @@ export default function LibraryDetailModal({
         <header className="lib-page-header">
           <div className="lib-page-header-left">
             {/* Back to Library */}
-            <AppButton
-              variant="secondary"
-              size="medium"
+            <button
+              type="button"
               className="lib-page-back-btn"
               onClick={onClose}
               title="Back to Library (Esc)"
               aria-label="Back to Library"
-              icon={<Icon name="arrow-left" size={14} />}
             >
-              Library
-            </AppButton>
+              <Icon name="arrow-left" size={14} />
+              <span>Library</span>
+            </button>
           </div>
 
           <div className="lib-page-header-right">
@@ -892,7 +886,7 @@ export default function LibraryDetailModal({
                   <span>
                     {currentIndex + 1} of {items.length}
                   </span>
-                  <Icon name="chevron-down" size={12} />
+                  <Icon name="chevron-down" size={10} />
                 </button>
 
                 <button
@@ -922,39 +916,40 @@ export default function LibraryDetailModal({
 
             {/* Copy Link Button */}
             {item.url && (
-              <AppButton
-                variant="secondary"
-                size="icon"
+              <button
+                type="button"
                 className="lib-page-icon-btn"
                 onClick={handleCopyLink}
                 title="Copy original link (C)"
                 aria-label="Copy link"
-                icon={<Icon name={copiedLink ? 'check' : 'copy'} size={14} />}
-              />
+              >
+                <Icon name={copiedLink ? 'check' : 'copy'} size={14} />
+              </button>
             )}
 
             {/* Keyboard Shortcuts Guide Trigger */}
-            <AppButton
-              variant="secondary"
-              size="icon"
+            <button
+              type="button"
               className="lib-page-icon-btn"
               onClick={() => setShowShortcutsModal(true)}
               title="Keyboard shortcuts (?)"
               aria-label="Keyboard shortcuts"
-              icon={<Icon name="keyboard" size={14} />}
-            />
+            >
+              <Icon name="help-circle" size={14} />
+            </button>
 
-            {/* The ONLY Theater Mode toggle in the entire view (icon-only like others) */}
-            <AppButton
-              variant="secondary"
-              size="icon"
+            {/* The ONLY Theater Mode toggle in the entire view */}
+            <button
+              type="button"
               className={`lib-header-theater-btn ${isTheater ? 'lib-header-theater-btn--active' : ''}`}
               onClick={() => setIsTheater((prev) => !prev)}
               title={isTheater ? 'Exit Theater Mode' : 'Focus media in Theater Mode'}
               aria-label={isTheater ? 'Exit theater mode' : 'Enter theater mode'}
               aria-pressed={isTheater}
-              icon={<Icon name={isTheater ? 'collapse' : 'desktop'} size={14} />}
-            />
+            >
+              <Icon name={isTheater ? 'collapse' : 'desktop'} size={13} />
+              <span>{isTheater ? 'Exit Theater' : 'Theater'}</span>
+            </button>
 
             {/* Close Button */}
             <CloseButton size="sm" onClick={onClose} slot={null} aria-label="Close detail view" />
@@ -1037,7 +1032,7 @@ export default function LibraryDetailModal({
                             onClick={() => setCurrentSlideIndex((prev) => (prev > 0 ? prev - 1 : slideItems.length - 1))}
                             aria-label="Previous slide"
                           >
-                            <Icon name="chevron-left" size={14} />
+                            <Icon name="chevron-left" size={13} />
                           </button>
                           <span className="lib-slide-nav-counter">
                             {currentSlideIndex + 1} / {slideItems.length}
@@ -1048,7 +1043,7 @@ export default function LibraryDetailModal({
                             onClick={() => setCurrentSlideIndex((prev) => (prev < slideItems.length - 1 ? prev + 1 : 0))}
                             aria-label="Next slide"
                           >
-                            <Icon name="chevron-right" size={14} />
+                            <Icon name="chevron-right" size={13} />
                           </button>
                         </div>
                       )}
@@ -1101,7 +1096,7 @@ export default function LibraryDetailModal({
                     onClick={() => setIsCaptionExpanded((v) => !v)}
                   >
                     <span>{isCaptionExpanded ? 'Show less' : 'Show more'}</span>
-                    <Icon name={isCaptionExpanded ? 'chevron-up' : 'chevron-down'} size={12} />
+                    <Icon name={isCaptionExpanded ? 'chevron-up' : 'chevron-down'} size={11} />
                   </button>
                 )}
               </div>
@@ -1122,10 +1117,9 @@ export default function LibraryDetailModal({
             </div>
           )}
 
-          {/* ----------------- REGION 2: CENTER WORKBENCH & REGION 3: RAIL ----------------- */}
+          {/* ----------------- REGION 2: CENTER WORKBENCH ----------------- */}
           {!isTheater && (
-            <>
-              <div className="lib-page-center-col">
+            <div className="lib-page-center-col">
               <div className="lib-center-scroll-pane">
                 {/* 1. Title & Meta */}
                 <div className="lib-center-hero">
@@ -1159,14 +1153,14 @@ export default function LibraryDetailModal({
                         role="button"
                       >
                         {displayTitle}
-                        <Icon name="edit" size={14} className="lib-title-edit-pencil" />
+                        <Icon name="edit" size={13} className="lib-title-edit-pencil" />
                       </h1>
                     )}
 
                     {/* Original caption secondary subtitle */}
                     {cleanCaption && !isEditingTitle && (
                       <p className="lib-title-secondary-caption" title={cleanCaption}>
-                        {cleanCaption}
+                        {cleanCaption.slice(0, 160)}{cleanCaption.length > 160 ? '...' : ''}
                       </p>
                     )}
                   </div>
@@ -1207,18 +1201,17 @@ export default function LibraryDetailModal({
                     )}
                     {item.status === 'index_failed' && (
                       <div className="lib-meta-indexing-tag lib-meta-indexing-tag--failed">
-                        <Icon name="alert" size={12} />
+                        <Icon name="alert" size={11} />
                         <span>Index failed</span>
                       </div>
                     )}
                   </div>
 
-                  {/* Actions Row using clean secondary AppButton styling */}
+                  {/* Actions Row (Primary actions) */}
                   <div className="lib-page-cta-row">
-                    <AppButton
-                      variant="secondary"
-                      size="medium"
-                      className="lib-page-cta-pill lib-page-cta-pill--secondary"
+                    <button
+                      type="button"
+                      className="lib-page-cta-pill lib-page-cta-pill--primary"
                       onClick={() => {
                         const colName = window.prompt('Collection name:')
                         if (colName && colName.trim()) {
@@ -1226,37 +1219,36 @@ export default function LibraryDetailModal({
                         }
                       }}
                       title="Add item to a collection"
-                      icon={<Icon name="folder-plus" size={14} />}
                     >
-                      Add to collection
-                    </AppButton>
+                      <Icon name="folder-plus" size={13} />
+                      <span>Add to collection</span>
+                    </button>
 
                     {item.url && (
-                      <AppButton
-                        variant="secondary"
-                        size="medium"
+                      <button
+                        type="button"
                         className="lib-page-cta-pill lib-page-cta-pill--secondary"
                         onClick={handleCopyLink}
                         title="Copy link to clipboard"
-                        icon={<Icon name={copiedLink ? 'check' : 'copy'} size={14} />}
                       >
-                        {copiedLink ? 'Copied' : 'Copy link'}
-                      </AppButton>
+                        <Icon name={copiedLink ? 'check' : 'copy'} size={13} />
+                        <span>{copiedLink ? 'Copied' : 'Copy link'}</span>
+                      </button>
                     )}
 
                     {/* "..." Overflow Menu (Re-analyze, Delete, Export) */}
                     <div className="lib-cta-overflow-menu-wrap" ref={actionsMenuRef}>
-                      <AppButton
-                        variant="secondary"
-                        size="medium"
+                      <button
+                        type="button"
                         className="lib-page-cta-pill lib-page-cta-pill--secondary"
                         onClick={() => setShowActionsMenu((v) => !v)}
                         title="More actions"
                         aria-label="More actions"
                         aria-haspopup="true"
                         aria-expanded={showActionsMenu}
-                        icon={<Icon name="dots" size={14} />}
-                      />
+                      >
+                        <Icon name="more-horizontal" size={14} />
+                      </button>
 
                       {showActionsMenu && (
                         <div className="lib-overflow-menu" role="menu">
@@ -1269,7 +1261,7 @@ export default function LibraryDetailModal({
                               handleEnrich()
                             }}
                           >
-                            <Icon name="spark" size={14} />
+                            <Icon name="spark" size={13} />
                             <span>Re-analyze</span>
                           </button>
 
@@ -1283,7 +1275,7 @@ export default function LibraryDetailModal({
                                 handleExportPlaylistTrigger(item.resources.filter((r) => r.type === 'music'))
                               }}
                             >
-                              <Icon name="list-plus" size={14} />
+                              <Icon name="list-plus" size={13} />
                               <span>Export Playlist</span>
                             </button>
                           )}
@@ -1300,7 +1292,7 @@ export default function LibraryDetailModal({
                               }
                             }}
                           >
-                            <Icon name="trash" size={14} />
+                            <Icon name="trash" size={13} />
                             <span>Delete item</span>
                           </button>
                         </div>
@@ -1457,7 +1449,7 @@ export default function LibraryDetailModal({
                             )}
                             {notesSavedIndicator && (
                               <span className="lib-notes-status-text lib-notes-status-text--saved">
-                                <Icon name="check" size={12} />
+                                <Icon name="check" size={11} />
                                 <span>Saved</span>
                               </span>
                             )}
@@ -1479,26 +1471,25 @@ export default function LibraryDetailModal({
                   )}
                 </div>
               </div>
-            </div>
 
-            {/* ----------------- REGION 3: RIGHT RAIL (PEER COLUMN) ----------------- */}
-            <LibraryRightRail
-              item={item}
-              tags={tags}
-              onAddTag={handleAddTag}
-              onRemoveTag={handleRemoveTag}
-              rating={rating}
-              onToggleFavorite={handleToggleFavorite}
-              notes={notes}
-              onOpenNotesTab={() => {
-                setActiveTab('notes')
-                setTimeout(() => notesTextareaRef.current?.focus(), 50)
-              }}
-              onNavigateItem={(target) => onNavigate?.(target)}
-            />
-          </>
-        )}
-      </div>
+              {/* ----------------- REGION 3: RIGHT RAIL ----------------- */}
+              <LibraryRightRail
+                item={item}
+                tags={tags}
+                onAddTag={handleAddTag}
+                onRemoveTag={handleRemoveTag}
+                rating={rating}
+                onToggleFavorite={handleToggleFavorite}
+                notes={notes}
+                onOpenNotesTab={() => {
+                  setActiveTab('notes')
+                  setTimeout(() => notesTextareaRef.current?.focus(), 50)
+                }}
+                onNavigateItem={(target) => onNavigate?.(target)}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Lightbox Modal */}

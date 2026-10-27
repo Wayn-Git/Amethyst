@@ -1,4 +1,4 @@
-import { Button as button } from '../components/ui/bento/index.jsx'
+import { Button as HouseButton } from '../components/ui/bento/index.jsx'
 /* The whole app, on a device that is not the machine.
  *
  * `Remote` renders inside the workbench on a desktop -- one page among the
@@ -25,9 +25,7 @@ import { useCallback, useEffect, useState } from 'react'
 import ErrorBoundary from '../components/ErrorBoundary.jsx'
 import Icon from '../components/Icon.jsx'
 import Pair from './Pair.jsx'
-import Companion from '../mobile/Companion.jsx'
-import { clearDeviceCache } from '../dashboard/api.js'
-import { clearDeviceRecords } from '../mobile/storage.js'
+import Remote from './Remote.jsx'
 import { forget, paired as isPaired } from '../lib/sync/client.js'
 
 export default function RemoteOnly({ onDesktop }) {
@@ -46,8 +44,6 @@ export default function RemoteOnly({ onDesktop }) {
   }, [])
 
   const startOver = useCallback(async () => {
-    await clearDeviceRecords()
-    clearDeviceCache()
     await forget()
     setRevoked(false)
     setRepairing(true)
@@ -65,11 +61,12 @@ export default function RemoteOnly({ onDesktop }) {
             <Icon name="plug" size={30} />
             <h1>Disconnected</h1>
             <p className="pair-sub">
-              This device was removed from your computer. New requests are blocked. Work already accepted by the desktop may still finish. Pair again to reconnect.
+              This device was removed from your computer. Anything it had queued was
+              cancelled there, and nothing new will arrive until you pair it again.
             </p>
-            <button type="button" className="pair-go" onClick={startOver}>
+            <HouseButton type="button" className="pair-go" onClick={startOver}>
               Pair again
-            </button>
+            </HouseButton>
           </div>
         </div>
       </div>
@@ -79,7 +76,7 @@ export default function RemoteOnly({ onDesktop }) {
   return (
     <div className="remote-only">
       <ErrorBoundary>
-        <Companion onUnpair={startOver} />
+        <Remote onUnpair={startOver} onDesktop={onDesktop} />
       </ErrorBoundary>
     </div>
   )

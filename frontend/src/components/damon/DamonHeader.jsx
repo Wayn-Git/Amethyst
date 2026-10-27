@@ -9,8 +9,6 @@ export default function DamonHeader({
   onChange,
   onKeyDown,
   onClearMode,
-  onToggleCapture,
-  capturing,
 }) {
   const getModeBadge = () => {
     switch (activeMode) {
@@ -21,7 +19,7 @@ export default function DamonHeader({
       case 'images':
         return { label: 'Images', icon: 'image', tone: 'img' }
       case 'commands':
-        return { label: 'Commands', icon: 'zap', tone: 'cmd' }
+        return { label: 'Actions', icon: 'zap', tone: 'cmd' }
       case 'library':
         return { label: 'Library', icon: 'book', tone: 'lib' }
       case 'tasks':
@@ -41,14 +39,14 @@ export default function DamonHeader({
       : activeMode === 'web'
       ? 'Search the web…'
       : activeMode === 'images'
-      ? 'Search images…'
+      ? 'Search free images…'
       : activeMode === 'commands'
-      ? 'Search commands…'
+      ? 'Type an action or shortcut…'
       : activeMode === 'library'
-      ? 'Search library…'
+      ? 'Search or add to library…'
       : activeMode === 'tasks'
-      ? 'Search tasks…'
-      : 'Search for apps and commands...'
+      ? 'Search tasks or type a new task…'
+      : 'Type a command, question, or search (e.g. > youtube, > google, 24*7)…'
 
   return (
     <div className="palette-input damon-header">
@@ -60,9 +58,9 @@ export default function DamonHeader({
             onClick={onClearMode}
             title="Press Backspace or Esc to clear mode"
           >
-            <Icon name={badge.icon} size={13} />
+            <Icon name={badge.icon} size={12} />
             <span>{badge.label}</span>
-            <Icon name="x" size={11} />
+            <Icon name="x" size={10} />
           </HouseButton>
         ) : (
           <Icon name="search" size={18} className="damon-search-icon" />
@@ -80,10 +78,9 @@ export default function DamonHeader({
       />
 
       <div className="damon-header-trailing">
-        {flash && (
+        {flash ? (
           <span className="palette-flash damon-flash">{flash}</span>
-        )}
-        {query ? (
+        ) : query ? (
           <HouseButton
             type="button"
             className="damon-clear-btn"
@@ -93,24 +90,11 @@ export default function DamonHeader({
             <Icon name="x" size={14} />
           </HouseButton>
         ) : (
-          <div className="damon-ask-ai-pill" title="Press Tab to cycle filter modes">
-            <span className="damon-ask-ai-text">Ask AI</span>
-            <kbd className="damon-header-kbd">Tab</kbd>
+          <div className="damon-esc-hint">
+            <kbd className="kbd">Esc</kbd>
           </div>
-        )}
-        {onToggleCapture && (
-          <HouseButton
-            type="button"
-            className={`damon-header-capture-btn widget-buttons${capturing ? ' active' : ''}`}
-            onClick={onToggleCapture}
-            aria-label="Quick capture"
-            title={capturing ? 'Close quick capture' : 'Quick capture'}
-          >
-            <Icon name={capturing ? 'x' : 'edit-3'} size={13} />
-          </HouseButton>
         )}
       </div>
     </div>
   )
 }
-

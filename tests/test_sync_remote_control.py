@@ -35,10 +35,6 @@ def conn():
         "INSERT INTO conversations (id, title, provider, model)"
         " VALUES ('conv-1', 'Groceries', 'anthropic', 'claude-opus-5')"
     )
-    from backend.sync import devices
-    device, _ = devices.register(c, "test phone", role="control", permissions={"agent": True})
-    c.execute("UPDATE devices SET id='phone' WHERE id=?", (device.id,))
-    c.commit()
     yield c
     c.close()
 

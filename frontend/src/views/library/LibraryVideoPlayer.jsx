@@ -1,7 +1,7 @@
+import { Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../../components/Icon.jsx'
-import AppButton from '../../components/ui/AppButton.jsx'
 
 function formatTime(seconds) {
   if (isNaN(seconds) || seconds < 0) return '0:00'
@@ -198,117 +198,155 @@ export default function LibraryVideoPlayer({
 
   // Keyboard navigation on video
   const handleKeyDown = (e) => {
-    if (['Space', ' ', 'k', 'K'].includes(e.key)) {
+    if (e.key === ' ' || e.key === 'k') {
       e.preventDefault()
       togglePlay()
-    } else if (['m', 'M'].includes(e.key)) {
-      e.preventDefault()
-      toggleMute()
-    } else if (['f', 'F'].includes(e.key)) {
-      e.preventDefault()
-      toggleFullscreen()
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault()
       if (videoRef.current) {
-        const nextTime = Math.max(0, currentTime - 5)
-        videoRef.current.currentTime = nextTime
-        setCurrentTime(nextTime)
-        setFlashAction('backward')
-        setTimeout(() => setFlashAction(null), 500)
+        videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 5)
       }
     } else if (e.key === 'ArrowRight') {
       e.preventDefault()
       if (videoRef.current) {
-        const nextTime = Math.min(duration, currentTime + 5)
-        videoRef.current.currentTime = nextTime
-        setCurrentTime(nextTime)
-        setFlashAction('forward')
-        setTimeout(() => setFlashAction(null), 500)
+        videoRef.current.currentTime = Math.min(duration, videoRef.current.currentTime + 5)
       }
-    }
-  }
-
-  const handleError = () => {
-    if (fallbackUrl && currentSrc !== fallbackUrl) {
-      setCurrentSrc(fallbackUrl)
-    } else if (embedUrl) {
-      setShowEmbed(true)
+    } else if (e.key === 'm') {
+      e.preventDefault()
+      toggleMute()
+    } else if (e.key === 'f') {
+      e.preventDefault()
+      toggleFullscreen()
+    } else if ((e.key === 'c' || e.key === 'C') && captionSentences.length > 0) {
+      e.preventDefault()
+      setShowCaptions((prev) => !prev)
     }
   }
 
   return (
     <div
       ref={containerRef}
-      className={`lib-player ${isVertical ? 'lib-player--vertical' : 'lib-player--landscape'} ${isTheater ? 'lib-player--theater' : ''} ${isFullscreen ? 'lib-player--fullscreen' : ''}`}
+      className={`lib-player-root ${isVertical ? 'lib-player-root--portrait' : ''}`}
       onMouseMove={resetHideTimer}
-      onClick={togglePlay}
-      onKeyDown={handleKeyDown}
+      onMouseLeave={() => isPlaying && setShowControls(false)}
       tabIndex={0}
+      onKeyDown={handleKeyDown}
       role="region"
-      aria-label="Video Player"
+      aria-label={title || 'Video Player'}
     >
-      {/* Fallback to Web Embed if direct MP4 stream fails */}
-      {showEmbed && embedUrl ? (
-        <iframe
-          src={embedUrl}
-          title={title}
-          className="lib-player-embed"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-        />
+      {/* 1. Embed mode (fallback embed or user selected web embed) */}
+      {((showEmbed || (!currentSrc && !fallbackUrl)) && embedUrl) ? (
+        <div className="lib-player-embed-container">
+          <div className="lib-player-embed-wrap">
+            <iframe
+              src={embedUrl}
+              title={title || 'Web Video Player'}
+              className="lib-player-iframe"
+              allowFullScreen
+              scrolling="no"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            />
+          </div>
+          {(currentSrc || fallbackUrl) && (
+            <div className="lib-player-switch-bar">
+              <HouseButton
+                type="button"
+                className="lib-player-switch-bar-btn"
+                onClick={() => setShowEmbed(false)}
+                title="Switch to Native Video Player"
+              >
+                <Icon name="play" size={12} />
+                <span>Switch to Native Player</span>
+              </HouseButton>
+            </div>
+          )}
+        </div>
       ) : (
-        <div className="lib-player-media-wrap">
+        /* 2. Direct Video Player with Custom Controls */
+        <div
+          className="lib-player-surface"
+          onClick={togglePlay}
+        >
           <video
             ref={videoRef}
-            src={currentSrc}
+            src={currentSrc || fallbackUrl}
+            playsInline
+            loop
             poster={poster}
             className="lib-player-video"
-            playsInline
-            preload="metadata"
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
+            onPlay={() => {
+              setIsPlaying(true)
+              setHasStartedPlaying(true)
+            }}
+            onPause={() => setIsPlaying(false)}
             onEnded={() => setIsPlaying(false)}
-            onError={handleError}
+            onError={() => {
+              if (fallbackUrl && currentSrc !== fallbackUrl) {
+                setCurrentSrc(fallbackUrl)
+              } else if (embedUrl) {
+                setShowEmbed(true)
+              }
+            }}
           />
 
-          {/* Center Play Button on initial idle/pause */}
+          {/* Initial Pre-play Cover & Luminous Glass Play Badge */}
           {!hasStartedPlaying && (
-            <div className="lib-player-center-play">
-              <div className="lib-player-play-disc" aria-label="Play video">
-                <Icon name="play" size={24} />
-              </div>
+            <div className="lib-player-preplay">
+              {poster ? (
+                <img
+                  src={poster}
+                  alt={title || 'Cover'}
+                  className="lib-player-poster"
+                />
+              ) : (
+                <div className="lib-player-graphic-card">
+                  <div className="lib-player-graphic-title">{cleanCoverSlug}</div>
+                </div>
+              )}
+
+              {/* Luminous Glass Play Button */}
+              <motion.button
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.94 }}
+                type="button"
+                className="lib-player-hero-play"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  togglePlay()
+                }}
+                title="Play video (Space)"
+                aria-label="Play video"
+              >
+                <div className="lib-player-hero-circle">
+                  <Icon name="play" size={24} style={{ marginLeft: 2 }} />
+                </div>
+              </motion.button>
             </div>
           )}
 
-          {/* Center Action Feedback Flash (Play / Pause / Seek) */}
+          {/* Flash Ripple Indicator on Click (Play/Pause momentary feedback) */}
           <AnimatePresence>
-            {flashAction && (
+            {flashAction && hasStartedPlaying && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.1 }}
-                transition={{ duration: 0.2 }}
-                className="lib-player-feedback-badge"
+                key={flashAction}
+                initial={{ scale: 0.8, opacity: 0.9 }}
+                animate={{ scale: 1.25, opacity: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+                className="lib-player-flash-badge"
               >
-                <Icon
-                  name={
-                    flashAction === 'play'
-                      ? 'play'
-                      : flashAction === 'pause'
-                      ? 'pause'
-                      : flashAction === 'forward'
-                      ? 'rotate-cw'
-                      : 'rotate-ccw'
-                  }
-                  size={28}
-                />
+                <div className="lib-player-flash-circle">
+                  <Icon name={flashAction === 'play' ? 'play' : 'pause'} size={28} />
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Synchronized Closed Captions / Subtitles Overlay (Only while playing) */}
-          {isPlaying && showCaptions && activeCaption && (
-            <div className="lib-player-captions-overlay">
+          {/* Synchronized Closed Captions / Subtitles Overlay */}
+          {showCaptions && activeCaption && (isPlaying || !hasStartedPlaying) && (
+            <div className="lib-player-caption-banner">
               <span>{activeCaption}</span>
             </div>
           )}
@@ -333,18 +371,18 @@ export default function LibraryVideoPlayer({
               </div>
             </div>
 
-            {/* Bottom Button Row using AppButton */}
+            {/* Bottom Button Row */}
             <div className="lib-player-controls-row">
               <div className="lib-player-controls-left">
-                <AppButton
-                  variant="ghost"
-                  size="icon"
+                <HouseButton
+                  type="button"
                   className="lib-player-btn"
                   onClick={togglePlay}
                   title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
                   aria-label={isPlaying ? 'Pause' : 'Play'}
-                  icon={<Icon name={isPlaying ? 'pause' : 'play'} size={14} />}
-                />
+                >
+                  <Icon name={isPlaying ? 'pause' : 'play'} size={15} />
+                </HouseButton>
 
                 <span className="lib-player-time">
                   {formatTime(currentTime)} / {formatTime(duration)}
@@ -353,21 +391,20 @@ export default function LibraryVideoPlayer({
 
               <div className="lib-player-controls-right">
                 {/* Mute toggle */}
-                <AppButton
-                  variant="ghost"
-                  size="icon"
+                <HouseButton
+                  type="button"
                   className="lib-player-btn"
                   onClick={toggleMute}
                   title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
                   aria-label={isMuted ? 'Unmute' : 'Mute'}
-                  icon={<Icon name={isMuted ? 'muted' : 'speaker'} size={14} />}
-                />
+                >
+                  <Icon name={isMuted ? 'muted' : 'speaker'} size={14} />
+                </HouseButton>
 
                 {/* Subtitles / Closed Captions Toggle */}
                 {captionSentences.length > 0 && (
-                  <AppButton
-                    variant="ghost"
-                    size="icon"
+                  <HouseButton
+                    type="button"
                     className={`lib-player-btn ${showCaptions ? 'lib-player-btn--active' : ''}`}
                     onClick={(e) => {
                       e.stopPropagation()
@@ -377,14 +414,13 @@ export default function LibraryVideoPlayer({
                     aria-label="Toggle Subtitles"
                   >
                     <span className="lib-player-cc-badge">CC</span>
-                  </AppButton>
+                  </HouseButton>
                 )}
 
                 {/* Web Embed Switcher if available */}
                 {embedUrl && (
-                  <AppButton
-                    variant="ghost"
-                    size="icon"
+                  <HouseButton
+                    type="button"
                     className="lib-player-btn"
                     onClick={(e) => {
                       e.stopPropagation()
@@ -392,20 +428,21 @@ export default function LibraryVideoPlayer({
                     }}
                     title="Switch to Web Player"
                     aria-label="Web Player"
-                    icon={<Icon name="globe" size={14} />}
-                  />
+                  >
+                    <Icon name="globe" size={13} />
+                  </HouseButton>
                 )}
 
                 {/* Fullscreen */}
-                <AppButton
-                  variant="ghost"
-                  size="icon"
+                <HouseButton
+                  type="button"
                   className="lib-player-btn"
                   onClick={toggleFullscreen}
                   title={isFullscreen ? 'Exit Fullscreen (F)' : 'Fullscreen (F)'}
                   aria-label="Toggle Fullscreen"
-                  icon={<Icon name={isFullscreen ? 'collapse' : 'maximize'} size={14} />}
-                />
+                >
+                  <Icon name={isFullscreen ? 'collapse' : 'maximize'} size={13} />
+                </HouseButton>
               </div>
             </div>
           </div>

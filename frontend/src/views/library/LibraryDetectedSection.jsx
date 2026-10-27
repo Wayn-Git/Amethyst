@@ -1,8 +1,6 @@
 import React from 'react'
 import Icon from '../../components/Icon.jsx'
-import AppButton from '../../components/ui/AppButton.jsx'
-import LibraryDetailRow from './LibraryDetailRow.jsx'
-import { getFaviconUrl } from './LibraryCard.jsx'
+import { getDomain, getFaviconUrl } from './LibraryCard.jsx'
 import { getResourceIcon, getCleanDomain } from './LibraryDetailModal.jsx'
 
 export default function LibraryDetectedSection({
@@ -20,30 +18,30 @@ export default function LibraryDetectedSection({
 
   return (
     <section className="lib-detected-section" aria-label="Detected items">
-      {/* Section Header: 12px sentence case medium, muted sparkle icon (no green) */}
+      {/* Section Header with count in UI font (not mono) */}
       <div className="lib-detected-header">
         <div className="lib-detected-title-wrap">
-          <Icon name="spark" size={14} className="lib-detected-header-icon" />
+          <Icon name="spark" size={13} className="lib-detected-header-icon" />
           <h2 className="lib-detected-heading">Detected</h2>
           <span className="lib-detected-count-badge">{totalCount}</span>
         </div>
 
         {/* Export Playlist Button: Only visible when 2+ tracks */}
         {songs.length >= 2 && onExportPlaylist && (
-          <AppButton
-            variant="secondary"
-            size="sm"
+          <button
+            type="button"
+            className="lib-detected-export-btn"
             onClick={() => onExportPlaylist(songs)}
             title="Export all detected tracks as a playlist"
-            icon={<Icon name="list-plus" size={14} />}
           >
-            Export playlist
-          </AppButton>
+            <Icon name="list-plus" size={13} />
+            <span>Export playlist</span>
+          </button>
         )}
       </div>
 
       <div className="lib-detected-list">
-        {/* Detected Songs using shared LibraryDetailRow */}
+        {/* Detected Songs */}
         {songs.map((track, i) => {
           const trackTitle = track.name || track.title || 'Unknown Track'
           const trackArtist = track.detail || track.author || track.artist || ''
@@ -52,81 +50,142 @@ export default function LibraryDetectedSection({
           const albumArt = track.artwork || track.cover_url || track.thumbnail
 
           return (
-            <React.Fragment key={`song-${i}`}>
-              {i > 0 && <div className="lib-detail-divider" />}
-              <LibraryDetailRow
-                thumbnail={albumArt}
-                icon={<Icon name="music" size={14} />}
-                title={trackTitle}
-                subtitle={trackArtist}
-                actions={
-                  <div className="lib-row-actions-group">
-                    <AppButton
-                      variant={isSaved ? 'secondary' : 'primary'}
-                      size="sm"
-                      disabled={isSaved || isSaving}
-                      onClick={() => onSaveSong?.(track)}
-                      title={isSaved ? 'Saved to song list' : 'Add to song list'}
-                      icon={
-                        <Icon
-                          name={isSaved ? 'check' : isSaving ? 'loader' : 'plus'}
-                          size={14}
-                          className={isSaving ? 'animate-spin' : ''}
-                        />
-                      }
-                    >
-                      {isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Add to song list'}
-                    </AppButton>
-
-                    {track.url && (
-                      <AppButton
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => window.open(track.url, '_blank', 'noreferrer')}
-                        title={`Open track on ${track.url.includes('shazam') ? 'Shazam' : 'platform'}`}
-                        icon={<Icon name="arrow-up-right" size={14} />}
-                      >
-                        Open
-                      </AppButton>
-                    )}
+            <div key={`song-${i}`} className="lib-detected-row">
+              <div className="lib-detected-row-left">
+                {/* Album Art or neutral squircle placeholder */}
+                <div className="lib-detected-media-thumb">
+                  {albumArt ? (
+                    <img
+                      src={albumArt}
+                      alt={trackTitle}
+                      className="lib-detected-art-img"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none'
+                        if (e.currentTarget.nextElementSibling) {
+                          e.currentTarget.nextElementSibling.style.display = 'flex'
+                        }
+                      }}
+                    />
+                  ) : null}
+                  <div
+                    className="lib-detected-placeholder-thumb"
+                    style={{ display: albumArt ? 'none' : 'flex' }}
+                  >
+                    <Icon name="music" size={14} />
                   </div>
-                }
-              />
-            </React.Fragment>
+                </div>
+
+                <div className="lib-detected-text">
+                  <span className="lib-detected-title" title={trackTitle}>
+                    {trackTitle}
+                  </span>
+                  {trackArtist && (
+                    <span className="lib-detected-subtitle" title={trackArtist}>
+                      {trackArtist}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="lib-detected-row-actions">
+                {/* Primary Action: Add to song list */}
+                <button
+                  type="button"
+                  className={`lib-detected-action-btn ${isSaved ? 'lib-detected-action-btn--saved' : 'lib-detected-action-btn--primary'}`}
+                  disabled={isSaved || isSaving}
+                  onClick={() => onSaveSong?.(track)}
+                  title={isSaved ? 'Saved to Song List' : 'Add to Song List'}
+                >
+                  <Icon
+                    name={isSaved ? 'check' : isSaving ? 'loader' : 'plus'}
+                    size={12}
+                    className={isSaving ? 'animate-spin' : ''}
+                  />
+                  <span>
+                    {isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Add to song list'}
+                  </span>
+                </button>
+
+                {/* Secondary Action: Open on platform */}
+                {track.url && (
+                  <a
+                    href={track.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="lib-detected-action-btn lib-detected-action-btn--secondary"
+                    title={`Open track on ${track.url.includes('shazam') ? 'Shazam' : 'platform'}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Icon name="external-link" size={12} />
+                    <span>Open</span>
+                  </a>
+                )}
+              </div>
+            </div>
           )
         })}
 
-        {/* Detected Entities / Resources using shared LibraryDetailRow */}
+        {/* Detected Movies, Shows, Products, Websites, Tools */}
         {entities.map((res, i) => {
           const domain = getCleanDomain(res.url)
           const iconName = getResourceIcon(res.type, res.url, res.name)
           const faviconUrl = res.url ? getFaviconUrl(res.url) : null
           const isClickable = Boolean(res.url)
-          const subtitle = [domain, res.detail].filter(Boolean).join(' · ')
 
           return (
-            <React.Fragment key={`entity-${i}`}>
-              {(songs.length > 0 || i > 0) && <div className="lib-detail-divider" />}
-              <LibraryDetailRow
-                thumbnail={faviconUrl}
-                icon={<Icon name={iconName} size={14} />}
-                title={res.name}
-                subtitle={subtitle}
-                actions={
-                  isClickable ? (
-                    <AppButton
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => window.open(res.url, '_blank', 'noreferrer')}
-                      title={`Open ${res.name}`}
-                      icon={<Icon name="arrow-up-right" size={14} />}
-                    >
-                      Open
-                    </AppButton>
-                  ) : null
-                }
-              />
-            </React.Fragment>
+            <div key={`entity-${i}`} className="lib-detected-row lib-resource-chip">
+              <div className="lib-detected-row-left">
+                <div className="lib-detected-icon-badge">
+                  {faviconUrl ? (
+                    <img
+                      src={faviconUrl}
+                      alt=""
+                      className="lib-detected-favicon"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none'
+                        if (e.currentTarget.nextElementSibling) {
+                          e.currentTarget.nextElementSibling.style.display = 'flex'
+                        }
+                      }}
+                    />
+                  ) : null}
+                  <span
+                    className="lib-detected-fallback-icon"
+                    style={{ display: faviconUrl ? 'none' : 'flex' }}
+                  >
+                    <Icon name={iconName} size={13} />
+                  </span>
+                </div>
+
+                <div className="lib-detected-text">
+                  <div className="lib-detected-title-line">
+                    <span className="lib-detected-title">{res.name}</span>
+                    {domain && (
+                      <span className="lib-detected-domain">{domain}</span>
+                    )}
+                  </div>
+                  {res.detail && (
+                    <span className="lib-detected-subtitle">{res.detail}</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="lib-detected-row-actions">
+                {isClickable && (
+                  <a
+                    href={res.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="lib-detected-action-btn lib-detected-action-btn--secondary"
+                    title={`Open ${res.name}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Icon name="external-link" size={12} />
+                    <span>Open</span>
+                  </a>
+                )}
+              </div>
+            </div>
           )
         })}
       </div>

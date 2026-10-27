@@ -252,7 +252,7 @@ export default function RemoteAgent() {
               fontStyle: 'italic',
             }}
           >
-            {intent.payload?.text} · {intent.state === 'accepted' ? 'accepted; waiting to run' : 'queued'}
+            {intent.payload?.text} · {intent.state === 'accepted' ? 'executing on PC' : 'queued'}
           </div>
         ))}
       </div>

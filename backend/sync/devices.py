@@ -79,22 +79,17 @@ DEVICE_NAME_KEY = "sync.device_name"
 TOKEN_REF = f"{SERVICE}/sync-device-token"
 
 DEFAULT_PERMISSIONS: dict[str, bool] = {
-    "terminal": False, "root": False, "screen": False, "webcam": False,
-    "mic": False, "audio": False, "files": False, "input": False,
-    "power": False, "clipboard": False, "system": False,
-    "agent": True, "library": True, "dashboard": True,
+    "terminal": True,
+    "root": False,
+    "screen": True,
+    "webcam": True,
+    "mic": True,
+    "audio": True,
+    "files": True,
+    "input": True,
+    "power": True,
+    "agent": True,
 }
-
-
-def _read_permissions(raw: str | None) -> dict[str, bool]:
-    # Missing fields in an older grant are not permission to use a new API.
-    try:
-        parsed = json.loads(raw or "{}")
-    except (TypeError, ValueError):
-        return {}
-    if not isinstance(parsed, dict):
-        return {}
-    return {key: value is True for key, value in parsed.items() if key in DEFAULT_PERMISSIONS}
 
 
 @dataclass(frozen=True)
@@ -202,7 +197,12 @@ def authenticate(conn: sqlite3.Connection, token: str) -> Device | None:
                 "UPDATE devices SET last_seen_at = datetime('now') WHERE id = ?", (row[0],)
             )
             conn.commit()
-            perms = _read_permissions(row[6])
+            perms = dict(DEFAULT_PERMISSIONS)
+            try:
+                if row[6]:
+                    perms.update(json.loads(row[6]))
+            except Exception:
+                pass
             return Device(
                 id=row[0],
                 name=row[1],
@@ -223,7 +223,12 @@ def get_device(conn: sqlite3.Connection, device_id: str) -> Device | None:
     ).fetchone()
     if not row:
         return None
-    perms = _read_permissions(row[5])
+    perms = dict(DEFAULT_PERMISSIONS)
+    try:
+        if row[5]:
+            perms.update(json.loads(row[5]))
+    except Exception:
+        pass
     return Device(
         id=row[0],
         name=row[1],
@@ -307,7 +312,12 @@ def live(conn: sqlite3.Connection) -> list[Device]:
         "SELECT id, name, role, revoked_at, last_seen_at, permissions FROM devices"
         " WHERE revoked_at IS NULL ORDER BY created_at"
     ):
-        perms = _read_permissions(row[5])
+        perms = dict(DEFAULT_PERMISSIONS)
+        try:
+            if row[5]:
+                perms.update(json.loads(row[5]))
+        except Exception:
+            pass
         result.append(
             Device(
                 id=row[0],

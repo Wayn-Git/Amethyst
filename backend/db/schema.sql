@@ -1047,14 +1047,3 @@ CREATE TABLE IF NOT EXISTS widget_settings (
     widget_id TEXT PRIMARY KEY,
     settings_json TEXT NOT NULL
 );
-
--- A fresh explicit decision is required for every sensitive remote OS action.
-CREATE TABLE IF NOT EXISTS remote_action_drafts (
-    id TEXT PRIMARY KEY,
-    device_id TEXT NOT NULL,
-    action TEXT NOT NULL,
-    arguments TEXT NOT NULL,
-    permission TEXT NOT NULL,
-    expires_at REAL NOT NULL,
-    decision TEXT
-);

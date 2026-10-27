@@ -1,5 +1,4 @@
 import { getBase, getAuthHeaders } from '../api.js'
-import { identity } from '../lib/sync/client.js'
 
 export async function request(path, method = 'GET', body) {
   const response = await fetch(`${getBase()}${path}`, {
@@ -16,22 +15,8 @@ export async function request(path, method = 'GET', body) {
 }
 
 export function cached(key) {
-  try {
-    const owner = identity()?.deviceId
-    const scoped = localStorage.getItem(`amethyst.widgets.${owner || "desktop"}.${key}`)
-    // Only the desktop may inherit the pre-companion cache.
-    const legacy = !owner && localStorage.getItem(`amethyst.widgets.${key === 'layout.default' ? 'layout' : key}`)
-    return JSON.parse(scoped || legacy || 'null')
-  } catch { return null }
+  try { return JSON.parse(localStorage.getItem(`amethyst.widgets.${key}`) || 'null') } catch { return null }
 }
 export function remember(key, value) {
-  try { localStorage.setItem(`amethyst.widgets.${identity()?.deviceId || "desktop"}.${key}`, JSON.stringify(value)) } catch { /* SQLite remains authoritative. */ }
-}
-export function clearDeviceCache() {
-  const owner = identity()?.deviceId
-  if (!owner) return
-  const prefix = `amethyst.widgets.${owner}.`
-  for (const key of Object.keys(localStorage)) {
-    if (key.startsWith(prefix)) localStorage.removeItem(key)
-  }
+  try { localStorage.setItem(`amethyst.widgets.${key}`, JSON.stringify(value)) } catch { /* SQLite remains authoritative. */ }
 }

@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import Icon from '../../components/Icon.jsx'
-import AppButton from '../../components/ui/AppButton.jsx'
 import AiProviderIcon from '../../components/AiProviderIcon.jsx'
 import { AsciiSkeleton } from 'ascii-reveal'
 import { formatModelDisplayName } from './LibraryDetailModal.jsx'
@@ -55,64 +54,68 @@ function mapErrorMessage(err) {
 }
 
 /**
- * Parses raw markdown summary into:
- * 1. tldr: Clean 1-2 sentence overview without asterisks or headers
- * 2. details: Structured list of labeled items (Setup:, Teased moments:, etc.)
- *    rendered with bold labels, not crammed into a single blob.
+ * Parses raw markdown summary into a clean 1-2 line TL;DR and plain paragraphs
+ * for the details disclosure, eliminating rigid bold-label bullets.
  */
 export function extractSummaryTldrAndDetails(rawText) {
-  if (!rawText) return { tldr: '', detailItems: [] }
+  if (!rawText) return { tldr: '', paragraphs: [] }
   const text = String(rawText).trim()
 
-  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean)
-  if (lines.length === 0) return { tldr: '', detailItems: [] }
+  // Split into paragraphs by double newlines or single newlines
+  const rawParagraphs = text
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean)
 
-  let tldr = ''
-  const detailItems = []
+  if (rawParagraphs.length === 0) return { tldr: '', paragraphs: [] }
 
-  let foundTldr = false
-  for (const line of lines) {
-    if (line.startsWith('#')) continue
+  // 1. TL;DR from first paragraph or first sentence
+  let firstPara = rawParagraphs[0]
+  // Strip markdown headings or bold label prefixes like **Header:**
+  const leadMatch = firstPara.match(/^\*\*[^*]+:\*\*\s*(.+)$/)
+  let tldr = leadMatch ? leadMatch[1].trim() : firstPara.replace(/^[#*-\s]+/, '').trim()
 
-    // Check for bold labeled lines like:
-    // "- **Setup:** The video shows..."
-    // "* **Teased moments:** ..."
-    // "**Promo hook:** ..."
-    // "Setup: ..."
-    const labeledMatch = line.match(/^[-*•]?\s*\*\*([^*:]+:?)\*\*\s*(.*)$/) ||
-                         line.match(/^[-*•]?\s*([A-Za-z0-9\s_-]+:)\s+(.*)$/)
+  // If first paragraph is very long, extract the first 1-2 sentences
+  const sentenceMatch = tldr.match(/^([^.!?]+[.!?]+(?:\s+[^.!?]+[.!?]+)?)/)
+  if (sentenceMatch && tldr.length > 220) {
+    tldr = sentenceMatch[1].trim()
+  }
 
-    if (labeledMatch) {
-      let label = labeledMatch[1].trim()
-      if (!label.endsWith(':')) label += ':'
-      // Strip any residual asterisks from value
-      const content = labeledMatch[2].replace(/\*\*/g, '').trim()
-      if (content || label) {
-        detailItems.push({ label, text: content })
-      }
-    } else if (!foundTldr) {
-      // First clean narrative line is the TL;DR
-      const cleanLine = line.replace(/^[#*-\s]+/, '').replace(/\*\*/g, '').trim()
-      if (cleanLine) {
-        tldr = cleanLine
-        foundTldr = true
-      }
-    } else {
-      // Additional body lines without labels
-      const cleanLine = line.replace(/^[#*-\s]+/, '').replace(/\*\*/g, '').trim()
-      if (cleanLine) {
-        detailItems.push({ label: null, text: cleanLine })
+  // 2. Details paragraphs: convert remaining lines / bullets to 2-3 plain paragraphs
+  const remaining = rawParagraphs.slice(1)
+  const paragraphs = []
+  let buffer = []
+
+  for (const block of remaining) {
+    const lines = block.split('\n').map((l) => l.trim()).filter(Boolean)
+    for (const line of lines) {
+      if (line.startsWith('#')) continue
+      // Convert "- **Setup:** The video shows..." to "Setup: The video shows..."
+      const cleaned = line
+        .replace(/^[-*•]\s*/, '')
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .trim()
+      if (cleaned) {
+        buffer.push(cleaned)
+        if (buffer.length >= 2) {
+          paragraphs.push(buffer.join(' '))
+          buffer = []
+        }
       }
     }
   }
 
-  // Fallback if no separate TL;DR was isolated
-  if (!tldr && detailItems.length > 0) {
-    const first = detailItems.shift()
-    tldr = first.label ? `${first.label} ${first.text}` : first.text
+  if (buffer.length > 0) {
+    paragraphs.push(buffer.join(' '))
   }
 
-  return { tldr, detailItems }
+  // If there are no detail paragraphs from remainder, use any remaining text
+  if (paragraphs.length === 0 && rawParagraphs.length === 1 && firstPara.length > tldr.length) {
+    const rest = firstPara.slice(tldr.length).trim()
+    if (rest) paragraphs.push(rest)
+  }
+
+  return { tldr, paragraphs: paragraphs.slice(0, 3) }
 }
 
 export default function LibrarySummaryCard({
@@ -130,7 +133,6 @@ export default function LibrarySummaryCard({
   copiedSummary = false,
   onOpenModelSettings,
 }) {
-  // Collapsed by default (show TL;DR only)
   const [showDetails, setShowDetails] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const menuRef = useRef(null)
@@ -147,7 +149,7 @@ export default function LibrarySummaryCard({
     return () => window.removeEventListener('mousedown', handleClick, true)
   }, [showMenu])
 
-  const { tldr, detailItems } = useMemo(
+  const { tldr, paragraphs } = useMemo(
     () => extractSummaryTldrAndDetails(summaryText),
     [summaryText]
   )
@@ -168,56 +170,55 @@ export default function LibrarySummaryCard({
     return availableModels.find((m) => m.model !== configuredModel) || null
   }, [availableModels, configuredModel])
 
+  // Determine which state to render
   const isPending = isEnriching && !summaryText
   const isFailed = Boolean(enrichError)
   const isSuccess = Boolean(summaryText) && !isPending
 
   return (
     <section className="lib-summary-surface" aria-label="Summary">
-      {/* Header Row: 12px sentence case section label, muted sparkle icon (no green) */}
+      {/* Header Row */}
       <div className="lib-summary-header">
         <div className="lib-summary-title-row">
           <Icon name="spark" size={14} className="lib-summary-icon" />
           <h2 className="lib-summary-heading">Summary</h2>
         </div>
 
-        {/* Action Controls using shared AppButton */}
+        {/* Action Controls */}
         <div className="lib-summary-actions">
           {summaryText && (
-            <AppButton
-              variant="secondary"
-              size="sm"
+            <button
+              type="button"
+              className="lib-summary-btn"
               onClick={onCopySummary}
               title="Copy summary to clipboard"
-              icon={<Icon name={copiedSummary ? 'check' : 'copy'} size={14} />}
+              aria-label="Copy summary"
             >
-              {copiedSummary ? 'Copied' : 'Copy'}
-            </AppButton>
+              <Icon name={copiedSummary ? 'check' : 'copy'} size={13} />
+              <span>{copiedSummary ? 'Copied' : 'Copy'}</span>
+            </button>
           )}
 
           {/* Regenerate Split Button */}
           <div className="lib-split-btn-group" ref={menuRef}>
-            <AppButton
-              variant="secondary"
-              size="sm"
+            <button
+              type="button"
               className="lib-split-btn lib-split-btn--main"
               onClick={() => onRegenerate?.()}
               disabled={isEnriching}
               title={`Regenerate summary with ${formatModelDisplayName(configuredModel || 'default model')}`}
-              icon={
-                <Icon
-                  name={isEnriching ? 'loader' : 'refresh'}
-                  size={14}
-                  className={isEnriching ? 'animate-spin' : ''}
-                />
-              }
+              aria-label="Regenerate summary"
             >
-              {isEnriching ? 'Summarizing...' : 'Regenerate'}
-            </AppButton>
+              <Icon
+                name={isEnriching ? 'loader' : 'refresh'}
+                size={13}
+                className={isEnriching ? 'animate-spin' : ''}
+              />
+              <span>{isEnriching ? 'Summarizing...' : 'Regenerate'}</span>
+            </button>
 
-            <AppButton
-              variant="secondary"
-              size="sm"
+            <button
+              type="button"
               className="lib-split-btn lib-split-btn--chevron"
               onClick={() => setShowMenu((v) => !v)}
               disabled={isEnriching}
@@ -225,29 +226,30 @@ export default function LibrarySummaryCard({
               aria-label="Select model to regenerate with"
               aria-haspopup="true"
               aria-expanded={showMenu}
-              icon={<Icon name="chevron-down" size={12} />}
-            />
+            >
+              <Icon name="chevron-down" size={11} />
+            </button>
 
             {showMenu && (
               <div className="lib-split-menu" role="menu">
                 <div className="lib-split-menu-header">Regenerate with...</div>
                 {availableModels.length > 0 ? (
-                  availableModels.map((m, idx) => (
+                  availableModels.map((item, idx) => (
                     <button
-                      key={m.model || idx}
+                      key={item.model || idx}
                       type="button"
                       role="menuitem"
-                      className={`lib-split-menu-item ${m.model === configuredModel ? 'lib-split-menu-item--active' : ''}`}
+                      className={`lib-split-menu-item ${item.model === configuredModel ? 'lib-split-menu-item--active' : ''}`}
                       onClick={() => {
                         setShowMenu(false)
-                        onRegenerate?.(m)
+                        onRegenerate?.(item)
                       }}
                     >
-                      <AiProviderIcon provider={m.provider || 'google'} model={m.model} size={14} />
+                      <AiProviderIcon provider={item.provider || 'google'} model={item.model} size={13} />
                       <span className="lib-split-menu-name">
-                        {formatModelDisplayName(m.model || m.label)}
+                        {formatModelDisplayName(item.model || item.label)}
                       </span>
-                      {m.model === configuredModel && (
+                      {item.model === configuredModel && (
                         <span className="lib-split-menu-badge">Default</span>
                       )}
                     </button>
@@ -294,36 +296,36 @@ export default function LibrarySummaryCard({
           </div>
 
           <div className="lib-summary-error-actions">
-            <AppButton
-              variant="primary"
-              size="sm"
+            <button
+              type="button"
+              className="lib-summary-err-btn lib-summary-err-btn--primary"
               onClick={() => onRegenerate?.()}
               disabled={isEnriching}
-              icon={<Icon name="refresh" size={14} />}
             >
-              Retry
-            </AppButton>
+              <Icon name="refresh" size={12} />
+              <span>Retry</span>
+            </button>
 
             {alternateModel && (
-              <AppButton
-                variant="secondary"
-                size="sm"
+              <button
+                type="button"
+                className="lib-summary-err-btn"
                 onClick={() => onRegenerate?.(alternateModel)}
                 disabled={isEnriching}
               >
-                Try with {formatModelDisplayName(alternateModel.model)}
-              </AppButton>
+                <span>Try with {formatModelDisplayName(alternateModel.model)}</span>
+              </button>
             )}
 
             {errorInfo.type === 'auth' && onOpenModelSettings && (
-              <AppButton
-                variant="secondary"
-                size="sm"
+              <button
+                type="button"
+                className="lib-summary-err-btn"
                 onClick={onOpenModelSettings}
-                icon={<Icon name="sliders" size={14} />}
               >
-                Open model settings
-              </AppButton>
+                <Icon name="sliders" size={12} />
+                <span>Open model settings</span>
+              </button>
             )}
           </div>
         </div>
@@ -332,11 +334,11 @@ export default function LibrarySummaryCard({
       {/* State 2 & 4: Success / Fallback */}
       {isSuccess && !isFailed && (
         <div className="lib-summary-body">
-          {/* TL;DR (1-2 lines, 14px, line-height 1.6) */}
+          {/* TL;DR (1-2 lines) */}
           <p className="lib-summary-tldr">{tldr}</p>
 
-          {/* Expandable Details Section: Collapsed by default */}
-          {detailItems.length > 0 && (
+          {/* Expandable Details Section */}
+          {paragraphs.length > 0 && (
             <div className="lib-summary-details-section">
               <button
                 type="button"
@@ -349,21 +351,18 @@ export default function LibrarySummaryCard({
               </button>
 
               {showDetails && (
-                <ul className="lib-summary-details-list">
-                  {detailItems.map((item, i) => (
-                    <li key={i} className="lib-summary-detail-item">
-                      {item.label && (
-                        <strong className="lib-summary-detail-label">{item.label}</strong>
-                      )}
-                      <span className="lib-summary-detail-text"> {item.text}</span>
-                    </li>
+                <div className="lib-summary-details-prose">
+                  {paragraphs.map((para, i) => (
+                    <p key={i} className="lib-summary-detail-p">
+                      {para}
+                    </p>
                   ))}
-                </ul>
+                </div>
               )}
             </div>
           )}
 
-          {/* Footer Caption: 16px spacing above divider, 12px muted text */}
+          {/* Footer Caption */}
           <div className="lib-summary-footer">
             <span className="lib-summary-footer-text">
               {fallbackInfo ? (

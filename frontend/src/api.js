@@ -227,12 +227,12 @@ async function j(url, opts) {
   const auth = getAuthHeaders()
   try {
     res = await fetch(base + url, {
-      ...opts,
       headers: {
         'Content-Type': 'application/json',
-        ...(opts?.headers || {}),
         ...auth,
+        ...(opts?.headers || {}),
       },
+      ...opts,
     })
   } catch (err) {
     if (err.name === 'AbortError') throw err

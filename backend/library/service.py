@@ -872,7 +872,6 @@ class LibraryService:
         notes: str | None = None,
         consumed_on: str | None = None,
         rating: int | None = None,
-        source_ref: str | None = None,
     ) -> Captured:
         """Log something with no URL to fetch -- a book, a talk, a conversation."""
         title = (title or "").strip()
@@ -881,9 +880,7 @@ class LibraryService:
         if kind not in KINDS:
             raise LibraryError(f"unknown kind '{kind}'. One of: {', '.join(KINDS)}")
 
-        existing = self.store.by_source_ref(source_ref) if source_ref else None
-        item_id = existing["id"] if existing else self.store.create(
-            source_ref=source_ref,
+        item_id = self.store.create(
             kind=kind,
             title=title[:400],
             category=category,

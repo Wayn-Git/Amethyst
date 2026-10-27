@@ -32,7 +32,6 @@
  * alternative is writing an extractable copy somewhere a script can read.
  */
 import { safeStorage } from '../storage.js'
-import { nativeVault } from '../credentials.js'
 import { b64, unb64 } from './crypto.js'
 
 let held = null
@@ -57,8 +56,8 @@ function transact(db, mode, run) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, mode)
     const request = run(tx.objectStore(STORE))
-    tx.oncomplete = () => resolve(request.result)
-    tx.onerror = tx.onabort = () => reject(tx.error || new Error('Key storage failed'))
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error)
   })
 }
 
@@ -83,26 +82,15 @@ export async function storeGroupKey(raw) {
     }
   }
 
-  const vault = await nativeVault()
-  if (vault) {
-    await vault.set('group-key', b64(rawBytes))
-    held = key
-    safeStorage.removeItem('amethyst.gk')
-    return key
-  }
   held = key
   try {
     const db = await open()
-    if (key instanceof Uint8Array) {
-      await transact(db, 'readwrite', (store) => store.delete(GROUP_KEY_ID))
-    } else {
-      await transact(db, 'readwrite', (store) => store.put(key, GROUP_KEY_ID))
-    }
+    await transact(db, 'readwrite', (store) => store.put(key, GROUP_KEY_ID))
     db.close()
   } catch { /* see `held` above: usable now, gone on reload */ }
 
   try {
-    safeStorage.removeItem('amethyst.gk')
+    safeStorage.setItem('amethyst.gk', b64(rawBytes))
   } catch {}
 
   return key
@@ -110,19 +98,20 @@ export async function storeGroupKey(raw) {
 
 export async function groupKey() {
   if (held) return held
-  const vault = await nativeVault()
-  if (vault) {
-    const saved = await vault.get('group-key')
-    if (saved) return storeGroupKey(unb64(saved))
-  }
 
   try {
     const db = await open()
     let key = await transact(db, 'readonly', (store) => store.get(GROUP_KEY_ID))
     db.close()
     if (key) {
-      if (key instanceof Uint8Array || key instanceof ArrayBuffer) {
-        return storeGroupKey(key)
+      if ((key instanceof Uint8Array || key instanceof ArrayBuffer) && typeof crypto !== 'undefined' && crypto.subtle) {
+        try {
+          const imported = await crypto.subtle.importKey(
+            'raw', key, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'],
+          )
+          held = imported
+          return held
+        } catch {}
       }
       held = key
       return held
@@ -133,15 +122,26 @@ export async function groupKey() {
 
   try {
     const stored = safeStorage.getItem('amethyst.gk')
-    if (stored) return await storeGroupKey(unb64(stored))
-  } catch { /* no recoverable legacy key */ }
+    if (stored) {
+      const rawBytes = unb64(stored)
+      if (typeof crypto !== 'undefined' && crypto.subtle) {
+        try {
+          const imported = await crypto.subtle.importKey(
+            'raw', rawBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'],
+          )
+          held = imported
+          return held
+        } catch {}
+      }
+      held = rawBytes
+      return held
+    }
+  } catch {}
 
   return null
 }
 
 export async function forgetGroupKey() {
-  const vault = await nativeVault()
-  if (vault) await vault.remove('group-key')
   held = null
   try {
     const db = await open()

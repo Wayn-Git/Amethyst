@@ -16,20 +16,11 @@
     "test:spotlight": "node tests/spotlight.mjs",
     "test:sync": "node tests/sync.mjs",
     "test:library": "node tests/library_card.mjs && node tests/library_detail_modal.mjs",
-    "test:shelves": "node tests/library_shelves.mjs",
-    "mobile:sync": "npm run build && cap sync",
-    "mobile:android": "cap open android",
-    "mobile:ios": "cap open ios",
-    "test:mobile": "node --test tests/mobile-*.mjs"
+    "test:shelves": "node tests/library_shelves.mjs"
   },
   "dependencies": {
-    "@aparajita/capacitor-secure-storage": "8.0.1",
     "@base-ui/react": "^1.8.0",
     "@blobatar/react": "^2.7.0",
-    "@capacitor/android": "8.6.0",
-    "@capacitor/app": "8.1.2",
-    "@capacitor/core": "8.6.0",
-    "@capacitor/ios": "8.6.0",
     "@gsap/react": "^2.1.2",
     "@hugeicons/core-free-icons": "^4.3.5",
     "@hugeicons/react": "^1.1.10",
@@ -67,11 +58,9 @@
     "tw-animate-css": "^1.4.0"
   },
   "devDependencies": {
-    "@capacitor/cli": "8.6.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
-    "fake-indexeddb": "6.2.6",
     "oxlint": "^1.75.0",
     "playwright-core": "^1.56.0",
     "vite": "^8.2.0"

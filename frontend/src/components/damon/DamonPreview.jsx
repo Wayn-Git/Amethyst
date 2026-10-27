@@ -3,18 +3,11 @@ import Icon from '../Icon.jsx'
 import Button from '../ui/AppButton.jsx'
 
 export default function DamonPreview({ item, onAction }) {
-  if (!item) {
+  if (!item || !item.preview_type || item.preview_type === 'none') {
     return null
   }
 
-  const {
-    preview_type,
-    preview_data = {},
-    title = item.label || 'Action',
-    subtitle = item.hint || '',
-    icon = item.icon || 'play',
-    actions = [],
-  } = item
+  const { preview_type, preview_data = {}, title, subtitle, icon, actions = [] } = item
   const primaryAction = actions.find((a) => a.is_primary) || actions[0]
 
   if (preview_type === 'app_info') {
@@ -110,45 +103,5 @@ export default function DamonPreview({ item, onAction }) {
     )
   }
 
-  // Default preview for navigation commands or standard launcher actions
-  return (
-    <div className="damon-preview-content damon-preview-app">
-      <div className="damon-preview-app-header">
-        <div className="damon-preview-app-icon-wrap">
-          <Icon name={icon} className="damon-preview-app-icon" size={24} />
-        </div>
-        <div className="damon-preview-app-titles">
-          <h3 className="damon-preview-app-name">{title}</h3>
-          {subtitle && <p className="damon-preview-app-subtitle">{subtitle}</p>}
-        </div>
-      </div>
-
-      <div className="damon-preview-meta-list">
-        <div className="damon-preview-meta-row">
-          <span className="damon-preview-meta-label">Category</span>
-          <span className="damon-preview-tag">{item.badge || item.group || 'Action'}</span>
-        </div>
-        {item.binding && (
-          <div className="damon-preview-meta-row">
-            <span className="damon-preview-meta-label">Shortcut</span>
-            <code className="damon-preview-meta-val">{item.binding}</code>
-          </div>
-        )}
-      </div>
-
-      <div className="damon-preview-actions-bar">
-        <Button
-          className="damon-preview-primary-btn"
-          onClick={() => {
-            if (item.run) item.run()
-            else if (onAction && primaryAction) onAction(primaryAction)
-          }}
-        >
-          <Icon name="play" size={13} />
-          <span>Execute</span>
-          <kbd className="damon-preview-kbd">↵</kbd>
-        </Button>
-      </div>
-    </div>
-  )
+  return null
 }

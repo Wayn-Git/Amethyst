@@ -8,10 +8,8 @@ export default function DamonSplitPane({
 }) {
   const hasPreview = Boolean(
     activeItem &&
-    (activeItem.preview_type === 'markdown' ||
-     activeItem.preview_type === 'app_info' ||
-     activeItem.preview_type === 'file' ||
-     activeItem.has_preview)
+    activeItem.preview_type &&
+    activeItem.preview_type !== 'none'
   )
 
   return (
@@ -27,4 +25,3 @@ export default function DamonSplitPane({
     </div>
   )
 }
-
