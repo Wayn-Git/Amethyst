@@ -142,16 +142,16 @@ Pilot widget visuals are checked below; remaining IDs still await adoption of `d
 - [ ] `life.screen` — bento adoption pending.
 - [ ] `life.shopping` — bento adoption pending.
 - [ ] `life.trips` — bento adoption pending.
-- [x] `need.approvals` — group adoption; see ui-widget-patterns.md.
-- [x] `need.decisions` — group adoption; see ui-widget-patterns.md.
-- [x] `need.drafts` — group adoption; see ui-widget-patterns.md.
-- [x] `need.inbox` — session 4 pilot; see ui-widget-patterns.md.
-- [x] `need.lor-slack` — group adoption; see ui-widget-patterns.md.
+- [x] `need.approvals` — reference adoption verified; ui-review/needs-you-contact-sheet.png.
+- [x] `need.decisions` — reference adoption verified; ui-review/needs-you-contact-sheet.png.
+- [x] `need.drafts` — reference adoption verified; ui-review/needs-you-contact-sheet.png.
+- [x] `need.inbox` — reference adoption verified; ui-review/needs-you-contact-sheet.png.
+- [x] `need.lor-slack` — reference adoption verified; ui-review/needs-you-contact-sheet.png.
 - [ ] `need.lor-social` — blocked: no official personal-account API.
-- [x] `need.mentions` — group adoption; see ui-widget-patterns.md.
-- [x] `need.overdue` — group adoption; see ui-widget-patterns.md.
-- [x] `need.snoozed` — group adoption; see ui-widget-patterns.md.
-- [x] `need.waiting` — group adoption; see ui-widget-patterns.md.
+- [x] `need.mentions` — reference adoption verified; ui-review/needs-you-contact-sheet.png.
+- [x] `need.overdue` — reference adoption verified; ui-review/needs-you-contact-sheet.png.
+- [x] `need.snoozed` — reference adoption verified; ui-review/needs-you-contact-sheet.png.
+- [x] `need.waiting` — reference adoption verified; ui-review/needs-you-contact-sheet.png.
 - [ ] `pro.anomaly` — bento adoption pending.
 - [ ] `pro.away` — bento adoption pending.
 - [ ] `pro.context` — bento adoption pending.
