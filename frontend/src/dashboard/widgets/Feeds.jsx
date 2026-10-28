@@ -19,7 +19,7 @@ export default function Feeds({ data, refresh }) {
       setDraft(null)
       if (result.state === 'applied') { setEditing(null); window.dispatchEvent(new Event('dashboard-items-changed')); await refresh() }
       else if (approved) setError('Permission denied. No feed changed.')
-    } catch (e) { setError(e.message); setDraft(null) } finally { setBusy(false) }
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
   return <div>{error && <StateView role="alert">{error}</StateView>}{draft ? <section aria-label="Review feed change"><p>{draft.action}: {draft.item.url || data?.feeds?.find(f => f.id === draft.item.id)?.url}</p><p>Tags: {draft.item.tags?.join(', ') || 'None'}</p><Button variant="primary" type="submit" disabled={busy} onClick={() => decide(true)}>Approve change</Button><Button type="submit" disabled={busy} onClick={() => decide(false)}>Reject change</Button></section> : <>
     {editing ? <form onSubmit={e => { e.preventDefault(); propose(editing.id ? 'edit' : 'add', { id: editing.id || null, url: editing.url, tags: editing.tags.split(',').map(t => t.trim()).filter(Boolean) }) }}><label>Feed URL<Input required type="url" maxLength={2048} value={editing.url} onChange={e => setEditing({ ...editing, url: e.target.value })} /></label><label>Tags (comma separated)<Input value={editing.tags} onChange={e => setEditing({ ...editing, tags: e.target.value })} /></label><Button type="submit" disabled={busy}>Review change</Button><Button type="button" disabled={busy} onClick={() => setEditing(null)}>Cancel</Button></form> : <Button type="submit" disabled={busy} onClick={() => setEditing({ url: '', tags: '' })}>Add feed</Button>}
