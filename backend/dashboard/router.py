@@ -176,8 +176,6 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
             value = SearchSettings.model_validate(body).model_dump()
         elif widget_id == "glance.clock":
             value = ClockSettings.model_validate(body).model_dump()
-            for zone in value["zones"]:
-                ZoneInfo(zone)
         else:
             raise HTTPException(405, "This widget has no editable settings")
     except (ValueError, ZoneInfoNotFoundError) as exc:

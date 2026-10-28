@@ -41,6 +41,12 @@ export function useWidget(manifest, quiet, refreshVersion, onData) {
     return () => window.removeEventListener('dashboard-items-changed', changed)
   }, [load, manifest.id])
   useEffect(() => {
+    if (manifest.id !== 'glance.clock') return
+    const changed = () => load(true)
+    window.addEventListener('dashboard-clock-changed', changed)
+    return () => window.removeEventListener('dashboard-clock-changed', changed)
+  }, [load, manifest.id])
+  useEffect(() => {
     if (!['glance.weather', 'glance.air', 'glance.sun'].includes(manifest.id)) return
     const changed = () => load(true)
     window.addEventListener('dashboard-location-changed', changed)

@@ -35,7 +35,6 @@ def test_manifest_schema_disables_invalid_entries_without_crashing():
     assert not validate_registry([MANIFESTS[0], MANIFESTS[0]])["glance.clock"]["enabled"]
 
 
-
 def test_catalog_metadata_is_complete_and_independent_of_runtime_state():
     icons = set()
     for entry in REGISTRY.values():
@@ -49,6 +48,7 @@ def test_catalog_metadata_is_complete_and_independent_of_runtime_state():
     # Legacy custom manifests keep working with additive catalog fields.
     legacy = {k: v for k, v in MANIFESTS[0].items() if k not in {"description", "icon"}}
     assert validate_registry([legacy])[legacy["id"]]["enabled"]
+
 
 def test_registry_contains_shipped_local_widgets(client):
     response = client.get("/api/widgets").json()
@@ -200,9 +200,21 @@ def test_morning_default_is_valid_persisted_and_preserves_saved_layouts(client):
     layout = client.get("/api/layout").json()
     Layout.model_validate(layout)
     assert [widget["id"] for widget in layout["widgets"]] == [
-        "glance.clock", "glance.weather", "glance.next-event", "glance.music",
-        "need.inbox", "need.drafts", "need.waiting", "need.mentions", "need.overdue",
-        "agent.brief", "agent.feed", "task.today", "dev.prs", "lib.resurface", "feed.news",
+        "glance.clock",
+        "glance.weather",
+        "glance.next-event",
+        "glance.music",
+        "need.inbox",
+        "need.drafts",
+        "need.waiting",
+        "need.mentions",
+        "need.overdue",
+        "agent.brief",
+        "agent.feed",
+        "task.today",
+        "dev.prs",
+        "lib.resurface",
+        "feed.news",
     ]
     assert get_connection().execute("SELECT 1 FROM layouts WHERE mode='default'").fetchone()
     for widget in layout["widgets"]:
@@ -286,3 +298,37 @@ def test_settings_validation_and_restart(client):
         ).status_code
         == 422
     )
+
+
+@pytest.mark.parametrize(
+    "zones",
+    [
+        ["Europe/London", " Europe/London "],
+        ["UTC"] * 5,
+        [""],
+        ["/etc/passwd"],
+        ["Not/AZone"],
+        ["x" * 10000],
+        [None],
+    ],
+)
+def test_clock_rejects_invalid_settings_without_losing_saved_clocks(client, zones):
+    saved = {"zones": ["Asia/Kolkata"]}
+    assert client.put("/api/widgets/glance.clock/settings", json=saved).status_code == 200
+    response = client.put("/api/widgets/glance.clock/settings", json={"zones": zones})
+    assert response.status_code == 422
+    assert client.get("/api/widgets/glance.clock/settings").json() == saved
+
+
+def test_clock_settings_trim_refresh_remove_and_survive_restart(client):
+    response = client.put(
+        "/api/widgets/glance.clock/settings", json={"zones": [" Europe/London ", "Asia/Kolkata"]}
+    )
+    assert response.status_code == 200
+    assert response.json() == {"zones": ["Europe/London", "Asia/Kolkata"]}
+    refreshed = client.post("/api/widgets/glance.clock/refresh").json()
+    assert refreshed["payload"]["zones"] == response.json()["zones"]
+    assert client.put("/api/widgets/glance.clock/settings", json={"zones": []}).status_code == 200
+    reset_connection()
+    assert client.get("/api/widgets/glance.clock/settings").json() == {"zones": []}
+    assert client.post("/api/widgets/glance.clock/refresh").json()["payload"]["zones"] == []

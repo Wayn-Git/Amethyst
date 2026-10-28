@@ -1,5 +1,7 @@
 # Dashboard changelog
 
+- 2026-10-28 · `glance.clock`: rounded square reference dial, independent live clock, world times/dates on Today, immediate saved settings propagation, safe timezone validation and save retries; 19 backend tests, clock/Glance browser checks (nine themes, three sizes/widths), focused lint and build pass. No screenshots; exact visual fidelity and other widgets remain unreviewed this session.
+
 ## 2026-10-25 — Today Bento Dashboard Redesign & Crash Fixes
 
 - Redesigned Home view into Apple-inspired 12-column Bento Grid with live preview Gallery studio (S/M/L variants), fixed SimpleNamespace risk access in items.py, guarded conversations and layout queries against unhandled undefined filters, added menu icon in Icon.jsx.

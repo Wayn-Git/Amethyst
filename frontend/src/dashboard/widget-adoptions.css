@@ -98,7 +98,7 @@
 
 .bento-foundation .home-widget.widget-adoption[data-widget] .glance-clock-face { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--tile-space-2); }
 .bento-foundation .home-widget.widget-adoption[data-widget] .clock-dial { display: block; width: 184px; max-width: 100%; aspect-ratio: 1; flex-shrink: 0; overflow: visible; }
-.bento-foundation .home-widget.widget-adoption[data-widget] .clock-dial-face { fill: var(--tile-dial); }
+.bento-foundation .home-widget.widget-adoption[data-widget] .clock-dial-face { fill: var(--tile-dial); rx: var(--tile-radius); }
 .bento-foundation .home-widget.widget-adoption[data-widget] .clock-tick { stroke: color-mix(in srgb, var(--tile-light-text) 22%, transparent); stroke-width: 1.5; }
 .bento-foundation .home-widget.widget-adoption[data-widget] .clock-tick-major { stroke: var(--tile-light-text); stroke-width: 2.5; }
 .bento-foundation .home-widget.widget-adoption[data-widget] .clock-numeral { fill: var(--tile-light-text); font: 600 17px var(--ui-font); text-anchor: middle; dominant-baseline: central; }
@@ -112,6 +112,14 @@
 .bento-foundation .home-widget.widget-adoption[data-widget] .glance-clock-face .home-clock .clock-digits { font: 500 24px/1.2 var(--ui-font); letter-spacing: -.03em; }
 .bento-foundation .home-widget.widget-adoption[data-widget] .glance-clock-face .clock-period { color: var(--tile-muted); font: var(--tile-label); }
 .bento-foundation .home-widget.widget-adoption[data-widget] .glance-clock-face .clock-date { margin-top: var(--tile-space-2); }
+.bento-foundation .home-widget[data-widget='glance.clock'] .world-clocks { list-style: none; padding: 0; margin: 0; }
+.bento-foundation .home-widget[data-widget='glance.clock'] .world-clock { display: flex; flex-wrap: wrap; align-items: center; gap: var(--tile-space-2); padding-block: var(--tile-space-3); border-bottom: 1px solid var(--ui-border); font: var(--tile-body); }
+.bento-foundation .home-widget[data-widget='glance.clock'] .world-clock-place { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.bento-foundation .home-widget[data-widget='glance.clock'] .world-clock-reading { display: grid; text-align: end; gap: var(--tile-space-1); font-variant-numeric: tabular-nums; }
+.bento-foundation .home-widget[data-widget='glance.clock'] .world-clock-reading > span,
+.bento-foundation .home-widget[data-widget='glance.clock'] .clock-limit { color: var(--tile-muted); font: var(--tile-label); }
+.bento-foundation .home-widget[data-widget='glance.clock'] .clock-proof :is(input,button) { min-height: 44px !important; }
+.bento-foundation .home-widget[data-widget='glance.clock'] .glance-clock-face .clock-zone { display: block; }
 
 .bento-foundation .home-widget.widget-adoption[data-widget] .event-calendar { display: flex; align-items: center; gap: var(--tile-space-4); }
 .bento-foundation .home-widget.widget-adoption[data-widget] .event-day { color: var(--tile-calendar); font: 300 60px/1 var(--ui-font); letter-spacing: -.06em; }

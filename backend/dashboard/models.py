@@ -1,6 +1,7 @@
 """Day 1 widget contracts. The exported schema is the manifest source of truth."""
 
-from typing import Literal
+from typing import Annotated, Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -86,4 +87,16 @@ class QuietSettings(StrictModel):
 
 
 class ClockSettings(StrictModel):
-    zones: list[str] = Field(default_factory=list, max_length=4)
+    zones: list[Annotated[str, Field(max_length=100)]] = Field(default_factory=list, max_length=4)
+
+    @model_validator(mode="after")
+    def valid_zones(self):
+        self.zones = [zone.strip() for zone in self.zones]
+        if len(set(self.zones)) != len(self.zones):
+            raise ValueError("This timezone is already shown")
+        for zone in self.zones:
+            try:
+                ZoneInfo(zone)
+            except (ValueError, ZoneInfoNotFoundError) as exc:
+                raise ValueError("Use a timezone such as Europe/London") from exc
+        return self

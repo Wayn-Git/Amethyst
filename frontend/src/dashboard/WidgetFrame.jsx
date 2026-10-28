@@ -7,7 +7,7 @@ import './widget-pilots.css'
 import './widget-adoptions.css'
 import NextEvent from './widgets/NextEvent.jsx'
 import { WeatherFace } from './widgets/Weather.jsx'
-import { ClockFace } from './widgets/Clock.jsx'
+import { ClockPreview } from './widgets/Clock.jsx'
 import { useDashboard } from './context.js'
 import { previewRows, WIDGET_ICONS, widgetTone } from './layout.js'
 import { Button, Input, Select } from '../components/ui/bento/index.jsx'
@@ -37,9 +37,9 @@ export function ConnectionRow({ manifest, remove, label }) {
 }
 
 
-function Glance({ manifest, data, now, settings }) {
+function Glance({ manifest, data, settings }) {
   const item = data?.items?.[0]
-  if (manifest.id === 'glance.clock') return <ClockFace now={now} />
+  if (manifest.id === 'glance.clock') return <ClockPreview data={data} />
 
   if (manifest.id === 'glance.weather') return <div className="adoption-stack">{data?.set_location ? <p>Weather where you are.</p> : <WeatherFace data={data} />}<Button size="small" variant={data?.set_location ? 'primary' : 'ghost'} className="weather-location-action" onClick={settings}><Icon name="target" size={16} />{data?.set_location ? 'Choose location' : 'Change location'}</Button></div>
 

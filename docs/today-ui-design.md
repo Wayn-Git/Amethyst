@@ -10,6 +10,7 @@ Direction: quiet neutral canvas, white and charcoal cards, soft depth, restraine
 - [x] dash.gallery: shared card hierarchy, responsive spacing and accessible controls.
 - [x] glance.weather: real hourly temperature/rain strip and atmospheric blue surface.
 - [x] glance.clock: analog dial with accessible digital time and timezone.
+- [x] glance.clock review (2026-10-28): rounded square dial, live midnight rollover, saved world clocks and dates on Today, immediate settings updates, duplicate/invalid timezone validation, recoverable save failures and 44px settings controls. Browser checks cover nine themes, three widths and all three manifest sizes; screenshot fidelity remains for owner review.
 - [x] glance.next-event: calendar date hierarchy with real countdown.
 - [x] glance.music: album metadata, music symbol and familiar transport controls.
 

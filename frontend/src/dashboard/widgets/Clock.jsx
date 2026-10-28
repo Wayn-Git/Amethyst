@@ -1,15 +1,48 @@
 import { StateView, Tile } from '../primitives.jsx'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { request } from '../api.js'
 import Button from '../../components/ui/AppButton.jsx'
 import { Input } from '../../components/ui/input.tsx'
+
+function useClock() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const update = () => setNow(new Date())
+    const timer = setInterval(update, 1000)
+    window.addEventListener('focus', update)
+    document.addEventListener('visibilitychange', update)
+    return () => { clearInterval(timer); window.removeEventListener('focus', update); document.removeEventListener('visibilitychange', update) }
+  }, [])
+  return now
+}
+
+function canonicalZone(value) {
+  try { return new Intl.DateTimeFormat('en', { timeZone: value.trim() }).resolvedOptions().timeZone } catch { return null }
+}
+
+function WorldClocks({ now, zones, remove, busy }) {
+  return <ul className="world-clocks" aria-label="World clocks">{zones.map((value, index) => {
+    const valid = typeof value === 'string' && canonicalZone(value)
+    return <li className="world-clock" key={`${value}-${index}`}>
+      <span className="world-clock-place">{String(value).replaceAll('_', ' ')}</span>
+      {valid ? <div className="world-clock-reading"><time dateTime={now.toISOString()}>{now.toLocaleTimeString([], { timeZone: valid, hour: '2-digit', minute: '2-digit' })}</time><span>{now.toLocaleDateString([], { timeZone: valid, month: 'short', day: 'numeric' })}</span></div> : <span>Timezone unavailable</span>}
+      {remove && <Button size="small" disabled={busy} aria-label={`Remove ${value}`} onClick={() => remove(index)}>Remove</Button>}
+    </li>
+  })}</ul>
+}
+
+export function ClockPreview({ data }) {
+  const now = useClock()
+  const zones = Array.isArray(data?.zones) ? data.zones : []
+  return <div className="clock-proof"><ClockFace now={now} />{zones.length > 0 && <WorldClocks now={now} zones={zones} />}</div>
+}
 
 export function ClockFace({ now }) {
   const parts = new Intl.DateTimeFormat([], { hour: '2-digit', minute: '2-digit' }).formatToParts(now)
   const period = parts.find(part => part.type === 'dayPeriod')?.value
   return <Tile className="glance-clock-face">
     <svg className="clock-dial" viewBox="0 0 200 200" aria-hidden="true">
-      <circle className="clock-dial-face" cx="100" cy="100" r="98" />
+      <rect className="clock-dial-face" x="1" y="1" width="198" height="198" />
       {Array.from({ length: 60 }, (_, i) => <line key={i} className={i % 5 === 0 ? 'clock-tick-major' : 'clock-tick'} x1="100" y1="8" x2="100" y2={i % 5 === 0 ? 17 : 12} transform={`rotate(${i * 6} 100 100)`} />)}
       {Array.from({ length: 12 }, (_, i) => {
         const hour = i + 1, angle = hour * Math.PI / 6
@@ -27,19 +60,39 @@ export function ClockFace({ now }) {
   </Tile>
 }
 
-export default function Clock({ data, refresh }) {
-  const [now, setNow] = useState(new Date())
+export default function Clock({ data }) {
+  const now = useClock()
+  const id = useId()
   const [zone, setZone] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  useEffect(() => { const timer = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(timer) }, [])
-  const zones = data?.zones || []
+  const saving = useRef(false)
+  const [zones, setZones] = useState(() => Array.isArray(data?.zones) ? data.zones : [])
+  useEffect(() => {
+    // Settings can also change through a manual refresh of this widget.
+    // oxlint-disable-next-line react/set-state-in-effect
+    setZones(Array.isArray(data?.zones) ? data.zones : [])
+  }, [data?.zones])
   async function save(next) {
+    if (saving.current) return
+    saving.current = true
     setBusy(true); setError('')
-    try { await request('/widgets/glance.clock/settings', 'PUT', { zones: next }); setZone(''); refresh() } catch (err) { setError(err.message) } finally { setBusy(false) }
+    try {
+      const saved = await request('/widgets/glance.clock/settings', 'PUT', { zones: next })
+      setZones(saved.zones); setZone('')
+      window.dispatchEvent(new CustomEvent('dashboard-clock-changed'))
+    } catch (err) { setError(err.message) } finally { saving.current = false; setBusy(false) }
   }
   return <div className="clock-proof"><ClockFace now={now} />
-    {zones.map(value => <div className="world-clock" key={value}><span>{value}</span><time>{now.toLocaleTimeString([], { timeZone: value, hour: '2-digit', minute: '2-digit' })}</time><Button size="small" disabled={busy} aria-label={`Remove ${value}`} onClick={() => save(zones.filter(z => z !== value))}>Remove</Button></div>)}
-    {zones.length < 4 && <form onSubmit={e => { e.preventDefault(); try { new Intl.DateTimeFormat('en', { timeZone: zone }).format(); if (!zones.includes(zone)) save([...zones, zone]); else setError('This timezone is already shown.') } catch { setError('Use a timezone such as Europe/London.') } }}><label>World clock timezone<Input required aria-label="World clock timezone" placeholder="Europe/London" value={zone} onChange={e => setZone(e.target.value)} /></label><Button size="small" type="submit" loading={busy}>Add clock</Button></form>}{error && <StateView role="alert">{error}</StateView>}
+    {zones.length > 0 && <WorldClocks now={now} zones={zones} remove={index => save(zones.filter((_, i) => i !== index))} busy={busy} />}
+    <p className="clock-limit" role="status">{zones.length} of 4 world clocks</p>
+    {zones.length < 4 && <form aria-busy={busy} onSubmit={e => {
+      e.preventDefault()
+      if (saving.current) return
+      const value = canonicalZone(zone)
+      if (!value) { setError('Use a timezone such as Europe/London.'); return }
+      if (zones.some(saved => typeof saved === 'string' && canonicalZone(saved) === value)) { setError('This timezone is already shown.'); return }
+      save([...zones, zone.trim()])
+    }}><label htmlFor={id}>World clock timezone<Input id={id} required placeholder="Europe/London" value={zone} disabled={busy} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} onChange={e => { setZone(e.target.value); setError('') }} /></label><Button size="small" type="submit" loading={busy}>Add clock</Button></form>}{error && <StateView id={`${id}-error`} role="alert">{error}</StateView>}
   </div>
 }
