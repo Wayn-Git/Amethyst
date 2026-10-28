@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Toaster } from 'sonner'
-import { useFocusTrap } from '../hooks/useFocusTrap.js'
 import Button from '../components/ui/AppButton.jsx'
 import Icon from '../components/Icon.jsx'
 import './home-shell.css'
@@ -9,7 +8,6 @@ import './home-shell.css'
 export default function Drawer({ title, description, onClose, className = '', children }) {
   const ref = useRef(null)
   const id = useId()
-  useFocusTrap(ref, true)
   useEffect(() => {
     const dialog = ref.current
     const previous = document.activeElement

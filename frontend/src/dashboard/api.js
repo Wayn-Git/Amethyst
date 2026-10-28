@@ -8,7 +8,8 @@ export async function request(path, method = 'GET', body) {
   })
   if (!response.ok) {
     const detail = await response.json().catch(() => ({}))
-    throw new Error(typeof detail.detail === 'string' ? detail.detail : `Request failed (${response.status})`)
+    const message = Array.isArray(detail.detail) ? detail.detail.map(error => `${error.loc?.filter(part => part !== 'body').join('.') || 'Value'}: ${error.msg}`).join('; ') : detail.detail
+    throw new Error(typeof message === 'string' && message ? message : `Request failed (${response.status})`)
   }
   return response.json()
 }

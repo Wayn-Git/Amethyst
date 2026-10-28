@@ -318,3 +318,7 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - `dash.sync`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
 - `dash.quiet`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
 - `dash.shortcuts`: shared reference pattern, field controls and tone adoption verified for every manifest size and six states; Paper/Graphite at 1440/390; nine-theme contrast/responsive sweep.
+
+## 2026-10-28 — Complete Today component review
+
+- Shared Today shell: preserve both responsive container names, show sources, fix overdue contrast and narrow sun layout, isolate/recover Glance failures, use native nested-dialog focus, make previews inert, retain reviewed forms, and expose validation messages. Actual 80-component composition, nine-theme/size/state checks and 27 write flows pass.

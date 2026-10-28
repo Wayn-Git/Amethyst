@@ -7,6 +7,7 @@ export default function LocalReview({ widgetId, refresh, children }) {
   const [draft, setDraft] = useState(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [revision, setRevision] = useState(0)
   async function run(fn) {
     setBusy(true); setError('')
     try { await fn() } catch (e) { setError(e.message) } finally { setBusy(false) }
@@ -15,9 +16,10 @@ export default function LocalReview({ widgetId, refresh, children }) {
   const decide = approved => run(async () => {
     const result = await request(`/widgets/${widgetId}/drafts/${draft.draft_id}`, 'POST', { approved })
     setDraft(null)
-    if (approved && result.state !== 'applied') setError('Permission denied.')
+    if (approved && result.state !== 'applied') throw new Error('Permission denied. No changes were applied.')
+    if (result.state === 'applied') setRevision(value => value + 1)
     window.dispatchEvent(new Event('dashboard-items-changed'))
     await refresh()
   })
-  return <div>{error && <StateView role="alert">{error}</StateView>}{draft ? <section aria-label="Review local change"><p>{draft.action}</p><pre>{JSON.stringify(draft.item, null, 2)}</pre><Button variant="primary" type="submit" disabled={busy} onClick={() => decide(true)}>Approve change</Button><Button type="submit" disabled={busy} onClick={() => decide(false)}>Reject change</Button></section> : <fieldset disabled={busy}>{children(propose)}</fieldset>}</div>
+  return <div>{error && <StateView role="alert">{error}</StateView>}{draft && <section aria-label="Review local change"><p>{draft.action}</p><pre>{JSON.stringify(draft.item, null, 2)}</pre><Button variant="primary" type="submit" disabled={busy} onClick={() => decide(true)}>Approve change</Button><Button type="submit" disabled={busy} onClick={() => decide(false)}>Reject change</Button></section>}<fieldset key={revision} disabled={busy || Boolean(draft)} hidden={Boolean(draft)}>{children(propose)}</fieldset></div>
 }
