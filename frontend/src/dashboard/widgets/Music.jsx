@@ -31,7 +31,7 @@ export default function Music({ data, refresh }) {
       setDraft(null)
       if (approved && result.state !== 'applied') setError('Permission denied. Playback was not changed.')
       await refresh()
-    } catch (err) { setError(err.message); setDraft(null) } finally { setBusy(false) }
+    } catch (err) { setError(err.message) } finally { setBusy(false) }
   }
   return <div className="desktop-music">
     {(players.length > 1 || selectedPlayer) && <label className="music-player-picker">Player<Select aria-label="Media player" disabled={busy || !!draft} value={selectedPlayer} onChange={event => selectPlayer(event.target.value)}><option value="">Automatic · active player</option>{selectedPlayer && !session && <option value={selectedPlayer}>Selected player unavailable</option>}{players.map(player => <option key={player.player_id} value={player.player_id}>{player.active_player} · {player.status}</option>)}</Select></label>}

@@ -384,3 +384,10 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - `dev.appeal`: Approval retry and denied-change feedback corrected; follow-ups remain drafts. State/size/theme/contrast checks pass; see `today-component-review.md`.
 - `dev.unpushed`: Unique label ids for multiple instances; paths and read-only evidence reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
 - `dev.backup`: Unique label ids for multiple instances; paths and read-only evidence reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `glance.clock`: Live clock, midnight rollover and persisted world zones rechecked. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `glance.music`: Failed approvals remain retryable; explicit player selection and gated transport rechecked. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `glance.air`: Temperature/rain/AQI/unavailable states; narrow sunrise layout corrected. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `glance.sun`: Temperature/rain/AQI/unavailable states; narrow sunrise layout corrected. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `glance.weather`: Temperature/rain/AQI/unavailable states; narrow sunrise layout corrected. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `glance.travel`: Saved/device/manual origin, timezone display, source attribution and errors reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `glance.next-event`: Honest empty calendar and active/ended event states corrected. State/size/theme/contrast checks pass; see `today-component-review.md`.

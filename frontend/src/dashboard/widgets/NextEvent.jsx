@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Stat, Chip, Button } from '../../components/ui/bento/index.jsx'
+import { Stat, Chip } from '../../components/ui/bento/index.jsx'
 
 export default function NextEvent({ data }) {
   const [now, setNow] = useState(() => Date.now())
@@ -8,23 +8,11 @@ export default function NextEvent({ data }) {
     return () => clearInterval(timer)
   }, [])
   const event = data?.items?.[0]
-  if (!event) {
-    return (
-      <div className="adoption-stack" style={{ alignItems: 'center', justifyContent: 'center', padding: '16px 8px', textAlign: 'center' }}>
-        <p className="adoption-label" style={{ margin: '0 0 8px' }}>No upcoming events</p>
-        <Button
-          type="button"
-          className="widget-button"
-          onClick={() => window.dispatchEvent(new CustomEvent('amethyst:open-connectors', { detail: 'googlecalendar' }))}
-        >
-          Connect Google Calendar
-        </Button>
-      </div>
-    )
-  }
+  if (!event) return <p className="adoption-label" role="status">No upcoming events</p>
   const start = new Date(event.start || NaN)
   const validStart = Number.isFinite(start.getTime())
   const minutes = Math.ceil((start.getTime() - now) / 60000)
+  const ended = new Date(event.end || NaN).getTime() <= now
   const zone = { timeZone: data.timezone }
   return <div className="adoption-stack adoption-event">
     {validStart && <div className="event-calendar" aria-label={start.toLocaleDateString([], { ...zone, dateStyle: 'full' })}>
@@ -36,7 +24,7 @@ export default function NextEvent({ data }) {
       {validStart && !event.all_day && <time className="adoption-label" dateTime={event.start}>{start.toLocaleTimeString([], { ...zone, hour: 'numeric', minute: '2-digit' })}</time>}
       {event.location && <p className="adoption-label">{event.location}</p>}
     </div>
-    <div className="event-countdown">{event.all_day ? <Chip>All day</Chip> : validStart ? <Stat value={Math.max(0, minutes)} unit="min" label={minutes > 0 ? 'Until next event' : 'Starting now'} /> : <p>Start time unavailable</p>}</div>
+    <div className="event-countdown">{ended ? <Chip>Event ended</Chip> : event.all_day ? <Chip>All day</Chip> : validStart ? <Stat value={Math.max(0, minutes)} unit="min" label={start.getTime() > now ? 'Until next event' : 'In progress'} /> : <p>Start time unavailable</p>}</div>
     <p className="adoption-label">Primary calendar · current week{data.limited ? ' · Calendar results limited' : ''}</p>
   </div>
 }
