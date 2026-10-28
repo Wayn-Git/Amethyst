@@ -170,17 +170,16 @@ test('a local request is queued for sending', () => {
   assert.equal(client.queued(), 1)
 })
 
-test('the outbox is bounded', () => {
-  // A phone on a train queues what it is asked to. What it must not do is queue
-  // for a week and then ask the machine to run two hundred stale turns.
+test('a full outbox rejects new work without discarding saved requests', () => {
   localStorage.setItem('amethyst.sync.identity.v1', JSON.stringify({
     deviceId: 'phone', token: 't', relayUrl: 'https://r', name: 'p',
   }))
-  for (let i = 0; i < 260; i++) client.change('intents', `i${i}`, { kind: 'turn' })
-  const held = client.queued()
-  assert.ok(held <= 200, `outbox grew to ${held}`)
-  const outbox = JSON.parse(localStorage.getItem('amethyst.sync.outbox.v1'))
-  assert.equal(outbox[outbox.length - 1].key, 'i259', 'the newest must be the ones kept')
+  for (let i = 0; i < 200; i++) client.change('intents', `i${i}`, { kind: 'turn' })
+  const before = localStorage.getItem('amethyst.sync.outbox.v1')
+  assert.throws(() => client.change('intents', 'overflow', { kind: 'turn' }))
+  assert.equal(client.queued(), 200)
+  assert.equal(localStorage.getItem('amethyst.sync.outbox.v1'), before)
+  assert.equal(replica.readAll(replica.load(), 'intents').overflow, undefined)
 })
 
 test('a change made before pairing is not queued', () => {

@@ -26,7 +26,7 @@ const WidgetView = memo(function WidgetView({ context, ...props }) {
   return <DashboardContext.Provider value={context}><WidgetBoundary id={props.manifest.id} onRetry={context.refreshAll}><WidgetFrame {...props} /></WidgetBoundary></DashboardContext.Provider>
 })
 
-export default function Home() {
+export default function Home({ layoutMode = "default" }) {
   const navigate = useNavigate()
   const { setOverlay, setCapabilitiesTab } = useApp()
   const connections = useConnections()
@@ -41,7 +41,7 @@ export default function Home() {
     return () => window.removeEventListener('amethyst:open-connectors', handleOpenConnectors)
   }, [])
   const [entries, setEntries] = useState(() => cached('manifests') || [])
-  const [layout, setLayout] = useState(() => (cached('layout')?.widgets ? morningLayout(cached('layout')) : { widgets: [] }))
+  const [layout, setLayout] = useState(() => (cached(`layout.${layoutMode}`)?.widgets ? morningLayout(cached(`layout.${layoutMode}`)) : { widgets: [] }))
   const [quietSettings, setQuietSettings] = useState(() => cached('quiet') || {})
   const [records, setRecords] = useState({})
   const [editing, setEditing] = useState(false)
@@ -71,7 +71,7 @@ export default function Home() {
     mounted.current = true
     // Separate reads: a layout or settings failure does not discard working manifests.
     request('/widgets').then(value => { if (mounted.current) { const list = Array.isArray(value?.widgets) ? value.widgets : []; setEntries(list); remember('manifests', list) } }).catch(err => { if (mounted.current) setError(err.message) })
-    request('/layout?mode=default').then(value => { if (mounted.current && !dirty.current) { const nextLayout = value && Array.isArray(value.widgets) ? morningLayout(value) : { widgets: [] }; setLayout(nextLayout); layoutRef.current = nextLayout; remember('layout', nextLayout) } }).catch(err => { if (mounted.current) setError(err.message) }).finally(() => { if (mounted.current) setLoaded(true) })
+    request(`/layout?mode=${encodeURIComponent(layoutMode)}`).then(value => { if (mounted.current && !dirty.current) { const nextLayout = value && Array.isArray(value.widgets) ? morningLayout(value) : { widgets: [] }; setLayout(nextLayout); layoutRef.current = nextLayout; remember(`layout.${layoutMode}`, nextLayout) } }).catch(err => { if (mounted.current) setError(err.message) }).finally(() => { if (mounted.current) setLoaded(true) })
     request('/widgets/dash.quiet/settings').then(value => { if (mounted.current) { setQuietSettings(value || {}); remember('quiet', value || {}) } }).catch(() => {})
     const timer = setInterval(() => setNow(new Date()), 60000)
     return () => { mounted.current = false; clearInterval(timer) }
@@ -79,9 +79,9 @@ export default function Home() {
   function persist(next, undo = true, message = 'Layout updated') {
     const previous = gesture.current?.original || layoutRef.current
     if (undo) toast(message, { id: 'home-layout', toasterId: settingsId || selectedId || ['add', 'settings'].includes(drawer?.type) ? 'home-drawer' : undefined, action: { label: 'Undo', onClick: () => persist(previous, false) } })
-    dirty.current = true; layoutRef.current = next; setLayout(next); remember('layout', next); setSaveState('Saving layout…')
+    dirty.current = true; layoutRef.current = next; setLayout(next); remember(`layout.${layoutMode}`, next); setSaveState('Saving layout…')
     // Serialize saves so a slower earlier request cannot overwrite the last drag.
-    saveQueue.current = saveQueue.current.catch(() => {}).then(() => request('/layout?mode=default', 'PUT', next)).then(() => { if (mounted.current && layoutRef.current === next) setSaveState('Layout saved') }).catch(err => { if (mounted.current) setSaveState(`Layout not saved to server: ${err.message}`) })
+    saveQueue.current = saveQueue.current.catch(() => {}).then(() => request(`/layout?mode=${encodeURIComponent(layoutMode)}`, 'PUT', next)).then(() => { if (mounted.current && layoutRef.current === next) setSaveState('Layout saved') }).catch(err => { if (mounted.current) setSaveState(`Layout not saved to server: ${err.message}`) })
   }
   const saveQuiet = useCallback(async value => { const saved = await request('/widgets/dash.quiet/settings', 'PUT', value); setQuietSettings(saved); remember('quiet', saved); setRefreshVersion(n => n + 1) }, [])
   useEffect(() => {

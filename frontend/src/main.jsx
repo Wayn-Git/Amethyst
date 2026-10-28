@@ -22,6 +22,8 @@ import './styles/converter.css'
 import './components/nexus-ui/questions.css'
 import './styles/ui-system.css'
 import App from './App.jsx'
+import { initializeCredentials, isNativeMobile } from './lib/credentials.js'
+import { initializeNative } from './mobile/native.js'
 import CommandPalette from './components/CommandPalette.jsx'
 import { AppProvider } from './store.jsx'
 
@@ -51,6 +53,10 @@ const SPOTLIGHT = params.get('spotlight') === '1'
    stand them all down without touching how the same build looks in a browser. */
 if (params.get('native') === '1') document.documentElement.dataset.native = '1'
 
+async function mount() {
+await initializeCredentials()
+await initializeNative()
+if (isNativeMobile()) document.documentElement.dataset.mobile = '1'
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     {/* Outside AppProvider: the store reads useNavigate/useLocation to make
@@ -62,6 +68,13 @@ createRoot(document.getElementById('root')).render(
     </BrowserRouter>}
   </StrictMode>,
 )
+
+}
+mount().catch(() => {
+  const root = document.getElementById('root')
+  root.textContent = 'Secure storage could not be opened. Unlock your device and restart Amethyst.'
+  root.setAttribute('role', 'alert')
+})
 
 /* Tell the desktop shell the interface is mounted and safe to show.
 
