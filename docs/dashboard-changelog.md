@@ -352,3 +352,14 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - `agent.research`: Rejected job fields persist; failed approvals retry and denials are visible. State/size/theme/contrast checks pass; see `today-component-review.md`.
 - `agent.delegated`: Rejected job fields persist; failed approvals retry and denials are visible. State/size/theme/contrast checks pass; see `today-component-review.md`.
 - `agent.jobs`: Rejected job fields persist; failed approvals retry and denials are visible. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `lib.inbox`: Saved items now open their source; source paragraphs retain formatting. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `lib.resurface`: Saved items now open their source; source paragraphs retain formatting. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `lib.capture`: Rejected note text retained; failed approvals retry; readable validation errors. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `lib.search`: Search results inherit source navigation; query/degraded states reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `lib.recent`: Saved items now open their source; source paragraphs retain formatting. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `lib.dupes`: Saved items now open their source; source paragraphs retain formatting. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `lib.ask`: Question, async answer, source citations and source navigation reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `lib.readlater`: Denied article saves reported; rejected fields and failed approvals retained. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `lib.highlights`: Denied highlight saves reported; source choice and rejected text retained. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `lib.daily`: Denied creation reported; create/open-existing states rechecked. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `lib.collections`: Denied collection changes reported; rejected fields retained. State/size/theme/contrast checks pass; see `today-component-review.md`.

@@ -18,6 +18,7 @@ export default function Highlights({ data, refresh, widgetId }) {
         const result = await request(`/widgets/${widgetId}/drafts/${draft.draft_id}`, 'POST', { approved })
         setDraft(null)
         if (result.state === 'applied') { setTitle(''); setText(''); await refresh() }
+        else if (approved) setError('Permission denied. Highlight was not saved.')
       }
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
