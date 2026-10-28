@@ -323,3 +323,14 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 
 - Shared Today shell: preserve both responsive container names, show sources, fix overdue contrast and narrow sun layout, isolate/recover Glance failures, use native nested-dialog focus, make previews inert, retain reviewed forms, and expose validation messages. Actual 80-component composition, nine-theme/size/state checks and 27 write flows pass.
 - Connector verification: mark reviewed Slack channel listing read-only and supply realistic fixture account identities before seeding caches. Authentication, account isolation and write gates remain enforced; all 239 dashboard backend tests pass.
+- `need.inbox`: Empty inbox no longer asks to reconnect; ranking and unread groups rechecked. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `need.drafts`: Rejected recipient/body edits persist; approval retry and denial feedback corrected. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `need.waiting`: Rejected manual/nudge edits persist; approval retry and denial feedback corrected. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `need.lor-slack`: Contact/summary metadata, safe links, source limits and model controls reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `comm.thread-summary`: Contact/summary metadata, safe links, source limits and model controls reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `comm.newsletters`: Contact/summary metadata, safe links, source limits and model controls reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `comm.contacts`: Contact/summary metadata, safe links, source limits and model controls reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `comm.reachout`: Rejected birthday input persists; denied configuration is reported. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `comm.unread`: Empty inbox no longer asks to reconnect; ranking and unread groups rechecked. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `comm.tone`: Rejected rewritten text persists; approval retry and denial feedback corrected. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `comm.templates`: Rejected template edits persist; approval retry and denial feedback corrected. State/size/theme/contrast checks pass; see `today-component-review.md`.

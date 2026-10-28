@@ -16,7 +16,13 @@ export default function MailDrafts({ data, refresh }) {
   }
   function propose(action, body) { setEditor(true); return run(async () => setGate(await request(`/widgets/need.drafts/actions/${action}`, 'POST', body))) }
   function review(id) { setEditor(true); return run(async () => { const row = await request(`/widgets/need.drafts/mail/${id}`); setForm({ id: row.id, recipient: row.recipient, subject: row.subject, text: row.text }) }) }
-  function decide(approved) { return run(async () => { await request(`/widgets/need.drafts/drafts/${gate.draft_id}`, 'POST', { approved }); setGate(null); setEditor(false); setForm({ recipient: '', subject: '', text: '' }); await refresh() }) }
+  function decide(approved) { return run(async () => {
+    const result = await request(`/widgets/need.drafts/drafts/${gate.draft_id}`, 'POST', { approved })
+    setGate(null)
+    if (approved && result.state !== 'applied') throw new Error('Permission denied. Draft unchanged.')
+    if (result.state === 'applied') { setEditor(false); setForm({ recipient: '', subject: '', text: '' }); window.dispatchEvent(new Event('dashboard-items-changed')) }
+    await refresh()
+  }) }
   return <div className="adoption-stack">
     {busy && <StateView role="status">Working…</StateView>}{error && <StateView role="alert">{error}</StateView>}
     <Button onClick={() => setEditor(true)}>{gate ? 'Continue review' : form.id ? 'Continue editing' : 'New draft'}</Button>

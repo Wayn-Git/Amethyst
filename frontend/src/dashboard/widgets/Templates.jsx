@@ -16,7 +16,13 @@ export default function Templates({ data, refresh }) {
   async function run(fn) { setBusy(true); setError(''); try { await fn() } catch (e) { setError(e.message) } finally { setBusy(false) } }
   function propose(action, body) { return run(async () => setGate(await request(`/widgets/comm.templates/actions/${action}`, 'POST', body))) }
   function edit(id) { return run(async () => { const row = await request(`/widgets/comm.templates/templates/${id}`); setForm({ id: row.id, title: row.title, subject: row.subject, text: row.text }); setUsing(null); setOpenForm(true) }) }
-  function decide(approved) { return run(async () => { await request(`/widgets/comm.templates/drafts/${gate.draft_id}`, 'POST', { approved }); setGate(null); setUsing(null); setForm(empty); setOpenForm(false); await refresh() }) }
+  function decide(approved) { return run(async () => {
+    const result = await request(`/widgets/comm.templates/drafts/${gate.draft_id}`, 'POST', { approved })
+    setGate(null)
+    if (approved && result.state !== 'applied') throw new Error('Permission denied. Template unchanged.')
+    if (result.state === 'applied') { setUsing(null); setForm(empty); setOpenForm(false); window.dispatchEvent(new Event('dashboard-items-changed')) }
+    await refresh()
+  }) }
   return <div className="adoption-stack">
     {busy && <StateView role="status">Working…</StateView>}{error && <StateView role="alert">{error}</StateView>}
     {gate ? <section aria-label="Review template change" className="template-gate-review adoption-review"><p>{gate.action}: {gate.item.title}</p><p>{gate.item.recipient}</p><p>{gate.item.subject}</p><p>{gate.item.text}</p><div className="widget-buttons"><Button variant="primary" loading={busy} onClick={() => decide(true)}>Approve local change</Button><Button disabled={busy} onClick={() => decide(false)}>Reject change</Button></div></section> : using ? <form className="template-use-form" onSubmit={e => { e.preventDefault(); propose('use', { id: using.id, recipient }) }}><p>Use {using.title}</p><label>Draft recipient<Input type="email" required value={recipient} onChange={e => setRecipient(e.target.value)} /></label><div className="widget-buttons"><Button variant="primary" type="submit" loading={busy}>Review template draft</Button><Button type="button" onClick={() => setUsing(null)}>Cancel</Button></div></form> : <details className="template-composer-details" open={openForm || !!form.id} onToggle={e => setOpenForm(e.currentTarget.open)}>

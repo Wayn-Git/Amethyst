@@ -16,7 +16,13 @@ export default function Waiting({ data, refresh }) {
   const [error, setError] = useState('')
   async function run(fn) { setBusy(true); setError(''); try { await fn() } catch (e) { setError(e.message) } finally { setBusy(false) } }
   function propose(action, body) { setEditor(true); return run(async () => setGate(await request(`/widgets/need.waiting/actions/${action}`, 'POST', body))) }
-  function decide(approved) { return run(async () => { await request(`/widgets/need.waiting/drafts/${gate.draft_id}`, 'POST', { approved }); setGate(null); setEditor(false); setNudge(null); await refresh() }) }
+  function decide(approved) { return run(async () => {
+    const result = await request(`/widgets/need.waiting/drafts/${gate.draft_id}`, 'POST', { approved })
+    setGate(null)
+    if (approved && result.state !== 'applied') throw new Error('Permission denied. Waiting item unchanged.')
+    if (result.state === 'applied') { setEditor(false); setNudge(null); setTitle(''); setRecipient(''); setSent(''); window.dispatchEvent(new Event('dashboard-items-changed')) }
+    await refresh()
+  }) }
   return <div className="adoption-stack">
     {data?.connected === false && <StateView role="status">Gmail not connected. Showing manual items.</StateView>}
     {busy && <StateView role="status">Working…</StateView>}{error && <StateView role="alert">{error}</StateView>}

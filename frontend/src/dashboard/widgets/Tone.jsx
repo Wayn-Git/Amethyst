@@ -13,7 +13,13 @@ export default function Tone({ data, refresh }) {
   async function run(fn) { setBusy(true); setError(''); try { await fn() } catch (e) { setError(e.message) } finally { setBusy(false) } }
   function generate() { return run(async () => setRewrite(await request('/widgets/comm.tone/rewrite', 'POST', { id: Number(id), tone }))) }
   function propose() { return run(async () => setGate(await request('/widgets/comm.tone/actions/rewrite', 'POST', rewrite))) }
-  function decide(approved) { return run(async () => { await request(`/widgets/comm.tone/drafts/${gate.draft_id}`, 'POST', { approved }); setGate(null); setRewrite(null); await refresh() }) }
+  function decide(approved) { return run(async () => {
+    const result = await request(`/widgets/comm.tone/drafts/${gate.draft_id}`, 'POST', { approved })
+    setGate(null)
+    if (approved && result.state !== 'applied') throw new Error('Permission denied. Draft unchanged.')
+    if (result.state === 'applied') { setRewrite(null); window.dispatchEvent(new Event('dashboard-items-changed')) }
+    await refresh()
+  }) }
   return <div className="adoption-stack"><p className="adoption-label">Rewrite a saved local draft. Optional free model, including Ollama; nothing sends.</p>
     {busy && <StateView role="status">Generating / reviewing…</StateView>}{error && <StateView role="alert">{error}</StateView>}
     <label>Saved draft<Select aria-label="Saved draft" value={id} disabled={busy || !!gate} onChange={e => { setId(e.target.value); setRewrite(null) }}><option value="">Select draft</option>{(data?.items || []).map(item => <option key={item.id} value={item.id}>{item.subject} · {item.recipient}</option>)}</Select></label>

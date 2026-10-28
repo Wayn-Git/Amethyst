@@ -19,8 +19,11 @@ export default function Reachout({ data, refresh }) {
   }
   function decide(approved) {
     return run(async () => {
-      await request(`/widgets/comm.reachout/drafts/${gate.draft_id}`, 'POST', { approved })
-      setGate(null); setName(''); setBirthday(''); await refresh()
+      const result = await request(`/widgets/comm.reachout/drafts/${gate.draft_id}`, 'POST', { approved })
+      setGate(null)
+      if (approved && result.state !== 'applied') throw new Error('Permission denied. Reminders unchanged.')
+      if (result.state === 'applied') { setName(''); setBirthday('') }
+      await refresh()
     })
   }
   return <div className="adoption-stack">
