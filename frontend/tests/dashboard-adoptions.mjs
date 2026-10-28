@@ -75,8 +75,8 @@ try {
   const h = React.createElement, noop = () => {}
   const root = createRoot(document.getElementById('proof'))
   const context = { now: new Date(), layout: { widgets: ids.map(id => ({ id })) }, removeWidget: noop, setEditing: noop, connectSource: noop, openWidget: noop }
-  window.renderGroup = (revision = 0, full = false) => root.render(h('main', { className: 'bento-foundation widget-home' }, h(DashboardContext.Provider, { value: context }, h(BentoGrid, { className: 'home-layout-grid' }, ...ids.map(id => h(WidgetSlot, { key: id, id, title: id, size: id.startsWith('glance.') ? 's' : 'm', sizes: ['s', 'm'], grip: noop }, h(WidgetFrame, { manifest: { id, title: id, source: { type: 'local' }, empty: 'Fixture empty', sizes: ['s', 'm'], refresh: { mode: 'manual' } }, tile: ['glance.clock', 'glance.weather', 'glance.next-event', 'glance.music'].includes(id), full, refreshVersion: revision })))))))
-  window.renderGroup()
+  window.renderGroup = (revision = 0, full = false) => root.render(h('main', { className: 'bento-foundation widget-home' }, h(DashboardContext.Provider, { value: context }, h(full ? 'div' : BentoGrid, { className: full ? 'full-components' : 'home-layout-grid' }, ...ids.map(id => h(full ? 'section' : WidgetSlot, full ? { key: id } : { key: id, id, title: id, size: id.startsWith('glance.') ? 's' : 'm', sizes: ['s', 'm'], grip: noop }, h(WidgetFrame, { manifest: { id, title: id, source: { type: 'local' }, empty: 'Fixture empty', sizes: ['s', 'm'], refresh: { mode: 'manual' } }, tile: !full && ['glance.clock', 'glance.weather', 'glance.next-event', 'glance.music'].includes(id), full, refreshVersion: revision })))))))
+  window.renderGroup(0, true)
  }, Object.keys(fixtures[group]))
  const widget = id => page.locator(`[data-widget="${id}"]`)
  await page.waitForFunction(count => document.querySelectorAll('.widget-adoption').length === count && !document.querySelector('.widget-skeleton'), Object.keys(fixtures[group]).length)
@@ -100,23 +100,23 @@ try {
   assert.match(await widget('glance.next-event').locator('.event-calendar').getAttribute('aria-label'), /Monday/)
   const originalEvent = fixtures.glance['glance.next-event'].items[0]
   fixtures.glance['glance.next-event'].items = [{ ...originalEvent, start: '2026-10-27T00:30:00+05:30', all_day: true }]
-  await page.evaluate(() => window.renderGroup(11))
+  await page.evaluate(() => window.renderGroup(11, true))
   await widget('glance.next-event').getByText('27', { exact: true }).waitFor()
   assert.equal(await widget('glance.next-event').getByText('All day', { exact: true }).count(), 1)
   fixtures.glance['glance.next-event'].items = [{ ...originalEvent, start: null }]
-  await page.evaluate(() => window.renderGroup(12))
+  await page.evaluate(() => window.renderGroup(12, true))
   await widget('glance.next-event').getByText('Start time unavailable', { exact: true }).waitFor()
   assert.equal(await widget('glance.next-event').locator('.event-calendar').count(), 0)
   fixtures.glance['glance.next-event'].items = [originalEvent]
   const originalWeather = fixtures.glance['glance.weather']
   fixtures.glance['glance.weather'] = { temperature: 0, timezone: 'Asia/Kolkata', hours: [{ time: '2026-10-26T00:00', temperature: 0, rain: 0 }, { time: '2026-10-26T01:00', temperature: null, rain: null }] }
-  await page.evaluate(() => window.renderGroup(13))
+  await page.evaluate(() => window.renderGroup(13, true))
   await widget('glance.weather').getByLabel('Chance of rain 0%', { exact: true }).waitFor()
   assert.deepEqual(await widget('glance.weather').locator('.weather-hours time').allTextContents(), ['00:00', '01:00'], 'forecast keeps provider local wall times')
   assert.equal(await widget('glance.weather').getByLabel('Chance of rain unavailable', { exact: true }).count(), 1)
   assert.equal(await widget('glance.weather').getByLabel('Temperature unavailable', { exact: true }).count(), 1)
   fixtures.glance['glance.weather'] = originalWeather
-  await page.evaluate(() => window.renderGroup(14))
+  await page.evaluate(() => window.renderGroup(14, true))
   assert.equal(await widget('glance.travel').locator('.adoption-route').innerText(), '12 minutes driving from home')
   assert.equal(await widget('glance.travel').locator('ul').evaluate(n => getComputedStyle(n).listStyleType), 'none')
   await widget('glance.travel').getByText('Home location settings', { exact: true }).click()
@@ -162,6 +162,7 @@ try {
   await page.getByRole('dialog', { name: 'Edit mail draft', exact: true }).getByLabel('Subject', { exact: true }).fill('New fixture')
   await page.getByRole('dialog', { name: 'Edit mail draft', exact: true }).getByLabel('Draft text', { exact: true }).fill('Local text')
   await page.keyboard.press('Escape')
+  await page.waitForFunction(() => !document.querySelector('dialog[open]'))
   assert.equal(await widget('need.drafts').locator('form').count(), 0)
   await widget('need.drafts').getByRole('button', { name: 'New draft', exact: true }).click()
   assert.equal(await page.getByRole('dialog', { name: 'Edit mail draft', exact: true }).getByLabel('Draft text', { exact: true }).inputValue(), 'Local text')
@@ -220,12 +221,12 @@ try {
  const original = fixtures[group][expandedId].items
  fixtures[group][expandedId].items = Array.from({ length: 6 }, (_, i) => ({ ...original[0], id: `expanded-${i}` }))
  await page.evaluate(() => window.renderGroup(80))
- await widget(expandedId).getByRole('button', { name: 'Show all (6)', exact: true }).click()
+ await widget(expandedId).locator('.widget-open').click()
  const detail = page.getByRole('dialog', { name: expandedId, exact: true })
  await detail.waitFor()
- assert.equal(await detail.locator('.widget-adoption').count(), 1)
+ assert.equal(await detail.locator('.today-drawer-body').count(), 1)
  assert.equal(await detail.locator('.widget-list > li').count(), 6)
- assert.equal(await detail.locator('.widget-adoption').evaluate(n => n.scrollWidth <= n.clientWidth + 1), true)
+ assert.equal(await detail.evaluate(n => n.scrollWidth <= n.clientWidth + 1), true)
  await page.keyboard.press('Escape')
  await detail.waitFor({ state: 'hidden' })
  fixtures[group][expandedId].items = original

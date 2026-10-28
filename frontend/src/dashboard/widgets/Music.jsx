@@ -6,7 +6,7 @@ import { getBase } from '../../api.js'
 import { Button, Chip, Select } from '../../components/ui/bento/index.jsx'
 import Icon from '../../components/Icon.jsx'
 
-export default function Music({ data, refresh }) {
+export default function Music({ data, refresh, full = true, size = 'l' }) {
   const [draft, setDraft] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -34,7 +34,7 @@ export default function Music({ data, refresh }) {
     } catch (err) { setError(err.message) } finally { setBusy(false) }
   }
   return <div className="desktop-music">
-    {(players.length > 1 || selectedPlayer) && <label className="music-player-picker">Player<Select aria-label="Media player" disabled={busy || !!draft} value={selectedPlayer} onChange={event => selectPlayer(event.target.value)}><option value="">Automatic · active player</option>{selectedPlayer && !session && <option value={selectedPlayer}>Selected player unavailable</option>}{players.map(player => <option key={player.player_id} value={player.player_id}>{player.active_player} · {player.status}</option>)}</Select></label>}
+    {(players.length > 1 || selectedPlayer) && <label className="music-player-picker" hidden={!full && size !== 'l' && Boolean(session)}>Player<Select aria-label="Media player" disabled={busy || !!draft} value={selectedPlayer} onChange={event => selectPlayer(event.target.value)}><option value="">Automatic · active player</option>{selectedPlayer && !session && <option value={selectedPlayer}>Selected player unavailable</option>}{players.map(player => <option key={player.player_id} value={player.player_id}>{player.active_player} · {player.status}</option>)}</Select></label>}
     {error && <StateView role="alert">{error}</StateView>}
     {draft ? <section className="music-review" aria-label="Review playback change">
       <p>{draft.action} on {draft.playerName}?</p>

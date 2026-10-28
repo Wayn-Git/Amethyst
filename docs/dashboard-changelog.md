@@ -404,3 +404,88 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - `need.overdue`: Overdue/snoozed source labels and timestamps reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
 - `need.snoozed`: Overdue/snoozed source labels and timestamps reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
 - Final verification: 80 checked component entries, every registry/fixture/manifest id matched, 239 backend tests, 27 write flows plus shared recovery/OAuth/dialog checks, real 76-card/four-settings composition, nine themes, state/size/contrast sweeps and served production interactions pass. No screenshots; live accounts/devices and exact visual fidelity require manual review. Existing build warnings remain.
+
+### 2026-10-29 · Today size compositions and motion
+
+Shared card/detail composition keeps editors mounted across resizing, preserves gates and source links, consolidates duplicate detail actions, uses transform/opacity feedback and restores modal focus. Closed location editors invalidate pending lookups while retaining input. No dependencies or provider features added.
+- `glance.clock`: clock composition for S/M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `feed.news`: feed composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `feed.rss`: feed composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `glance.music`: player composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `glance.air`: air composition for S/M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `glance.sun`: sun composition for S/M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `glance.weather`: weather composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `need.mentions`: people composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `need.inbox`: correspondence composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `need.drafts`: correspondence composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `need.waiting`: correspondence composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `need.lor-slack`: people composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `comm.thread-summary`: correspondence composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `comm.newsletters`: correspondence composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `comm.contacts`: people composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `comm.reachout`: people composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `comm.unread`: correspondence composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `comm.tone`: correspondence composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `comm.templates`: correspondence composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `sys.connectors`: controls composition for S/M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `sys.model`: controls composition for S/M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `sys.notify`: timeline composition for S/M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `sys.vault`: metrics composition for S/M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `agent.brief`: editorial composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `agent.next`: editorial composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `agent.running`: timeline composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `agent.feed`: timeline composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `need.decisions`: review composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `need.approvals`: review composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `agent.errors`: timeline composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `agent.audit`: timeline composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `agent.usage`: metrics composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `agent.knows`: controls composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `agent.skills`: controls composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `agent.rules`: controls composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `agent.watchers`: timeline composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `agent.research`: timeline composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `agent.delegated`: timeline composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `agent.jobs`: timeline composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `dev.ci`: timeline composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `dev.issues`: timeline composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `dev.prs`: timeline composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `dev.appeal`: timeline composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `dev.recovery`: tasks composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `dev.unpushed`: timeline composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `dev.backup`: timeline composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `lib.inbox`: editorial composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `lib.resurface`: editorial composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `lib.capture`: capture composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `lib.search`: capture composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `lib.recent`: editorial composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `lib.dupes`: editorial composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `lib.ask`: capture composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `lib.readlater`: editorial composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `lib.highlights`: editorial composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `lib.daily`: editorial composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `lib.collections`: editorial composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `need.overdue`: tasks composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `need.snoozed`: tasks composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `glance.travel`: route composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `task.agenda`: calendar composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `task.plan`: schedule composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `task.free`: schedule composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `task.conflicts`: schedule composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `task.risk`: schedule composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `glance.next-event`: calendar composition for S/M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `task.focus`: timer composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `task.habits`: metrics composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `task.goals`: metrics composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `task.kanban`: board composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `task.today`: tasks composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `task.backlog`: tasks composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `task.deadlines`: tasks composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `task.reminders`: tasks composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `dash.palette`: controls composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `dash.pin`: controls composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `dash.gallery`: controls composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `dash.sync`: controls composition for S/M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `dash.quiet`: controls composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- `dash.shortcuts`: controls composition for M/L; existing controls retained in the working/detail view; size and state coverage recorded in today-size-motion.md.
+- Verification: 169 variants across six states; all 80 real card/detail compositions and long-list stress; nine-theme responsive/AA sweeps; 27 write recovery flows; clock/media/adoption/public checks; production build, served-desktop interactions and focused lint pass. Per-ID checklist and 30-law evidence/limits: `today-size-motion.md`. Backend tests were not repeated; live-device and pixel-reference review remain outstanding.

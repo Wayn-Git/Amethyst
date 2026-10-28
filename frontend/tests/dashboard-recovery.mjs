@@ -120,11 +120,13 @@ try {
   assert(await inner.evaluate(node => node.contains(document.activeElement)), 'Only the top review dialog traps focus')
  }
  await page.keyboard.press('Escape')
+ await inner.waitFor({ state: 'hidden' })
  assert.equal(await button('Open nested review').evaluate(node => document.activeElement === node), true, 'closing nested review restores focus to the opener')
  await page.evaluate(() => window.mountPreview('lib.capture', { items: [] }, true))
  await page.locator('.is-preview').waitFor()
  assert.equal(await page.locator('.is-preview .widget-content').evaluate(node => node.inert), true, 'gallery previews expose no interactive write controls')
- await page.locator('.is-preview input').evaluate(node => node.focus())
+ assert.equal(await page.locator('.is-preview input').count(), 0, 'compact gallery previews do not mount hidden editors')
+ await page.locator('.is-preview .widget-content').evaluate(node => { const button = document.createElement('button'); button.textContent = 'Fixture inert control'; node.append(button); button.focus() })
  assert.equal(await page.locator('.is-preview').evaluate(node => node.contains(document.activeElement)), false, 'preview is inert for keyboard focus')
  const validation = await page.evaluate(async () => {
   const { request } = await import('/src/dashboard/api.js')

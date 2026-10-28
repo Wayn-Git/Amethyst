@@ -13,8 +13,7 @@ try {
   const errors = [], writes = []
   let zones = ['America/Los_Angeles', 'Pacific/Kiritimati'], failSave = false, releaseSave
   page.on('pageerror', error => errors.push(error.message))
-  await page.clock.install({ time: new Date('2026-10-28T23:59:58+05:30') })
-  await page.clock.pauseAt(new Date('2026-10-28T23:59:59+05:30'))
+  await page.clock.install({ time: new Date('2026-10-28T23:58:00+05:30') })
   await page.route('**/api/**', async route => {
     const request = route.request(), path = new URL(request.url()).pathname
     if (path === '/api/ping') return route.fulfill({ json: { ok: true } })
@@ -54,6 +53,10 @@ try {
   const card = page.locator('[data-slot-id="glance.clock"]')
   const world = (scope, zone) => scope.locator('.world-clock').filter({ hasText: zone.replaceAll('_', ' ') })
   await card.locator('.clock-dial').waitFor().catch(async error => { console.error({ errors, body: await page.locator('body').innerText() }); throw error })
+  await page.clock.pauseAt(new Date('2026-10-28T23:59:59+05:30'))
+  await card.getByText('2 world clocks', { exact: true }).waitFor()
+  assert.equal(await card.locator('.world-clock:visible').count(), 0, 'Small shows the local instrument and saved-world count')
+  await page.evaluate(() => window.renderClock('m'))
   await world(card, 'America/Los_Angeles').waitFor()
   assert.match(await world(card, 'America/Los_Angeles').innerText(), /11:29/)
   assert.match(await world(card, 'Pacific/Kiritimati').innerText(), /Oct 29/)
@@ -103,6 +106,7 @@ try {
   await input.waitFor()
   await world(card, 'America/Los_Angeles').waitFor({ state: 'hidden' })
   await page.keyboard.press('Escape')
+  await page.waitForFunction(() => !document.querySelector('dialog[open]'))
   zones = ['Not/AZone', ' Europe/London ']
   await card.getByRole('button', { name: 'Refresh Clock', exact: true }).focus()
   await page.keyboard.press('Enter')

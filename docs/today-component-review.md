@@ -92,3 +92,7 @@ These checkboxes record review coverage of shipped components, not completion of
 | [x] | `dash.sync` | `Sync.jsx` | Per-widget freshness, source states and manual refresh reviewed. |
 | [x] | `dash.quiet` | `Quiet.jsx` | Save/snooze/resume and settings keyboard navigation reviewed. |
 | [x] | `dash.shortcuts` | `Shortcuts.jsx` | Shortcut list and settings keyboard navigation reviewed. |
+
+## Size and motion follow-up · 2026-10-29
+
+All 80 checked components above now have explicit content-family compositions across their 169 supported sizes. Compact previews lead to persistent working editors; large cards expose existing controls. The follow-up adds fixed-height geometry, long-text/eight-row stress, draft/review/location retention, native dialog focus, reduced-motion and compositor-property checks. The complete per-ID checklist and 30-law audit are in [today-size-motion.md](today-size-motion.md). Backend code is unchanged; the 239 backend results above belong to the previous review.

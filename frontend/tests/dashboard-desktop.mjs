@@ -80,6 +80,7 @@ try {
  await card('glance.next-event').getByRole('button', { name: 'Connect Google Calendar', exact: true }).waitFor()
  assert.equal(await card('glance.next-event').getByText('Connected calendar fixture', { exact: true }).count(), 0)
  await page.keyboard.press('Escape')
+ await settings.waitFor({ state: 'hidden' })
  await page.getByRole('button', { name: 'Change location', exact: true }).click()
  const weather = page.getByRole('dialog', { name: 'Weather', exact: true })
  await weather.getByRole('button', { name: 'Use device location', exact: true }).click()
@@ -125,6 +126,7 @@ try {
  assert.equal(puts(), beforeClose, 'closing cancels a pending device lookup before saving')
  await page.evaluate(() => { navigator.geolocation.getCurrentPosition = window.originalPosition })
 
+ await card('glance.travel').locator('.widget-open').click()
  await card('glance.travel').getByText('Home location settings', { exact: true }).click()
  assert.equal(await card('glance.travel').getByLabel('Home location', { exact: true }).inputValue(), 'Saved origin')
  await card('glance.travel').getByRole('button', { name: 'Use current location', exact: true }).click()
@@ -135,6 +137,8 @@ try {
  await card('glance.travel').getByText('Trip origin saved.', { exact: true }).waitFor()
  assert.deepEqual(travelSettings, { home: '0, 0', enabled: true })
 
+ await page.keyboard.press('Escape')
+ await page.waitForFunction(() => !document.querySelector('dialog[open]'))
  await page.getByRole('button', { name: 'Edit layout', exact: true }).click()
  await page.getByRole('button', { name: 'Fit widgets', exact: true }).click()
  await page.getByText('Widget sizes fitted', { exact: true }).waitFor()
@@ -147,10 +151,12 @@ try {
  assert.deepEqual(layout, original)
  // Dragging keeps geometry stable until drop; Escape restores the saved order.
  const beforeDrag = structuredClone(layout)
+ await page.getByRole('button', { name: 'Move Clock', exact: true }).scrollIntoViewIfNeeded()
  const handle = await page.getByRole('button', { name: 'Move Clock', exact: true }).boundingBox()
- const target = await page.locator('[data-slot-id="glance.weather"]').boundingBox()
  await page.mouse.move(handle.x + 12, handle.y + 12)
  await page.mouse.down()
+ await page.locator('[data-slot-id="glance.weather"]').scrollIntoViewIfNeeded()
+ const target = await page.locator('[data-slot-id="glance.weather"]').boundingBox()
  await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 8 })
  assert.deepEqual(layout, beforeDrag, 'no saves while hovering')
  assert.equal(await page.locator('[data-slot-id="glance.weather"]').getAttribute('data-drop-target'), 'true')
@@ -175,6 +181,7 @@ try {
  await catalog.getByRole('button', { name: 'Choose Weather', exact: true }).click()
  assert.equal(await catalog.locator('.catalog-options:visible').count(), 1)
  await page.keyboard.press('Escape')
+ await catalog.waitFor({ state: 'hidden' })
  for (const theme of ['paper', 'graphite', 'ink', 'nocturne', 'nvidia', 'sand', 'claude', 'cursor', 'system']) {
   await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme)
   for (const width of [1440, 1024, 768, 390]) {
@@ -186,7 +193,7 @@ try {
   assert.equal(await card('glance.weather').evaluate(n => getComputedStyle(n).borderRadius), '24px')
   assert.equal(await page.locator('.bento-grid').evaluate(n => getComputedStyle(n).gap), '16px')
  }
- assert.deepEqual(await page.locator('.home-layout-grid .widget-refresh, .home-layout-grid .widget-menu > summary, .today-actions button').evaluateAll(nodes => nodes.filter(n => { const r = n.getBoundingClientRect(); return r.width < 44 || r.height < 44 }).map(n => n.getAttribute('aria-label'))), [], '44px action targets')
+ assert.deepEqual(await page.locator('.home-layout-grid .widget-refresh:visible, .home-layout-grid .widget-menu > summary:visible, .today-actions button:visible').evaluateAll(nodes => nodes.filter(n => { const r = n.getBoundingClientRect(); return r.width < 44 || r.height < 44 }).map(n => n.getAttribute('aria-label'))), [], '44px action targets')
  await page.emulateMedia({ reducedMotion: 'reduce' })
  assert.equal(await card('glance.weather').locator('.pilot-number').evaluate(n => getComputedStyle(n).animationName), 'none')
  if (new URL(base).port === '8000') assert(loaded.some(url => /\/assets\/index-[^/]+\.js/.test(url)), 'checks the desktop bundle')

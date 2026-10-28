@@ -31,10 +31,18 @@ function WorldClocks({ now, zones, remove, busy }) {
   })}</ul>
 }
 
-export function ClockPreview({ data }) {
+function ClockReading({ now, zones, size, remove, busy }) {
+  const shown = remove ? zones : zones.slice(0, size === 's' ? 0 : size === 'm' ? 2 : 4)
+  return <div className="clock-reading"><ClockFace now={now} />
+    {shown.length > 0 && <WorldClocks now={now} zones={shown} remove={remove} busy={busy} />}
+    {!remove && zones.length > shown.length && <p className="clock-saved-count">{size === 's' ? `${zones.length} world clocks` : `${zones.length - shown.length} more world clocks`}</p>}
+  </div>
+}
+
+export function ClockPreview({ data, size = 'm' }) {
   const now = useClock()
   const zones = Array.isArray(data?.zones) ? data.zones : []
-  return <div className="clock-proof"><ClockFace now={now} />{zones.length > 0 && <WorldClocks now={now} zones={zones} />}</div>
+  return <div className="clock-proof"><ClockReading now={now} zones={zones} size={size} /></div>
 }
 
 export function ClockFace({ now }) {
@@ -55,12 +63,12 @@ export function ClockFace({ now }) {
       <circle className="clock-pin" cx="100" cy="100" r="4" />
     </svg>
     <span className="clock-date">{now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-    <time className="home-clock" dateTime={now.toISOString()}><span key={parts.filter(part => part.type !== 'second').map(part => part.value).join('')} className="clock-digits pilot-number">{parts.filter(part => part.type !== 'dayPeriod').map(part => part.value).join('').trim()}</span>{period && <small className="clock-period">{period}</small>}</time>
+    <time className="home-clock" dateTime={now.toISOString()}><span className="clock-digits pilot-number">{parts.filter(part => part.type !== 'dayPeriod').map(part => part.value).join('').trim()}</span>{period && <small className="clock-period">{period}</small>}</time>
     <span className="clock-zone">{Intl.DateTimeFormat().resolvedOptions().timeZone.replaceAll('_', ' ')}</span>
   </Tile>
 }
 
-export default function Clock({ data }) {
+export default function Clock({ data, full = true, size = 'l' }) {
   const now = useClock()
   const id = useId()
   const [zone, setZone] = useState('')
@@ -83,8 +91,8 @@ export default function Clock({ data }) {
       window.dispatchEvent(new CustomEvent('dashboard-clock-changed'))
     } catch (err) { setError(err.message) } finally { saving.current = false; setBusy(false) }
   }
-  return <div className="clock-proof"><ClockFace now={now} />
-    {zones.length > 0 && <WorldClocks now={now} zones={zones} remove={index => save(zones.filter((_, i) => i !== index))} busy={busy} />}
+  return <div className="clock-proof"><ClockReading now={now} zones={zones} size={size} remove={full ? index => save(zones.filter((_, i) => i !== index)) : undefined} busy={busy} />
+    <div className="clock-settings" hidden={!full}>
     <p className="clock-limit" role="status">{zones.length} of 4 world clocks</p>
     {zones.length < 4 && <form aria-busy={busy} onSubmit={e => {
       e.preventDefault()
@@ -94,5 +102,6 @@ export default function Clock({ data }) {
       if (zones.some(saved => typeof saved === 'string' && canonicalZone(saved) === value)) { setError('This timezone is already shown.'); return }
       save([...zones, zone.trim()])
     }}><label htmlFor={id}>World clock timezone<Input id={id} required placeholder="Europe/London" value={zone} disabled={busy} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} onChange={e => { setZone(e.target.value); setError('') }} /></label><Button size="small" type="submit" loading={busy}>Add clock</Button></form>}{error && <StateView id={`${id}-error`} role="alert">{error}</StateView>}
+    </div>
   </div>
 }

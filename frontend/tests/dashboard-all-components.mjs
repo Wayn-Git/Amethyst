@@ -46,7 +46,7 @@ try {
  const base = process.env.BASE || 'http://127.0.0.1:5177'
  await page.goto(`${base}/today`)
  const active = manifests.filter(m => !SYSTEM_WIDGETS.includes(m.id))
- await page.waitForFunction(count => document.querySelectorAll('[data-slot-id] .widget-content').length === count && !document.querySelector('.widget-skeleton'), active.length)
+ await page.waitForFunction(count => document.querySelectorAll('[data-slot-id] .widget-content').length === count && ![...document.querySelectorAll('.widget-skeleton')].some(node => node.checkVisibility()), active.length)
  const card = id => page.locator(`[data-slot-id="${id}"] [data-widget="${id}"]`)
  for (const manifest of active) {
   const node = card(manifest.id)
@@ -55,7 +55,7 @@ try {
   assert.equal(await node.locator('.widget-source').isVisible(), true, `${manifest.id}: source visible`)
   assert.equal(await node.getByRole('button', { name: `Refresh ${manifest.title}`, exact: true }).count(), 1)
  }
- assert.equal(await page.getByText('This widget could not render.', { exact: true }).count(), 0)
+ assert.equal(await page.getByText('This widget could not render.', { exact: true }).count(), 0, JSON.stringify(errors))
  for (const theme of ['paper', 'graphite', 'ink', 'nocturne', 'nvidia', 'sand', 'claude', 'cursor', 'system']) {
   await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme)
   for (const width of [1440, 1024, 768, 390, 360]) {
@@ -67,11 +67,15 @@ try {
  }
  await page.setViewportSize({ width: 1440, height: 1000 })
  const plan = card('task.plan')
+ await plan.locator('.widget-open').click()
  await plan.getByText('Working hours settings', { exact: true }).click()
  assert.equal(await plan.getByLabel('Start', { exact: true }).inputValue(), '10:15')
  assert.equal(await plan.getByLabel('End', { exact: true }).inputValue(), '18:45')
  assert.equal(await plan.getByLabel('Mon', { exact: true }).isChecked(), true)
  assert.equal(await plan.getByLabel('Tue', { exact: true }).isChecked(), false)
+ await plan.getByRole('button', { name: `Close ${manifests.find(m => m.id === 'task.plan').title}`, exact: true }).click()
+ await plan.locator('dialog').waitFor({ state: 'hidden' })
+ await card('task.agenda').locator('.widget-open').click()
  const before = requests.length
  await card('task.agenda').getByRole('button', { name: 'Stop calendar access and delete cached data', exact: true }).click()
  await card('glance.next-event').getByRole('button', { name: 'Check connection', exact: true }).waitFor()
@@ -87,6 +91,7 @@ try {
  await page.keyboard.press('ArrowRight')
  assert.equal(await dialog.getByRole('tab', { name: 'Keyboard shortcuts', exact: true }).getAttribute('aria-selected'), 'true')
  await page.keyboard.press('Escape')
+ await dialog.waitFor({ state: 'hidden' })
  for (const id of ['lib.inbox', 'lib.recent', 'lib.resurface', 'lib.dupes', 'lib.search']) assert.equal(await card(id).getByRole('link', { name: fixtures[id].items[0].title, exact: true }).getAttribute('href'), '/today?source=library&item=1', `${id}: source opens`)
  await card('lib.inbox').getByRole('link', { name: fixtures['lib.inbox'].items[0].title, exact: true }).click()
  await page.getByRole('region', { name: 'Source item', exact: true }).getByRole('heading', { name: 'Fixture source note', exact: true }).waitFor()

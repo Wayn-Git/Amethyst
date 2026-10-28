@@ -156,7 +156,7 @@ export default function Home() {
   const actions = useRef({})
   useLayoutEffect(() => { actions.current = { removeWidget, openWidget, move, resize, grip } })
   const stable = useMemo(() => Object.fromEntries(['removeWidget', 'openWidget', 'move', 'resize', 'grip'].map(key => [key, (...args) => actions.current[key](...args)])), [])
-  const frameContext = useMemo(() => ({ now, quiet, openPalette, setEditing, connectSource, connectionHealth: connections.data, refreshAll, ...stable, layout: { widgets: membership.split('|').map(id => ({ id })) } }), [now, quiet, openPalette, connectSource, connections.data, refreshAll, stable, membership])
+  const frameContext = useMemo(() => ({ now, quiet, quietSettings, manifests, openPalette, setEditing, connectSource, connectionHealth: connections.data, refreshAll, ...stable, layout: { widgets: membership.split('|').map(id => ({ id })) } }), [now, quiet, quietSettings, manifests, openPalette, connectSource, connections.data, refreshAll, stable, membership])
   const sizeKey = positions.map(p => `${p.id}:${p.size}`).sort().join('|')
   // Size/membership encode content dependencies; order changes only move existing slots.
   // oxlint-disable react-hooks/exhaustive-deps
@@ -180,7 +180,7 @@ export default function Home() {
     for (const node of nodes) next.set(node.dataset.slotId, node.getBoundingClientRect())
     if (!dragging && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) for (const node of nodes) {
       const before = previousRects.current.get(node.dataset.slotId), after = next.get(node.dataset.slotId)
-      if (!before && node.dataset.slotId === addedTile.current) node.animate([{ opacity: 0, transform: 'translateY(16px) scale(.98)', outline: '2px solid var(--tile-action)' }, { opacity: 1, transform: 'none', outline: '2px solid transparent' }], { duration: 250, easing: 'cubic-bezier(.2,.8,.2,1)' })
+      if (!before && node.dataset.slotId === addedTile.current) node.animate([{ opacity: 0, transform: 'translateY(16px) scale(.98)' }, { opacity: 1, transform: 'none' }], { duration: 250, easing: 'cubic-bezier(.2,.8,.2,1)' })
       if (before && (before.x !== after.x || before.y !== after.y)) node.animate([{ transform: `translate(${before.x - after.x}px, ${before.y - after.y}px)` }, { transform: 'none' }], { duration: 200, easing: 'cubic-bezier(.2,.8,.2,1)' })
     }
     addedTile.current = null

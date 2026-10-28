@@ -26,7 +26,7 @@ export default function MailDrafts({ data, refresh }) {
   return <div className="adoption-stack">
     {busy && <StateView role="status">Working…</StateView>}{error && <StateView role="alert">{error}</StateView>}
     <Button onClick={() => setEditor(true)}>{gate ? 'Continue review' : form.id ? 'Continue editing' : 'New draft'}</Button>
-    {editor && <Drawer title="Edit mail draft" description="Changes stay local and require your approval." onClose={() => { if (!busy) setEditor(false) }}><div className="widget-home"><div className="home-widget widget-adoption adoption-stack">
+    {editor && <Drawer title="Edit mail draft" description="Changes stay local and require your approval." closeDisabled={busy} onClose={() => setEditor(false)}><div className="widget-home"><div className="home-widget widget-adoption adoption-stack">
     {busy && <StateView role="status">Working…</StateView>}{error && <StateView role="alert">{error}</StateView>}
     {gate ? <section className="adoption-review" aria-label="Review mail change"><p>{gate.action}: {gate.item.subject || form.subject}</p>{gate.item.text && <p>{gate.item.text}</p>}<div className="widget-buttons"><Button variant="primary" loading={busy} onClick={() => decide(true)}>Approve local change</Button><Button disabled={busy} onClick={() => decide(false)}>Reject change</Button></div></section> : <form onSubmit={e => { e.preventDefault(); propose(form.id ? 'edit' : 'add', form) }}>
       <label>Recipient<Input type="email" required value={form.recipient} onChange={e => setForm({ ...form, recipient: e.target.value })} /></label>

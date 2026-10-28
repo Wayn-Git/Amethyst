@@ -1,0 +1,29 @@
+/* Input feedback stays on the compositor; polling never replays an entrance. */
+:is(.today-dashboard,.today-drawer,.widget-review).bento-foundation .ui-button {
+  transition: transform var(--tile-fast) var(--tile-ease) !important;
+  transform-origin: center;
+}
+@media (hover: hover) {
+  :is(.today-dashboard,.today-drawer,.widget-review).bento-foundation .ui-button:hover:not(:disabled) { transform: translateY(-1px); }
+}
+:is(.today-dashboard,.today-drawer,.widget-review).bento-foundation .ui-button:active:not(:disabled) { transform: scale(.97); }
+:is(.today-dashboard,.today-drawer,.widget-review).bento-foundation .ui-button:focus-visible { outline: 2px solid var(--ui-text); outline-offset: 3px; }
+.widget-home .home-layout-grid .today-widget-slot.ui-tile { transition: none; }
+.widget-home .home-layout-grid .today-widget-slot.ui-tile::before { content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; box-shadow: var(--tile-shadow-hover); opacity: 0; transition: opacity var(--tile-fast) var(--tile-ease); }
+.widget-home .home-layout-grid .today-widget-slot.ui-tile:hover { box-shadow: var(--tile-shadow); }
+@media (hover: hover) { .widget-home .home-layout-grid .today-widget-slot.ui-tile:hover::before { opacity: 1; } }
+.bento-foundation .home-widget.widget-adoption[data-composition] .pilot-number { animation: none; }
+.bento-foundation .home-widget.widget-adoption[data-composition] .ui-ring circle { transition: none; }
+.today-drawer.bento-foundation[open] { animation: widget-sheet-in var(--widget-enter,240ms) cubic-bezier(.2,0,0,1); }
+@keyframes widget-sheet-in { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+.bento-foundation .home-widget .widget-menu[open] > div { transform-origin: top right; animation: widget-menu-in var(--tile-motion) var(--tile-ease); }
+@keyframes widget-menu-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.bento-foundation .home-widget details:not(.widget-menu)[open] > :not(summary) { animation: widget-disclosure-in var(--tile-motion) var(--tile-ease); }
+@keyframes widget-disclosure-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  :is(.today-dashboard,.today-drawer,.widget-review).bento-foundation .ui-button,
+  .widget-home .home-layout-grid .today-widget-slot.ui-tile::before { transition: none !important; transform: none !important; }
+  .today-drawer.bento-foundation[open],
+  .bento-foundation .home-widget .widget-menu[open] > div,
+  .bento-foundation .home-widget details:not(.widget-menu)[open] > :not(summary) { animation: none !important; }
+}

@@ -41,7 +41,7 @@ try {
     const { default: Frame } = await import('/src/dashboard/WidgetFrame.jsx')
     const { DashboardContext } = await import('/src/dashboard/context.js')
     const h = React.createElement
-    createRoot(document.getElementById('proof')).render(h('main', { className: 'widget-home home-shell' }, h(DashboardContext.Provider, { value: { now: new Date(), layout: { widgets: [] }, removeWidget: () => {}, setEditing: () => {}, openWidget: () => {} } }, h('section', { className: 'home-slot', style: { width: 280 } }, h(Frame, { tile: true, position: { size: 'm' }, manifest: { id: 'glance.music', title: 'Desktop music', source: { type: 'local' }, refresh: { mode: 'manual' }, empty: 'Open a desktop music player to start listening.' } })))))
+    createRoot(document.getElementById('proof')).render(h('main', { className: 'widget-home home-shell bento-foundation' }, h(DashboardContext.Provider, { value: { now: new Date(), layout: { widgets: [] }, removeWidget: () => {}, setEditing: () => {}, openWidget: () => {} } }, h('section', { className: 'home-slot', style: { width: 280 } }, h(Frame, { full: true, position: { size: 'm' }, manifest: { id: 'glance.music', title: 'Desktop music', source: { type: 'local' }, refresh: { mode: 'manual' }, empty: 'Open a desktop music player to start listening.' } })))))
   })
   const widget = page.locator('[data-widget="glance.music"]')
   await widget.getByText('Desktop fixture', { exact: true }).waitFor()
