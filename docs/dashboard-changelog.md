@@ -1,5 +1,6 @@
 # Dashboard changelog
 
+- 2026-10-29 · `dash.palette`: Raycast & Wox v2 redesign with docked action footer, search header, Ask AI pill, kind badges, and full-width layout; spotlight, splitpane, actionpanel, and dashboard-palette tests pass.
 - 2026-10-28 · `glance.clock`: rounded square reference dial, independent live clock, world times/dates on Today, immediate saved settings propagation, safe timezone validation and save retries; 19 backend tests, clock/Glance browser checks (nine themes, three sizes/widths), focused lint and build pass. No screenshots; exact visual fidelity and other widgets remain unreviewed this session.
 
 ## 2026-10-25 — Today Bento Dashboard Redesign & Crash Fixes

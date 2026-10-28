@@ -5648,11 +5648,11 @@ html:has(.palette--bar) body {
 .palette-list:hover::-webkit-scrollbar-thumb { background: rgb(var(--tint) / 0.18); }
 
 .palette-group {
-  padding: 10px 10px 4px;
+  padding: 10px 16px 4px;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: var(--text-faint);
 }
 
@@ -5660,34 +5660,118 @@ html:has(.palette--bar) body {
   display: flex;
   align-items: center;
   gap: 12px;
-  width: 100%;
-  padding: 10px 14px;
-  border-radius: var(--r-md);
+  width: calc(100% - 16px);
+  margin: 2px 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
   text-align: left;
   color: var(--text);
   background: transparent;
   border: none;
   cursor: pointer;
-  transition: background 100ms ease;
+  transition: background 80ms ease;
 }
 
-.palette-item:hover,
+.palette-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .palette-item.active {
-  background: var(--surface-hover);
+  background: rgba(255, 255, 255, 0.09);
   color: var(--text);
+}
+
+[data-theme-mode='light'] .palette-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme-mode='light'] .palette-item.active {
+  background: rgba(0, 0, 0, 0.07);
+}
+
+.damon-item-icon-box {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  flex: none;
+}
+
+.damon-item-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.damon-item-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.damon-item-subtitle {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.damon-item-trailing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex: none;
+}
+
+.damon-item-kind {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-weight: 400;
+}
+
+.damon-item-kbd {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  font-family: var(--font-mono, monospace);
+  line-height: 1;
+}
+
+[data-theme-mode='light'] .damon-item-icon-box {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme-mode='light'] .damon-item-kbd {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
 }
 
 .palette-label {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 500;
 }
 
 .palette-hint {
-  display: block;
-  margin-top: 2px;
-  font-size: 12px;
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 12.5px;
   font-weight: 400;
   color: var(--text-dim);
   white-space: nowrap;
@@ -5696,6 +5780,7 @@ html:has(.palette--bar) body {
 }
 
 .palette-keys { display: flex; gap: 4px; flex: none; }
+
 
 /* Empty & Loading States */
 .damon-empty-state {
@@ -7085,7 +7170,76 @@ html:has(.palette--bar) body {
   color: var(--text-faint);
 }
 
-/* Spotlight Footer */
+/* Spotlight Header Pills (Raycast Ask AI & Quick capture) */
+.damon-header-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.damon-ask-ai-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 11.5px;
+  color: var(--text-dim);
+  cursor: default;
+  user-select: none;
+}
+
+[data-theme-mode='light'] .damon-ask-ai-pill {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+.damon-header-kbd {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 10px;
+  color: var(--text);
+  font-family: var(--font-mono, monospace);
+  line-height: 1.2;
+}
+
+[data-theme-mode='light'] .damon-header-kbd {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.damon-header-capture-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.damon-header-capture-btn:hover,
+.damon-header-capture-btn.active {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+[data-theme-mode='light'] .damon-header-capture-btn:hover,
+[data-theme-mode='light'] .damon-header-capture-btn.active {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Spotlight Docked Footer (Raycast & Wox v2) */
 .damon-footer {
   display: flex;
   align-items: center;
@@ -7093,29 +7247,75 @@ html:has(.palette--bar) body {
   height: 38px;
   padding: 0 16px;
   border-top: 1px solid var(--hairline);
-  background: color-mix(in srgb, var(--surface-2) 75%, transparent);
-  font-size: 11px;
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+  font-size: 11.5px;
   color: var(--text-faint);
   flex: none;
 }
 
-.damon-footer-hints {
+.damon-footer-left {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 6px;
+  color: var(--text-dim);
+  font-weight: 500;
+  font-size: 11.5px;
 }
 
-.damon-hint-item {
+.damon-footer-brand-icon {
+  color: var(--accent);
+  opacity: 0.85;
+}
+
+.damon-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.damon-footer-action-item {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: 11.5px;
 }
 
-.damon-footer-brand {
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  font-size: 9.5px;
-  opacity: 0.6;
+.damon-footer-action-btn {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 100ms ease;
+}
+
+.damon-footer-action-btn:hover {
+  color: var(--text);
+}
+
+.damon-footer-key {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  padding: 1.5px 5.5px;
+  font-size: 10.5px;
+  color: var(--text);
+  font-family: var(--font-mono, monospace);
+  line-height: 1.2;
+}
+
+[data-theme-mode='light'] .damon-footer-key {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.damon-footer-divider {
+  width: 1px;
+  height: 12px;
+  background: var(--hairline);
+  margin: 0 4px;
 }
 
 
@@ -28592,7 +28792,7 @@ html:has(.palette--bar) body {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: var(--text-faint);
 }
 
@@ -28600,34 +28800,118 @@ html:has(.palette--bar) body {
   display: flex;
   align-items: center;
   gap: 12px;
-  width: 100%;
-  padding: 10px 14px;
-  border-radius: var(--r-md);
+  width: calc(100% - 16px);
+  margin: 2px 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
   text-align: left;
   color: var(--text);
   background: transparent;
   border: none;
   cursor: pointer;
-  transition: background 100ms ease;
+  transition: background 80ms ease;
 }
 
-.palette-item:hover,
+.palette-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .palette-item.active {
-  background: var(--surface-hover);
+  background: rgba(255, 255, 255, 0.09);
   color: var(--text);
+}
+
+[data-theme-mode='light'] .palette-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme-mode='light'] .palette-item.active {
+  background: rgba(0, 0, 0, 0.07);
+}
+
+.damon-item-icon-box {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  flex: none;
+}
+
+.damon-item-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.damon-item-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.damon-item-subtitle {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.damon-item-trailing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex: none;
+}
+
+.damon-item-kind {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-weight: 400;
+}
+
+.damon-item-kbd {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  font-family: var(--font-mono, monospace);
+  line-height: 1;
+}
+
+[data-theme-mode='light'] .damon-item-icon-box {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme-mode='light'] .damon-item-kbd {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
 }
 
 .palette-label {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 500;
 }
 
 .palette-hint {
-  display: block;
-  margin-top: 2px;
-  font-size: 12px;
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 12.5px;
   font-weight: 400;
   color: var(--text-dim);
   white-space: nowrap;
@@ -29639,7 +29923,7 @@ html:has(.palette--bar) body {
   color: var(--text-faint);
 }
 
-/* Spotlight Footer */
+/* Spotlight Docked Footer (Raycast & Wox v2) */
 .damon-footer {
   display: flex;
   align-items: center;
@@ -29647,29 +29931,75 @@ html:has(.palette--bar) body {
   height: 38px;
   padding: 0 16px;
   border-top: 1px solid var(--hairline);
-  background: color-mix(in srgb, var(--surface-2) 75%, transparent);
-  font-size: 11px;
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+  font-size: 11.5px;
   color: var(--text-faint);
   flex: none;
 }
 
-.damon-footer-hints {
+.damon-footer-left {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 6px;
+  color: var(--text-dim);
+  font-weight: 500;
+  font-size: 11.5px;
 }
 
-.damon-hint-item {
+.damon-footer-brand-icon {
+  color: var(--accent);
+  opacity: 0.85;
+}
+
+.damon-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.damon-footer-action-item {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: 11.5px;
 }
 
-.damon-footer-brand {
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  font-size: 9.5px;
-  opacity: 0.6;
+.damon-footer-action-btn {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 100ms ease;
+}
+
+.damon-footer-action-btn:hover {
+  color: var(--text);
+}
+
+.damon-footer-key {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  padding: 1.5px 5.5px;
+  font-size: 10.5px;
+  color: var(--text);
+  font-family: var(--font-mono, monospace);
+  line-height: 1.2;
+}
+
+[data-theme-mode='light'] .damon-footer-key {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.damon-footer-divider {
+  width: 1px;
+  height: 12px;
+  background: var(--hairline);
+  margin: 0 4px;
 }
 
 

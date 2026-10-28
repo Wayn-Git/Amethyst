@@ -6,7 +6,13 @@ export default function DamonSplitPane({
   onAction,
   children,
 }) {
-  const hasPreview = Boolean(activeItem)
+  const hasPreview = Boolean(
+    activeItem &&
+    (activeItem.preview_type === 'markdown' ||
+     activeItem.preview_type === 'app_info' ||
+     activeItem.preview_type === 'file' ||
+     activeItem.has_preview)
+  )
 
   return (
     <div className={`damon-split-pane ${hasPreview ? 'has-preview' : 'no-preview'}`}>
@@ -21,3 +27,4 @@ export default function DamonSplitPane({
     </div>
   )
 }
+
