@@ -1,9 +1,10 @@
 import { Button, Textarea } from '../../components/ui/bento/index.jsx'
 import { WidgetRow, StateView } from '../primitives.jsx'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { request } from '../api.js'
 
 export default function GitRepos({ data, widgetId, refresh }) {
+  const id = useId()
   const [paths, setPaths] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -17,7 +18,7 @@ export default function GitRepos({ data, widgetId, refresh }) {
     try { await request(`/widgets/${widgetId}/settings`, 'PUT', { repos: paths.split('\n').map(path => path.trim()).filter(Boolean) }); await refresh() }
     catch (e) { setError(e.message) } finally { setBusy(false) }
   }
-  return <div><details className="widget-form-disclosure" open={!data?.items?.length}><summary>Repository settings</summary><form onSubmit={save}><label htmlFor={`${widgetId}-repos`}>Local repository paths (one per line)</label><Textarea id={`${widgetId}-repos`} value={paths} onChange={event => setPaths(event.target.value)} /><Button type="submit" disabled={busy}>Save repositories</Button></form></details>{error && <StateView role="alert">{error}</StateView>}
+  return <div><details className="widget-form-disclosure" open={!data?.items?.length}><summary>Repository settings</summary><form onSubmit={save}><label htmlFor={id}>Local repository paths (one per line)</label><Textarea id={id} value={paths} onChange={event => setPaths(event.target.value)} /><Button type="submit" disabled={busy}>Save repositories</Button></form></details>{error && <StateView role="alert">{error}</StateView>}
     {widgetId === 'dev.backup' && <p>Last push means locally recorded push evidence; other hosts may have pushed later. Unavailable evidence is unknown.</p>}
     <ul className="widget-list widget-timeline">{(data?.items || []).map(item => <WidgetRow key={item.id}><div><strong>{item.title}</strong>{widgetId === 'dev.unpushed' ? <><p>Working tree: {item.dirty === null ? 'unknown' : item.dirty ? 'dirty' : 'clean'}</p><p>Compared with local tracking refs; refresh does not fetch.</p><ul>{item.branches.map(branch => <WidgetRow key={branch.name}>{branch.name} · {branch.upstream ? `${branch.ahead} unpushed commits` : 'No upstream; unpushed count unknown'}</WidgetRow>)}</ul></> : <p>Local clone: {item.local_clone ? 'present' : 'unavailable'}</p>}{item.warnings?.map(warning => <p key={warning}>{warning}</p>)}<ul>{item.remotes?.map(remote => <WidgetRow key={remote.name}><div><p>{remote.name} · {remote.url}</p><p>{remote.reachable === true ? 'Reachable' : remote.reachable === false ? 'Not reachable' : 'Reachability unknown'} · Last locally recorded push: {remote.last_push || 'unknown'}</p></div></WidgetRow>)}</ul></div></WidgetRow>)}</ul>
   </div>

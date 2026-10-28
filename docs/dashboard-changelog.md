@@ -377,3 +377,10 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - `task.backlog`: Input survives rejection/failure; completed deadlines excluded; legacy dates remain editable; spoofed OAuth messages ignored and polling cleaned up. State/size/theme/contrast checks pass; see `today-component-review.md`.
 - `task.deadlines`: Input survives rejection/failure; completed deadlines excluded; legacy dates remain editable; spoofed OAuth messages ignored and polling cleaned up. State/size/theme/contrast checks pass; see `today-component-review.md`.
 - `task.reminders`: Input survives rejection/failure; completed deadlines excluded; legacy dates remain editable; spoofed OAuth messages ignored and polling cleaned up. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `need.mentions`: Safe source links, partial sources and PR/issue/CI labels reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `dev.ci`: Safe source links, partial sources and PR/issue/CI labels reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `dev.issues`: Safe source links, partial sources and PR/issue/CI labels reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `dev.prs`: Safe source links, partial sources and PR/issue/CI labels reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `dev.appeal`: Approval retry and denied-change feedback corrected; follow-ups remain drafts. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `dev.unpushed`: Unique label ids for multiple instances; paths and read-only evidence reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `dev.backup`: Unique label ids for multiple instances; paths and read-only evidence reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.

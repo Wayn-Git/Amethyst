@@ -21,7 +21,8 @@ export default function SupportCases({ data, refresh }) {
       const result = await request(`/widgets/dev.appeal/drafts/${draft.draft_id}`, 'POST', { approved })
       setDraft(null)
       if (result.state === 'applied') { setTitle(''); setSubmitted(''); setDomain(''); await refresh() }
-    } catch (e) { setError(e.message); setDraft(null) } finally { setBusy(false) }
+      else if (approved) setError('Permission denied. Case unchanged.')
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
   async function generate(item) {
     setBusy(true); setError('')
