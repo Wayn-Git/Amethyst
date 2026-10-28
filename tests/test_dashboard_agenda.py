@@ -24,12 +24,14 @@ def calendar(db, monkeypatch):
     monkeypatch.setattr(composio_service, "is_configured", lambda: True)
     monkeypatch.setattr(composio_service, "get_enabled_toolkits", lambda: ["googlecalendar"])
     monkeypatch.setattr(
-        composio_service, "get_connections", lambda **kwargs: {"googlecalendar": {}}
+        composio_service,
+        "get_connections",
+        lambda **kwargs: {"googlecalendar": {"id": "fixture-calendar"}},
     )
     monkeypatch.setattr(composio_service, "is_reauth_required", lambda slug: False)
 
     async def accounts(**kwargs):
-        return {"googlecalendar": {}}
+        return {"googlecalendar": {"id": "fixture-calendar"}}
 
     monkeypatch.setattr(composio_service, "get_connections_async", accounts)
     monkeypatch.setattr(tools, "_connector_enabled", lambda *args: True)
@@ -62,6 +64,7 @@ def calendar(db, monkeypatch):
     from backend.mcp import live
 
     monkeypatch.setattr(live, "_manager", manager)
+    connectors.reconcile("googlecalendar", {"id": "fixture-calendar"})
     yield payload, calls, registry
     service.IN_FLIGHT.clear()
     service.RETRY_AFTER.clear()
@@ -243,11 +246,19 @@ async def test_next_event_reuses_agenda_and_stops_access(db, calendar):
 
     _, calls, _ = calendar
     now = datetime.now(ZoneInfo("UTC"))
-    cache_write("task.agenda", {"items": [
-        {"id": "past", "start": (now - timedelta(hours=1)).isoformat()},
-        {"id": "next", "start": (now + timedelta(minutes=30)).isoformat()},
-        {"id": "later", "start": (now + timedelta(hours=1)).isoformat()},
-    ], "timezone": "UTC"}, "ok", synced_at=now.isoformat())
+    cache_write(
+        "task.agenda",
+        {
+            "items": [
+                {"id": "past", "start": (now - timedelta(hours=1)).isoformat()},
+                {"id": "next", "start": (now + timedelta(minutes=30)).isoformat()},
+                {"id": "later", "start": (now + timedelta(hours=1)).isoformat()},
+            ],
+            "timezone": "UTC",
+        },
+        "ok",
+        synced_at=now.isoformat(),
+    )
     assert [item["id"] for item in (await next_event())["items"]] == ["next"]
     assert calls == []
     settings_write("task.agenda", {"enabled": False})

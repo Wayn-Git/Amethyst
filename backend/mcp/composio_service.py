@@ -1443,6 +1443,7 @@ PINNED_READ_ONLY_SLUGS = frozenset(
         "GOOGLECALENDAR_FIND_EVENT",
         "GMAIL_FETCH_EMAILS",
         "SLACK_SEARCH_MESSAGES",
+        "SLACK_LIST_ALL_CHANNELS",
         *(slug for readers in DASHBOARD_READ_SCHEMAS.values() for slug in readers),
     }
 )

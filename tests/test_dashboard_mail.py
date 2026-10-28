@@ -56,7 +56,7 @@ async def test_shared_gmail_cache_excludes_bodies(db, monkeypatch):
     monkeypatch.setattr(connectors, "is_provider_overridden_by_local", lambda _: False)
 
     async def accounts(**kw):
-        return {"gmail": {}}
+        return {"gmail": {"id": "fixture-gmail"}}
 
     monkeypatch.setattr(composio_service, "get_connections_async", accounts)
     from backend.tools import registry as tools

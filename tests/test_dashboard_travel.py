@@ -30,9 +30,12 @@ def route(db, request, monkeypatch):
     )
 
     async def accounts(**kwargs):
-        return {"googlecalendar": {}, "google_maps": {}}
+        return {"googlecalendar": {"id": "fixture-calendar"}, "google_maps": {"id": "fixture-maps"}}
 
     monkeypatch.setattr(composio_service, "get_connections_async", accounts)
+    from backend.dashboard import connectors
+
+    connectors.reconcile("google_maps", {"id": "fixture-maps"})
     settings_write("dash.quiet", {"timezone": "Asia/Kolkata"})
     settings_write("glance.travel", {"home": "Home fixture"})
     payload["items"] = [

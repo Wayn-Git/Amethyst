@@ -25,9 +25,11 @@ def remote(calendar, monkeypatch):
     monkeypatch.setattr(composio_service, "get_enabled_toolkits", lambda: sorted(enabled))
 
     async def accounts(**kwargs):
-        return {tk: {} for tk in enabled}
+        return {tk: {"id": f"fixture-{tk}"} for tk in enabled}
 
     monkeypatch.setattr(composio_service, "get_connections_async", accounts)
+    for toolkit in enabled:
+        connectors.reconcile(toolkit, {"id": f"fixture-{toolkit}"})
     payloads = {
         "GITHUB_LIST_REPOSITORIES_FOR_THE_AUTHENTICATED_USER": [],
         "GITHUB_LIST_WORKFLOW_RUNS_FOR_A_REPOSITORY": {"workflow_runs": []},

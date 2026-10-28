@@ -322,3 +322,4 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 ## 2026-10-28 — Complete Today component review
 
 - Shared Today shell: preserve both responsive container names, show sources, fix overdue contrast and narrow sun layout, isolate/recover Glance failures, use native nested-dialog focus, make previews inert, retain reviewed forms, and expose validation messages. Actual 80-component composition, nine-theme/size/state checks and 27 write flows pass.
+- Connector verification: mark reviewed Slack channel listing read-only and supply realistic fixture account identities before seeding caches. Authentication, account isolation and write gates remain enforced; all 239 dashboard backend tests pass.
