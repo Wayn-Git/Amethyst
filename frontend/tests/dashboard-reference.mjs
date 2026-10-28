@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright-core'
-import { existsSync, readdirSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fixtures } from '../src/dev/widgets/fixtures.js'
+import { WIDGETS } from '../src/dashboard/registry.js'
 const manifests = JSON.parse(readFileSync(new URL('../src/dev/widgets/manifests.json', import.meta.url)))
 assert.deepEqual(Object.keys(fixtures).sort(), manifests.map(m => m.id).sort(), 'Every manifest needs a labelled fixture')
+assert.deepEqual(Object.keys(WIDGETS).sort(), manifests.map(m => m.id).sort(), 'Every registered component is reviewed')
 const cache = join(process.env.HOME, '.cache/ms-playwright')
 const executablePath = process.env.CHROMIUM_PATH || readdirSync(cache).filter(n => n.startsWith('chromium-')).sort().reverse().map(n => join(cache, n, 'chrome-linux64/chrome')).find(existsSync)
 const browser = await chromium.launch({ executablePath, args: ['--no-sandbox'] })
-const output = new URL('../../ui-review/', import.meta.url).pathname
-mkdirSync(output, { recursive: true })
 const reports = []
 try {
  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
@@ -26,10 +26,10 @@ try {
    await page.evaluate(() => document.fonts.ready)
    await page.waitForTimeout(150)
    assert.equal(await page.getByText('This widget could not render.', { exact: true }).count(), 0, `${group}: render error`)
+   const duplicateIds = await page.evaluate(() => { const ids = [...document.querySelectorAll('[id]')].map(node => node.id); return [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))] })
+   assert.deepEqual(duplicateIds, [], `${group}: unique control and label ids across sizes`)
    const overflow = await page.evaluate(() => [...document.querySelectorAll('.home-widget, .widget-content, .review-grid')].filter(e => e.scrollWidth > e.clientWidth + 2).map(e => ({ widget: e.closest('[data-widget]')?.dataset.widget, class: e.className, width: e.clientWidth, scroll: e.scrollWidth })))
    reports.push({ group, theme, width, overflow })
-   await page.screenshot({ path: `${output}${group}-${theme}-${width}.png`, fullPage: true })
-   if (theme === 'paper' && width === 1440) await page.screenshot({ path: `${output}${group}-contact-sheet.png`, fullPage: true })
    for (const state of ['loading','empty','error','stale','not-connected']) {
     await page.getByLabel('State', { exact: true }).selectOption(state)
     assert.equal(await page.locator('.review-example').count(), expected)
@@ -40,11 +40,9 @@ try {
   }
   console.log(`CHECKED ${group}: ${expected} sizes, 6 states, 2 widths, 2 themes`)
  }
- writeFileSync(`${output}${groups.join("-")}-results.json`, JSON.stringify(reports,null,2))
  assert.deepEqual(errors, [], 'No uncaught render errors')
  assert.deepEqual(apiRequests, [], 'Gallery must never call a real API')
- writeFileSync(`${output}${groups.join("-")}-results.json`, JSON.stringify(reports,null,2))
  const failures = reports.filter(r => r.overflow.length)
  assert.deepEqual(failures, [], 'No tile or page overflow')
- console.log(`PASS: ${groups.length} groups; screenshots in ${output}`)
+ console.log(`PASS: ${manifests.filter(m => groups.includes(m.group)).length} widgets, all manifest sizes, six states, mobile/desktop, Paper/Graphite; no screenshots`)
 } finally { await browser.close() }

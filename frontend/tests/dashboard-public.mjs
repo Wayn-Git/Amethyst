@@ -22,24 +22,27 @@ try {
     return true
   })
   assert.equal(result, true)
-  await page.getByText('Set location', { exact: true }).waitFor()
+  await page.getByText('Choose your location', { exact: true }).waitFor()
+  await page.getByText('Enter coordinates manually', { exact: true }).click()
   await page.getByLabel('Latitude', { exact: true }).fill('0')
   await page.getByLabel('Longitude', { exact: true }).fill('0')
   await page.getByRole('button', { name: 'Save location' }).click()
+  await page.getByText('Weather data and attribution', { exact: true }).click()
   assert.equal(await page.getByRole('link', { name: 'Weather data by Open-Meteo' }).count(), 1)
   await page.evaluate(() => window.renderWeather({ widgetId: 'glance.sun', data: { sunrise: null, sunset: null, timezone: 'UTC' } }))
-  await page.getByText('Sunrise: Unavailable · Sunset: Unavailable · UTC', { exact: true }).waitFor()
+  await page.getByText('Sunrise', { exact: true }).waitFor()
+  assert.deepEqual(await page.locator('.adoption-time').allTextContents(), ['Unavailable', 'Unavailable'])
   await page.evaluate(() => window.renderWeather({ widgetId: 'glance.air', data: { european_aqi: 0, pm2_5: 0, pm10: 2, time: '2026-10-25T12:00' } }))
-  await page.getByText('European AQI: 0', { exact: false }).waitFor()
+  await page.getByText('European AQI', { exact: true }).waitFor()
+  assert.equal(await page.locator('.adoption-air .ui-stat > div').innerText(), '0')
   await page.evaluate(async () => {
     const { default: React } = await import('/node_modules/.vite/deps/react.js')
     const { default: { createRoot } } = await import('/node_modules/.vite/deps/react-dom_client.js')
     const { default: Music } = await import('/src/dashboard/widgets/Music.jsx')
     const node = document.createElement('div'); document.body.append(node)
-    createRoot(node).render(React.createElement(Music, { data: { items: [], history: [{ title: 'Fixture track', artists: ['Fixture artist'], url: null }] } }))
+    createRoot(node).render(React.createElement(Music, { data: { items: [] } }))
   })
-  await page.getByText('Nothing playing.', { exact: true }).waitFor()
-  await page.getByText('Fixture track', { exact: true }).waitFor()
+  await page.getByText('No desktop player available. Open a music player with desktop media controls.', { exact: true }).waitFor()
   await page.evaluate(async () => {
     const { default: React } = await import('/node_modules/.vite/deps/react.js')
     const { default: { createRoot } } = await import('/node_modules/.vite/deps/react-dom_client.js')
@@ -48,7 +51,7 @@ try {
     window.fetch = async (url, options) => {
       window.feedCalls.push({ url, body: options?.body })
       const body = JSON.parse(options.body)
-      const value = url.includes('/actions/') ? { draft_id: 'fixture', action: 'add', item: body } : { state: 'applied' }
+      const value = url.includes('/actions/') ? { draft_id: 'fixture', action: 'add', item: body } : { state: body.approved ? 'applied' : 'denied' }
       return new Response(JSON.stringify(value), { headers: { 'content-type': 'application/json' } })
     }
     const node = document.createElement('div'); document.body.append(node)
@@ -61,7 +64,8 @@ try {
   await page.getByRole('button', { name: 'Approve change', exact: true }).waitFor()
   assert.equal(await page.evaluate(() => window.feedCalls.length), 1)
   await page.getByRole('button', { name: 'Reject change', exact: true }).click()
-  await page.getByRole('button', { name: 'Add feed', exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Review change', exact: true }).waitFor()
+  assert.equal(await page.getByLabel('Feed URL', { exact: true }).inputValue(), 'https://example.com/rss')
   assert.deepEqual(await page.evaluate(() => JSON.parse(window.feedCalls[1].body)), { approved: false })
   await page.evaluate(async () => {
     const { default: React } = await import('/node_modules/.vite/deps/react.js')

@@ -401,3 +401,6 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - `dash.sync`: Per-widget freshness, source states and manual refresh reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
 - `dash.quiet`: Save/snooze/resume and settings keyboard navigation reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
 - `dash.shortcuts`: Shortcut list and settings keyboard navigation reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `need.overdue`: Overdue/snoozed source labels and timestamps reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `need.snoozed`: Overdue/snoozed source labels and timestamps reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- Final verification: 80 checked component entries, every registry/fixture/manifest id matched, 239 backend tests, 27 write flows plus shared recovery/OAuth/dialog checks, real 76-card/four-settings composition, nine themes, state/size/contrast sweeps and served production interactions pass. No screenshots; live accounts/devices and exact visual fidelity require manual review. Existing build warnings remain.

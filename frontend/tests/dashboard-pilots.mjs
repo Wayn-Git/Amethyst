@@ -16,7 +16,7 @@ try {
   requests.push({ path, body: route.request().postDataJSON() })
   let json = {}
   if (path.includes('/actions/')) json = { draft_id: 'fixture', action: path.split('/').at(-1), item: route.request().postDataJSON() }
-  if (path.includes('/drafts/')) json = { state: 'applied' }
+  if (path.includes('/drafts/')) json = { state: route.request().postDataJSON()?.approved ? 'applied' : 'denied' }
   await route.fulfill({ json })
  })
  await page.route('**/__pilots__', route => route.fulfill({ contentType: 'text/html', body: '<div id="proof"></div>' }))
@@ -28,13 +28,14 @@ try {
   const { default: { createRoot } } = await import('/node_modules/.vite/deps/react-dom_client.js')
   const { BentoGrid, Tile, ConnectTile } = await import('/src/components/ui/bento/index.jsx')
   const { WidgetState } = await import('/src/dashboard/primitives.jsx')
+  const { default: WidgetSlot } = await import('/src/dashboard/WidgetSlot.jsx')
   const { ClockFace } = await import('/src/dashboard/widgets/Clock.jsx')
   const { WeatherFace } = await import('/src/dashboard/widgets/Weather.jsx')
   const { default: Mail } = await import('/src/dashboard/widgets/Mail.jsx')
   const { default: Items } = await import('/src/dashboard/widgets/Items.jsx')
   const { default: Focus } = await import('/src/dashboard/widgets/Focus.jsx')
   const { default: Director } = await import('/src/dashboard/widgets/Director.jsx')
-  await import('/src/index.css'); await import('/src/styles/ui-system.css'); await import('/src/dashboard/home.css'); await import('/src/dashboard/widget-patterns.css'); await import('/src/dashboard/widget-pilots.css')
+  await import('/src/index.css'); await import('/src/styles/ui-system.css'); await import('/src/dashboard/home.css'); await import('/src/dashboard/home-shell.css'); await import('/src/dashboard/widget-patterns.css'); await import('/src/dashboard/widget-pilots.css'); await import('/src/dashboard/home-bento.css')
   const h = React.createElement, now = Date.now(), refresh = async () => {}
   const tasks = [{ id: 'one', title: 'Fixture task', editable: true }, { id: 'two', title: 'Remote fixture', editable: false }]
   const deadlines = [{ id: 'old', title: 'Overdue fixture', due_at: new Date(now - 3600000).toISOString() }, { id: 'today', title: 'Today fixture', due_at: new Date(now + 3600000).toISOString() }, { id: 'later', title: 'Future fixture', due_at: new Date(now + 86400000).toISOString() }]
@@ -48,8 +49,8 @@ try {
    ['agent.feed', 'dark', Director, { data: { items: [{ id: 'trace', title: 'Fixture turn', detail: '2 tool calls completed' }] } }],
   ]
   window.pilotRoot = createRoot(document.getElementById('proof'))
-  window.renderPilots = (loading = false, active = false) => window.pilotRoot.render(h('main', { className: 'bento-foundation widget-home' }, h(BentoGrid, null,
-   ...pilots.map(([id, tone, Component, props]) => h(Tile, { key: id, tone, size: id.startsWith('glance') ? 's' : 'm', className: 'widget-pilot', 'data-widget': id }, h('h2', null, id), h('div', { className: 'widget-content' }, h(WidgetState, { data: { state: loading ? 'loading' : 'ready' } }, h(Component, { ...props, ...(active && id === 'task.focus' ? { data: { items: [{ id: 'timer', mode: 'focus', started_at: new Date(now - 60000).toISOString(), duration_s: 1500 }] } } : {}), widgetId: id, refresh }))))),
+  window.renderPilots = (loading = false, active = false) => window.pilotRoot.render(h('main', { className: 'bento-foundation widget-home' }, h(BentoGrid, { className: 'home-layout-grid' },
+   ...pilots.map(([id, tone, Component, props]) => h(WidgetSlot, { key: id, id, title: id, size: id.startsWith('glance') ? 's' : 'm', sizes: ['s', 'm'], grip: () => {} }, h(Tile, { tone, className: 'home-widget widget-adoption widget-pilot', 'data-widget': id }, h('h2', null, id), h('div', { className: 'widget-content' }, h(WidgetState, { data: { state: loading ? 'loading' : 'ready' } }, h(Component, { ...props, ...(active && id === 'task.focus' ? { data: { items: [{ id: 'timer', mode: 'focus', started_at: new Date(now - 60000).toISOString(), duration_s: 1500 }] } } : {}), widgetId: id, refresh })))))),
    h(ConnectTile, { source: 'GitHub', size: 's', onConnect: () => { window.connected = true } })
   )))
   window.renderPilots()
@@ -63,9 +64,10 @@ try {
  await page.getByRole('checkbox', { name: 'Toggle complete Fixture task' }).click()
  await page.getByRole('button', { name: 'Reject change', exact: true }).click()
  assert.equal(requests.find(r => r.path.endsWith('/actions/complete')).body.id, 'one')
- await page.getByLabel('New item title').first().fill('Inline fixture')
- await page.getByRole('button', { name: 'Add item' }).first().click()
- await page.getByRole('button', { name: 'Approve change', exact: true }).click()
+ const today = page.locator('[data-widget="task.today"]')
+ await today.getByLabel('New item title').fill('Inline fixture')
+ await today.getByRole('button', { name: 'Add item' }).click()
+ await today.getByRole('button', { name: 'Approve change', exact: true }).click()
  assert.equal(requests.find(r => r.path === '/api/widgets/task.today/actions/add').body.title, 'Inline fixture')
  await page.getByRole('button', { name: 'Start focus', exact: true }).click()
  await page.getByRole('button', { name: 'Reject change', exact: true }).click()

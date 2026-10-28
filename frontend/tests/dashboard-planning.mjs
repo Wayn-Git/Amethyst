@@ -47,6 +47,7 @@ try {
     await page.getByText(title, { exact: true }).waitFor()
   }
   assert.match(await page.locator('time').innerText(), /10:00/)
+  await page.getByText('Home location settings', { exact: true }).click()
   await page.getByLabel('Home location').fill('Home fixture')
   await page.getByRole('button', { name: 'Save location' }).click()
   await page.waitForTimeout(100)

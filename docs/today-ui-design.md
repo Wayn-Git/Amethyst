@@ -27,3 +27,7 @@ Verification: 23 adopted widget fixtures cover source states, real values and re
 - [x] need.drafts / need.waiting: composers and reviews in sheets instead of expanding cards.
 
 Usability verification: 43 connector/fast-lane backend tests pass. Needs and Glance browser fixtures cover retained draft text, approval/rejection, source states, content containment, nine themes and reduced motion. Production preview covers connection transitions, gallery selection/add/remove, drag/drop/undo and card bounds at 1440/1024/768/390px. Frontend rebuilt; existing raw-control lint and bundle/import warnings remain. Desktop backend was unavailable on port 8000; live OAuth and OS playback were not checked.
+
+## Complete component review · 2026-10-28
+
+- [x] All 80 registered Today widgets and shared shell/settings components reviewed. Per-component findings and verification: [Today component review](today-component-review.md). Theme tokens retained; responsive containers, source labels, overdue contrast, input retention, source navigation and shared settings corrected. Exact screenshot fidelity remains for manual owner review.
