@@ -395,3 +395,9 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - `feed.rss`: Failed approvals retry; rejected feed URL/tags retained; source errors reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
 - `sys.connectors`: Connection/reconnect truth, failures and explicit sign-in links reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
 - `sys.model`: Failed switch approvals retry and permission denials are reported. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `dash.palette`: Palette entry point and existing search/capture scope reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `dash.pin`: Failed removal approvals retry; snapshot sandbox and rejection rechecked. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `dash.gallery`: Unique search ids; inert previews; selection/add/size controls reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `dash.sync`: Per-widget freshness, source states and manual refresh reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `dash.quiet`: Save/snooze/resume and settings keyboard navigation reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `dash.shortcuts`: Shortcut list and settings keyboard navigation reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.

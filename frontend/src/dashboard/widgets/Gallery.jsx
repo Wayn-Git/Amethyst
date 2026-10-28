@@ -1,5 +1,5 @@
 import { Button, Input } from '../../components/ui/bento/index.jsx'
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { WidgetChip, StateView } from '../primitives.jsx'
 import { useDashboard } from '../context.js'
 import { SYSTEM_WIDGETS } from '../layout.js'
@@ -61,11 +61,12 @@ function iconOf(manifest) {
 }
 
 function SearchField({ value, onChange }) {
+  const id = useId()
   return (
-    <label className="studio-search" htmlFor="gallery-search-input">
+    <label className="studio-search" htmlFor={id}>
       <Icon name="search" size={14} className="studio-search-icon" />
       <Input
-        id="gallery-search-input"
+        id={id}
         type="search"
         aria-label="Search widgets"
         className="studio-search-input"

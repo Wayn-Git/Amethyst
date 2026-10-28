@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useDashboard } from './context.js'
 import { SYSTEM_WIDGETS, WIDGET_ICONS, widgetTone, preferredWidgetSize } from './layout.js'
 import { Button, Input, Select, Segmented, Chip, IconBadge } from '../components/ui/bento/index.jsx'
@@ -11,17 +11,18 @@ const connectors = manifest => [...new Set([...(manifest.requires || []).filter(
 const sourceNames = { googlecalendar: 'Google Calendar', gmail: 'Gmail', github: 'GitHub', slack: 'Slack' }
 
 function CatalogCard({ manifest: m, added, addWidget, removeWidget, openWidget, connections, connectSource, selected, select }) {
+  const id = useId()
   const [size, setSize] = useState(() => preferredWidgetSize(m))
   const system = SYSTEM_WIDGETS.includes(m.id)
   return <article className="today-catalog-row home-catalog-row" aria-label={m.title}>
-    <Button variant="ghost" className="catalog-thumbnail ui-tile" data-tone={widgetTone(m.id)} data-preview-size={size} aria-label={`Choose ${m.title}`} aria-expanded={selected} aria-controls={`catalog-options-${m.id}`} onClick={select}>
+    <Button variant="ghost" className="catalog-thumbnail ui-tile" data-tone={widgetTone(m.id)} data-preview-size={size} aria-label={`Choose ${m.title}`} aria-expanded={selected} aria-controls={id} onClick={select}>
       <IconBadge label={m.title}><Icon name={m.icon || WIDGET_ICONS[m.id] || 'grid'} size={20} /></IconBadge>
       <div className="catalog-silhouette"><span /><span /><span /></div>
       <span className="catalog-preview-label">{selected ? 'Hide options' : 'Choose widget'}</span>
     </Button>
     <div className="today-catalog-copy"><h4>{m.title}</h4><p title={m.description || `View ${m.title.toLowerCase()}.`}>{m.description || `View ${m.title.toLowerCase()}.`}</p></div>
     {added && <span className="catalog-added"><Icon name="check-simple" size={14} />On Home</span>}
-    <div id={`catalog-options-${m.id}`} hidden={!selected} className="catalog-options">
+    <div id={id} hidden={!selected} className="catalog-options">
     <div className="catalog-connectors">{connectors(m).map(source => <Chip key={source}><span>{sourceNames[source] || source}</span>{connections?.data?.items?.find(item => item.id === source)?.status === 'connected' ? <span>Connected</span> : <Button size="small" variant="ghost" onClick={() => connectSource(source)} aria-label={`Connect ${sourceNames[source] || source} for ${m.title}`}>Connect</Button>}</Chip>)}</div>
     <div className="catalog-card-actions"><Segmented aria-label={`Size for ${m.title}`} value={size} onValueChange={setSize} options={m.sizes.map(value => ({ value, label: value.toUpperCase() }))} />{system ? <Button size="small" onClick={() => openWidget(m.id)}>Open</Button> : added ? <div className="catalog-membership"><span><Icon name="check-simple" size={14} />On Home</span><Button size="small" variant="ghost" onClick={() => removeWidget(m.id)}>Remove</Button></div> : <Button size="small" variant="primary" onClick={() => addWidget(m.id, size)}><Icon name="plus" size={14} />Add</Button>}</div>
     </div>
