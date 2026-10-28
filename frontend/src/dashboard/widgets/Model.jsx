@@ -13,7 +13,7 @@ export default function Model({ data, refresh }) {
     event.preventDefault(); setBusy(true); setError('')
     try {
       if (approved === undefined) setDraft(await request('/widgets/sys.model/actions/switch', 'POST', { provider, model }))
-      else { await request(`/widgets/sys.model/drafts/${draft.draft_id}`, 'POST', { approved }); setDraft(null); await refresh() }
+      else { const result = await request(`/widgets/sys.model/drafts/${draft.draft_id}`, 'POST', { approved }); setDraft(null); if (approved && result.state !== 'applied') throw new Error('Permission denied. No changes were applied.'); await refresh() }
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
   return <div><p>{data?.active ? `${data.active.provider} / ${data.active.model} · ${data.active.location}` : 'No configured model.'}</p>

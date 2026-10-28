@@ -393,3 +393,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - `glance.next-event`: Honest empty calendar and active/ended event states corrected. State/size/theme/contrast checks pass; see `today-component-review.md`.
 - `feed.news`: Topic groups, publisher links and partial-feed errors reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
 - `feed.rss`: Failed approvals retry; rejected feed URL/tags retained; source errors reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `sys.connectors`: Connection/reconnect truth, failures and explicit sign-in links reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `sys.model`: Failed switch approvals retry and permission denials are reported. State/size/theme/contrast checks pass; see `today-component-review.md`.
