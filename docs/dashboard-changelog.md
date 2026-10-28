@@ -363,3 +363,17 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - `lib.highlights`: Denied highlight saves reported; source choice and rejected text retained. State/size/theme/contrast checks pass; see `today-component-review.md`.
 - `lib.daily`: Denied creation reported; create/open-existing states rechecked. State/size/theme/contrast checks pass; see `today-component-review.md`.
 - `lib.collections`: Denied collection changes reported; rejected fields retained. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `dev.recovery`: Input survives rejection/failure; completed deadlines excluded; legacy dates remain editable; spoofed OAuth messages ignored and polling cleaned up. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `task.agenda`: Access changes refresh dependent cards and remove disabled calendar data immediately. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `task.plan`: Saved shared hours/weekdays load correctly and changes propagate to dependents. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `task.free`: Saved shared hours/weekdays load correctly and changes propagate to dependents. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `task.conflicts`: Saved shared hours/weekdays load correctly and changes propagate to dependents. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `task.risk`: Saved shared hours/weekdays load correctly and changes propagate to dependents. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `task.focus`: Shared review retains rejected timer settings and resets applied changes only. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `task.habits`: Shared review retains rejected habit inputs and resets applied changes only. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `task.goals`: Shared review retains rejected goal inputs and resets applied changes only. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `task.kanban`: Shared review retains rejected project/column inputs and resets applied changes only. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `task.today`: Input survives rejection/failure; completed deadlines excluded; legacy dates remain editable; spoofed OAuth messages ignored and polling cleaned up. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `task.backlog`: Input survives rejection/failure; completed deadlines excluded; legacy dates remain editable; spoofed OAuth messages ignored and polling cleaned up. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `task.deadlines`: Input survives rejection/failure; completed deadlines excluded; legacy dates remain editable; spoofed OAuth messages ignored and polling cleaned up. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `task.reminders`: Input survives rejection/failure; completed deadlines excluded; legacy dates remain editable; spoofed OAuth messages ignored and polling cleaned up. State/size/theme/contrast checks pass; see `today-component-review.md`.

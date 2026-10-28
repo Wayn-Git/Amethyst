@@ -105,7 +105,11 @@ def put_layout(
 @router.get("/widgets/{widget_id}/settings")
 def get_settings(widget_id: str):
     enabled(widget_id)
-    return settings_read(widget_id)
+    return settings_read(
+        "task.free"
+        if widget_id in ("task.plan", "task.free", "task.conflicts", "task.risk")
+        else widget_id
+    )
 
 
 class AgendaSettings(StrictModel):

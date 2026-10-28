@@ -79,6 +79,10 @@ def test_plan_settings_and_no_calendar_write(db):
             == 200
         )
         assert settings_read("task.free")["days"] == [0]
+        for widget_id in ("task.plan", "task.free", "task.conflicts", "task.risk"):
+            assert client.get(f"/api/widgets/{widget_id}/settings").json() == settings_read(
+                "task.free"
+            )
         assert (
             client.put(
                 "/api/widgets/task.plan/settings",
