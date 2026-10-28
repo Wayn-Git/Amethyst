@@ -9,6 +9,7 @@ export default function Jobs({ data, widgetId, refresh }) {
   const [draft, setDraft] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [form, setForm] = useState({ title: '', prompt: '', at: '', interval: '' })
   async function propose(action, body) {
     setBusy(true); setError('')
     try { setDraft(await request(`/widgets/${widgetId}/actions/${action}`, 'POST', body)) }
@@ -17,9 +18,11 @@ export default function Jobs({ data, widgetId, refresh }) {
   async function decide(approved) {
     setBusy(true); setError('')
     try {
-      await request(`/widgets/${widgetId}/drafts/${draft.draft_id}`, 'POST', { approved })
-      setDraft(null); await refresh()
-    } catch (e) { setError(e.message); setDraft(null) } finally { setBusy(false) }
+      const result = await request(`/widgets/${widgetId}/drafts/${draft.draft_id}`, 'POST', { approved })
+      setDraft(null); if (approved && result.state !== 'applied') throw new Error('Permission denied. No changes were applied.')
+      if (result.state === 'applied') setForm({ title: '', prompt: '', at: '', interval: '' })
+      await refresh()
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
   if (data?.available === false) return <StateView>not available</StateView>
   return <>
@@ -29,10 +32,10 @@ export default function Jobs({ data, widgetId, refresh }) {
       e.preventDefault(); const f = new FormData(e.currentTarget)
       propose('add', { title: f.get('title'), prompt: f.get('prompt'), ...(delegated ? {} : { run_at: new Date(f.get('at')).toISOString(), interval_s: f.get('interval') ? Number(f.get('interval')) * 60 : null }) })
     }}>
-      <label>Title<Input name="title" required maxLength={500} /></label>
-      <label>Prompt<Textarea name="prompt" required maxLength={10000} /></label>
-      {!delegated && <><label>Run at<Input name="at" type="datetime-local" required /></label>
-      <label>Repeat every minutes (blank for once)<Input name="interval" type="number" min="15" max="43200" /></label></>}
+      <label>Title<Input name="title" required maxLength={500} value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></label>
+      <label>Prompt<Textarea name="prompt" required maxLength={10000} value={form.prompt} onChange={e => setForm({ ...form, prompt: e.target.value })} /></label>
+      {!delegated && <><label>Run at<Input name="at" type="datetime-local" required value={form.at} onChange={e => setForm({ ...form, at: e.target.value })} /></label>
+      <label>Repeat every minutes (blank for once)<Input name="interval" type="number" min="15" max="43200" value={form.interval} onChange={e => setForm({ ...form, interval: e.target.value })} /></label></>}
       <Button type="submit" disabled={busy}>Review job</Button>
     </form></details>}
     <ul className="widget-list widget-timeline">{(data?.items || []).map(item => <WidgetRow key={item.id}><div><strong>{item.title}</strong><p>{item.status} {item.detail}</p>{item.note_id && <a href={`/library?q=${encodeURIComponent(item.title)}&kind=note`}>Open research note</a>}{item.trace_id && <Button type="submit" disabled={busy} onClick={async () => { try { setTrace(await request(`/widgets/agent.delegated/runs/${item.run_id}/trace`)) } catch (e) { setError(e.message) } }}>View trace {item.trace_id}</Button>}{!delegated && <Button type="submit" disabled={busy} onClick={() => propose('delete', { id: item.id })}>Delete</Button>}</div></WidgetRow>)}</ul>

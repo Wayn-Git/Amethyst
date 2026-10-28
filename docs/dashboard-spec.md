@@ -234,7 +234,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | agent.rules | Permission rules manager (always allow, ask, deny) | dir | v2 | [x] |
 | agent.usage | Model usage meter (tokens, latency, cost) | dir | v2 | [x] |
 | agent.knows | "What Amethyst knows about me" viewer and editor | lib | v2 | [x] |
-| agent.skills | Skills list with toggles | SKILL.md | v2 | [ ] |
+| agent.skills | Skills list with toggles | SKILL.md | v2 | [x] |
 | agent.suggest | Automation suggestions | llm, dir | v2 | [ ] |
 | agent.prompts | Saved prompt shortcuts | local | v2 | [ ] |
 | agent.weekly | Weekly review | llm | v2 | [ ] |

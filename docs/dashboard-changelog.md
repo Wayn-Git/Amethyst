@@ -334,3 +334,21 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - `comm.unread`: Empty inbox no longer asks to reconnect; ranking and unread groups rechecked. State/size/theme/contrast checks pass; see `today-component-review.md`.
 - `comm.tone`: Rejected rewritten text persists; approval retry and denial feedback corrected. State/size/theme/contrast checks pass; see `today-component-review.md`.
 - `comm.templates`: Rejected template edits persist; approval retry and denial feedback corrected. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `sys.notify`: Logs plus stop/approval/question controls and rejected requests reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `sys.vault`: Logs plus stop/approval/question controls and rejected requests reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `agent.brief`: Optional model control, cached evidence and existing-action links reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `agent.next`: Optional model control, cached evidence and existing-action links reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `agent.running`: Logs plus stop/approval/question controls and rejected requests reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `agent.feed`: Logs plus stop/approval/question controls and rejected requests reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `need.decisions`: Logs plus stop/approval/question controls and rejected requests reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `need.approvals`: Logs plus stop/approval/question controls and rejected requests reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `agent.errors`: Logs plus stop/approval/question controls and rejected requests reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `agent.audit`: Logs plus stop/approval/question controls and rejected requests reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `agent.usage`: Recorded token/cost/latency values and unavailable metrics reviewed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `agent.knows`: Approval retry and denied-memory-change feedback corrected. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `agent.skills`: Approval retry and denied-toggle feedback corrected. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `agent.rules`: Approval retry/denial feedback corrected; write tools cannot be always allowed. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `agent.watchers`: Rejected watcher fields persist; failed approvals retry and denials are visible. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `agent.research`: Rejected job fields persist; failed approvals retry and denials are visible. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `agent.delegated`: Rejected job fields persist; failed approvals retry and denials are visible. State/size/theme/contrast checks pass; see `today-component-review.md`.
+- `agent.jobs`: Rejected job fields persist; failed approvals retry and denials are visible. State/size/theme/contrast checks pass; see `today-component-review.md`.
