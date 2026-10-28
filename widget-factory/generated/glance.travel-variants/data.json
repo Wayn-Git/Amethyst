@@ -1,0 +1,132 @@
+{
+  "galleryTitle": "Commute, at a glance",
+  "sizeMapping": "Five concepts, once each · 2 Small / 2 Medium / 1 Large",
+  "demoNote": "Illustrative estimates and schematic routes—not live navigation. Motion uses a native radar pulse and static route/light-trail cues.",
+  "unit": "mins",
+  "smallSize": "Small · 160 × 160",
+  "split": {
+    "label": "01 · Split-flap map · Medium 340 × 160",
+    "minutes": "29",
+    "event": "Design review",
+    "startLabel": "Starts 10:",
+    "digits": [
+      "3",
+      "7"
+    ]
+  },
+  "mapPaths": [
+    {
+      "d": "M0 0H53V15H0Z M65 0H119V15H65Z M132 0H181V15H132Z M194 0H240V15H194Z",
+      "fill": "#DDE9E4",
+      "stroke": "none"
+    },
+    {
+      "d": "M0 26H53V40H0Z M65 26H119V40H65Z M132 26H181V40H132Z M194 26H240V40H194Z",
+      "fill": "#E8E5EF",
+      "stroke": "none"
+    },
+    {
+      "d": "M0 20H240 M59 0V40 M125 0V40 M187 0V40",
+      "fill": "none",
+      "stroke": "#FFFFFF",
+      "strokeWidth": 5
+    },
+    {
+      "d": "M0 20H59Q65 20 65 14V10H125Q131 10 131 16V29H204",
+      "fill": "none",
+      "stroke": "#0A7AFF",
+      "strokeWidth": 3
+    },
+    {
+      "d": "M209 29a5 5 0 1 1-10 0a5 5 0 1 1 10 0",
+      "fill": "#0A7AFF",
+      "stroke": "#FFFFFF",
+      "strokeWidth": 2
+    }
+  ],
+  "route": {
+    "label": "02 · Route nodes",
+    "hero": "12 min",
+    "arrivalLabel": "until arrival",
+    "event": "Coffee catch-up",
+    "diagramLabel": "Illustrative route with three blue stops and a car marker"
+  },
+  "nodePaths": [
+    {
+      "d": "M12 12H20 M25 12H33 M38 12H46 M51 12H56 M74 12H82 M87 12H95 M100 12H108 M113 12H118",
+      "fill": "none",
+      "stroke": "#A8C8EA",
+      "strokeWidth": 2
+    },
+    {
+      "d": "M12 12a5 5 0 1 1-10 0a5 5 0 1 1 10 0 M69 12a5 5 0 1 1-10 0a5 5 0 1 1 10 0 M127 12a5 5 0 1 1-10 0a5 5 0 1 1 10 0",
+      "fill": "#0A7AFF",
+      "stroke": "none"
+    },
+    {
+      "d": "M54 7L57 2H69L73 7V14H54Z M58 5H68 M57 14V17 M70 14V17",
+      "fill": "#FFFFFF",
+      "stroke": "#0A7AFF",
+      "strokeWidth": 2
+    }
+  ],
+  "stepper": {
+    "label": "03 · Mode stepper · Medium 340 × 160",
+    "event": "Studio stand-up",
+    "minutes": "14",
+    "route": "Via Market St",
+    "modes": [
+      {
+        "label": "Drive",
+        "icon": "car"
+      },
+      {
+        "label": "Transit",
+        "icon": "train"
+      },
+      {
+        "label": "Walk",
+        "icon": "navigation"
+      }
+    ]
+  },
+  "night": {
+    "label": "04 · Night scrim",
+    "event": "Gallery opening",
+    "minutes": "18"
+  },
+  "availableImages": [
+    {
+      "url": "https://images.unsplash.com/photo-1487512972320-1c3f9801cfec?fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.1.0&q=60&w=3000",
+      "alt": "Nighttime street photography with long-exposure light trails",
+      "source": "https://unsplash.com/photos/time-lapse-photography-of-street-light-during-nighttime-j06W4a7Ft_Y"
+    }
+  ],
+  "cobalt": {
+    "label": "05 · Cobalt stack · Large 340 × 340",
+    "event": "Product sync · 09:30",
+    "minutes": "22",
+    "route": "Via Bay St",
+    "buffer": "+5 min arrival buffer",
+    "modes": [
+      {
+        "label": "Drive",
+        "icon": "car",
+        "note": "Light traffic",
+        "time": "22 min"
+      },
+      {
+        "label": "Transit",
+        "icon": "train",
+        "note": "One transfer",
+        "time": "31 min"
+      },
+      {
+        "label": "Walk",
+        "icon": "navigation",
+        "note": "Mostly flat",
+        "time": "54 min"
+      }
+    ]
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "title": "Calendar",
+  "subtitle": "Sample schedule · June 2026",
+  "selectedDate": "2026-06-18",
+  "days": [
+    {
+      "label": "Jun 18",
+      "value": "2026-06-18"
+    },
+    {
+      "label": "Jun 19",
+      "value": "2026-06-19"
+    }
+  ],
+  "events": [
+    {
+      "date": "2026-06-18",
+      "title": "Project check-in",
+      "time": "10:00–10:30 AM",
+      "timeZone": "UTC",
+      "location": "Demo meeting room"
+    }
+  ],
+  "labels": {
+    "chooseDay": "Choose a calendar day",
+    "nextEvent": "Next event",
+    "emptyTitle": "No events scheduled",
+    "emptyDescription": "This day is clear in the sample calendar.",
+    "showEvent": "Back to next event"
+  }
+}

@@ -1,0 +1,430 @@
+{
+  "galleryTitle": "Music, five ways",
+  "galleryNote": "Fictional tracks · supplied artwork · three sizes per direction",
+  "directionLabel": "Composition",
+  "direction": "synced",
+  "idle": false,
+  "idleLabel": "Preview Large idle state",
+  "nothingPlaying": "Nothing playing",
+  "queueLabel": "Up next",
+  "previewAction": "Toggle visual playback preview: ",
+  "behaviorNote": "Static motion studies: aura, spectrum, drift and vinyl are represented without continuous animation. Transport buttons change only the visual preview; no audio plays.",
+  "activeIds": [
+    "synced-medium",
+    "synced-large",
+    "bento-medium",
+    "bento-large"
+  ],
+  "directions": [
+    {
+      "value": "synced",
+      "label": "01 · Synced Lyrics"
+    },
+    {
+      "value": "obsidian",
+      "label": "02 · Obsidian Vinyl"
+    },
+    {
+      "value": "bento",
+      "label": "03 · Bento Audio"
+    },
+    {
+      "value": "scrim",
+      "label": "04 · Full-Bleed Scrim"
+    },
+    {
+      "value": "terra",
+      "label": "05 · Terracotta Groove"
+    }
+  ],
+  "spectrum": [
+    5,
+    11,
+    16,
+    8,
+    13,
+    18,
+    10,
+    6,
+    15,
+    12,
+    7,
+    17,
+    9,
+    14,
+    4,
+    11
+  ],
+  "availableImages": [
+    {
+      "url": "https://static.scientificamerican.com/sciam/cache/file/0AF8B70E-468E-4FAC-9DFD719982CA2FF9_source.jpg",
+      "alt": "Leaf photograph used as illustrative music artwork."
+    },
+    {
+      "url": "https://images.wallpaperscraft.com/image/single/plant_fern_leaves_212235_2780x2780.jpg",
+      "alt": "Deep green fern leaves used as illustrative cover artwork."
+    },
+    {
+      "url": "https://i.pinimg.com/474x/46/5b/f6/465bf61976fd012eb2dee9dabc2b9572.jpg",
+      "alt": "Dark fern artwork for the fictional track Soft Signal."
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/6804b04820c42e441d51bad3/1745489903671-QZZ75FMEVL6YPPILK6BR/2048sqOUD-004-Edit.jpg",
+      "alt": "Supplied music photograph used as a fictional cover study."
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/576b017229687f1fd26b9117/1518884491932-D0WTIVAKGJCRHLPFU69L/001_DerekClarkPhoto-Tommy_Smith.jpg",
+      "alt": "Monochrome jazz photograph used as illustrative artwork, not an artist identification."
+    },
+    {
+      "url": "https://i.scdn.co/image/ab67616d0000b2732144a10d390564e6d13c7ce0",
+      "alt": "Supplied album image used for an illustrative dark music tile."
+    },
+    {
+      "url": "https://i.scdn.co/image/ab67616d0000b2734e80b069dffa0a8df41fffe7",
+      "alt": "Supplied square artwork used for a fictional electronic track."
+    },
+    {
+      "url": "https://f4.bcbits.com/img/a2460307824_10.jpg",
+      "alt": "Supplied cover image paired with a teal spectrum study."
+    },
+    {
+      "url": "https://cdn.mos.cms.futurecdn.net/v2/t%3A0%2Cl%3A262%2Ccw%3A675%2Cch%3A675%2Cq%3A80%2Cw%3A675/ro9sCzs7cyHKx9pM35Z74d.jpg",
+      "alt": "Supplied geometric album artwork for an illustrative audio layout."
+    },
+    {
+      "url": "https://images.rawpixel.com/image_800/cHJpdmF0ZS9sci9pbWFnZXMvd2Vic2l0ZS8yMDI0LTAxL3Jhd3BpeGVsX29mZmljZV8zNl9yZWFsX3Bob3RvX29mX21vdW50YWluX2RhcmtfYmFja2dyb3VuZF9hZXJpYV8zMjU2MWViYS0zYTE4LTRiMjgtYjBhYi1mNWFiMjA4MWUzNGJfMS5qcGc.jpg",
+      "alt": "Dark mountain landscape used as full-bleed artwork."
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1663138763745-7b1e2bddcb38?fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1yZWxhdGVkfDE0fHx8ZW58MHx8fHx8&ixlib=rb-4.1.0&q=60&w=3000",
+      "alt": "Mountain beneath a dark sky, used as cinematic cover artwork."
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1606647352524-86d835bf9d5b?fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1yZWxhdGVkfDE4fHx8ZW58MHx8fHx8&ixlib=rb-4.1.0&q=60&w=3000",
+      "alt": "Mountain silhouette beneath a starry night sky."
+    },
+    {
+      "url": "https://nordicpark.co/cdn/shop/files/canyon-curves_square_1._20Oak_20Floating_20Frame.jpg?v=1773765164",
+      "alt": "Warm canyon-inspired artwork cropped into a circular vinyl study."
+    },
+    {
+      "url": "https://i.etsystatic.com/40742894/r/il/d4e8eb/6277500219/il_fullxfull.6277500219_ipwi.jpg",
+      "alt": "Terracotta textured artwork used in a circular record motif."
+    },
+    {
+      "url": "https://www.iheartwallart.com.au/cdn/shop/files/autumn-mid-century-earthy3-square-stretched-canvas-or-fine-art-print-206.jpg?v=1779934213",
+      "alt": "Earth-toned abstract artwork used as an illustrative vinyl label."
+    }
+  ],
+  "studies": {
+    "synced": [
+      {
+        "id": "synced-small",
+        "size": "small",
+        "sizeLabel": "Small · 160 × 160",
+        "width": 160,
+        "height": 160,
+        "title": "Leaflight",
+        "artist": "Moss Theory",
+        "art": 0,
+        "elapsed": 0,
+        "duration": 218,
+        "lyrics": [],
+        "queue": []
+      },
+      {
+        "id": "synced-medium",
+        "size": "medium",
+        "sizeLabel": "Medium · 340 × 160",
+        "width": 340,
+        "height": 160,
+        "title": "After Rain",
+        "artist": "June Vale",
+        "art": 1,
+        "elapsed": 192,
+        "duration": 349,
+        "lyrics": [
+          "The windows glow",
+          "We let the light in",
+          "The city breathes"
+        ],
+        "queue": []
+      },
+      {
+        "id": "synced-large",
+        "size": "large",
+        "sizeLabel": "Large · 340 × 340",
+        "width": 340,
+        "height": 340,
+        "title": "Soft Signal",
+        "artist": "Lina Wren",
+        "art": 2,
+        "elapsed": 68,
+        "duration": 276,
+        "lyrics": [
+          "A quiet frequency",
+          "Your voice finds me",
+          "Across the evening"
+        ],
+        "queue": [
+          {
+            "title": "Paper Gardens",
+            "artist": "Orla Finch",
+            "duration": "4:07"
+          },
+          {
+            "title": "Window Seat",
+            "artist": "Hollow Pines",
+            "duration": "3:28"
+          },
+          {
+            "title": "Silver Morning",
+            "artist": "Ada Cove",
+            "duration": "5:16"
+          }
+        ]
+      }
+    ],
+    "obsidian": [
+      {
+        "id": "obsidian-small",
+        "size": "small",
+        "sizeLabel": "Small · 160 × 160",
+        "width": 160,
+        "height": 160,
+        "title": "Blue Hour",
+        "artist": "Aster Club",
+        "art": 3,
+        "elapsed": 0,
+        "duration": 241,
+        "lyrics": [],
+        "queue": []
+      },
+      {
+        "id": "obsidian-medium",
+        "size": "medium",
+        "sizeLabel": "Medium · 340 × 160",
+        "width": 340,
+        "height": 160,
+        "title": "Night Glass",
+        "artist": "Ellis North",
+        "art": 4,
+        "elapsed": 97,
+        "duration": 263,
+        "lyrics": [],
+        "queue": []
+      },
+      {
+        "id": "obsidian-large",
+        "size": "large",
+        "sizeLabel": "Large · 340 × 340",
+        "width": 340,
+        "height": 340,
+        "title": "Low Orbit",
+        "artist": "Nico Ash",
+        "art": 5,
+        "elapsed": 143,
+        "duration": 307,
+        "lyrics": [],
+        "queue": [
+          {
+            "title": "Velvet Static",
+            "artist": "Noon Atlas",
+            "duration": "4:52"
+          },
+          {
+            "title": "Last Elevator",
+            "artist": "Sable Union",
+            "duration": "3:43"
+          },
+          {
+            "title": "Basement Moon",
+            "artist": "Ivo Reed",
+            "duration": "6:09"
+          }
+        ]
+      }
+    ],
+    "bento": [
+      {
+        "id": "bento-small",
+        "size": "small",
+        "sizeLabel": "Small · 160 × 160",
+        "width": 160,
+        "height": 160,
+        "title": "Gridline",
+        "artist": "Coda Field",
+        "art": 6,
+        "elapsed": 0,
+        "duration": 234,
+        "lyrics": [],
+        "queue": []
+      },
+      {
+        "id": "bento-medium",
+        "size": "medium",
+        "sizeLabel": "Medium · 340 × 160",
+        "width": 340,
+        "height": 160,
+        "title": "Phase Two",
+        "artist": "Tidal Logic",
+        "art": 7,
+        "elapsed": 46,
+        "duration": 202,
+        "lyrics": [],
+        "queue": []
+      },
+      {
+        "id": "bento-large",
+        "size": "large",
+        "sizeLabel": "Large · 340 × 340",
+        "width": 340,
+        "height": 340,
+        "title": "Prism Steps",
+        "artist": "Mira Circuit",
+        "art": 8,
+        "elapsed": 124,
+        "duration": 285,
+        "lyrics": [],
+        "queue": [
+          {
+            "title": "Soft Geometry",
+            "artist": "Forma Minor",
+            "duration": "3:56"
+          },
+          {
+            "title": "Parallel Lines",
+            "artist": "Delta Room",
+            "duration": "4:18"
+          },
+          {
+            "title": "Glass Engine",
+            "artist": "Kite Assembly",
+            "duration": "5:03"
+          }
+        ]
+      }
+    ],
+    "scrim": [
+      {
+        "id": "scrim-small",
+        "size": "small",
+        "sizeLabel": "Small · 160 × 160",
+        "width": 160,
+        "height": 160,
+        "title": "Far Ridge",
+        "artist": "Eden Sol",
+        "art": 9,
+        "elapsed": 0,
+        "duration": 267,
+        "lyrics": [],
+        "queue": []
+      },
+      {
+        "id": "scrim-medium",
+        "size": "medium",
+        "sizeLabel": "Medium · 340 × 160",
+        "width": 340,
+        "height": 160,
+        "title": "Beyond Blue",
+        "artist": "Alto Meridian",
+        "art": 10,
+        "elapsed": 156,
+        "duration": 328,
+        "lyrics": [],
+        "queue": []
+      },
+      {
+        "id": "scrim-large",
+        "size": "large",
+        "sizeLabel": "Large · 340 × 340",
+        "width": 340,
+        "height": 340,
+        "title": "Night Crossing",
+        "artist": "Vela Coast",
+        "art": 11,
+        "elapsed": 211,
+        "duration": 382,
+        "lyrics": [],
+        "queue": [
+          {
+            "title": "Horizon Fold",
+            "artist": "Lumen Shore",
+            "duration": "4:33"
+          },
+          {
+            "title": "Stone & Sky",
+            "artist": "Oren Lake",
+            "duration": "5:27"
+          },
+          {
+            "title": "Northbound",
+            "artist": "Fern Harbor",
+            "duration": "3:49"
+          }
+        ]
+      }
+    ],
+    "terra": [
+      {
+        "id": "terra-small",
+        "size": "small",
+        "sizeLabel": "Small · 160 × 160",
+        "width": 160,
+        "height": 160,
+        "title": "Clay Sun",
+        "artist": "Paloma West",
+        "art": 12,
+        "elapsed": 0,
+        "duration": 223,
+        "lyrics": [],
+        "queue": []
+      },
+      {
+        "id": "terra-medium",
+        "size": "medium",
+        "sizeLabel": "Medium · 340 × 160",
+        "width": 340,
+        "height": 160,
+        "title": "Amber Avenue",
+        "artist": "Rio Assembly",
+        "art": 13,
+        "elapsed": 82,
+        "duration": 254,
+        "lyrics": [],
+        "queue": []
+      },
+      {
+        "id": "terra-large",
+        "size": "large",
+        "sizeLabel": "Large · 340 × 340",
+        "width": 340,
+        "height": 340,
+        "title": "Desert Radio",
+        "artist": "Sienna Bloom",
+        "art": 14,
+        "elapsed": 167,
+        "duration": 296,
+        "lyrics": [],
+        "queue": [
+          {
+            "title": "Apricot Drive",
+            "artist": "Toma Mesa",
+            "duration": "3:37"
+          },
+          {
+            "title": "Copper Weather",
+            "artist": "Marin Echo",
+            "duration": "4:41"
+          },
+          {
+            "title": "Sunday Ember",
+            "artist": "Canyon Choir",
+            "duration": "5:58"
+          }
+        ]
+      }
+    ]
+  }
+}

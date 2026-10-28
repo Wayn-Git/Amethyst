@@ -1,0 +1,35 @@
+{
+  "widgetId": "glance.music",
+  "prompt": "Design an expressive macOS Music widget using all attached images as visual references. Generate one coherent composition with Small (160x160), Medium (340x160), and Large (340x340) layouts for light and dark themes. Use the provided ideas as composition options: synced lyrics, obsidian cover art, inset audio cards, full-bleed artwork scrim, or terracotta vinyl. Select one family and adapt it consistently to all sizes. Small: live current track title, artist, and available playback state; never make up cover art. Medium: small content plus live elapsed/total progress and supported previous/play/pause/next controls. Large: medium content plus only data the playback provider supplies; do not invent lyrics, queue, album art, or track history. Include a quiet Nothing playing state. Keep text at least 11px except the hero, use 24px outer corners, 16px small/20px other padding, 8px spacing grid and 12px group gaps, accessible light/dark contrast, and no clipping. No gallery or selector.",
+  "generatedAt": "2026-11-02T15:29:20+00:00",
+  "generationStatus": "generated",
+  "imageStatus": "available",
+  "theme": "light",
+  "designSpec": "One inset audio-card family supports host-selected Small (160×160), Medium (340×160), and Large (340×340) layouts without a gallery or selector, using 24px corners and theme-aware warm-white/charcoal surfaces. The playback provider must supply current content, live timing updates, metadata, and supported action objects; reference images are not used as album art. With no playback supplied, the composition quietly displays “Nothing playing.”",
+  "stages": [
+    "Reading reference image",
+    "Planning the widget",
+    "Planning complete. Gathering supporting context",
+    "Searching for real image URLs",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Checking the preview",
+    "Reviewing the widget data",
+    "Polishing the details",
+    "Keeping the widget compact",
+    "Preparing the final widget",
+    "Widget ready"
+  ],
+  "contentHashes": {
+    "template.jsx": "72fce447ac06b316846664b1c903cced52e0517427c661aaf8ca0051840c1a09",
+    "data.json": "e91e61151ebe028b013daaf5389ec403a66a00e6a8bf5cafa39373617139f6d4",
+    "reference.jpg": "ce6682218da84fb4f7f7d4070a4b3b292500bc6f8450f96f844884f1904a6927"
+  },
+  "imageFile": "reference.jpg"
+}

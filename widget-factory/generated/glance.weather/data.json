@@ -1,0 +1,76 @@
+{
+  "layout": "large",
+  "layouts": {
+    "small": {
+      "width": 160,
+      "height": 160,
+      "padding": 4
+    },
+    "medium": {
+      "width": 340,
+      "height": 160,
+      "padding": 5
+    },
+    "large": {
+      "width": 340,
+      "height": 340,
+      "padding": 5
+    }
+  },
+  "colors": {
+    "canvas": {
+      "light": "#EEF4FC",
+      "dark": "#10213B"
+    },
+    "forecast": {
+      "light": "#DFEAF9",
+      "dark": "#1A3254"
+    },
+    "text": {
+      "light": "#142C4D",
+      "dark": "#F4F8FF"
+    },
+    "secondary": {
+      "light": "#405574",
+      "dark": "#BED0E8"
+    },
+    "icon": {
+      "light": "#1855A4",
+      "dark": "#91BEFF"
+    }
+  },
+  "labels": {
+    "locationUnavailable": "No location",
+    "missingValue": "—",
+    "conditionUnavailable": "Unavailable",
+    "humidity": "Humidity",
+    "hourly": "Hourly",
+    "daily": "Daily · low / high",
+    "hourlyUnavailable": "Forecast unavailable",
+    "dailyUnavailable": "Forecast unavailable",
+    "dataNote": "Live weather data was not supplied."
+  },
+  "weather": {
+    "location": null,
+    "current": {
+      "temperatureLabel": null,
+      "condition": null,
+      "humidityLabel": null,
+      "icon": null
+    },
+    "hourly": [],
+    "daily": []
+  },
+  "weatherIcons": [
+    "sun",
+    "moon",
+    "cloud",
+    "cloud-sun",
+    "cloud-moon",
+    "cloud-rain",
+    "cloud-snow",
+    "wind",
+    "snowflake",
+    "bolt"
+  ]
+}

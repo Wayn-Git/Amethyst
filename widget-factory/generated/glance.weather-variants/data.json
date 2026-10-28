@@ -1,0 +1,742 @@
+{
+  "title": "Weather, in five moods",
+  "intro": "15 static concept tiles. Independent synthetic snapshots, not live forecasts. Temperatures in °C.",
+  "sizeLabels": {
+    "small": "Small · 160 × 160",
+    "medium": "Medium · 340 × 160",
+    "large": "Large · 340 × 340"
+  },
+  "labels": {
+    "today": "Today",
+    "humidity": "Humidity",
+    "humidityUnit": "% relative humidity",
+    "humidityDetail": "% humidity",
+    "wind": "Wind",
+    "pastHours": "Past 5h",
+    "outlook": "5-day outlook"
+  },
+  "availableImages": [
+    {
+      "url": "https://petapixel.com/assets/uploads/2017/01/Sequence-01.00_02_42_19.Still008.jpg",
+      "title": "Pulse: black-and-white storm clouds",
+      "source": "https://petapixel.com/2017/01/05/pulse-4k-storm-time-lapse-film-black-white/"
+    }
+  ],
+  "rainDots": [
+    0,
+    1,
+    0,
+    0,
+    2,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    2,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    1,
+    0,
+    1,
+    0,
+    0,
+    2,
+    0,
+    1
+  ],
+  "weatherIcons": {
+    "sun": [
+      {
+        "d": "M20 10a10 10 0 1 0 0 20a10 10 0 1 0 0-20Z M18 1h4v6h-4Z M18 33h4v6h-4Z M1 18h6v4H1Z M33 18h6v4h-6Z M5 7l3-3 4 5-3 3Z M28 31l3-3 5 4-3 3Z M28 9l5-5 3 3-5 5Z M4 33l5-5 3 3-5 5Z",
+        "fill": "#FFD76A"
+      }
+    ],
+    "cloud": [
+      {
+        "d": "M10 30a8 8 0 0 1-1-16a11 11 0 0 1 21-1a8.5 8.5 0 1 1 1 17Z",
+        "fill": "#DDE8F5"
+      },
+      {
+        "d": "M10 30a8 8 0 0 1-5-2h27a9 9 0 0 1-1 2Z",
+        "fill": "#B5CBE3"
+      }
+    ],
+    "rain": [
+      {
+        "d": "M10 24a7 7 0 0 1-1-14a10 10 0 0 1 19-1a8 8 0 1 1 2 15Z",
+        "fill": "#C9D7E8"
+      },
+      {
+        "d": "M11 27c-1 3-4 5-4 8a3 3 0 0 0 6 0c0-3-1-5-2-8Z M22 27c-1 3-4 5-4 8a3 3 0 0 0 6 0c0-3-1-5-2-8Z M33 27c-1 3-4 5-4 8a3 3 0 0 0 6 0c0-3-1-5-2-8Z",
+        "fill": "#55B2FF"
+      }
+    ],
+    "storm": [
+      {
+        "d": "M9 24a7 7 0 0 1-1-14a10 10 0 0 1 19-1a8 8 0 1 1 3 15Z",
+        "fill": "#B6C7DC"
+      },
+      {
+        "d": "M20 21h8l-7 9h5L15 40l3-12h-5Z",
+        "fill": "#FFD76A"
+      },
+      {
+        "d": "M8 27c-1 3-3 5-3 7a3 3 0 0 0 6 0c0-2-2-4-3-7Z M33 27c-1 3-3 5-3 7a3 3 0 0 0 6 0c0-2-2-4-3-7Z",
+        "fill": "#55B2FF"
+      }
+    ],
+    "partly": [
+      {
+        "d": "M24 3a10 10 0 1 0 0 20a10 10 0 1 0 0-20Z M23 0h3v3h-3Z M35 10h5v3h-5Z M32 2l3-2 3 4-3 2Z",
+        "fill": "#FFD76A"
+      },
+      {
+        "d": "M9 33a7 7 0 0 1-1-14a10 10 0 0 1 19-1a7.5 7.5 0 1 1 2 15Z",
+        "fill": "#EDF4FC"
+      }
+    ]
+  },
+  "compositions": [
+    {
+      "id": "storm",
+      "number": "01",
+      "name": "Storm Canvas",
+      "background": "#151D29",
+      "light": false,
+      "rangeColor": "#66B8FF",
+      "credit": "Storm photograph: [Pulse / PetaPixel](https://petapixel.com/2017/01/05/pulse-4k-storm-time-lapse-film-black-white/).",
+      "tiles": [
+        {
+          "size": "small",
+          "city": "Madrid",
+          "temp": 18,
+          "condition": "Thunderstorms",
+          "icon": "storm",
+          "highLow": "H 24° · L 11°"
+        },
+        {
+          "size": "medium",
+          "city": "Madrid",
+          "cityLabel": "Madrid, Spain ↗",
+          "temp": 19,
+          "condition": "Showers",
+          "icon": "rain",
+          "highLow": "H 25° · L 9°",
+          "hourly": [
+            {
+              "time": "14:00",
+              "temp": 16,
+              "icon": "rain",
+              "condition": "Rain"
+            },
+            {
+              "time": "16:00",
+              "temp": 20,
+              "icon": "storm",
+              "condition": "Thunderstorms"
+            },
+            {
+              "time": "18:00",
+              "temp": 21,
+              "icon": "sun",
+              "condition": "Clearing"
+            }
+          ]
+        },
+        {
+          "size": "large",
+          "city": "Madrid",
+          "cityLabel": "Madrid, Spain ↗",
+          "temp": 17,
+          "condition": "Rain",
+          "icon": "rain",
+          "highLow": "H 27° · L 7°",
+          "hourly": [
+            {
+              "time": "14:00",
+              "temp": 15,
+              "icon": "storm",
+              "condition": "Thunderstorms"
+            },
+            {
+              "time": "16:00",
+              "temp": 18,
+              "icon": "rain",
+              "condition": "Showers"
+            },
+            {
+              "time": "18:00",
+              "temp": 19,
+              "icon": "sun",
+              "condition": "Sunny intervals"
+            }
+          ],
+          "ranges": [
+            {
+              "day": "Tue",
+              "low": 8,
+              "high": 22,
+              "icon": "rain",
+              "condition": "Rain"
+            },
+            {
+              "day": "Wed",
+              "low": 9,
+              "high": 23,
+              "icon": "cloud",
+              "condition": "Cloudy"
+            },
+            {
+              "day": "Thu",
+              "low": 10,
+              "high": 24,
+              "icon": "partly",
+              "condition": "Partly cloudy"
+            },
+            {
+              "day": "Fri",
+              "low": 11,
+              "high": 25,
+              "icon": "sun",
+              "condition": "Sunny"
+            },
+            {
+              "day": "Sat",
+              "low": 12,
+              "high": 26,
+              "icon": "sun",
+              "condition": "Sunny"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "navy",
+      "number": "02",
+      "name": "Navy Split",
+      "background": "repeating-linear-gradient(112deg, transparent 0px, transparent 22px, rgba(96,165,250,0.065) 23px, transparent 25px), #0F172A",
+      "light": false,
+      "rangeColor": "#7EC3FF",
+      "credit": "",
+      "tiles": [
+        {
+          "size": "small",
+          "city": "London",
+          "temp": 12,
+          "condition": "Light rain",
+          "icon": "rain",
+          "highLow": "H 15° · L 6°"
+        },
+        {
+          "size": "medium",
+          "city": "London",
+          "temp": 13,
+          "condition": "Drizzle",
+          "icon": "rain",
+          "highLow": "H 16° · L 4°",
+          "forecast": [
+            {
+              "day": "Tue",
+              "high": 17,
+              "low": 5,
+              "icon": "rain",
+              "condition": "Rain"
+            },
+            {
+              "day": "Wed",
+              "high": 18,
+              "low": 6,
+              "icon": "cloud",
+              "condition": "Cloudy"
+            },
+            {
+              "day": "Thu",
+              "high": 19,
+              "low": 7,
+              "icon": "partly",
+              "condition": "Partly cloudy"
+            },
+            {
+              "day": "Fri",
+              "high": 20,
+              "low": 8,
+              "icon": "sun",
+              "condition": "Sunny"
+            },
+            {
+              "day": "Sat",
+              "high": 21,
+              "low": 9,
+              "icon": "partly",
+              "condition": "Partly cloudy"
+            }
+          ]
+        },
+        {
+          "size": "large",
+          "city": "London",
+          "temp": 11,
+          "condition": "Light rain",
+          "icon": "rain",
+          "highLow": "H 15° · L 3°",
+          "forecast": [
+            {
+              "day": "Tue",
+              "high": 16,
+              "low": 4,
+              "icon": "rain",
+              "condition": "Rain"
+            },
+            {
+              "day": "Wed",
+              "high": 17,
+              "low": 5,
+              "icon": "cloud",
+              "condition": "Cloudy"
+            },
+            {
+              "day": "Thu",
+              "high": 18,
+              "low": 6,
+              "icon": "partly",
+              "condition": "Partly cloudy"
+            },
+            {
+              "day": "Fri",
+              "high": 19,
+              "low": 7,
+              "icon": "sun",
+              "condition": "Sunny"
+            },
+            {
+              "day": "Sat",
+              "high": 20,
+              "low": 8,
+              "icon": "partly",
+              "condition": "Partly cloudy"
+            }
+          ],
+          "metrics": [
+            {
+              "label": "Humidity",
+              "value": "84%",
+              "note": "Relative humidity",
+              "icon": "droplet"
+            },
+            {
+              "label": "Wind",
+              "value": "23 km/h",
+              "note": "From the southwest",
+              "icon": "wind"
+            },
+            {
+              "label": "Pressure",
+              "value": "998 hPa",
+              "note": "Sea-level pressure",
+              "icon": "gauge"
+            },
+            {
+              "label": "Visibility",
+              "value": "9 km",
+              "note": "Reduced by rain",
+              "icon": "eye"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cobalt",
+      "number": "03",
+      "name": "Cobalt Stack",
+      "background": "radial-gradient(circle at 88% 0%, rgba(255,239,175,0.48) 0%, rgba(255,255,255,0.12) 25%, transparent 58%), #0A7AFF",
+      "light": false,
+      "rangeColor": "rgba(255,255,255,0.66)",
+      "credit": "",
+      "tiles": [
+        {
+          "size": "small",
+          "city": "Lisbon",
+          "temp": 26,
+          "condition": "Sunny",
+          "icon": "sun",
+          "highLow": "H 30° · L 18°"
+        },
+        {
+          "size": "medium",
+          "city": "Lisbon",
+          "cityLabel": "Lisbon, Portugal",
+          "temp": 27,
+          "condition": "Sunny",
+          "icon": "sun",
+          "highLow": "H 33° · L 17°",
+          "hourly": [
+            {
+              "time": "13:00",
+              "temp": 28,
+              "icon": "sun",
+              "condition": "Sunny",
+              "marker": 42
+            },
+            {
+              "time": "15:00",
+              "temp": 29,
+              "icon": "sun",
+              "condition": "Sunny",
+              "marker": 56
+            },
+            {
+              "time": "17:00",
+              "temp": 31,
+              "icon": "partly",
+              "condition": "Partly cloudy",
+              "marker": 72
+            }
+          ]
+        },
+        {
+          "size": "large",
+          "city": "Lisbon",
+          "cityLabel": "Lisbon, Portugal",
+          "temp": 28,
+          "condition": "Sunny",
+          "icon": "sun",
+          "highLow": "H 34° · L 16°",
+          "hourly": [
+            {
+              "time": "13:00",
+              "temp": 25,
+              "icon": "sun",
+              "condition": "Sunny",
+              "marker": 30
+            },
+            {
+              "time": "15:00",
+              "temp": 27,
+              "icon": "sun",
+              "condition": "Sunny",
+              "marker": 48
+            },
+            {
+              "time": "17:00",
+              "temp": 29,
+              "icon": "partly",
+              "condition": "Partly cloudy",
+              "marker": 68
+            }
+          ],
+          "ranges": [
+            {
+              "day": "Tue",
+              "low": 17,
+              "high": 30,
+              "icon": "sun",
+              "condition": "Sunny"
+            },
+            {
+              "day": "Wed",
+              "low": 18,
+              "high": 31,
+              "icon": "sun",
+              "condition": "Sunny"
+            },
+            {
+              "day": "Thu",
+              "low": 19,
+              "high": 32,
+              "icon": "partly",
+              "condition": "Partly cloudy"
+            },
+            {
+              "day": "Fri",
+              "low": 20,
+              "high": 33,
+              "icon": "sun",
+              "condition": "Sunny"
+            },
+            {
+              "day": "Sat",
+              "low": 21,
+              "high": 35,
+              "icon": "sun",
+              "condition": "Sunny"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bento",
+      "number": "04",
+      "name": "Bento Cards",
+      "background": "#FFFFFF",
+      "light": true,
+      "rangeColor": "#0A7AFF",
+      "credit": "",
+      "tiles": [
+        {
+          "size": "small",
+          "city": "Copenhagen",
+          "temp": 16,
+          "condition": "Overcast",
+          "icon": "cloud",
+          "humidity": 68,
+          "humidityRing": [
+            {
+              "d": "M20 3a17 17 0 1 1-0.01 0",
+              "fill": "none",
+              "stroke": "#DDE3EB",
+              "strokeWidth": 4
+            },
+            {
+              "d": "M20 3A17 17 0 1 1 4.62 27.24",
+              "fill": "none",
+              "stroke": "#0A7AFF",
+              "strokeWidth": 4
+            }
+          ]
+        },
+        {
+          "size": "medium",
+          "city": "Copenhagen",
+          "temp": 15,
+          "condition": "Cloudy",
+          "icon": "cloud",
+          "highLow": "H 20° · L 8°",
+          "humidity": 62,
+          "humidityRing": [
+            {
+              "d": "M20 3a17 17 0 1 1-0.01 0",
+              "fill": "none",
+              "stroke": "#DDE3EB",
+              "strokeWidth": 4
+            },
+            {
+              "d": "M20 3A17 17 0 1 1 8.36 32.39",
+              "fill": "none",
+              "stroke": "#0A7AFF",
+              "strokeWidth": 4
+            }
+          ],
+          "wind": "14 km/h",
+          "windDescription": "Wind over the past five hours: 4, 7, 9, 11 and 14 kilometres per hour.",
+          "windBars": [
+            {
+              "d": "M1 24h8v8H1Z",
+              "fill": "#9BCBFF"
+            },
+            {
+              "d": "M15 18h8v14h-8Z",
+              "fill": "#72B5FF"
+            },
+            {
+              "d": "M29 14h8v18h-8Z",
+              "fill": "#4B9FFF"
+            },
+            {
+              "d": "M43 10h8v22h-8Z",
+              "fill": "#268BFF"
+            },
+            {
+              "d": "M57 4h8v28h-8Z",
+              "fill": "#0A7AFF"
+            }
+          ]
+        },
+        {
+          "size": "large",
+          "city": "Copenhagen",
+          "temp": 14,
+          "condition": "Overcast",
+          "icon": "cloud",
+          "highLow": "H 21° · L 7°",
+          "humidity": 71,
+          "humidityRing": [
+            {
+              "d": "M20 3a17 17 0 1 1-0.01 0",
+              "fill": "none",
+              "stroke": "#DDE3EB",
+              "strokeWidth": 4
+            },
+            {
+              "d": "M20 3A17 17 0 1 1 3.53 24.23",
+              "fill": "none",
+              "stroke": "#0A7AFF",
+              "strokeWidth": 4
+            }
+          ],
+          "wind": "19 km/h",
+          "windDescription": "Wind over the past five hours: 5, 8, 12, 16 and 19 kilometres per hour.",
+          "windBars": [
+            {
+              "d": "M1 24h8v8H1Z",
+              "fill": "#9BCBFF"
+            },
+            {
+              "d": "M15 19h8v13h-8Z",
+              "fill": "#72B5FF"
+            },
+            {
+              "d": "M29 13h8v19h-8Z",
+              "fill": "#4B9FFF"
+            },
+            {
+              "d": "M43 7h8v25h-8Z",
+              "fill": "#268BFF"
+            },
+            {
+              "d": "M57 2h8v30h-8Z",
+              "fill": "#0A7AFF"
+            }
+          ],
+          "metrics": [
+            {
+              "label": "Feels like",
+              "value": "12°",
+              "note": "Cooler in the wind",
+              "icon": "thermometer"
+            },
+            {
+              "label": "UV index",
+              "value": "3 · Moderate",
+              "note": "Midday estimate",
+              "icon": "sun"
+            },
+            {
+              "label": "Pressure",
+              "value": "1,016 hPa",
+              "note": "Sea-level pressure",
+              "icon": "gauge"
+            },
+            {
+              "label": "Visibility",
+              "value": "9 km",
+              "note": "Light atmospheric haze",
+              "icon": "eye"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "teal",
+      "number": "05",
+      "name": "Dot-Matrix Teal",
+      "background": "#178582",
+      "light": false,
+      "rangeColor": "#FFE078",
+      "credit": "",
+      "tiles": [
+        {
+          "size": "small",
+          "city": "Tokyo",
+          "temp": 22,
+          "condition": "Passing showers",
+          "icon": "rain"
+        },
+        {
+          "size": "medium",
+          "city": "Tokyo",
+          "temp": 23,
+          "condition": "Light rain",
+          "icon": "rain",
+          "hourly": [
+            {
+              "time": "09:00",
+              "temp": 20,
+              "icon": "rain",
+              "condition": "Rain"
+            },
+            {
+              "time": "11:00",
+              "temp": 21,
+              "icon": "cloud",
+              "condition": "Cloudy"
+            },
+            {
+              "time": "13:00",
+              "temp": 24,
+              "icon": "partly",
+              "condition": "Partly cloudy"
+            }
+          ]
+        },
+        {
+          "size": "large",
+          "city": "Tokyo",
+          "temp": 24,
+          "condition": "Passing showers",
+          "icon": "rain",
+          "hourly": [
+            {
+              "time": "09:00",
+              "temp": 21,
+              "icon": "rain",
+              "condition": "Rain"
+            },
+            {
+              "time": "11:00",
+              "temp": 22,
+              "icon": "cloud",
+              "condition": "Cloudy"
+            },
+            {
+              "time": "13:00",
+              "temp": 23,
+              "icon": "partly",
+              "condition": "Partly cloudy"
+            }
+          ],
+          "ranges": [
+            {
+              "day": "Tue",
+              "low": 15,
+              "high": 26,
+              "icon": "rain",
+              "condition": "Rain"
+            },
+            {
+              "day": "Wed",
+              "low": 16,
+              "high": 27,
+              "icon": "cloud",
+              "condition": "Cloudy"
+            },
+            {
+              "day": "Thu",
+              "low": 17,
+              "high": 28,
+              "icon": "partly",
+              "condition": "Partly cloudy"
+            },
+            {
+              "day": "Fri",
+              "low": 18,
+              "high": 29,
+              "icon": "sun",
+              "condition": "Sunny"
+            },
+            {
+              "day": "Sat",
+              "low": 19,
+              "high": 30,
+              "icon": "sun",
+              "condition": "Sunny"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,209 @@
+{
+  "direction": "editorial",
+  "widgetSize": "medium",
+  "darkAppearance": false,
+  "labels": {
+    "galleryTitle": "Reminders studies",
+    "gallerySubtitle": "5 directions · 3 sizes · 2 appearances",
+    "darkAppearance": "Dark appearance",
+    "direction": "Design direction",
+    "sizeLabel": "Reminder widget size",
+    "reminders": "Reminders",
+    "myReminders": "My reminders",
+    "completePrefix": "Complete: ",
+    "reopenPrefix": "Reopen: ",
+    "thenPrefix": "Then · ",
+    "nothingElse": "Nothing else coming up.",
+    "scheduleEyebrow": "TUESDAY, MAY 12",
+    "nextOnSchedule": "Next on your schedule",
+    "onYourSchedule": "On your schedule",
+    "next": "Next",
+    "completeSuffix": " complete",
+    "needsAttention": "Needs attention",
+    "prioritySuffix": " high-priority reminders open",
+    "openSuffix": " open",
+    "tomorrowPrefix": "Tomorrow · ",
+    "laterPrefix": "Later · ",
+    "nextImportant": "NEXT IMPORTANT",
+    "allComplete": "EVERYTHING CHECKED",
+    "alsoOnYourList": "Also on your list",
+    "sampleNote": "Illustrative schedule · Checks stay in this widget."
+  },
+  "directions": [
+    {
+      "value": "minimal",
+      "label": "Minimal",
+      "description": "Quiet typography and a clean checklist"
+    },
+    {
+      "value": "timeline",
+      "label": "Timeline",
+      "description": "Time anchors and a fine vertical guide"
+    },
+    {
+      "value": "priority",
+      "label": "Priority-focused",
+      "description": "Important reminders lead the reading order"
+    },
+    {
+      "value": "grouped",
+      "label": "Grouped",
+      "description": "Today, tomorrow and later"
+    },
+    {
+      "value": "editorial",
+      "label": "Editorial",
+      "description": "A featured reminder with supporting items"
+    }
+  ],
+  "sizes": [
+    {
+      "value": "small",
+      "label": "Small"
+    },
+    {
+      "value": "medium",
+      "label": "Medium"
+    },
+    {
+      "value": "large",
+      "label": "Large"
+    }
+  ],
+  "dayGroups": [
+    {
+      "id": "today",
+      "label": "Today"
+    },
+    {
+      "id": "tomorrow",
+      "label": "Tomorrow"
+    },
+    {
+      "id": "later",
+      "label": "Later · Friday"
+    }
+  ],
+  "priorityGroups": [
+    {
+      "id": "high",
+      "label": "High priority"
+    },
+    {
+      "id": "routine",
+      "label": "Routine"
+    },
+    {
+      "id": "done",
+      "label": "Completed"
+    }
+  ],
+  "mediumGroupedIds": [
+    "agenda",
+    "launch",
+    "prescription",
+    "plants",
+    "library"
+  ],
+  "items": [
+    {
+      "id": "agenda",
+      "title": "Confirm team agenda",
+      "day": "today",
+      "time": "8:45 AM",
+      "dueLabel": "Today · 8:45 AM",
+      "category": "Work",
+      "priority": "routine",
+      "repeat": "",
+      "done": true
+    },
+    {
+      "id": "launch",
+      "title": "Review launch brief",
+      "day": "today",
+      "time": "9:30 AM",
+      "dueLabel": "Today · 9:30 AM",
+      "category": "Work",
+      "priority": "high",
+      "repeat": "",
+      "done": false
+    },
+    {
+      "id": "prescription",
+      "title": "Pick up prescription",
+      "day": "today",
+      "time": "12:30 PM",
+      "dueLabel": "Today · 12:30 PM",
+      "category": "Personal",
+      "priority": "routine",
+      "repeat": "",
+      "done": false
+    },
+    {
+      "id": "update",
+      "title": "Send project update",
+      "day": "today",
+      "time": "2:00 PM",
+      "dueLabel": "Today · 2:00 PM",
+      "category": "Work",
+      "priority": "high",
+      "repeat": "",
+      "done": false
+    },
+    {
+      "id": "groceries",
+      "title": "Pick up groceries",
+      "day": "today",
+      "time": "6:00 PM",
+      "dueLabel": "Today · 6:00 PM",
+      "category": "Home",
+      "priority": "routine",
+      "repeat": "",
+      "done": false
+    },
+    {
+      "id": "stretch",
+      "title": "Morning stretch",
+      "day": "today",
+      "time": "7:30 AM",
+      "dueLabel": "Today · 7:30 AM",
+      "category": "Personal",
+      "priority": "routine",
+      "repeat": "Daily",
+      "done": true
+    },
+    {
+      "id": "plants",
+      "title": "Water plants",
+      "day": "tomorrow",
+      "time": "8:00 AM",
+      "dueLabel": "Tomorrow · 8:00 AM",
+      "category": "Home",
+      "priority": "routine",
+      "repeat": "Weekly",
+      "done": false
+    },
+    {
+      "id": "dinner",
+      "title": "Plan weekend dinner",
+      "day": "tomorrow",
+      "time": "11:00 AM",
+      "dueLabel": "Tomorrow · 11:00 AM",
+      "category": "Personal",
+      "priority": "routine",
+      "repeat": "",
+      "done": false
+    },
+    {
+      "id": "library",
+      "title": "Return library books",
+      "day": "later",
+      "time": "4:00 PM",
+      "dueLabel": "Friday · 4:00 PM",
+      "category": "Personal",
+      "priority": "routine",
+      "repeat": "",
+      "done": false
+    }
+  ]
+}

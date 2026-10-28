@@ -1,0 +1,38 @@
+{
+  "layout": "medium",
+  "durationMinutes": null,
+  "eventName": "",
+  "destination": "",
+  "eventStartTime": "",
+  "homeOrigin": "",
+  "labels": {
+    "unknownDuration": "—",
+    "minutes": "min",
+    "driving": "Driving",
+    "starts": "Starts ",
+    "origin": "From home",
+    "unavailableTitle": "Travel time unavailable",
+    "eventUnavailable": "Event unavailable",
+    "destinationUnavailable": "Destination unavailable",
+    "startUnavailable": "Start time unavailable",
+    "waiting": "Waiting for calendar and driving data."
+  },
+  "palette": {
+    "cobalt": {
+      "light": "#1747D6",
+      "dark": "#2854DC"
+    },
+    "canvas": {
+      "light": "#F6F7F9",
+      "dark": "#23252B"
+    },
+    "ink": {
+      "light": "#20232B",
+      "dark": "#F7F8FC"
+    },
+    "muted": {
+      "light": "#515763",
+      "dark": "#C2C7D2"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "widgetId": "glance.clock",
+  "prompt": "Design an expressive iOS/macOS Clock widget for a desktop dashboard, showing local time and world zones. Generate 5 distinct compositions in Small (160x160), Medium (340x160) and Large (340x340). One layout per size, rendered once. No repeated values.\n\nCompositions (distinct surfaces, palettes & motion):\n1 Complication Dial: Alabaster (#F5F5F7) squircle with bold black numerals (1-12), red \"WED 24\" at 12 o'clock, sub-dial rings at 6/9 o'clock, and sweeping red second hand.\n2 Arc Chrono: Grey (#E5E5EA) shell with white 24h dial (0-22), glowing indigo-violet daylight bezel arc, moon icon, sweeping hands, and central \"7hr 30m\" badge.\n3 Neon Ring Dark: Pitch black (#111111) card with glowing neon-yellow circular progress ring top-left, white city header, subtitle, and huge bottom time.\n4 Cobalt World: Vibrant blue (#0A7AFF) card with breathing sky gradient; stacked rows with left day/night badges, city + offset, and bold right times.\n5 Bento Dual-Zone: White (#FFFFFF) card with huge top times (\"11:30 PM / 6:00 AM\") + teal note, and grey (#F2F2F7) sub-cards below with a teal bar chart.\n\nHard content limits per size:\nSmall: local time (or dial), city, plus ONE detail (date complication, bezel arc, or ring). Max 3 items. No world rows.\nMedium: Small's content plus ONE block: 3 world city rows with offset, or 2 grey (#F2F2F7) sub-cards.\nLarge: Medium's content plus ONE more block: up to 5 world cities with day/night badges and 24h bars.\nNever squeeze larger content into a smaller size.\n\nSpacing & Visual: 24px squircle; padding 16px Small, 20px Medium/Large; 8px grid, 12px+ group gaps, no clipping. One clear hero per size, other text 11-14px (never <11px), smooth motion. Believable data.\n",
+  "generatedAt": "2026-11-02T16:50:11+00:00",
+  "generationStatus": "failed",
+  "imageStatus": "available",
+  "theme": "light",
+  "designSpec": "One cobalt world-time composition adapts through widgetSize (small, medium, large) to the three requested dimensions, using 24px corners and theme-aware colors without a gallery or selector. Small shows local information only; Medium adds up to three unique saved zones, and Large adds up to five with day offsets. The host supplies and refreshes preformatted local fields and savedZones entries (timezone, compactLabel, timeLabel, dayOffsetLabel), preserving runtime clock settings; absent data stays explicitly unavailable rather than inventing times or places.",
+  "stages": [
+    "Reading reference image",
+    "Planning the widget",
+    "Planning complete. Gathering supporting context",
+    "Searching for real image URLs",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Checking the preview",
+    "Reviewing the widget data",
+    "Polishing the details",
+    "Keeping the widget compact",
+    "Widget ready"
+  ],
+  "contentHashes": {
+    "template.jsx": "72907d9d792a62f2479f6084cf2885dc1204b8440a413b1be44926b1b7295eb6",
+    "data.json": "a99f4e281e5200dabdd0bdfc37dcb66bdfa1deff96c7c47c1d41c7253b239556",
+    "reference.jpg": "ce6682218da84fb4f7f7d4070a4b3b292500bc6f8450f96f844884f1904a6927"
+  },
+  "imageFile": "reference.jpg",
+  "error": "HTTP 504: An error occurred with your deployment\n\nFUNCTION_INVOCATION_TIMEOUT\n\nbom1::ccvvd-1793637910592-5c46fb74588d\n"
+}

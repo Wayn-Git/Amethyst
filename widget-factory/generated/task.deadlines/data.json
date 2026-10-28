@@ -1,0 +1,183 @@
+{
+  "sizeChoice": "small",
+  "variation": "first",
+  "darkAppearance": false,
+  "clockRunning": true,
+  "elapsedMinutes": 0,
+  "demoStartMs": 1780929720000,
+  "labels": {
+    "collection": "SIX DESIGN STUDIES",
+    "title": "Deadline countdowns",
+    "darkAppearance": "Dark appearance",
+    "sizeSelector": "Widget size",
+    "directionSelector": "Design direction",
+    "sampleNote": "Sample workspace · June 8–18, 2026",
+    "timeRemaining": "Time remaining",
+    "attentionFirst": "Needs attention",
+    "hoursMinutes": "HOURS : MINUTES",
+    "comingUp": "Coming up",
+    "nextFour": "Next 4 deadlines",
+    "yourDeadlines": "Your deadlines",
+    "todaySuffix": " today",
+    "weekSuffix": " this week",
+    "laterSuffix": " later",
+    "todayOverdue": "Today & overdue",
+    "upNext": "UP NEXT",
+    "progressNote": "Bars show task completion, not time elapsed.",
+    "majorMilestone": "THE MAJOR MILESTONE",
+    "launchPreparation": "Launch preparation",
+    "beforeMilestone": "Before the milestone",
+    "sevenDeadlines": "7 deadlines",
+    "totalSuffix": " deadlines",
+    "nextPrefix": "Next: ",
+    "clockPrefix": "Demo clock · ",
+    "clockNote": "Countdowns advance locally each minute. Pause or reset the sample clock.",
+    "pauseClock": "Pause demo countdowns",
+    "resumeClock": "Resume demo countdowns",
+    "resetClock": "Reset demo clock",
+    "dueNow": "Due now",
+    "overdue": "Overdue"
+  },
+  "sizeOptions": [
+    {
+      "label": "Small",
+      "value": "small"
+    },
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "directions": {
+    "small": [
+      {
+        "label": "Minimal",
+        "value": "first"
+      },
+      {
+        "label": "Priority",
+        "value": "second"
+      }
+    ],
+    "medium": [
+      {
+        "label": "Timeline",
+        "value": "first"
+      },
+      {
+        "label": "Priority",
+        "value": "second"
+      }
+    ],
+    "large": [
+      {
+        "label": "Grouped",
+        "value": "first"
+      },
+      {
+        "label": "Editorial",
+        "value": "second"
+      }
+    ]
+  },
+  "groupDefinitions": [
+    {
+      "id": "today",
+      "label": "Today"
+    },
+    {
+      "id": "week",
+      "label": "This week"
+    },
+    {
+      "id": "later",
+      "label": "Later"
+    }
+  ],
+  "deadlines": [
+    {
+      "id": "launch-review",
+      "title": "Launch review",
+      "project": "Orbit / Release",
+      "dateLabel": "Jun 8 · 5:00 PM",
+      "compactDate": "Jun 8, 17:00",
+      "offsetMinutes": 138,
+      "progress": 80,
+      "note": "Final review is still pending."
+    },
+    {
+      "id": "budget-signoff",
+      "title": "Budget sign-off",
+      "project": "Operations / Q3",
+      "dateLabel": "Jun 8 · 6:00 PM",
+      "compactDate": "Jun 8, 18:00",
+      "offsetMinutes": 198,
+      "progress": 60,
+      "note": "Confirm the revised cost estimate."
+    },
+    {
+      "id": "design-handoff",
+      "title": "Design handoff",
+      "project": "Orbit / Web",
+      "dateLabel": "Jun 9 · 9:00 AM",
+      "compactDate": "Jun 9, 09:00",
+      "offsetMinutes": 1098,
+      "progress": 90,
+      "note": "Package final assets and annotations."
+    },
+    {
+      "id": "quarterly-report",
+      "title": "Quarterly report",
+      "project": "Finance / Q2",
+      "dateLabel": "Jun 10 · 12:00 PM",
+      "compactDate": "Jun 10, 12:00",
+      "offsetMinutes": 2718,
+      "progress": 55,
+      "note": "Reconcile the remaining forecasts."
+    },
+    {
+      "id": "usability-readout",
+      "title": "Usability readout",
+      "project": "Research / Mobile",
+      "dateLabel": "Jun 11 · 4:00 PM",
+      "compactDate": "Jun 11, 16:00",
+      "offsetMinutes": 4398,
+      "progress": 40,
+      "note": "Synthesize findings from the latest sessions."
+    },
+    {
+      "id": "prototype-delivery",
+      "title": "Prototype delivery",
+      "project": "Orbit / Product",
+      "dateLabel": "Jun 12 · 10:00 AM",
+      "compactDate": "Jun 12, 10:00",
+      "offsetMinutes": 5478,
+      "progress": 65,
+      "note": "Complete the core interaction flows."
+    },
+    {
+      "id": "partner-kickoff",
+      "title": "Partner kickoff",
+      "project": "Growth / Partners",
+      "dateLabel": "Jun 15 · 12:00 PM",
+      "compactDate": "Jun 15, 12:00",
+      "offsetMinutes": 9918,
+      "progress": 25,
+      "note": "Prepare the agenda and shared brief."
+    },
+    {
+      "id": "summer-launch",
+      "title": "Summer launch",
+      "project": "Orbit / Public release",
+      "dateLabel": "Jun 18 · 3:00 PM",
+      "compactDate": "Jun 18, 15:00",
+      "offsetMinutes": 14418,
+      "progress": 68,
+      "note": "Coordinate the public release milestone."
+    }
+  ]
+}

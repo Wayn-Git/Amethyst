@@ -1,0 +1,38 @@
+{
+  "widgetId": "task.reminders",
+  "prompt": "Design a premium Apple-inspired **Reminders widget** for a desktop dashboard. Generate multiple distinct Small, Medium and Large variations.\n\nExplore these design directions:\n- Minimal: next reminder with a short upcoming list.\n- Timeline: arrange reminders by time.\n- Priority-focused: emphasize reminders that need immediate attention.\n- Grouped: separate reminders by today, tomorrow and later.\n- Editorial: feature the next important reminder with supporting items.\n\n**Small**\n\nShow the next reminder with its title and due time. Include a compact completion indicator.\n\n**Medium**\n\nShow 3–5 reminders with title, time or date and completion state.\n\n**Large**\n\nShow 6–9 reminders grouped by time or priority. Include categories, due times, recurring indicators and a compact upcoming summary.\n\n**Visual direction**\n\nUse Apple-level typography, restrained accent colours, subtle dividers and varied corner radii. Explore clean checklists, timeline layouts and grouped sections. Support light and dark appearances. Use subtle completion animations.\n\nMake every variation compositionally different. Use believable reminder data. Avoid generic cards, excessive pills, gradients and unnecessary charts.",
+  "generatedAt": "2026-11-01T18:12:49+00:00",
+  "generationStatus": "generated",
+  "imageStatus": "available",
+  "theme": "light",
+  "designSpec": "An interactive collection exposes fifteen reminder compositions through five design directions and three sizes, with a working light/dark preview. Distinct checklist, timeline, priority, grouped and editorial layouts use restrained accents, circular completion controls and generous typography within a 400px column. Checks update locally; featured reminders advance with a subtle transition, while Large layouts include categories, recurrence and upcoming counts.",
+  "stages": [
+    "Reading reference image",
+    "Planning the widget",
+    "Planning complete. Gathering supporting context",
+    "Searching for real image URLs",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Checking the preview",
+    "Reviewing the widget data",
+    "Polishing the details",
+    "Keeping the widget compact",
+    "Preparing the final widget",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Widget ready"
+  ],
+  "contentHashes": {
+    "template.jsx": "59395e0286f433dac500bc898500061d87b0692370c7463c44a6716b15db95cd",
+    "data.json": "88b43df0ad9168735dff924a721490c781a30692b0358fcbb044fb677551e0f1",
+    "reference.jpg": "ec2bb79200fd9b43a2f7bcbef3f2525f4aba2b6da7bea5d9d46a8c198f69c422"
+  },
+  "imageFile": "reference.jpg"
+}

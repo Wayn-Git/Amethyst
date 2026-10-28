@@ -1,0 +1,32 @@
+{
+  "widgetSize": "large",
+  "local": {
+    "timeLabel": "",
+    "meridiem": "",
+    "timezoneLabel": "",
+    "compactTimezoneLabel": "",
+    "dateDetail": ""
+  },
+  "savedZones": [],
+  "labels": {
+    "unknownTime": "—:—",
+    "noTimezone": "No timezone set",
+    "noDate": "Date unavailable",
+    "unknownOffset": "—",
+    "noSavedZones": "No saved zones",
+    "savedZonesHint": "Only saved time zones supplied at runtime appear here."
+  },
+  "palette": {
+    "shell": {
+      "light": "#F6F5F2",
+      "dark": "#202124"
+    },
+    "hero": {
+      "light": "#1745D8",
+      "dark": "#8CAEFF"
+    },
+    "cobalt": "#1846D5",
+    "onCobalt": "#FFFFFF",
+    "onCobaltSecondary": "#E0E8FF"
+  }
+}

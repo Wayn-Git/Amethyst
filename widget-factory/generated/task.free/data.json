@@ -1,0 +1,174 @@
+{
+  "appearance": "light",
+  "sizeChoice": "medium",
+  "variation": "first",
+  "motion": true,
+  "nextId": "late-morning",
+  "recommendedId": "noon",
+  "selectedId": "noon",
+  "colors": {
+    "accent": {
+      "light": "#42657B",
+      "dark": "#A6C5D8"
+    },
+    "selection": {
+      "light": "#EFF4F7",
+      "dark": "#25333D"
+    }
+  },
+  "labels": {
+    "familyTitle": "Free time",
+    "sampleNote": "Six layouts · demo calendar · snapshot 10:32",
+    "darkAppearance": "Switch to dark appearance",
+    "lightAppearance": "Switch to light appearance",
+    "sizeLabel": "Widget size",
+    "variationLabel": "Layout variation",
+    "nextFree": "Next free",
+    "startsIn": "In 13 min",
+    "nextOpenBlock": "Next open block",
+    "minutesClear": "min clear",
+    "smallFocusNote": "Room for one focused task.",
+    "availableToday": "Available today",
+    "threeWindows": "3 upcoming slots",
+    "bestForFocus": "Best for focus",
+    "bestUpcoming": "Best upcoming slot",
+    "noonHeadline": "Make room at noon.",
+    "minutesUninterrupted": "min uninterrupted",
+    "alsoOpen": "Also open",
+    "dayTimeline": "Today, with breathing room.",
+    "remainingTotal": "4 h free ahead",
+    "recommendationLine": "Best for focus · 12:00–13:30 · 90 min",
+    "freeTime": "Free time",
+    "earlierFree": "Earlier free time",
+    "editorialEyebrow": "A little space for deeper work",
+    "editorialHeadline": "Your clearest window is at noon.",
+    "editorialReason": "The longest remaining calendar gap, between Project review and Client check-in.",
+    "dayAtGlance": "The day at a glance",
+    "recommended": "Recommended · longest upcoming block",
+    "earlierToday": "Earlier today",
+    "selectedPrefix": "Selected · ",
+    "motionLabel": "Gentle selection motion"
+  },
+  "sizes": [
+    {
+      "value": "small",
+      "label": "Small"
+    },
+    {
+      "value": "medium",
+      "label": "Medium"
+    },
+    {
+      "value": "large",
+      "label": "Large"
+    }
+  ],
+  "variations": {
+    "small": [
+      {
+        "value": "first",
+        "label": "Minimal"
+      },
+      {
+        "value": "second",
+        "label": "Focus"
+      }
+    ],
+    "medium": [
+      {
+        "value": "first",
+        "label": "Agenda"
+      },
+      {
+        "value": "second",
+        "label": "Spotlight"
+      }
+    ],
+    "large": [
+      {
+        "value": "first",
+        "label": "Day timeline"
+      },
+      {
+        "value": "second",
+        "label": "Editorial"
+      }
+    ]
+  },
+  "slots": [
+    {
+      "id": "early",
+      "start": "09:30",
+      "end": "10:00",
+      "range": "09:30–10:00",
+      "duration": 30,
+      "durationLabel": "30 min",
+      "beforeStart": "09:00",
+      "before": "Daily planning",
+      "after": "Design sync",
+      "upcoming": false,
+      "medium": false,
+      "note": "This 30-minute calendar gap is earlier than the 10:32 snapshot."
+    },
+    {
+      "id": "late-morning",
+      "start": "10:45",
+      "end": "11:30",
+      "range": "10:45–11:30",
+      "duration": 45,
+      "durationLabel": "45 min",
+      "beforeStart": "10:00",
+      "before": "Design sync",
+      "after": "Project review",
+      "upcoming": true,
+      "medium": true,
+      "note": "Your next opening: 45 clear minutes before Project review."
+    },
+    {
+      "id": "noon",
+      "start": "12:00",
+      "end": "13:30",
+      "range": "12:00–13:30",
+      "duration": 90,
+      "durationLabel": "90 min",
+      "beforeStart": "11:30",
+      "before": "Project review",
+      "after": "Client check-in",
+      "upcoming": true,
+      "medium": true,
+      "note": "The longest upcoming gap: 90 minutes for deeper work before Client check-in."
+    },
+    {
+      "id": "afternoon",
+      "start": "14:15",
+      "end": "15:00",
+      "range": "14:15–15:00",
+      "duration": 45,
+      "durationLabel": "45 min",
+      "beforeStart": "13:30",
+      "before": "Client check-in",
+      "after": "Weekly wrap-up",
+      "upcoming": true,
+      "medium": true,
+      "note": "A 45-minute afternoon opening between Client check-in and Weekly wrap-up."
+    },
+    {
+      "id": "late-afternoon",
+      "start": "15:30",
+      "end": "16:30",
+      "range": "15:30–16:30",
+      "duration": 60,
+      "durationLabel": "60 min",
+      "beforeStart": "15:00",
+      "before": "Weekly wrap-up",
+      "after": "Tomorrow prep",
+      "upcoming": true,
+      "medium": false,
+      "note": "A full hour after Weekly wrap-up, with Tomorrow prep starting at 16:30."
+    }
+  ],
+  "closingEvent": {
+    "start": "16:30",
+    "title": "Tomorrow prep"
+  }
+}

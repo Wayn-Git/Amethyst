@@ -1,0 +1,551 @@
+{
+  "title": "Air quality · five studies",
+  "intro": "Small, Medium and Large—each rendered once per family. Illustrative US AQI readings, not live conditions.",
+  "footer": "Static motion studies: spectral highlights, a ring halo, mist strokes and luminous dots. Decorative rings and dots are not measured purity percentages. Particles use µg/m³; gases use ppb.",
+  "labels": {
+    "unit": "AQI",
+    "scale": "Spectrum key",
+    "nearby": "Nearby · AQI",
+    "hourly": "Hourly · 0–100",
+    "hourlyRange": "06–11 · 0–100",
+    "trendScale": "12h AQI · 0–100",
+    "trendRange": "06–17",
+    "ringDescription": "Neon circular air-quality motif"
+  },
+  "ringPaths": [
+    {
+      "d": "M32 7a25 25 0 1 1 0 50a25 25 0 1 1 0-50",
+      "fill": "none",
+      "stroke": "#243323",
+      "strokeWidth": 7
+    },
+    {
+      "d": "M32 7a25 25 0 1 1-23.8 17.3",
+      "fill": "none",
+      "stroke": "rgba(137,255,71,0.18)",
+      "strokeWidth": 13
+    },
+    {
+      "d": "M32 7a25 25 0 1 1-23.8 17.3",
+      "fill": "none",
+      "stroke": "#9BFF54",
+      "strokeWidth": 5
+    }
+  ],
+  "mistPaths": [
+    {
+      "d": "M-12 15C20-4 48 36 83 18S128 9 165 25",
+      "fill": "none",
+      "stroke": "rgba(223,255,216,0.055)",
+      "strokeWidth": 19
+    },
+    {
+      "d": "M-10 34C33 13 55 53 99 34S140 23 162 39",
+      "fill": "none",
+      "stroke": "rgba(223,255,216,0.10)",
+      "strokeWidth": 9
+    },
+    {
+      "d": "M-8 40C30 24 62 49 104 32S139 34 162 28",
+      "fill": "none",
+      "stroke": "rgba(223,255,216,0.16)",
+      "strokeWidth": 2
+    }
+  ],
+  "families": [
+    {
+      "name": "01 / Segmented Spectrum",
+      "visual": "spectrum",
+      "background": "#FFFFFF",
+      "foreground": "#18181B",
+      "muted": "#626269",
+      "border": "#E3E4E8",
+      "chartColor": "#287BD1",
+      "chartDim": "#BFC9D4",
+      "spectrum": [
+        {
+          "label": "Blue",
+          "color": "#3387E8",
+          "fill": "linear-gradient(110deg,#3387E8 15%,#85B7F1 52%,#3387E8 90%)"
+        },
+        {
+          "label": "Green",
+          "color": "#34C759",
+          "fill": "linear-gradient(110deg,#34C759 15%,#9CE6AB 52%,#34C759 90%)"
+        },
+        {
+          "label": "Purple",
+          "color": "#A56BDC",
+          "fill": "linear-gradient(110deg,#A56BDC 15%,#CEAFE9 52%,#A56BDC 90%)"
+        },
+        {
+          "label": "Amber",
+          "color": "#E5A526",
+          "fill": "linear-gradient(110deg,#E5A526 15%,#F3D58A 52%,#E5A526 90%)"
+        }
+      ],
+      "tiles": [
+        {
+          "size": "small",
+          "label": "Small",
+          "width": 160,
+          "height": 160,
+          "city": "Seattle",
+          "category": "Good",
+          "aqi": 18
+        },
+        {
+          "size": "medium",
+          "label": "Medium",
+          "width": 340,
+          "height": 160,
+          "city": "Portland",
+          "category": "Good",
+          "aqi": 25
+        },
+        {
+          "size": "large",
+          "label": "Large",
+          "width": 340,
+          "height": 340,
+          "city": "Vancouver",
+          "category": "Good",
+          "aqi": 32,
+          "pollutants": [
+            {
+              "label": "PM2.5",
+              "value": "5.8 µg/m³"
+            },
+            {
+              "label": "PM10",
+              "value": "20 µg/m³"
+            },
+            {
+              "label": "O₃",
+              "value": "27 ppb"
+            },
+            {
+              "label": "NO₂",
+              "value": "14 ppb"
+            }
+          ],
+          "trend": [
+            46,
+            43,
+            40,
+            38,
+            36,
+            34,
+            33,
+            30,
+            28,
+            29,
+            31,
+            32
+          ],
+          "health": "Good air. Enjoy your usual outdoor plans."
+        }
+      ]
+    },
+    {
+      "name": "02 / Vertical Pill Gauges",
+      "visual": "pills",
+      "background": "#FFFFFF",
+      "foreground": "#16181B",
+      "muted": "#61666C",
+      "border": "#E2E6E8",
+      "chartColor": "#269E48",
+      "chartDim": "#A5C9AE",
+      "spectrum": [
+        {
+          "label": "Green",
+          "color": "#34C759",
+          "fill": "#34C759"
+        },
+        {
+          "label": "Yellow",
+          "color": "#FFCC00",
+          "fill": "#FFCC00"
+        },
+        {
+          "label": "Coral",
+          "color": "#FF3B30",
+          "fill": "#FF3B30"
+        }
+      ],
+      "tiles": [
+        {
+          "size": "small",
+          "label": "Small",
+          "width": 160,
+          "height": 160,
+          "city": "San Diego",
+          "category": "Good",
+          "aqi": 21
+        },
+        {
+          "size": "medium",
+          "label": "Medium",
+          "width": 340,
+          "height": 160,
+          "city": "Denver",
+          "category": "Moderate",
+          "aqi": 54,
+          "gauges": [
+            {
+              "label": "Park",
+              "value": 38,
+              "color": "#34C759",
+              "base": "#166D30",
+              "icon": "leaf"
+            },
+            {
+              "label": "Home",
+              "value": 81,
+              "color": "#FFCC00",
+              "base": "#715A00",
+              "icon": "home"
+            },
+            {
+              "label": "Road",
+              "value": 156,
+              "color": "#FF3B30",
+              "base": "#A11B15",
+              "icon": "car"
+            }
+          ]
+        },
+        {
+          "size": "large",
+          "label": "Large",
+          "width": 340,
+          "height": 340,
+          "city": "Austin",
+          "category": "Moderate",
+          "aqi": 67,
+          "gauges": [
+            {
+              "label": "Park",
+              "value": 41,
+              "color": "#34C759",
+              "base": "#166D30",
+              "icon": "leaf"
+            },
+            {
+              "label": "Home",
+              "value": 88,
+              "color": "#FFCC00",
+              "base": "#715A00",
+              "icon": "home"
+            },
+            {
+              "label": "Road",
+              "value": 163,
+              "color": "#FF3B30",
+              "base": "#A11B15",
+              "icon": "car"
+            }
+          ],
+          "pollutants": [
+            {
+              "label": "PM2.5",
+              "value": "17.7 µg/m³"
+            },
+            {
+              "label": "PM10",
+              "value": "38 µg/m³"
+            },
+            {
+              "label": "O₃",
+              "value": "42 ppb"
+            },
+            {
+              "label": "NO₂",
+              "value": "31 ppb"
+            }
+          ],
+          "trend": [
+            48,
+            51,
+            56,
+            61,
+            65,
+            70,
+            74,
+            76,
+            72,
+            69,
+            68,
+            67
+          ],
+          "health": "Moderate air. Unusually sensitive people may ease prolonged exertion."
+        }
+      ]
+    },
+    {
+      "name": "03 / Bordered Trend",
+      "visual": "trend",
+      "background": "#FFFFFF",
+      "foreground": "#17212C",
+      "muted": "#5D6875",
+      "border": "#D5DDE7",
+      "chartColor": "#3D8CE8",
+      "chartDim": "#B7C4D4",
+      "spectrum": [
+        {
+          "label": "Blue",
+          "color": "#3D8CE8",
+          "fill": "#3D8CE8"
+        },
+        {
+          "label": "Pale blue",
+          "color": "#88B4E8",
+          "fill": "#88B4E8"
+        },
+        {
+          "label": "Grey",
+          "color": "#CAD3DE",
+          "fill": "#CAD3DE"
+        }
+      ],
+      "tiles": [
+        {
+          "size": "small",
+          "label": "Small",
+          "width": 160,
+          "height": 160,
+          "city": "Boston",
+          "category": "Good",
+          "aqi": 35
+        },
+        {
+          "size": "medium",
+          "label": "Medium",
+          "width": 340,
+          "height": 160,
+          "city": "Chicago",
+          "category": "Good",
+          "aqi": 39,
+          "hourly": [
+            58,
+            52,
+            47,
+            43,
+            40,
+            39
+          ]
+        },
+        {
+          "size": "large",
+          "label": "Large",
+          "width": 340,
+          "height": 340,
+          "city": "New York",
+          "category": "Good",
+          "aqi": 42,
+          "note": "Particle levels eased through the day.",
+          "pollutants": [
+            {
+              "label": "PM2.5",
+              "value": "7.6 µg/m³"
+            },
+            {
+              "label": "PM10",
+              "value": "26 µg/m³"
+            },
+            {
+              "label": "O₃",
+              "value": "35 ppb"
+            },
+            {
+              "label": "NO₂",
+              "value": "23 ppb"
+            }
+          ],
+          "trend": [
+            60,
+            57,
+            55,
+            51,
+            49,
+            47,
+            45,
+            43,
+            40,
+            38,
+            41,
+            42
+          ],
+          "health": "Good air. Outdoor activity is generally suitable."
+        }
+      ]
+    },
+    {
+      "name": "04 / Neon Ring Dark",
+      "visual": "ring",
+      "background": "#111111",
+      "foreground": "#FFFFFF",
+      "muted": "#B8C1B5",
+      "border": "#344130",
+      "chartColor": "#9BFF54",
+      "chartDim": "#567347",
+      "spectrum": [],
+      "tiles": [
+        {
+          "size": "small",
+          "label": "Small",
+          "width": 160,
+          "height": 160,
+          "city": "Oslo",
+          "category": "Good",
+          "aqi": 16
+        },
+        {
+          "size": "medium",
+          "label": "Medium",
+          "width": 340,
+          "height": 160,
+          "city": "Helsinki",
+          "category": "Good",
+          "aqi": 23,
+          "hourly": [
+            45,
+            40,
+            34,
+            28,
+            24,
+            23
+          ]
+        },
+        {
+          "size": "large",
+          "label": "Large",
+          "width": 340,
+          "height": 340,
+          "city": "Reykjavík",
+          "category": "Good",
+          "aqi": 29,
+          "note": "A calm, low-particle afternoon.",
+          "pollutants": [
+            {
+              "label": "PM2.5",
+              "value": "5.2 µg/m³"
+            },
+            {
+              "label": "PM10",
+              "value": "17 µg/m³"
+            },
+            {
+              "label": "O₃",
+              "value": "24 ppb"
+            },
+            {
+              "label": "NO₂",
+              "value": "9 ppb"
+            }
+          ],
+          "trend": [
+            39,
+            37,
+            34,
+            31,
+            28,
+            25,
+            22,
+            24,
+            26,
+            27,
+            28,
+            29
+          ],
+          "health": "Good air. Keep your usual outdoor routine."
+        }
+      ]
+    },
+    {
+      "name": "05 / Dot-Matrix Teal",
+      "visual": "matrix",
+      "background": "#178582",
+      "foreground": "#FFFFFF",
+      "muted": "#FFFFFF",
+      "border": "rgba(255,255,255,0.42)",
+      "chartColor": "#FFFFFF",
+      "chartDim": "#FFE36D",
+      "spectrum": [],
+      "tiles": [
+        {
+          "size": "small",
+          "label": "Small",
+          "width": 160,
+          "height": 160,
+          "city": "Kyoto",
+          "category": "Good",
+          "aqi": 27,
+          "lit": 25
+        },
+        {
+          "size": "medium",
+          "label": "Medium",
+          "width": 340,
+          "height": 160,
+          "city": "Taipei",
+          "category": "Good",
+          "aqi": 44,
+          "lit": 22,
+          "hourly": [
+            63,
+            59,
+            55,
+            50,
+            46,
+            44
+          ]
+        },
+        {
+          "size": "large",
+          "label": "Large",
+          "width": 340,
+          "height": 340,
+          "city": "Singapore",
+          "category": "Moderate",
+          "aqi": 59,
+          "lit": 19,
+          "note": "Fine particles lead this reading.",
+          "pollutants": [
+            {
+              "label": "PM2.5",
+              "value": "13.4 µg/m³"
+            },
+            {
+              "label": "PM10",
+              "value": "33 µg/m³"
+            },
+            {
+              "label": "O₃",
+              "value": "39 ppb"
+            },
+            {
+              "label": "NO₂",
+              "value": "28 ppb"
+            }
+          ],
+          "trend": [
+            78,
+            75,
+            71,
+            68,
+            64,
+            60,
+            56,
+            53,
+            55,
+            57,
+            58,
+            59
+          ],
+          "health": "Moderate air. Ease exertion if you notice symptoms."
+        }
+      ]
+    }
+  ]
+}

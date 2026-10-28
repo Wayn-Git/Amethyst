@@ -1,0 +1,239 @@
+{
+  "darkMode": false,
+  "sizeChoice": "small",
+  "direction": "minimal",
+  "sizes": [
+    {
+      "label": "Small",
+      "value": "small"
+    },
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "directions": {
+    "small": [
+      {
+        "label": "Minimal",
+        "value": "minimal"
+      },
+      {
+        "label": "Timeline",
+        "value": "timeline"
+      }
+    ],
+    "medium": [
+      {
+        "label": "Priority",
+        "value": "priority"
+      },
+      {
+        "label": "Work vs. time",
+        "value": "capacity"
+      }
+    ],
+    "large": [
+      {
+        "label": "Severity digest",
+        "value": "digest"
+      },
+      {
+        "label": "Editorial",
+        "value": "editorial"
+      }
+    ]
+  },
+  "labels": {
+    "galleryTitle": "Deadline risk",
+    "gallerySubtitle": "Six variations · sample project data",
+    "darkMode": "Dark",
+    "sizeLabel": "Widget size",
+    "directionLabel": "Design direction",
+    "highestRisk": "HIGHEST RISK",
+    "hoursLeft": "h remaining",
+    "hoursScheduled": "h scheduled",
+    "deadlineWindow": "NEXT 32 HOURS",
+    "dueTomorrow": "Due tomorrow.",
+    "riskSuffix": " risk",
+    "hoursWorkOnly": "h of work. Only ",
+    "hoursBeforeDue": "h scheduled before the deadline.",
+    "priorityEyebrow": "ATTENTION, IN ORDER",
+    "priorityTitle": "Start with the blockers.",
+    "priorityIntro": "Four deadlines ranked by capacity gaps and unresolved dependencies.",
+    "capacityEyebrow": "THE TIME BUDGET",
+    "capacityTitle": "More work than room.",
+    "capacityNote": "Available time means scheduled working hours before each deadline. Each pair of bars uses the same scale.",
+    "workLeft": "Work remaining",
+    "available": "Available time",
+    "hourUnit": "h",
+    "hoursShort": "h capacity shortfall",
+    "hoursBuffer": "h buffer, if the blocker clears",
+    "digestEyebrow": "RELEASE OUTLOOK",
+    "urgentDeadlines": " deadlines need action.",
+    "watchSummary": " more on watch · ",
+    "hoursWorkLeft": "h of work remaining",
+    "deadlineNoun": "deadline",
+    "dot": " · ",
+    "percentComplete": "% complete",
+    "digestNote": "Critical tasks exceed scheduled capacity. High and Watch tasks still depend on unresolved approvals or handoffs.",
+    "projectName": "ATLAS / SEPTEMBER RELEASE",
+    "editorialTitle": "Security is the release gate.",
+    "editorialIntro": "The review is halfway done, but its remaining work needs more time than the plan currently allows.",
+    "reviewProgress": "Review progress",
+    "percent": "%",
+    "due": "Due",
+    "scheduledCapacity": "Scheduled capacity",
+    "contributingFactors": "What is putting it at risk",
+    "restOfRelease": "The rest of the release",
+    "deadlinesTotal": " deadlines overall · ",
+    "editorialSummary": "Overall: 2 Critical, 2 High and 2 Watch. Security and launch assets both exceed their scheduled working time.",
+    "snapshot": "Demo snapshot · Sep 14, 2026, 9 AM PT. All due times PT; effort and capacity are estimates."
+  },
+  "groups": [
+    {
+      "id": "critical",
+      "label": "Critical",
+      "tone": "danger",
+      "icon": "alert-circle"
+    },
+    {
+      "id": "high",
+      "label": "High",
+      "tone": "warning",
+      "icon": "alert-triangle"
+    },
+    {
+      "id": "watch",
+      "label": "Watch",
+      "tone": "secondary",
+      "icon": "eye"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "security",
+      "title": "Complete security review",
+      "severity": "critical",
+      "risk": "Critical",
+      "tone": "danger",
+      "dueFull": "Tue, Sep 15 · 5 PM",
+      "remaining": 10,
+      "available": 4,
+      "totalEffort": 20,
+      "progress": 50,
+      "reason": "Test access approval is still pending, with a 6h capacity shortfall.",
+      "factors": [
+        "Test access approval is pending; the remaining checks cannot start.",
+        "10h of testing and review remain, but only 4h are scheduled before Tuesday’s deadline."
+      ]
+    },
+    {
+      "id": "assets",
+      "title": "Finalize launch assets",
+      "severity": "critical",
+      "risk": "Critical",
+      "tone": "danger",
+      "dueFull": "Tue, Sep 15 · noon",
+      "remaining": 6,
+      "available": 3,
+      "totalEffort": 15,
+      "progress": 60,
+      "reason": "Creative approval blocks final exports; scheduled time covers only half the work.",
+      "factors": [
+        "Creative approval is pending.",
+        "6h remain against 3h of scheduled capacity."
+      ]
+    },
+    {
+      "id": "onboarding",
+      "title": "Approve onboarding copy",
+      "severity": "high",
+      "risk": "High",
+      "tone": "warning",
+      "dueFull": "Wed, Sep 16 · noon",
+      "remaining": 3,
+      "available": 4,
+      "totalEffort": 12,
+      "progress": 75,
+      "reason": "Legal sign-off is pending, leaving only a 1h buffer for changes.",
+      "factors": [
+        "Legal sign-off is pending.",
+        "Only 1h of working-time buffer remains."
+      ]
+    },
+    {
+      "id": "billing",
+      "title": "Resolve billing regressions",
+      "severity": "high",
+      "risk": "High",
+      "tone": "warning",
+      "dueFull": "Thu, Sep 17 · 5 PM",
+      "remaining": 8,
+      "available": 10,
+      "totalEffort": 20,
+      "progress": 60,
+      "reason": "Two failing regression tests could consume the remaining 2h buffer.",
+      "factors": [
+        "Two regression failures remain unresolved.",
+        "Only 2h are available beyond the current effort estimate."
+      ]
+    },
+    {
+      "id": "localization",
+      "title": "Confirm localized copy",
+      "severity": "watch",
+      "risk": "Watch",
+      "tone": "secondary",
+      "dueFull": "Fri, Sep 18 · noon",
+      "remaining": 5,
+      "available": 8,
+      "totalEffort": 20,
+      "progress": 75,
+      "reason": "Two locale owners have not confirmed copy; 3h remain for revisions.",
+      "factors": [
+        "Two locale confirmations are outstanding.",
+        "Revision capacity is limited to a 3h buffer."
+      ]
+    },
+    {
+      "id": "release-notes",
+      "title": "Publish release notes",
+      "severity": "watch",
+      "risk": "Watch",
+      "tone": "secondary",
+      "dueFull": "Fri, Sep 18 · 5 PM",
+      "remaining": 3,
+      "available": 6,
+      "totalEffort": 15,
+      "progress": 80,
+      "reason": "Final wording depends on QA sign-off; the plan has a 3h buffer.",
+      "factors": [
+        "Final QA sign-off is outstanding.",
+        "Scope changes could use the 3h buffer."
+      ]
+    }
+  ],
+  "deadlineTimeline": [
+    {
+      "title": "Access approval pending",
+      "description": "Testing is blocked.",
+      "time": "Now · Mon, Sep 14",
+      "icon": "lock",
+      "color": "danger",
+      "state": "active"
+    },
+    {
+      "title": "Security review due",
+      "description": "32 hours from this snapshot.",
+      "time": "Tue, Sep 15 · 5 PM",
+      "icon": "flag",
+      "color": "secondary",
+      "state": "upcoming"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "widgetId": "glance.sun-variants",
+  "generationStatus": "failed",
+  "contentHashes": {
+    "reference.jpg": "ce6682218da84fb4f7f7d4070a4b3b292500bc6f8450f96f844884f1904a6927"
+  },
+  "imageStatus": "available",
+  "imageFile": "reference.jpg",
+  "prompt": "Design an expressive iOS/macOS Sunrise & Sunset widget for a desktop dashboard. Generate 5 distinct compositions in Small (160x160), Medium (340x160) and Large (340x340). One layout per size, rendered once. Never repeat a row or value.\n\nCompositions (distinct surfaces, palettes & motion):\n1 Horizon Arc Dial: Grey (#E5E5EA) shell with white 24h dial (0-22), glowing amber-indigo solar bezel arc, gliding sun orb, sweeping hand, and \"11hr 20m\" center badge.\n2 Dusk Scrim: Full-bleed twilight sky with shifting horizon glow; white \"Golden Hour\" header at top; huge bright yellow countdown (\"45 mins\") bottom-left, white pill bar right.\n3 Dual-Time Bento: White (#FFFFFF) card\u2014top has huge \"6:12 AM / 7:48 PM\" + teal daylight note; bottom has 2 grey (#F2F2F7) sub-cards for solar noon and teal UV bars.\n4 Solar Ring Dark: Pitch black (#111111) card with glowing neon-yellow daylight ring top-left, white header, \"8h/13h \u00b7 Passed\" subtitle, and huge \"64%\" hero.\n5 Terracotta Dawn: Terracotta (#E07A5F) card with glowing sun badge top-left, cream solar labels, and huge white next-event time hero.\n\nHard content limits per size:\nSmall: next sun event label, hero time/countdown, plus ONE visual (solar ring, arc, or pill bar). Max 3 items. No grid.\nMedium: Small's content plus ONE block: sunrise/sunset times with day length, OR 2 grey (#F2F2F7) sub-cards.\nLarge: Medium's content plus ONE more block: 3 metrics (solar noon, golden hour, \u0394 vs yesterday) + bar chart.\nNever squeeze larger content into a smaller size.\n\nSpacing & Visual: 24px squircle; padding 16px Small, 20px Medium/Large; 8px grid, 12px+ group gaps, no clipping. One clear hero per size, other text 11-14px (never <11px). Believable data.",
+  "generatedAt": "2026-11-02T18:03:19+00:00",
+  "error": "HTTP 504: An error occurred with your deployment\n\nFUNCTION_INVOCATION_TIMEOUT\n\nbom1::5g7qf-1793642299035-65e6d4fd937b\n"
+}

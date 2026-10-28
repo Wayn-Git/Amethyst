@@ -1,0 +1,40 @@
+{
+  "widgetId": "task.habits",
+  "prompt": "Design a premium Apple-inspired **Habit Tracker widget** for a desktop dashboard. Generate multiple distinct Small, Medium and Large variations.\n\nExplore these design directions:\n- Minimal: today's habits and current streaks.\n- Calendar: visualize completion across recent days.\n- Streak-focused: emphasize the longest and most important streaks.\n- Grouped: organize habits by morning, afternoon and evening.\n- Editorial: highlight one habit that needs attention today.\n\n**Small**\n\nShow one habit or a compact daily completion summary with a streak indicator.\n\n**Medium**\n\nShow 3–4 habits with completion state, current streak and today's progress.\n\n**Large**\n\nShow 5–7 habits with weekly completion history, streaks, completion rate and missed days. Include a compact weekly summary.\n\n**Visual direction**\n\nUse Apple-level typography, subtle success colours, clean calendar marks and varied corner radii. Explore small heatmaps, checkable lists and calendar layouts. Support light and dark appearances. Use restrained completion animations.\n\nMake every variation compositionally different. Use believable habit data. Avoid generic cards, excessive pills, gradients and unnecessary charts.",
+  "generatedAt": "2026-11-01T18:10:12+00:00",
+  "generationStatus": "generated",
+  "imageStatus": "available",
+  "theme": "light",
+  "designSpec": "Six compositionally distinct variations pair two Small tiles with Medium checklist and grouped layouts, then Large calendar and streak-focused views in a responsive 400px column. Shared check states recalculate daily totals and streaks, while the fixed sample week reconciles to 31 of 42 completions, 74%, and 11 missed habit-days. A working light/dark switch, subdued green marks, accessible calendar symbols, and a brief total transition keep the family quiet and polished.",
+  "stages": [
+    "Reading reference image",
+    "Planning the widget",
+    "Planning complete. Gathering supporting context",
+    "Searching for real image URLs",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Checking the preview",
+    "Reviewing the widget data",
+    "Polishing the details",
+    "Keeping the widget compact",
+    "Preparing the final widget",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Widget ready"
+  ],
+  "contentHashes": {
+    "template.jsx": "b7327dc76ce1871e4d5014bcdff49233c72ee9691c5534f4fc35ce0aeaf1970b",
+    "data.json": "86ac28a070a4745b259e6b28de98dd4c1b25daa716ffa74e65e1cbd3b544dbe3",
+    "reference.jpg": "ec2bb79200fd9b43a2f7bcbef3f2525f4aba2b6da7bea5d9d46a8c198f69c422"
+  },
+  "imageFile": "reference.jpg"
+}

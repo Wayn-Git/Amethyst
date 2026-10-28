@@ -1,0 +1,169 @@
+{
+  "title": "Clock",
+  "locationLabel": "San Francisco · Wednesday, June 24, 2026",
+  "snapshotLabel": "Static preview · 10:08:36 AM PDT · UTC−7",
+  "sizeLabel": "Clock widget size",
+  "selectedSize": "large",
+  "sizes": [
+    {
+      "label": "Small",
+      "value": "small"
+    },
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "layouts": {
+    "small": {
+      "width": 160,
+      "height": 160,
+      "padding": 4,
+      "dialSize": 128
+    },
+    "medium": {
+      "width": 340,
+      "height": 160,
+      "padding": 5,
+      "dialSize": 120
+    },
+    "large": {
+      "width": 340,
+      "height": 340,
+      "padding": 5,
+      "dialSize": 136
+    }
+  },
+  "dialTitle": "San Francisco analog clock showing 10:08:36 AM, Wednesday, June 24, 2026. Bold numerals 1 through 12, red WED 24 beneath 12, faint rings at 6 and 9, and a red second hand. Static snapshot.",
+  "dialPaths": [
+    {
+      "d": "M47 64A11 11 0 1 1 25 64A11 11 0 1 1 47 64Z M44 64A8 8 0 1 1 28 64A8 8 0 1 1 44 64Z M75 91A11 11 0 1 1 53 91A11 11 0 1 1 75 91Z M72 91A8 8 0 1 1 56 91A8 8 0 1 1 72 91Z",
+      "fill": "none",
+      "stroke": "#DEDEE3",
+      "strokeWidth": 0.7
+    },
+    {
+      "d": "M56 7L59 4V16M56 16H62 M65 7C65 3 72 3 72 7C72 9 65 12 65 16H73 M88 16L91 13V25M88 25H94 M106 35C106 31 113 31 113 35C113 38 106 40 106 44H114 M113 59C120 57 122 63 116 64C122 65 120 71 113 69 M112 92H105L110 84V96 M94 103H87V108C97 105 97 117 87 114 M67 110C59 109 59 122 64 122C70 122 69 114 62 116 M34 103H42L36 115 M19 84C13 84 14 90 19 90C25 90 25 84 19 84Z M19 90C12 90 13 97 19 97C25 97 26 90 19 90Z M15 64C7 67 7 57 12 58C18 58 17 71 9 70 M11 35L14 32V44M11 44H17 M23 32C18 32 18 44 23 44C28 44 28 32 23 32Z M31 16L34 13V25M31 25H37 M40 16L43 13V25M40 25H46",
+      "fill": "none",
+      "stroke": "#080809",
+      "strokeWidth": 2.1
+    },
+    {
+      "d": "M40 26L42 38L44 31L46 38L48 26 M57 26H51V38H57M51 32H56 M60 26V38H62C69 38 69 26 62 26Z M72 29C72 25 78 25 78 29C78 31 72 34 72 38H79 M89 34H82L87 26V38",
+      "fill": "none",
+      "stroke": "#EF3340",
+      "strokeWidth": 1.5
+    },
+    {
+      "d": "M62.4 66.5L38.3 50.1Q35.8 48.4 37.5 45.9Q39.2 43.4 41.7 45.1L65.6 61.5Z",
+      "fill": "#080809"
+    },
+    {
+      "d": "M62.9 62.6L95.8 36.5Q97.2 35.4 98.3 36.8Q99.4 38.2 98 39.3L65.1 65.4Z",
+      "fill": "#080809"
+    },
+    {
+      "d": "M68 64A4 4 0 1 1 60 64A4 4 0 1 1 68 64Z",
+      "fill": "#080809"
+    },
+    {
+      "d": "M70.5 55.1L37 101.2",
+      "fill": "none",
+      "stroke": "#EF3340",
+      "strokeWidth": 1.1
+    },
+    {
+      "d": "M66 64A2 2 0 1 1 62 64A2 2 0 1 1 66 64Z",
+      "fill": "#EF3340"
+    }
+  ],
+  "cities": [
+    {
+      "id": "london",
+      "name": "London",
+      "time": "18:08",
+      "timeLabel": "18:08",
+      "offset": "+8h",
+      "offsetDetail": "+8h · Wed",
+      "period": "Day",
+      "periodIcon": "sun",
+      "hour": 18
+    },
+    {
+      "id": "new-york",
+      "name": "New York",
+      "time": "13:08",
+      "timeLabel": "13:08",
+      "offset": "+3h",
+      "offsetDetail": "+3h · Wed",
+      "period": "Day",
+      "periodIcon": "sun",
+      "hour": 13
+    },
+    {
+      "id": "tokyo",
+      "name": "Tokyo",
+      "time": "02:08",
+      "timeLabel": "02:08 +1",
+      "offset": "+16h",
+      "offsetDetail": "+16h · Thu",
+      "period": "Night",
+      "periodIcon": "moon",
+      "hour": 2
+    },
+    {
+      "id": "paris",
+      "name": "Paris",
+      "time": "19:08",
+      "timeLabel": "19:08",
+      "offset": "+9h",
+      "offsetDetail": "+9h · Wed",
+      "period": "Day",
+      "periodIcon": "sun",
+      "hour": 19
+    },
+    {
+      "id": "sydney",
+      "name": "Sydney",
+      "time": "03:08",
+      "timeLabel": "03:08 +1",
+      "offset": "+17h",
+      "offsetDetail": "+17h · Thu",
+      "period": "Night",
+      "periodIcon": "moon",
+      "hour": 3
+    }
+  ],
+  "hours": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23
+  ],
+  "mediumNote": "Offsets are relative to San Francisco. All times share the same snapshot; Tokyo is on Thursday.",
+  "largeNote": "Offsets from San Francisco; +1 means Thursday. Bars run 00–23, with a dark current-hour mark. Day/night uses a simple 07:00–19:59 convention, not sunrise data."
+}

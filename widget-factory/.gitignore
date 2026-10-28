@@ -1,0 +1,5 @@
+.factory.sqlite3*
+.agent-worktrees/
+__pycache__/
+.pytest_cache/
+*.py[cod]

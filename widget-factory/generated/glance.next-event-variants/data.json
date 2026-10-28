@@ -1,0 +1,574 @@
+{
+  "composition": "split",
+  "sizeChoice": "medium",
+  "meetingUrl": "https://meet.google.com/",
+  "labels": {
+    "title": "Next event, five ways",
+    "intro": "15 distinct studies. View one composition and size at a time.",
+    "composition": "Composition",
+    "size": "Widget size",
+    "meet": "Go to Meet",
+    "meetAccessible": "Open Google Meet homepage; no meeting is joined",
+    "smallDimensions": "Small · 160 × 160",
+    "mediumDimensions": "Medium · 340 × 160",
+    "largeDimensions": "Large · 340 × 340",
+    "disclosure": "Synthetic schedules with frozen countdowns. Glow, dots and gradient sweeps are static. Meeting pills open Google Meet’s homepage; resource links open the named tools."
+  },
+  "compositions": [
+    {
+      "value": "split",
+      "label": "01 · Split Calendar"
+    },
+    {
+      "value": "neon",
+      "label": "02 · Neon Countdown"
+    },
+    {
+      "value": "dot",
+      "label": "03 · Dot-Matrix Teal"
+    },
+    {
+      "value": "cobalt",
+      "label": "04 · Cobalt Agenda"
+    },
+    {
+      "value": "bento",
+      "label": "05 · Bento Time-Block"
+    }
+  ],
+  "sizes": [
+    {
+      "value": "small",
+      "label": "Small"
+    },
+    {
+      "value": "medium",
+      "label": "Medium"
+    },
+    {
+      "value": "large",
+      "label": "Large"
+    }
+  ],
+  "palettes": {
+    "split": {
+      "background": "#FFFFFF",
+      "ink": "#202024",
+      "muted": "#6E6E76",
+      "accent": "#F04452",
+      "title": "#202024",
+      "dayActive": "#FFD6E8",
+      "dayInk": "#AE245D",
+      "meetColor": "discovery"
+    },
+    "neon": {
+      "background": "radial-gradient(ellipse at 24% 90%, #39142E 0%, #111111 62%)",
+      "ink": "#FFFFFF",
+      "muted": "#B4B0B8",
+      "accent": "#FF3AAE",
+      "title": "#FF8075",
+      "dayActive": "#FF3AAE",
+      "dayInk": "#111111",
+      "meetColor": "secondary"
+    },
+    "dot": {
+      "background": "#178582",
+      "ink": "#FFFFFF",
+      "muted": "#DAF2EE",
+      "accent": "#FFFFFF",
+      "title": "#FFFFFF",
+      "dayActive": "#FFE77B",
+      "dayInk": "#125552",
+      "meetColor": "secondary"
+    },
+    "cobalt": {
+      "background": "linear-gradient(125deg, #0A7AFF 24%, #147FFD 62%, #386DF5 100%)",
+      "ink": "#FFFFFF",
+      "muted": "#E0EEFF",
+      "accent": "#FFFFFF",
+      "title": "#FFFFFF",
+      "dayActive": "#FFFFFF",
+      "dayInk": "#0967D5",
+      "meetColor": "secondary"
+    },
+    "bento": {
+      "background": "#FFFFFF",
+      "ink": "#222228",
+      "muted": "#707078",
+      "accent": "#178582",
+      "title": "#087C79",
+      "dayActive": "#D8F1EC",
+      "dayInk": "#086F69",
+      "meetColor": "secondary"
+    }
+  },
+  "studies": {
+    "split": {
+      "small": {
+        "title": "Design sync",
+        "date": "14",
+        "start": "9:05 AM"
+      },
+      "medium": {
+        "date": "15",
+        "weekday": "Wednesday",
+        "month": "Aug",
+        "title": "Product review",
+        "start": "9:30 AM",
+        "bar": "#3388FF"
+      },
+      "large": {
+        "date": "16",
+        "weekday": "Thursday",
+        "month": "Aug",
+        "title": "Roadmap workshop",
+        "start": "10:10 AM",
+        "bar": "#3388FF",
+        "agenda": [
+          {
+            "title": "Research playback",
+            "time": "11:20 AM – 11:50 AM",
+            "bar": "#34B989"
+          },
+          {
+            "title": "Accessibility clinic",
+            "time": "1:15 PM – 1:45 PM",
+            "bar": "#6B80F6"
+          },
+          {
+            "title": "Launch checklist",
+            "time": "3:35 PM – 4:00 PM",
+            "bar": "#C76BCB"
+          }
+        ],
+        "days": [
+          {
+            "label": "Mo",
+            "selected": false
+          },
+          {
+            "label": "Tu",
+            "selected": false
+          },
+          {
+            "label": "We",
+            "selected": false
+          },
+          {
+            "label": "Th",
+            "selected": true
+          },
+          {
+            "label": "Fr",
+            "selected": false
+          },
+          {
+            "label": "Sa",
+            "selected": false
+          }
+        ]
+      }
+    },
+    "neon": {
+      "small": {
+        "title": "Brand review",
+        "start": "10:25 AM",
+        "countdown": "25 min",
+        "previewClock": "10:00 AM"
+      },
+      "medium": {
+        "title": "Motion review",
+        "start": "1:40 PM",
+        "countdown": "18 min",
+        "previewClock": "1:22 PM",
+        "avatar": "Sam Rivera",
+        "secondary": {
+          "title": "Sound direction",
+          "start": "2:35 PM",
+          "bar": "#FF719C"
+        }
+      },
+      "large": {
+        "title": "Creative huddle",
+        "start": "8:55 AM",
+        "countdown": "32 min",
+        "previewClock": "8:23 AM",
+        "avatar": "Alex Morgan",
+        "secondary": {
+          "title": "Campaign kickoff",
+          "start": "9:50 AM",
+          "bar": "#FF8075"
+        },
+        "agenda": [
+          {
+            "title": "Storyboard critique",
+            "time": "10:45 AM – 11:15 AM",
+            "bar": "#FF3AAE"
+          },
+          {
+            "title": "Type exploration",
+            "time": "12:40 PM – 1:10 PM",
+            "bar": "#FF9787"
+          },
+          {
+            "title": "Edit room",
+            "time": "4:05 PM – 4:35 PM",
+            "bar": "#BD8DFF"
+          }
+        ],
+        "days": [
+          {
+            "label": "Tu",
+            "selected": false
+          },
+          {
+            "label": "We",
+            "selected": false
+          },
+          {
+            "label": "Th",
+            "selected": false
+          },
+          {
+            "label": "Fr",
+            "selected": true
+          },
+          {
+            "label": "Sa",
+            "selected": false
+          },
+          {
+            "label": "Su",
+            "selected": false
+          }
+        ]
+      }
+    },
+    "dot": {
+      "small": {
+        "title": "Morning standup",
+        "start": "8:45 AM",
+        "matrix": [
+          0,
+          1,
+          0,
+          1,
+          1,
+          0,
+          2,
+          0,
+          1,
+          0,
+          1,
+          1,
+          0,
+          0,
+          1,
+          0,
+          2,
+          1,
+          1,
+          0,
+          0,
+          1,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "medium": {
+        "title": "Systems check",
+        "start": "9:15 AM",
+        "matrix": [
+          1,
+          1,
+          0,
+          0,
+          1,
+          0,
+          2,
+          2,
+          0,
+          1,
+          1,
+          0,
+          1,
+          0,
+          1,
+          0,
+          0,
+          2,
+          0,
+          1,
+          1,
+          1,
+          0,
+          0,
+          1,
+          0,
+          2,
+          2,
+          0,
+          1
+        ],
+        "secondary": {
+          "title": "Platform planning",
+          "start": "10:35 AM",
+          "bar": "#FFE77B"
+        }
+      },
+      "large": {
+        "title": "Team connection",
+        "start": "8:20 AM",
+        "matrix": [
+          0,
+          1,
+          1,
+          0,
+          2,
+          0,
+          1,
+          1,
+          0,
+          0,
+          1,
+          0,
+          1,
+          0,
+          2,
+          0,
+          1,
+          0,
+          1,
+          0,
+          0,
+          1,
+          1,
+          0,
+          2,
+          0,
+          1,
+          1,
+          0,
+          0
+        ],
+        "secondary": {
+          "title": "Service walkthrough",
+          "start": "9:40 AM",
+          "bar": "#FFE77B"
+        },
+        "agenda": [
+          {
+            "title": "API office hours",
+            "time": "11:05 AM – 11:35 AM",
+            "bar": "#FFE77B"
+          },
+          {
+            "title": "Architecture sketch",
+            "time": "2:10 PM – 2:55 PM",
+            "bar": "#A5EFDF"
+          },
+          {
+            "title": "Release handoff",
+            "time": "4:25 PM – 4:45 PM",
+            "bar": "#FFFFFF"
+          }
+        ],
+        "days": [
+          {
+            "label": "Su",
+            "selected": false
+          },
+          {
+            "label": "Mo",
+            "selected": false
+          },
+          {
+            "label": "Tu",
+            "selected": true
+          },
+          {
+            "label": "We",
+            "selected": false
+          },
+          {
+            "label": "Th",
+            "selected": false
+          },
+          {
+            "label": "Fr",
+            "selected": false
+          }
+        ]
+      }
+    },
+    "cobalt": {
+      "small": {
+        "title": "Sprint planning",
+        "start": "10:12 AM",
+        "countdown": "12 min",
+        "previewClock": "10:00 AM"
+      },
+      "medium": {
+        "title": "Demo rehearsal",
+        "start": "2:48 PM",
+        "countdown": "8 min",
+        "previewClock": "2:40 PM",
+        "secondary": {
+          "title": "Partner demo",
+          "start": "3:25 PM",
+          "bar": "#D5EEFF"
+        }
+      },
+      "large": {
+        "title": "Weekly priorities",
+        "start": "8:50 AM",
+        "countdown": "20 min",
+        "previewClock": "8:30 AM",
+        "secondary": {
+          "title": "Delivery check-in",
+          "start": "9:25 AM",
+          "bar": "#B4F2DA"
+        },
+        "agenda": [
+          {
+            "title": "Customer insights",
+            "time": "9:55 AM – 10:20 AM",
+            "countdown": "85m",
+            "bar": "#B4F2DA"
+          },
+          {
+            "title": "Scope decisions",
+            "time": "10:30 AM – 11:00 AM",
+            "countdown": "2h",
+            "bar": "#FFE3A1"
+          },
+          {
+            "title": "Delivery retro",
+            "time": "12:00 PM – 12:25 PM",
+            "countdown": "3½h",
+            "bar": "#E4D1FF"
+          }
+        ],
+        "days": [
+          {
+            "label": "Mo",
+            "selected": true
+          },
+          {
+            "label": "Tu",
+            "selected": false
+          },
+          {
+            "label": "We",
+            "selected": false
+          },
+          {
+            "label": "Th",
+            "selected": false
+          },
+          {
+            "label": "Fr",
+            "selected": false
+          },
+          {
+            "label": "Sa",
+            "selected": false
+          }
+        ]
+      }
+    },
+    "bento": {
+      "small": {
+        "title": "Writing sprint",
+        "date": "21",
+        "startClock": "9:10",
+        "startPeriod": "AM"
+      },
+      "medium": {
+        "title": "Protected focus · no interruptions",
+        "date": "22",
+        "startClock": "11:30",
+        "startPeriod": "AM",
+        "endClock": "12:30",
+        "endPeriod": "PM",
+        "resources": [
+          {
+            "label": "Google Docs",
+            "url": "https://docs.google.com/"
+          },
+          {
+            "label": "Google Drive",
+            "url": "https://drive.google.com/"
+          }
+        ]
+      },
+      "large": {
+        "title": "Studio block · make room to think",
+        "date": "23",
+        "startClock": "2:15",
+        "startPeriod": "PM",
+        "endClock": "3:15",
+        "endPeriod": "PM",
+        "resources": [
+          {
+            "label": "Figma",
+            "url": "https://www.figma.com/"
+          },
+          {
+            "label": "Notion",
+            "url": "https://www.notion.so/"
+          }
+        ],
+        "agenda": [
+          {
+            "title": "Concept wall",
+            "time": "3:30 PM – 3:55 PM",
+            "bar": "#178582"
+          },
+          {
+            "title": "Material study",
+            "time": "4:15 PM – 4:40 PM",
+            "bar": "#54AEA3"
+          },
+          {
+            "title": "Studio wrap",
+            "time": "5:10 PM – 5:25 PM",
+            "bar": "#8B9CB3"
+          }
+        ],
+        "days": [
+          {
+            "label": "Tu",
+            "selected": false
+          },
+          {
+            "label": "We",
+            "selected": false
+          },
+          {
+            "label": "Th",
+            "selected": true
+          },
+          {
+            "label": "Fr",
+            "selected": false
+          },
+          {
+            "label": "Sa",
+            "selected": false
+          },
+          {
+            "label": "Su",
+            "selected": false
+          }
+        ]
+      }
+    }
+  }
+}

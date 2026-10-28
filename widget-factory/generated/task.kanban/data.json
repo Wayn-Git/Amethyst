@@ -1,0 +1,398 @@
+{
+  "darkMode": false,
+  "sizeChoice": "medium",
+  "smallVariant": "minimal",
+  "mediumVariant": "board",
+  "largeVariant": "board",
+  "projectChoice": "website",
+  "moves": 0,
+  "ui": {
+    "title": "Mini Kanban",
+    "subtitle": "Six layouts · synthetic project data",
+    "reset": "Reset",
+    "lightAppearance": "Switch to light appearance",
+    "darkAppearance": "Switch to dark appearance",
+    "sizeLabel": "Widget size",
+    "variationLabel": "Layout variation",
+    "snapshot": "Demo snapshot · Apr 18, 2026",
+    "upNext": "Up next",
+    "duePrefix": "Due ",
+    "allDone": "Everything is done",
+    "allDoneNote": "All sample tasks are in Done.",
+    "localNote": "Task moves stay in this preview. Reset restores the sample.",
+    "projectLabel": "PROJECT WORKSPACE",
+    "chooseProject": "Selected project",
+    "emptyLane": "No tasks in this stage.",
+    "previewSuffix": " previews · ",
+    "reviewSuffix": " in the separate Review lane",
+    "fullBoard": "View all four stages",
+    "of": " of ",
+    "doneSuffix": " tasks done",
+    "progressEyebrow": "WORK IN MOTION",
+    "completion": "Project completion",
+    "remainingSuffix": " tasks remaining",
+    "nextMove": "Next move · highest priority"
+  },
+  "sizeOptions": [
+    {
+      "label": "Small",
+      "value": "small"
+    },
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "variations": {
+    "small": [
+      {
+        "label": "Inline counts",
+        "value": "minimal"
+      },
+      {
+        "label": "Urgency led",
+        "value": "priority"
+      }
+    ],
+    "medium": [
+      {
+        "label": "Horizontal board",
+        "value": "board"
+      },
+      {
+        "label": "Project rows",
+        "value": "project"
+      }
+    ],
+    "large": [
+      {
+        "label": "Board first",
+        "value": "board"
+      },
+      {
+        "label": "Progress first",
+        "value": "progress"
+      }
+    ]
+  },
+  "stages": [
+    {
+      "id": "backlog",
+      "label": "Backlog",
+      "short": "To do",
+      "icon": "empty-circle",
+      "color": "secondary",
+      "next": "active",
+      "actionLabel": "Start task"
+    },
+    {
+      "id": "active",
+      "label": "In progress",
+      "short": "Doing",
+      "icon": "activity",
+      "color": "secondary",
+      "next": "review",
+      "actionLabel": "Move to review"
+    },
+    {
+      "id": "review",
+      "label": "Review",
+      "short": "Review",
+      "icon": "eye",
+      "color": "secondary",
+      "next": "done",
+      "actionLabel": "Mark done"
+    },
+    {
+      "id": "done",
+      "label": "Done",
+      "short": "Done",
+      "icon": "check-circle",
+      "color": "success",
+      "next": "done",
+      "actionLabel": "Mark done"
+    }
+  ],
+  "projects": [
+    {
+      "id": "website",
+      "name": "Website Refresh",
+      "tasks": [
+        {
+          "id": "web-empty",
+          "title": "Refine empty states",
+          "stage": "backlog",
+          "initialStage": "backlog",
+          "owner": "Mara",
+          "due": "Apr 23",
+          "priority": "Low",
+          "rank": 4,
+          "tone": "secondary"
+        },
+        {
+          "id": "web-footer",
+          "title": "Audit footer links",
+          "stage": "backlog",
+          "initialStage": "backlog",
+          "owner": "Noah",
+          "due": "Apr 22",
+          "priority": "Normal",
+          "rank": 3,
+          "tone": "secondary"
+        },
+        {
+          "id": "web-launch",
+          "title": "Plan launch notes",
+          "stage": "backlog",
+          "initialStage": "backlog",
+          "owner": "Jules",
+          "due": "Apr 24",
+          "priority": "Normal",
+          "rank": 3,
+          "tone": "secondary"
+        },
+        {
+          "id": "web-nav",
+          "title": "Review mobile nav",
+          "stage": "active",
+          "initialStage": "active",
+          "owner": "Jules",
+          "due": "Apr 18",
+          "priority": "Urgent",
+          "rank": 1,
+          "tone": "danger"
+        },
+        {
+          "id": "web-copy",
+          "title": "Finalize onboarding copy",
+          "stage": "active",
+          "initialStage": "active",
+          "owner": "Mara",
+          "due": "Apr 19",
+          "priority": "High",
+          "rank": 2,
+          "tone": "primary"
+        },
+        {
+          "id": "web-focus",
+          "title": "Check keyboard focus",
+          "stage": "active",
+          "initialStage": "active",
+          "owner": "Noah",
+          "due": "Apr 20",
+          "priority": "High",
+          "rank": 2,
+          "tone": "primary"
+        },
+        {
+          "id": "web-checkout",
+          "title": "Test checkout flow",
+          "stage": "review",
+          "initialStage": "review",
+          "owner": "Noah",
+          "due": "Apr 20",
+          "priority": "High",
+          "rank": 2,
+          "tone": "primary"
+        },
+        {
+          "id": "web-type",
+          "title": "Approve type scale",
+          "stage": "review",
+          "initialStage": "review",
+          "owner": "Mara",
+          "due": "Apr 21",
+          "priority": "Normal",
+          "rank": 3,
+          "tone": "secondary"
+        },
+        {
+          "id": "web-icons",
+          "title": "Review icon set",
+          "stage": "review",
+          "initialStage": "review",
+          "owner": "Jules",
+          "due": "Apr 21",
+          "priority": "Low",
+          "rank": 4,
+          "tone": "secondary"
+        },
+        {
+          "id": "web-journeys",
+          "title": "Map core journeys",
+          "stage": "done",
+          "initialStage": "done",
+          "owner": "Jules",
+          "due": "Apr 15",
+          "priority": "Normal",
+          "rank": 3,
+          "tone": "secondary"
+        },
+        {
+          "id": "web-spacing",
+          "title": "Set spacing tokens",
+          "stage": "done",
+          "initialStage": "done",
+          "owner": "Mara",
+          "due": "Apr 16",
+          "priority": "Normal",
+          "rank": 3,
+          "tone": "secondary"
+        },
+        {
+          "id": "web-headers",
+          "title": "Align page headers",
+          "stage": "done",
+          "initialStage": "done",
+          "owner": "Noah",
+          "due": "Apr 17",
+          "priority": "Low",
+          "rank": 4,
+          "tone": "secondary"
+        }
+      ]
+    },
+    {
+      "id": "companion",
+      "name": "Companion App",
+      "tasks": [
+        {
+          "id": "app-offline",
+          "title": "Design offline states",
+          "stage": "backlog",
+          "initialStage": "backlog",
+          "owner": "Lena",
+          "due": "Apr 23",
+          "priority": "Normal",
+          "rank": 3,
+          "tone": "secondary"
+        },
+        {
+          "id": "app-help",
+          "title": "Write help prompts",
+          "stage": "backlog",
+          "initialStage": "backlog",
+          "owner": "Theo",
+          "due": "Apr 24",
+          "priority": "Low",
+          "rank": 4,
+          "tone": "secondary"
+        },
+        {
+          "id": "app-settings",
+          "title": "Simplify settings",
+          "stage": "backlog",
+          "initialStage": "backlog",
+          "owner": "Iris",
+          "due": "Apr 25",
+          "priority": "Normal",
+          "rank": 3,
+          "tone": "secondary"
+        },
+        {
+          "id": "app-sync",
+          "title": "Resolve sync conflict",
+          "stage": "active",
+          "initialStage": "active",
+          "owner": "Theo",
+          "due": "Apr 18",
+          "priority": "Urgent",
+          "rank": 1,
+          "tone": "danger"
+        },
+        {
+          "id": "app-reminders",
+          "title": "Tune reminder copy",
+          "stage": "active",
+          "initialStage": "active",
+          "owner": "Lena",
+          "due": "Apr 19",
+          "priority": "High",
+          "rank": 2,
+          "tone": "primary"
+        },
+        {
+          "id": "app-search",
+          "title": "Polish quick search",
+          "stage": "active",
+          "initialStage": "active",
+          "owner": "Iris",
+          "due": "Apr 20",
+          "priority": "Normal",
+          "rank": 3,
+          "tone": "secondary"
+        },
+        {
+          "id": "app-voice",
+          "title": "Check screen reader",
+          "stage": "review",
+          "initialStage": "review",
+          "owner": "Iris",
+          "due": "Apr 20",
+          "priority": "High",
+          "rank": 2,
+          "tone": "primary"
+        },
+        {
+          "id": "app-notifications",
+          "title": "Review notifications",
+          "stage": "review",
+          "initialStage": "review",
+          "owner": "Theo",
+          "due": "Apr 21",
+          "priority": "Normal",
+          "rank": 3,
+          "tone": "secondary"
+        },
+        {
+          "id": "app-colors",
+          "title": "Approve dark palette",
+          "stage": "review",
+          "initialStage": "review",
+          "owner": "Lena",
+          "due": "Apr 21",
+          "priority": "Low",
+          "rank": 4,
+          "tone": "secondary"
+        },
+        {
+          "id": "app-tabs",
+          "title": "Define tab structure",
+          "stage": "done",
+          "initialStage": "done",
+          "owner": "Lena",
+          "due": "Apr 15",
+          "priority": "Normal",
+          "rank": 3,
+          "tone": "secondary"
+        },
+        {
+          "id": "app-login",
+          "title": "Prototype sign-in",
+          "stage": "done",
+          "initialStage": "done",
+          "owner": "Theo",
+          "due": "Apr 16",
+          "priority": "High",
+          "rank": 2,
+          "tone": "primary"
+        },
+        {
+          "id": "app-haptics",
+          "title": "Set haptic patterns",
+          "stage": "done",
+          "initialStage": "done",
+          "owner": "Iris",
+          "due": "Apr 17",
+          "priority": "Low",
+          "rank": 4,
+          "tone": "secondary"
+        }
+      ]
+    }
+  ]
+}

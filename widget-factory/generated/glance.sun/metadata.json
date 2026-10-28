@@ -1,0 +1,37 @@
+{
+  "widgetId": "glance.sun",
+  "prompt": "Design an expressive macOS Sunrise and Sunset widget using all attached images as visual references. Generate one coherent composition with Small (160x160), Medium (340x160), and Large (340x340) layouts for light and dark themes. Use the provided ideas as composition options: horizon arc dial, twilight countdown, dual-time inset cards, dark daylight ring, or terracotta dawn. Select one family and adapt it consistently to all sizes. Small: next sun event label, time and one simple visual; no metric grid. Medium: small content plus live sunrise/sunset times and daylight duration. Large: medium content plus metrics only when present in live data. Current backend supplies sunrise, sunset, and timezone only, so do not invent solar noon, golden hour, UV, history, or daylight percentage. Keep text at least 11px except the hero, use 24px outer corners, 16px small/20px other padding, 8px spacing grid and 12px group gaps, accessible light/dark contrast, and no clipping. No gallery or selector.",
+  "generatedAt": "2026-11-02T15:31:48+00:00",
+  "generationStatus": "generated",
+  "imageStatus": "available",
+  "theme": "light",
+  "designSpec": "One terracotta-dawn composition renders Small (160×160), Medium (340×160), or Large (340×340) through data.layout, with theme-aware ivory and warm-charcoal palettes, 24px corners, and 16px/20px padding. A decorative sun and horizon unify the sizes; Medium and Large add only sunrise, sunset, and derived daylight duration. Supply sunrise/sunset as epoch-millisecond timestamps and an IANA timezone; absent inputs remain explicitly unavailable, and tomorrow’s events are never fabricated.",
+  "stages": [
+    "Reading reference image",
+    "Planning the widget",
+    "Planning complete. Gathering supporting context",
+    "Searching for real image URLs",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Checking the preview",
+    "Reviewing the widget data",
+    "Polishing the details",
+    "Keeping the widget compact",
+    "Preparing the final widget",
+    "Generating the widget interface",
+    "Needing more time",
+    "Widget ready"
+  ],
+  "contentHashes": {
+    "template.jsx": "233d3cd2974e54f49eb7df21a26ecf620fb52561f1c0e800b7e277a151736e34",
+    "data.json": "7823f53cd627d01677dba782046ae70b0e9d65641090b05a06bdd30e93101978",
+    "reference.jpg": "ce6682218da84fb4f7f7d4070a4b3b292500bc6f8450f96f844884f1904a6927"
+  },
+  "imageFile": "reference.jpg"
+}

@@ -1,0 +1,324 @@
+{
+  "variation": "large-timeline",
+  "appearance": "light",
+  "variations": [
+    {
+      "value": "small-minimal",
+      "label": "Small · Minimal"
+    },
+    {
+      "value": "small-daily",
+      "label": "Small · Today"
+    },
+    {
+      "value": "medium-comparison",
+      "label": "Medium · Comparison"
+    },
+    {
+      "value": "medium-editorial",
+      "label": "Medium · Editorial"
+    },
+    {
+      "value": "large-timeline",
+      "label": "Large · Shared timeline"
+    },
+    {
+      "value": "large-daily",
+      "label": "Large · Daily agenda"
+    }
+  ],
+  "appearances": [
+    {
+      "value": "light",
+      "label": "Light"
+    },
+    {
+      "value": "dark",
+      "label": "Dark"
+    }
+  ],
+  "palette": {
+    "overlap": {
+      "light": "#98501F",
+      "dark": "#E6AE7D"
+    },
+    "event": {
+      "light": "#A5A9B0",
+      "dark": "#737984"
+    }
+  },
+  "date": {
+    "day": "17",
+    "weekday": "Tuesday",
+    "weekdayShort": "TUE",
+    "monthShort": "NOV",
+    "monthYear": "November 2026",
+    "short": "Tue, 17 Nov",
+    "long": "Tuesday, 17 November · local time"
+  },
+  "axis": {
+    "duration": 480,
+    "ticks": [
+      "10:00",
+      "12:00",
+      "14:00",
+      "16:00",
+      "18:00"
+    ]
+  },
+  "labels": {
+    "demo": "Six independent studies · Demo today: 17 Nov 2026, 10:15",
+    "variation": "Variation",
+    "appearance": "Appearance",
+    "calendarConflicts": "Calendar conflicts",
+    "conflictsToday": "conflicts today",
+    "conflictsSuffix": " conflicts",
+    "conflicts": "conflicts",
+    "nextOverlap": "Next overlap",
+    "nextClash": "Next clash",
+    "next": "Next",
+    "overlapSuffix": " min overlap",
+    "minutesOverlapSuffix": " min overlapping",
+    "totalOverlapSuffix": " minutes of overlapping time",
+    "reviewAll": "Review all 5 conflicts",
+    "openDay": "Open day",
+    "today": "Today",
+    "comparisonTitle": "Two places at once",
+    "threeOfFive": "Showing 3 of 5 conflicts",
+    "highestImpact": "Highest-impact clash · 14:15–15:00",
+    "editorialTitle": "Protect the partner briefing.",
+    "editorialReason": "The entire 45-minute external briefing overlaps the forecast review. Six people are on the briefing invite.",
+    "suggestionTitle": "Suggested resolution",
+    "suggestion": "Propose a shorter forecast review, 13:30–14:00, before the partner briefing.",
+    "suggestionCaveat": "This fits a gap in the sample agenda, but attendee availability has not been checked. No invitations have changed.",
+    "otherClashes": "Earlier clashes",
+    "timelineTitle": "Today's overlaps",
+    "timelineLegend": "Amber marks overlap · all tracks share the axis",
+    "timelineFootnote": "24-hour local time · Initials identify fictional attendees. All 5 event pairs are shown.",
+    "dailyFootnote": "Times mark the start of each overlap, not each event. Fictional attendees and calendar data."
+  },
+  "conflicts": [
+    {
+      "id": "review-sync",
+      "at": "11:00",
+      "window": "11:00–11:15",
+      "overlap": 15,
+      "overlapStart": 60,
+      "overlapEnd": 75,
+      "events": [
+        {
+          "id": "design-review",
+          "title": "Design review",
+          "time": "10:30–11:15",
+          "calendar": "Product",
+          "start": 30,
+          "end": 75,
+          "participants": [
+            {
+              "name": "Ava Chen"
+            },
+            {
+              "name": "Leo Park"
+            }
+          ]
+        },
+        {
+          "id": "client-sync",
+          "title": "Client sync",
+          "time": "11:00–11:45",
+          "calendar": "Work",
+          "start": 60,
+          "end": 105,
+          "participants": [
+            {
+              "name": "Maya Reed"
+            },
+            {
+              "name": "Noah Ellis"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "roadmap-hiring",
+      "at": "12:30",
+      "window": "12:30–13:00",
+      "overlap": 30,
+      "overlapStart": 150,
+      "overlapEnd": 180,
+      "events": [
+        {
+          "id": "roadmap",
+          "title": "Roadmap planning",
+          "time": "12:00–13:00",
+          "calendar": "Product",
+          "start": 120,
+          "end": 180,
+          "participants": [
+            {
+              "name": "Leo Park"
+            },
+            {
+              "name": "Priya Shah"
+            }
+          ]
+        },
+        {
+          "id": "hiring",
+          "title": "Hiring panel",
+          "time": "12:30–13:30",
+          "calendar": "People",
+          "start": 150,
+          "end": 210,
+          "participants": [
+            {
+              "name": "Zoe Kim"
+            },
+            {
+              "name": "Evan Brooks"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "forecast-partner",
+      "at": "14:15",
+      "window": "14:15–15:00",
+      "overlap": 45,
+      "overlapStart": 255,
+      "overlapEnd": 300,
+      "events": [
+        {
+          "id": "forecast",
+          "title": "Quarterly forecast",
+          "time": "14:00–15:00",
+          "calendar": "Finance",
+          "start": 240,
+          "end": 300,
+          "participants": [
+            {
+              "name": "Isla Morgan"
+            },
+            {
+              "name": "Owen Bell"
+            }
+          ]
+        },
+        {
+          "id": "partner",
+          "title": "Partner briefing",
+          "time": "14:15–15:00",
+          "calendar": "Work",
+          "start": 255,
+          "end": 300,
+          "participants": [
+            {
+              "name": "Maya Reed"
+            },
+            {
+              "name": "Noah Ellis"
+            },
+            {
+              "name": "Ava Chen"
+            },
+            {
+              "name": "Priya Shah"
+            },
+            {
+              "name": "Theo Lane"
+            },
+            {
+              "name": "Nina Cole"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "retro-portfolio",
+      "at": "15:45",
+      "window": "15:45–16:00",
+      "overlap": 15,
+      "overlapStart": 345,
+      "overlapEnd": 360,
+      "events": [
+        {
+          "id": "retro",
+          "title": "Sprint retro",
+          "time": "15:15–16:00",
+          "calendar": "Product",
+          "start": 315,
+          "end": 360,
+          "participants": [
+            {
+              "name": "Ava Chen"
+            },
+            {
+              "name": "Leo Park"
+            }
+          ]
+        },
+        {
+          "id": "portfolio",
+          "title": "Portfolio review",
+          "time": "15:45–16:30",
+          "calendar": "Personal",
+          "start": 345,
+          "end": 390,
+          "participants": [
+            {
+              "name": "Ruby Hayes"
+            },
+            {
+              "name": "Theo Lane"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "research-mentoring",
+      "at": "17:00",
+      "window": "17:00–17:15",
+      "overlap": 15,
+      "overlapStart": 420,
+      "overlapEnd": 435,
+      "events": [
+        {
+          "id": "research",
+          "title": "Research readout",
+          "time": "16:30–17:15",
+          "calendar": "Research",
+          "start": 390,
+          "end": 435,
+          "participants": [
+            {
+              "name": "Nina Cole"
+            },
+            {
+              "name": "Priya Shah"
+            }
+          ]
+        },
+        {
+          "id": "mentoring",
+          "title": "Mentoring",
+          "time": "17:00–17:30",
+          "calendar": "People",
+          "start": 420,
+          "end": 450,
+          "participants": [
+            {
+              "name": "Evan Brooks"
+            },
+            {
+              "name": "Zoe Kim"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

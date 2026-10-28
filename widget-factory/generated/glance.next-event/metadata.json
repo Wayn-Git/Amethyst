@@ -1,0 +1,35 @@
+{
+  "widgetId": "glance.next-event",
+  "prompt": "Design an expressive macOS Next Event widget using all attached images as visual references. Generate one coherent composition with Small (160x160), Medium (340x160), and Large (340x340) layouts for light and dark themes. Use the provided ideas as composition options: split calendar, neon countdown, teal dot-matrix date, cobalt agenda, or inset time block. Select one family and adapt it consistently to all sizes. Small: live event title, start time, and exactly one countdown/date detail; no agenda. Medium: small content plus one block with the live event's time range and real location or meeting link if available. Large: medium content plus up to three real upcoming events. Use only calendar payload values. Never fabricate events, dates, join controls, location, or meeting links. Keep text at least 11px except the hero, use 24px outer corners, 16px small/20px other padding, 8px spacing grid and 12px group gaps, accessible light/dark contrast, and no clipping. No gallery or selector.",
+  "generatedAt": "2026-11-02T15:29:13+00:00",
+  "generationStatus": "generated",
+  "imageStatus": "available",
+  "theme": "light",
+  "designSpec": "One cobalt-agenda component supports all three exact sizes through layout and both themes through colorMode, without a gallery or selector. It uses 24px corners, 16px/20px padding, 12px group gaps, one date hero, and conditional event details and agenda rows. Because no calendar payload was supplied, the preview shows an honest empty state instead of invented events.",
+  "stages": [
+    "Reading reference image",
+    "Planning the widget",
+    "Planning complete. Gathering supporting context",
+    "Searching for real image URLs",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Checking the preview",
+    "Reviewing the widget data",
+    "Polishing the details",
+    "Keeping the widget compact",
+    "Preparing the final widget",
+    "Widget ready"
+  ],
+  "contentHashes": {
+    "template.jsx": "8149b838eea15cbea18c75543fa2e509cae7bfa29b4e9d982750b446e456d4e8",
+    "data.json": "276e53be819b7ef93addb40bc978978430510e0648688f3aaf1370faa100d9fe",
+    "reference.jpg": "ce6682218da84fb4f7f7d4070a4b3b292500bc6f8450f96f844884f1904a6927"
+  },
+  "imageFile": "reference.jpg"
+}

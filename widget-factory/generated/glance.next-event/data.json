@@ -1,0 +1,63 @@
+{
+  "layout": "medium",
+  "colorMode": "light",
+  "layouts": {
+    "small": {
+      "width": 160,
+      "height": 160,
+      "padding": 4
+    },
+    "medium": {
+      "width": 340,
+      "height": 160,
+      "padding": 5
+    },
+    "large": {
+      "width": 340,
+      "height": 340,
+      "padding": 5
+    }
+  },
+  "palette": {
+    "canvas": {
+      "light": "#F5F7FC",
+      "dark": "#111B2E"
+    },
+    "ink": {
+      "light": "#172441",
+      "dark": "#F3F6FF"
+    },
+    "secondary": {
+      "light": "#465672",
+      "dark": "#B8C5DE"
+    },
+    "cobalt": {
+      "light": "#2453CD",
+      "dark": "#91B2FF"
+    },
+    "inset": {
+      "light": "#E7EDFC",
+      "dark": "#1D2D4B"
+    },
+    "divider": {
+      "light": "#D6DEEF",
+      "dark": "#31415E"
+    }
+  },
+  "labels": {
+    "heading": "NEXT EVENT",
+    "emptyTitle": "No event data",
+    "emptyDescription": "No calendar events were provided."
+  },
+  "calendar": {
+    "liveEvent": {
+      "title": "",
+      "start": "",
+      "end": "",
+      "timeZone": "",
+      "location": "",
+      "meetingUrl": ""
+    },
+    "upcomingEvents": []
+  }
+}

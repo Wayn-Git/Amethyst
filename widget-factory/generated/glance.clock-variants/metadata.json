@@ -1,0 +1,39 @@
+{
+  "widgetId": "glance.clock-variants",
+  "prompt": "Design an expressive iOS/macOS Clock widget for a desktop dashboard, showing local time and world zones. Generate 5 distinct compositions in Small (160x160), Medium (340x160) and Large (340x340). One layout per size, rendered once. No repeated values.",
+  "generatedAt": "2026-11-02T19:03:19+00:00",
+  "generationStatus": "generated",
+  "imageStatus": "available",
+  "imageFile": "reference.jpg",
+  "theme": "light",
+  "designSpec": "A size selector presents one coherent clock family at 160×160, 340×160, and 340×340, using alabaster surfaces, 24px corners, bold vector numerals, and restrained red accents. Medium adds exactly three city rows; Large adds five with day/night badges and 24-hour markers, all grounded in one consistent timestamp. The second hand is a clearly labeled static snapshot because native sweeping motion is unavailable.",
+  "stages": [
+    "Reading reference image",
+    "Planning the widget",
+    "Planning complete. Gathering supporting context",
+    "Searching for real image URLs",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Checking the preview",
+    "Reviewing the widget data",
+    "Polishing the details",
+    "Keeping the widget compact",
+    "Preparing the final widget",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Widget ready"
+  ],
+  "contentHashes": {
+    "template.jsx": "1670323f1cfd4bb89769a9df85523a5e670026a6daf413f3e5eee2e7f5bd9b93",
+    "data.json": "71aaca99c1fced61d66d046aaf61f558b45110e46d84a3170ef39aa634bb1a83",
+    "reference.jpg": "ce6682218da84fb4f7f7d4070a4b3b292500bc6f8450f96f844884f1904a6927"
+  }
+}

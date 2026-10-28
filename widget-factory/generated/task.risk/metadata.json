@@ -1,0 +1,35 @@
+{
+  "widgetId": "task.risk",
+  "prompt": "Design a premium Apple-inspired **Deadline Risk widget** for a desktop dashboard. Generate multiple distinct Small, Medium and Large variations.\n\nExplore these design directions:\n- Minimal: highest-risk deadline with a short explanation.\n- Priority-focused: rank tasks by risk level.\n- Timeline: show how close risky deadlines are.\n- Progress-focused: compare remaining work against available time.\n- Editorial: highlight one at-risk project with its contributing factors.\n\n**Small**\n\nShow the highest-risk task, its due date and a clear risk indicator.\n\n**Medium**\n\nShow 3–4 at-risk tasks with title, due date, remaining work and risk level. Briefly explain why each task is at risk.\n\n**Large**\n\nShow 5–7 at-risk tasks grouped by severity. Include progress, due dates, remaining effort, risk factors and a compact overall risk summary.\n\n**Visual direction**\n\nUse Apple-level typography, restrained warning colours, subtle dividers and varied corner radii. Explore risk indicators, progress comparisons and timelines. Support light and dark appearances. Use motion sparingly to draw attention to changing risk levels.\n\nMake every variation compositionally different. Use believable project data. Avoid generic cards, excessive pills, gradients and unnecessary charts.",
+  "generatedAt": "2026-11-01T18:12:34+00:00",
+  "generationStatus": "generated",
+  "imageStatus": "available",
+  "theme": "light",
+  "designSpec": "A 400px design explorer presents six distinct compositions: two Small, two Medium and two Large, with an interactive light/dark appearance switch. System typography, quiet surfaces and restrained severity colors keep deadlines prominent; priority rows, timeline markers, paired capacity bars and editorial hierarchy provide meaningful variation. All views share a clearly labeled fictional planning snapshot with consistent effort, progress and capacity estimates.",
+  "stages": [
+    "Reading reference image",
+    "Planning the widget",
+    "Planning complete. Gathering supporting context",
+    "Searching for real image URLs",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Checking the preview",
+    "Reviewing the widget data",
+    "Polishing the details",
+    "Keeping the widget compact",
+    "Preparing the final widget",
+    "Widget ready"
+  ],
+  "contentHashes": {
+    "template.jsx": "ad7ee2b906e82af74631cda773ea9bdaf997ff433f41297d273baa17873ef494",
+    "data.json": "632ec9b2388ea6739437fd33fed44b691528de6c3cdf6fc37ed5f56c25f06fcb",
+    "reference.jpg": "ec2bb79200fd9b43a2f7bcbef3f2525f4aba2b6da7bea5d9d46a8c198f69c422"
+  },
+  "imageFile": "reference.jpg"
+}
