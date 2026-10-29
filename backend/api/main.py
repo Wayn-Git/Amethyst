@@ -7244,6 +7244,21 @@ class Settings(BaseModel):
     journal: JournalSchedulePatch | None = None
     #: Global shortcut chord for the desktop command palette / launcher.
     hotkey: str | None = None
+    editor_destination: str | None = None
+    speed_profile: str | None = None
+    prevent_sleep: bool | None = None
+    auto_archive_days: int | None = None
+    compress_history: bool | None = None
+    follow_up_behavior: str | None = None
+
+
+class OpenInEditorRequest(BaseModel):
+    path: str
+    editor: str | None = None
+
+
+class ArchiveInactiveRequest(BaseModel):
+    days: int = 0
 
 
 @app.get("/api/settings")
@@ -7253,12 +7268,13 @@ def get_settings() -> dict[str, Any]:
         DEFAULT_MAX_ITERATIONS,
         MAX_MAX_ITERATIONS,
         MIN_MAX_ITERATIONS,
+        load_general_settings,
         load_hotkey,
         load_journal_schedule,
         load_max_iterations,
     )
 
-    return {
+    res = {
         "max_iterations": load_max_iterations(),
         # The bounds the interface should offer, so it does not have to hardcode
         # numbers that could drift from the ones the server clamps to.
@@ -7268,12 +7284,19 @@ def get_settings() -> dict[str, Any]:
         "journal": load_journal_schedule().as_dict(),
         "hotkey": load_hotkey() or "<ctrl>+<alt>+<space>",
     }
+    res.update(load_general_settings())
+    return res
 
 
 @app.patch("/api/settings")
 def update_settings(body: Settings) -> dict[str, Any]:
     """Change a knob. Only the fields present are touched; the value is clamped."""
-    from backend.config import save_hotkey, save_journal_schedule, save_max_iterations
+    from backend.config import (
+        save_general_setting,
+        save_hotkey,
+        save_journal_schedule,
+        save_max_iterations,
+    )
 
     if body.max_iterations is not None:
         save_max_iterations(body.max_iterations)
@@ -7281,7 +7304,113 @@ def update_settings(body: Settings) -> dict[str, Any]:
         save_journal_schedule(body.journal.model_dump(exclude_none=True))
     if body.hotkey is not None:
         save_hotkey(body.hotkey)
+    for field in (
+        "editor_destination",
+        "speed_profile",
+        "prevent_sleep",
+        "auto_archive_days",
+        "compress_history",
+        "follow_up_behavior",
+    ):
+        val = getattr(body, field, None)
+        if val is not None:
+            save_general_setting(field, val)
     return get_settings()
+
+
+@app.post("/api/desktop/open-in-editor")
+def open_in_editor(body: OpenInEditorRequest) -> dict[str, Any]:
+    """Open a file or directory in the user's preferred external editor."""
+    import os
+    import shutil
+    import subprocess
+    from backend.config import load_general_settings
+
+    target_path = os.path.expanduser(body.path.strip())
+    if not os.path.exists(target_path):
+        raise HTTPException(404, f"Path not found: {target_path}")
+
+    editor = body.editor
+    if not editor:
+        gen = load_general_settings()
+        editor = gen.get("editor_destination") or "vscode"
+
+    editor_map = {
+        "vscode": ["code"],
+        "cursor": ["cursor"],
+        "windsurf": ["windsurf"],
+        "sublime": ["subl"],
+        "system": ["xdg-open"],
+    }
+    cmd_candidates = editor_map.get(editor, [editor])
+    exe = None
+    for cand in cmd_candidates:
+        exe = shutil.which(cand)
+        if exe:
+            break
+
+    if not exe:
+        exe = shutil.which("xdg-open") or shutil.which("open")
+
+    if not exe:
+        raise HTTPException(500, f"No viable executable found for editor '{editor}'")
+
+    try:
+        subprocess.Popen(
+            [exe, target_path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except Exception as e:
+        raise HTTPException(500, f"Failed to launch editor: {e}")
+
+    return {"ok": True, "editor": editor, "path": target_path}
+
+
+@app.post("/api/conversations/archive-inactive")
+def archive_inactive_conversations(body: ArchiveInactiveRequest) -> dict[str, Any]:
+    """Archive conversations that have been inactive for more than `days` days."""
+    days = int(body.days)
+    if days <= 0:
+        return {"ok": True, "archived_count": 0}
+
+    from backend.db.connection import get_connection
+
+    conn = get_connection()
+    cursor = conn.execute(
+        "UPDATE conversations SET archived = 1 "
+        "WHERE archived = 0 AND updated_at < datetime('now', ?)",
+        (f"-{days} days",),
+    )
+    conn.commit()
+    return {"ok": True, "archived_count": cursor.rowcount}
+
+
+@app.post("/api/db/compress")
+def compress_database() -> dict[str, Any]:
+    """Run SQLite VACUUM and return storage statistics."""
+    from backend.config import paths
+    from backend.db.connection import get_connection
+
+    db_path = paths().db
+    size_before = db_path.stat().st_size if db_path.exists() else 0
+    conn = get_connection()
+    try:
+        conn.execute("VACUUM")
+    except Exception:
+        try:
+            conn.execute("PRAGMA incremental_vacuum")
+        except Exception:
+            pass
+    size_after = db_path.stat().st_size if db_path.exists() else 0
+    freed_bytes = max(0, size_before - size_after)
+    return {
+        "ok": True,
+        "size_before": size_before,
+        "size_after": size_after,
+        "freed_bytes": freed_bytes,
+    }
 
 
 # -- the preferences that follow you between devices ---------------------
