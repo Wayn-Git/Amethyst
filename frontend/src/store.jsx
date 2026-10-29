@@ -83,6 +83,10 @@ const SYNCED_PREFS = new Set([
   'archiveChats', 'confirmDestructive', 'shellConfirm', 'fileConfirm',
   'netConfirm', 'showUsage', 'notifyOnDone', 'draftProvider', 'draftModel',
   'thinkingStyle',
+  'editorDestination', 'confirmClose', 'fullViewDefault', 'restoreTabs',
+  'preventSleep', 'autoArchiveDays', 'compressHistory', 'speedProfile',
+  'followUpBehavior', 'plainTextComposer', 'showContextUsage',
+  'confettiEnabled', 'defaultStandaloneChat',
 ])
 
 function savePrefs(patch) {
@@ -434,6 +438,42 @@ export function AppProvider({ children }) {
   const setFileConfirm = useCallback((value) => { setFileConfirmRaw(value); savePrefs({ fileConfirm: value }) }, [])
   const [netConfirm, setNetConfirmRaw] = useState(prefs.netConfirm !== false)
   const setNetConfirm = useCallback((value) => { setNetConfirmRaw(value); savePrefs({ netConfirm: value }) }, [])
+
+  const [editorDestination, setEditorDestinationRaw] = useState(prefs.editorDestination || 'vscode')
+  const setEditorDestination = useCallback((value) => { setEditorDestinationRaw(value); savePrefs({ editorDestination: value }) }, [])
+
+  const [confirmClose, setConfirmCloseRaw] = useState(prefs.confirmClose || 'shortcut-only')
+  const setConfirmClose = useCallback((value) => { setConfirmCloseRaw(value); savePrefs({ confirmClose: value }) }, [])
+
+  const [fullViewDefault, setFullViewDefaultRaw] = useState(Boolean(prefs.fullViewDefault))
+  const setFullViewDefault = useCallback((value) => { setFullViewDefaultRaw(value); savePrefs({ fullViewDefault: value }) }, [])
+
+  const [preventSleep, setPreventSleepRaw] = useState(Boolean(prefs.preventSleep))
+  const setPreventSleep = useCallback((value) => { setPreventSleepRaw(value); savePrefs({ preventSleep: value }) }, [])
+
+  const [autoArchiveDays, setAutoArchiveDaysRaw] = useState(Number(prefs.autoArchiveDays) || 0)
+  const setAutoArchiveDays = useCallback((value) => { setAutoArchiveDaysRaw(value); savePrefs({ autoArchiveDays: value }) }, [])
+
+  const [compressHistory, setCompressHistoryRaw] = useState(prefs.compressHistory !== false)
+  const setCompressHistory = useCallback((value) => { setCompressHistoryRaw(value); savePrefs({ compressHistory: value }) }, [])
+
+  const [speedProfile, setSpeedProfileRaw] = useState(prefs.speedProfile || 'standard')
+  const setSpeedProfile = useCallback((value) => { setSpeedProfileRaw(value); savePrefs({ speedProfile: value }) }, [])
+
+  const [followUpBehavior, setFollowUpBehaviorRaw] = useState(prefs.followUpBehavior || 'queue')
+  const setFollowUpBehavior = useCallback((value) => { setFollowUpBehaviorRaw(value); savePrefs({ followUpBehavior: value }) }, [])
+
+  const [plainTextComposer, setPlainTextComposerRaw] = useState(Boolean(prefs.plainTextComposer))
+  const setPlainTextComposer = useCallback((value) => { setPlainTextComposerRaw(value); savePrefs({ plainTextComposer: value }) }, [])
+
+  const [showContextUsage, setShowContextUsageRaw] = useState(Boolean(prefs.showContextUsage))
+  const setShowContextUsage = useCallback((value) => { setShowContextUsageRaw(value); savePrefs({ showContextUsage: value }) }, [])
+
+  const [confettiEnabled, setConfettiEnabledRaw] = useState(Boolean(prefs.confettiEnabled))
+  const setConfettiEnabled = useCallback((value) => { setConfettiEnabledRaw(value); savePrefs({ confettiEnabled: value }) }, [])
+
+  const [defaultStandaloneChat, setDefaultStandaloneChatRaw] = useState(Boolean(prefs.defaultStandaloneChat))
+  const setDefaultStandaloneChat = useCallback((value) => { setDefaultStandaloneChatRaw(value); savePrefs({ defaultStandaloneChat: value }) }, [])
 
   const resetAllPreferences = useCallback(() => {
     safeStorage.clear()
@@ -1056,6 +1096,7 @@ export function AppProvider({ children }) {
     defaultEffort, setDefaultEffort,
     sendWith, setSendWith,
     archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial, spotlightAnimation, setSpotlightAnimation,
+    editorDestination, setEditorDestination, confirmClose, setConfirmClose, fullViewDefault, setFullViewDefault, preventSleep, setPreventSleep, autoArchiveDays, setAutoArchiveDays, compressHistory, setCompressHistory, speedProfile, setSpeedProfile, followUpBehavior, setFollowUpBehavior, plainTextComposer, setPlainTextComposer, showContextUsage, setShowContextUsage, confettiEnabled, setConfettiEnabled, defaultStandaloneChat, setDefaultStandaloneChat,
     shellConfirm, setShellConfirm, fileConfirm, setFileConfirm, netConfirm, setNetConfirm, resetAllPreferences,
     onboardingDone, setOnboardingDone, openOnboarding, openSetupWizard,
     betaPages, setBetaPages,
@@ -1086,6 +1127,7 @@ export function AppProvider({ children }) {
     defaultEffort, setDefaultEffort,
     sendWith, setSendWith,
     archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial, spotlightAnimation, setSpotlightAnimation,
+    editorDestination, setEditorDestination, confirmClose, setConfirmClose, fullViewDefault, setFullViewDefault, preventSleep, setPreventSleep, autoArchiveDays, setAutoArchiveDays, compressHistory, setCompressHistory, speedProfile, setSpeedProfile, followUpBehavior, setFollowUpBehavior, plainTextComposer, setPlainTextComposer, showContextUsage, setShowContextUsage, confettiEnabled, setConfettiEnabled, defaultStandaloneChat, setDefaultStandaloneChat,
     shellConfirm, fileConfirm, netConfirm, resetAllPreferences,
     onboardingDone, setOnboardingDone, openOnboarding, openSetupWizard,
     betaPages, setBetaPages,
