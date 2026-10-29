@@ -17,6 +17,7 @@ import { safeStorage } from '../lib/storage.js'
 import * as syncClient from '../lib/sync/client.js'
 import PairingApprovalModal from '../components/PairingApprovalModal.jsx'
 import { showBoardUINotification } from '../lib/boardui-notifications.js'
+import { triggerConfetti } from '../components/ConfettiCannon.jsx'
 import Integrations from './settings/Integrations.jsx'
 
 /* ==========================================================================
@@ -24,18 +25,19 @@ import Integrations from './settings/Integrations.jsx'
    ========================================================================== */
 
 const SECTIONS = [
-  { id: 'profile', label: 'Profile', icon: 'user', group: 'You' },
-  { id: 'usage', label: 'Usage', icon: 'dash', group: 'You' },
-  { id: 'activity', label: 'Activity', icon: 'logs', group: 'You' },
-  { id: 'general', label: 'General', icon: 'sliders', group: 'App' },
-  { id: 'shortcuts', label: 'Shortcuts', icon: 'command', group: 'App' },
-  { id: 'appearance', label: 'Appearance', icon: 'palette', group: 'App' },
-  { id: 'models', label: 'Models', icon: 'cpu', group: 'App' },
-  { id: 'integrations', label: 'Integrations', icon: 'layers', group: 'App' },
-  { id: 'permissions', label: 'Permissions', icon: 'shield', group: 'Advanced' },
-  { id: 'devices', label: 'Devices', icon: 'link', group: 'Advanced' },
-  { id: 'data', label: 'Data', icon: 'trash', group: 'Advanced' },
-  { id: 'about', label: 'About', icon: 'info', group: 'Advanced' },
+  { id: 'general', label: 'General', icon: 'sliders', group: 'Personal', desc: 'Workspace, external editor destination, window behavior, speed, composer, confetti' },
+  { id: 'notifications', label: 'Notifications', icon: 'bell', group: 'Personal', desc: 'Desktop alerts, sound, turn completion, morning briefing, BoardUI' },
+  { id: 'shortcuts', label: 'Shortcuts', icon: 'command', group: 'Personal', desc: 'Keyboard shortcuts, global launcher hotkey presets' },
+  { id: 'appearance', label: 'Appearance', icon: 'palette', group: 'Personal', desc: 'Themes, accent color, text scaling, loader style, glass material' },
+  { id: 'profile', label: 'Profile', icon: 'user', group: 'Personal', desc: 'Display name, full name, email address, avatar' },
+  { id: 'usage', label: 'Usage', icon: 'dash', group: 'Personal', desc: 'Token usage, provider telemetry, model latency metrics' },
+  { id: 'activity', label: 'Activity', icon: 'logs', group: 'Personal', desc: 'Recent tasks, session turns, execution audit log' },
+  { id: 'data', label: 'Data', icon: 'trash', group: 'Personal', desc: 'Local storage, database compaction, clear memories, reset preferences' },
+  { id: 'integrations', label: 'Integrations', icon: 'layers', group: 'Integrations', desc: 'MCP servers, connectors, third-party plugin integrations' },
+  { id: 'models', label: 'Models', icon: 'cpu', group: 'Integrations', desc: 'Model providers, API keys, reasoning tiers, local Ollama' },
+  { id: 'devices', label: 'Devices', icon: 'link', group: 'Integrations', desc: 'Paired devices, peer-to-peer sync, multi-device encryption' },
+  { id: 'permissions', label: 'Permissions', icon: 'shield', group: 'Coding', desc: 'Safety guards, shell confirmation, filesystem confirmation, network gate' },
+  { id: 'about', label: 'About', icon: 'info', group: 'Coding', desc: 'Version, build info, open source licenses and acknowledgments' },
 ]
 
 const THEME_CHOICES = [
@@ -181,33 +183,38 @@ function Profile() {
 }
 
 /* ==========================================================================
-   1. GENERAL VIEW (Composer, Chats, Inspector, Automation & Rhythm)
+   1. GENERAL VIEW (Workspace, Window, Chat Storage, Speed, Composer, Popout, Toys)
    ========================================================================== */
 
 function General() {
   const {
     workspace, setWorkspace,
-    notifyOnDone, setNotifyOnDone,
-    guard, setGuard,
-    defaultGuard, setDefaultGuard,
-    defaultEffort, setDefaultEffort,
     sendWith, setSendWith,
     archiveChats, setArchiveChats,
     confirmDestructive, setConfirmDestructive,
     restoreTabs, setRestoreTabs,
     showUsage, setShowUsage,
-    betaPages, setBetaPages,
-    toast,
-    refreshCaps, refreshHealth,
-    setView,
+    editorDestination, setEditorDestination,
+    confirmClose, setConfirmClose,
+    fullViewDefault, setFullViewDefault,
+    preventSleep, setPreventSleep,
+    autoArchiveDays, setAutoArchiveDays,
+    compressHistory, setCompressHistory,
+    speedProfile, setSpeedProfile,
+    followUpBehavior, setFollowUpBehavior,
+    plainTextComposer, setPlainTextComposer,
+    showContextUsage, setShowContextUsage,
+    confettiEnabled, setConfettiEnabled,
+    defaultStandaloneChat, setDefaultStandaloneChat,
+    toast, setView,
   } = useApp()
 
-  // Automation & Rhythm settings from backend
-  const [maxIterations, setMaxIterations] = useState(16)
-  const [briefingHour, setBriefingHour] = useState(8)
-  const [briefingEnabled, setBriefingEnabled] = useState(true)
   const [wsDraft, setWsDraft] = useState(workspace || '')
+  const [maxIterations, setMaxIterations] = useState(16)
   const [hotkeyDraft, setHotkeyDraft] = useState('<ctrl>+<alt>+<space>')
+  const [compacting, setCompacting] = useState(false)
+  const [compactResult, setCompactResult] = useState(null)
+  const [launchingEditor, setLaunchingEditor] = useState(false)
 
   useEffect(() => {
     setWsDraft(workspace || '')
@@ -218,28 +225,97 @@ function General() {
       .then((s) => {
         if (s.max_iterations) setMaxIterations(s.max_iterations)
         if (s.hotkey) setHotkeyDraft(s.hotkey)
-        if (s.journal) {
-          if (s.journal.briefing_hour !== undefined) setBriefingHour(s.journal.briefing_hour)
-          if (s.journal.briefing_enabled !== undefined) setBriefingEnabled(s.journal.briefing_enabled)
-        }
       })
       .catch(() => {})
   }, [])
 
-  const handleSendWith = (val) => {
-    setSendWith?.(val)
-    toast(`Send key set to ${val === 'enter' ? 'Enter' : 'Ctrl+↵'}`, 'ok')
+  const saveWorkspace = () => {
+    setWorkspace(wsDraft.trim())
+    toast(`Working directory saved: ${wsDraft.trim() || 'API default'}`, 'ok')
   }
 
-  const handleStartGuard = (val) => {
-    setDefaultGuard?.(val)
-    setGuard?.(val)
-    toast(`Default chat permission set to ${val}`, 'ok')
+  const handleBrowseDir = async () => {
+    if (window.showDirectoryPicker) {
+      try {
+        const handle = await window.showDirectoryPicker()
+        if (handle?.name) {
+          setWsDraft(handle.name)
+          setWorkspace(handle.name)
+          toast(`Working directory set to ${handle.name}`, 'ok')
+        }
+      } catch (e) {
+        if (e.name !== 'AbortError') toast('Could not open folder picker', 'bad')
+      }
+    } else {
+      const dir = window.prompt('Enter working directory path:', wsDraft || '~')
+      if (dir != null && dir.trim()) {
+        setWsDraft(dir.trim())
+        setWorkspace(dir.trim())
+        toast(`Working directory set to ${dir.trim()}`, 'ok')
+      }
+    }
   }
 
-  const handleThinkAt = (val) => {
-    setDefaultEffort?.(val)
-    toast(`Default reasoning effort set to ${val}`, 'ok')
+  const handleTestEditor = async () => {
+    setLaunchingEditor(true)
+    try {
+      const res = await api.post('/desktop/open-in-editor', {
+        path: workspace || '.',
+        editor: editorDestination,
+      })
+      if (res?.ok) {
+        toast(`Opened workspace in ${editorDestination.toUpperCase()}`, 'ok')
+      }
+    } catch (e) {
+      toast(e.message || 'Could not launch editor', 'bad')
+    } finally {
+      setLaunchingEditor(false)
+    }
+  }
+
+  const handleCompactDb = async () => {
+    setCompacting(true)
+    try {
+      const res = await api.post('/db/compress')
+      if (res?.ok) {
+        const freedKb = Math.round((res.freed_bytes || 0) / 1024)
+        setCompactResult(`Compacted: ${freedKb} KB freed`)
+        toast(`Database compacted successfully (${freedKb} KB freed)`, 'ok')
+      }
+    } catch (e) {
+      toast(e.message || 'Compaction failed', 'bad')
+    } finally {
+      setCompacting(false)
+    }
+  }
+
+  const handleAutoArchiveChange = async (val) => {
+    const days = Number(val)
+    setAutoArchiveDays(days)
+    if (days > 0) {
+      try {
+        const res = await api.post('/conversations/archive-inactive', { days })
+        if (res?.archived_count > 0) {
+          toast(`Archived ${res.archived_count} inactive conversations`, 'ok')
+        } else {
+          toast(`Auto-archive set to ${days} days`, 'ok')
+        }
+      } catch {
+        toast(`Auto-archive set to ${days} days`, 'ok')
+      }
+    } else {
+      toast('Auto-archive disabled', 'ok')
+    }
+  }
+
+  const handleSpeedProfileChange = async (val) => {
+    setSpeedProfile(val)
+    try {
+      await api.updateSettings({ speed_profile: val })
+      toast(`Speed profile set to ${val}`, 'ok')
+    } catch (e) {
+      toast(e.message, 'bad')
+    }
   }
 
   const handleIterationsChange = async (val) => {
@@ -266,6 +342,512 @@ function General() {
     }
   }
 
+  const handleConfettiToggle = (val) => {
+    setConfettiEnabled(val)
+    if (val) {
+      triggerConfetti()
+      toast('Confetti enabled! 🎉', 'ok')
+    } else {
+      toast('Confetti disabled', 'ok')
+    }
+  }
+
+  const editorOptions = [
+    { value: 'vscode', label: 'VS Code' },
+    { value: 'cursor', label: 'Cursor' },
+    { value: 'windsurf', label: 'Windsurf' },
+    { value: 'sublime', label: 'Sublime Text' },
+    { value: 'system', label: 'System Default' },
+  ]
+
+  const confirmCloseOptions = [
+    { value: 'shortcut-only', label: 'Close shortcut only' },
+    { value: 'always', label: 'Always confirm' },
+    { value: 'never', label: 'Never confirm' },
+  ]
+
+  const autoArchiveOptions = [
+    { value: 0, label: 'Never' },
+    { value: 7, label: 'After 7 days' },
+    { value: 30, label: 'After 30 days' },
+    { value: 90, label: 'After 90 days' },
+  ]
+
+  const speedOptions = [
+    { value: 'standard', label: 'Standard' },
+    { value: 'fast', label: 'Fast' },
+    { value: 'turbo', label: 'Turbo' },
+  ]
+
+  return (
+    <div className="set-panel" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* 1. Workspace & External Editor */}
+      <div>
+        <div className="set-section-label">Workspace & Editors</div>
+        <div className="set-box" style={{ borderRadius: 16 }}>
+          <div className="set-box-row" style={{ flexWrap: 'wrap', gap: 12 }}>
+            <div className="set-row-text" style={{ flex: '1 1 240px' }}>
+              <span className="set-row-title">Projectless chat folder</span>
+              <span className="set-row-desc">Location where chats started outside of projects store their data.</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 320px', justifyContent: 'flex-end' }}>
+              <HouseInput
+                type="text"
+                value={wsDraft}
+                onChange={(e) => setWsDraft(e.target.value)}
+                placeholder="/home/user/project or ~"
+                className="set-input"
+                style={{ flex: 1, minWidth: 160 }}
+              />
+              <HouseButton type="button" className="set-btn-sm" onClick={handleBrowseDir} style={{ borderRadius: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <Icon name="folder" size={13} />
+                <span>Change</span>
+              </HouseButton>
+              <HouseButton type="button" className="set-btn-sm is-primary" onClick={saveWorkspace} style={{ borderRadius: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <Icon name="check" size={13} />
+                <span>Save</span>
+              </HouseButton>
+            </div>
+          </div>
+
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Default file open destination</span>
+              <span className="set-row-desc">Application where files and folders open from Amethyst.</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <AnimatedSelect
+                value={editorDestination || 'vscode'}
+                onChange={(v) => { setEditorDestination(v); toast(`Editor set to ${v.toUpperCase()}`, 'ok') }}
+                options={editorOptions}
+                minWidth={150}
+              />
+              <HouseButton
+                type="button"
+                className="set-btn-sm"
+                onClick={handleTestEditor}
+                disabled={launchingEditor}
+                style={{ borderRadius: 12 }}
+                title="Open current workspace in this editor"
+              >
+                {launchingEditor ? 'Opening...' : 'Open'}
+              </HouseButton>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Window & Lifecycle */}
+      <div>
+        <div className="set-section-label">Window & Lifecycle</div>
+        <div className="set-box" style={{ borderRadius: 16 }}>
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Confirm before closing a window</span>
+              <span className="set-row-desc">Warn when a tab-close shortcut would close the window.</span>
+            </div>
+            <AnimatedSelect
+              value={confirmClose || 'shortcut-only'}
+              onChange={(v) => setConfirmClose(v)}
+              options={confirmCloseOptions}
+              minWidth={165}
+            />
+          </div>
+
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Full view by default</span>
+              <span className="set-row-desc">Start new chats with Chat and content in a single consolidated tab strip.</span>
+            </div>
+            <Switch
+              on={Boolean(fullViewDefault)}
+              onChange={(val) => setFullViewDefault(val)}
+              tone="default"
+            />
+          </div>
+
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Restore open tabs on restart</span>
+              <span className="set-row-desc">Restore your active conversation and panel state when relaunching.</span>
+            </div>
+            <Switch
+              on={Boolean(restoreTabs)}
+              onChange={(val) => setRestoreTabs?.(val)}
+              tone="default"
+            />
+          </div>
+
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Prevent sleep while running</span>
+              <span className="set-row-desc">Keep your computer awake while Amethyst is running a task.</span>
+            </div>
+            <Switch
+              on={Boolean(preventSleep)}
+              onChange={(val) => {
+                setPreventSleep(val)
+                toast(val ? 'Sleep prevention active during runs' : 'Sleep prevention disabled', 'ok')
+              }}
+              tone="default"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Chat & History Storage */}
+      <div>
+        <div className="set-section-label">Chat & History Storage</div>
+        <div className="set-box" style={{ borderRadius: 16 }}>
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Automatically archive inactive chats</span>
+              <span className="set-row-desc">Archive local chats after a period of inactivity.</span>
+            </div>
+            <AnimatedSelect
+              value={autoArchiveDays || 0}
+              onChange={handleAutoArchiveChange}
+              options={autoArchiveOptions}
+              minWidth={140}
+            />
+          </div>
+
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Compress local chat history</span>
+              <span className="set-row-desc">
+                Save disk space by compacting older local history. {compactResult && <b style={{ color: 'var(--accent)' }}>{compactResult}</b>}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <HouseButton
+                type="button"
+                className="set-btn-sm"
+                onClick={handleCompactDb}
+                disabled={compacting}
+                style={{ borderRadius: 12 }}
+              >
+                {compacting ? 'Compacting...' : 'Compact Now'}
+              </HouseButton>
+              <Switch
+                on={Boolean(compressHistory)}
+                onChange={(val) => setCompressHistory(val)}
+                tone="default"
+              />
+            </div>
+          </div>
+
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Archive chats instead of deleting</span>
+              <span className="set-row-desc">Archived chats are preserved and can be reviewed or restored.</span>
+            </div>
+            <Switch
+              on={Boolean(archiveChats)}
+              onChange={(val) => setArchiveChats?.(val)}
+              tone="default"
+            />
+          </div>
+
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Confirm destructive actions</span>
+              <span className="set-row-desc">Always display confirmation dialogs before deleting conversations.</span>
+            </div>
+            <Switch
+              on={Boolean(confirmDestructive)}
+              onChange={(val) => setConfirmDestructive?.(val)}
+              tone="default"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Runtime & Speed */}
+      <div>
+        <div className="set-section-label">Runtime & Speed</div>
+        <div className="set-box" style={{ borderRadius: 16 }}>
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Speed</span>
+              <span className="set-row-desc">Choose how quickly Amethyst runs across chats, subagents, and compaction.</span>
+            </div>
+            <AnimatedSelect
+              value={speedProfile || 'standard'}
+              onChange={handleSpeedProfileChange}
+              options={speedOptions}
+              minWidth={130}
+            />
+          </div>
+
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Autonomous iteration limit</span>
+              <span className="set-row-desc">How many tool calls and model round trips one turn may take before stopping.</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <HouseInput
+                type="range"
+                min={4}
+                max={40}
+                value={maxIterations}
+                onChange={(e) => handleIterationsChange(Number(e.target.value))}
+                className="set-range-slider"
+                style={{ width: 140 }}
+              />
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: 600, color: 'var(--text)', minWidth: 26, textAlign: 'right' }}>
+                {maxIterations}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 5. Composer Controls */}
+      <div>
+        <div className="set-section-label">Composer</div>
+        <div className="set-box" style={{ borderRadius: 16 }}>
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Send shortcut</span>
+              <span className="set-row-desc">Choose when Enter sends a prompt or inserts a new line.</span>
+            </div>
+            <div className="set-seg-ctrl" style={{ borderRadius: 12 }}>
+              <HouseButton
+                type="button"
+                className={`set-seg-btn${(sendWith === 'enter' || sendWith === 'Enter') ? ' is-active' : ''}`}
+                onClick={() => { setSendWith?.('enter'); toast('Send key set to Enter', 'ok') }}
+                style={{ borderRadius: 10 }}
+              >
+                Enter
+              </HouseButton>
+              <HouseButton
+                type="button"
+                className={`set-seg-btn${(sendWith === 'ctrl-enter' || sendWith === 'Cmd+Enter') ? ' is-active' : ''}`}
+                onClick={() => { setSendWith?.('ctrl-enter'); toast('Send key set to Ctrl+↵', 'ok') }}
+                style={{ borderRadius: 10 }}
+              >
+                Ctrl+↵
+              </HouseButton>
+            </div>
+          </div>
+
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Follow-up behavior</span>
+              <span className="set-row-desc">
+                Queue follow-ups while Amethyst runs or steer the current run. Press Ctrl+↵ to do the opposite for one message.
+              </span>
+            </div>
+            <div className="set-seg-ctrl" style={{ borderRadius: 12 }}>
+              <HouseButton
+                type="button"
+                className={`set-seg-btn${followUpBehavior === 'queue' ? ' is-active' : ''}`}
+                onClick={() => { setFollowUpBehavior('queue'); toast('Follow-up behavior set to Queue', 'ok') }}
+                style={{ borderRadius: 10 }}
+              >
+                Queue
+              </HouseButton>
+              <HouseButton
+                type="button"
+                className={`set-seg-btn${followUpBehavior === 'steer' ? ' is-active' : ''}`}
+                onClick={() => { setFollowUpBehavior('steer'); toast('Follow-up behavior set to Steer', 'ok') }}
+                style={{ borderRadius: 10 }}
+              >
+                Steer
+              </HouseButton>
+            </div>
+          </div>
+
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Plain text composer</span>
+              <span className="set-row-desc">Keep code, Markdown, and links as literal text while writing messages.</span>
+            </div>
+            <Switch
+              on={Boolean(plainTextComposer)}
+              onChange={(val) => setPlainTextComposer(val)}
+              tone="default"
+            />
+          </div>
+
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Show context window usage</span>
+              <span className="set-row-desc">Display token consumption and budget telemetry in the composer.</span>
+            </div>
+            <Switch
+              on={Boolean(showContextUsage)}
+              onChange={(val) => setShowContextUsage(val)}
+              tone="default"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 6. Popout Window & Launcher */}
+      <div>
+        <div className="set-section-label">Popout Window</div>
+        <div className="set-box" style={{ borderRadius: 16 }}>
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Popout Window hotkey</span>
+              <span className="set-row-desc">Set a global shortcut for Popout Window. Leave unset to keep it off.</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <HouseInput
+                type="text"
+                value={hotkeyDraft}
+                onChange={(e) => setHotkeyDraft(e.target.value)}
+                placeholder="<ctrl>+<alt>+<space>"
+                style={{ width: 175, fontFamily: 'var(--font-mono)', fontSize: '13px' }}
+              />
+              <HouseButton
+                type="button"
+                className="set-btn-sm"
+                onClick={handleSaveHotkey}
+                style={{ borderRadius: 12 }}
+              >
+                Save
+              </HouseButton>
+            </div>
+          </div>
+
+          <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+            <div className="set-row-text">
+              <span className="set-row-title">Shortcut presets</span>
+              <span className="set-row-desc">Quick standard chords:</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                { label: 'Ctrl+Alt+Space', chord: '<ctrl>+<alt>+<space>' },
+                { label: 'Ctrl+Space', chord: '<ctrl>+<space>' },
+                { label: 'Super+Space', chord: '<super>+<space>' },
+                { label: 'Alt+Space', chord: '<alt>+<space>' },
+              ].map((p) => (
+                <HouseButton
+                  key={p.chord}
+                  type="button"
+                  className={`set-btn-sm${hotkeyDraft === p.chord ? ' is-active' : ''}`}
+                  onClick={() => {
+                    setHotkeyDraft(p.chord)
+                    handleSaveHotkeyExplicit(p.chord)
+                  }}
+                  style={{ borderRadius: 12 }}
+                >
+                  {p.label}
+                </HouseButton>
+              ))}
+            </div>
+          </div>
+
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Default to standalone chat</span>
+              <span className="set-row-desc">Start new chats outside of any project.</span>
+            </div>
+            <Switch
+              on={Boolean(defaultStandaloneChat)}
+              onChange={(val) => setDefaultStandaloneChat(val)}
+              tone="default"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 7. Toys & Notices */}
+      <div>
+        <div className="set-section-label">Toys</div>
+        <div className="set-box" style={{ borderRadius: 16 }}>
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Confetti cannon</span>
+              <span className="set-row-desc">Show confetti in the app when you ask or complete tasks!</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <HouseButton
+                type="button"
+                className="set-btn-sm"
+                onClick={() => triggerConfetti()}
+                style={{ borderRadius: 12 }}
+              >
+                🎉 Test
+              </HouseButton>
+              <Switch
+                on={Boolean(confettiEnabled)}
+                onChange={handleConfettiToggle}
+                tone="default"
+              />
+            </div>
+          </div>
+
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Open source licenses</span>
+              <span className="set-row-desc">Third-party notices for bundled dependencies.</span>
+            </div>
+            <HouseButton
+              type="button"
+              className="set-btn-sm"
+              onClick={() => {
+                const aboutItem = document.querySelector('[data-section="about"]')
+                if (aboutItem) aboutItem.click()
+              }}
+              style={{ borderRadius: 12 }}
+            >
+              View
+            </HouseButton>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ==========================================================================
+   1b. NOTIFICATIONS VIEW
+   ========================================================================== */
+
+function Notifications() {
+  const { notifyOnDone, setNotifyOnDone, toast } = useApp()
+  const [briefingHour, setBriefingHour] = useState(8)
+  const [briefingEnabled, setBriefingEnabled] = useState(true)
+  const [turnCompletion, setTurnCompletion] = useState('unfocused')
+  const [permissionAlerts, setPermissionAlerts] = useState(true)
+  const [questionAlerts, setQuestionAlerts] = useState(true)
+  const [soundSetting, setSoundSetting] = useState('default')
+
+  useEffect(() => {
+    api.settings()
+      .then((s) => {
+        if (s.journal) {
+          if (s.journal.briefing_hour !== undefined) setBriefingHour(s.journal.briefing_hour)
+          if (s.journal.briefing_enabled !== undefined) setBriefingEnabled(s.journal.briefing_enabled)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const handleNotificationToggle = async () => {
+    if (typeof Notification === 'undefined') {
+      toast('Notifications not supported in this browser environment', 'bad')
+      return
+    }
+    if (Notification.permission !== 'granted') {
+      const perm = await Notification.requestPermission()
+      if (perm !== 'granted') {
+        toast('Notification permission was denied in browser', 'amber')
+        return
+      }
+    }
+    const { value, blocked } = await setNotifyOnDone(!notifyOnDone)
+    if (blocked) {
+      toast('Your browser blocked desktop notifications', 'amber')
+    } else {
+      toast(value ? 'Desktop notifications enabled' : 'Desktop notifications disabled', 'ok')
+    }
+  }
+
   const handleBriefingHourChange = async (h) => {
     setBriefingHour(h)
     try {
@@ -286,65 +868,16 @@ function General() {
     }
   }
 
-  const handleNotificationToggle = async () => {
-    if (typeof Notification === 'undefined') {
-      toast('Notifications not supported in this browser environment', 'bad')
-      return
-    }
-    if (Notification.permission !== 'granted') {
-      const perm = await Notification.requestPermission()
-      if (perm !== 'granted') {
-        toast('Notification permission was denied in browser', 'amber')
-        return
-      }
-    }
-    const { value, blocked } = await setNotifyOnDone(!notifyOnDone)
-    if (blocked) {
-      toast('Your browser blocked desktop notifications', 'amber')
-    } else {
-      toast(value ? 'Desktop notifications enabled for finished turns' : 'Desktop notifications disabled', 'ok')
-    }
-  }
-
-  const handleBrowseDir = async () => {
-    if (window.showDirectoryPicker) {
-      try {
-        const handle = await window.showDirectoryPicker()
-        if (handle?.name) {
-          setWsDraft(handle.name)
-          setWorkspace(handle.name)
-          toast(`Working directory set to ${handle.name}`, 'ok')
-        }
-      } catch (e) {
-        if (e.name !== 'AbortError') toast('Could not open folder picker', 'bad')
-      }
-    } else {
-      const dir = window.prompt('Enter working directory path:', wsDraft || '~')
-      if (dir != null && dir.trim()) {
-        setWsDraft(dir.trim())
-        setWorkspace(dir.trim())
-        toast(`Working directory set to ${dir.trim()}`, 'ok')
-      }
-    }
-  }
-
-  const saveWorkspace = () => {
-    setWorkspace(wsDraft.trim())
-    toast(`Working directory saved: ${wsDraft.trim() || 'API default'}`, 'ok')
-  }
-
-  const guardOptions = [
-    { value: 'guard', label: 'Guard', icon: 'shield' },
-    { value: 'full-access', label: 'Full access', icon: 'zap' },
-    { value: 'read-only', label: 'Read only', icon: 'eye' },
-    { value: 'guard-auto-edit', label: 'Guard + Auto', icon: 'shield-check' },
+  const turnOptions = [
+    { value: 'unfocused', label: 'Only when unfocused' },
+    { value: 'always', label: 'Always alert' },
+    { value: 'never', label: 'Never' },
   ]
 
-  const effortOptions = [
-    { value: 'default', label: 'Default', icon: 'sliders' },
-    { value: 'low', label: 'Low', icon: 'sliders' },
-    { value: 'medium', label: 'Medium', icon: 'sliders' },
-    { value: 'high', label: 'High', icon: 'brain' },
+  const soundOptions = [
+    { value: 'default', label: 'Default chime' },
+    { value: 'soft', label: 'Soft bell' },
+    { value: 'mute', label: 'Mute' },
   ]
 
   const briefingHours = Array.from({ length: 24 }, (_, i) => ({
@@ -353,370 +886,118 @@ function General() {
   }))
 
   return (
-    <div className="set-panel">
-      {/* Category: Composer */}
-      <div className="set-section-label">Composer</div>
-      <div className="set-box">
-        <div className="set-box-row">
-          <div className="set-row-text">
-            <span className="set-row-title">Send with</span>
-            <span className="set-row-desc">The other combination always inserts a newline.</span>
-          </div>
-          <div className="set-seg-ctrl">
-            <HouseButton
-              type="button"
-              className={`set-seg-btn${(sendWith === 'enter' || sendWith === 'Enter') ? ' is-active' : ''}`}
-              onClick={() => handleSendWith('enter')}
-            >
-              Enter
-            </HouseButton>
-            <HouseButton
-              type="button"
-              className={`set-seg-btn${(sendWith === 'ctrl-enter' || sendWith === 'Cmd+Enter') ? ' is-active' : ''}`}
-              onClick={() => handleSendWith('ctrl-enter')}
-            >
-              Ctrl+↵
-            </HouseButton>
-          </div>
-        </div>
-
-        <div className="set-box-row">
-          <div className="set-row-text">
-            <span className="set-row-title">New chats start in</span>
-            <span className="set-row-desc">The permission level a chat opens at before you change it.</span>
-          </div>
-          <AnimatedSelect
-            value={defaultGuard || guard || 'guard'}
-            onChange={handleStartGuard}
-            options={guardOptions}
-            placeholder="Permission…"
-            minWidth={160}
-          />
-        </div>
-
-        <div className="set-box-row">
-          <div className="set-row-text">
-            <span className="set-row-title">Default reasoning effort</span>
-            <span className="set-row-desc">Reasoning effort assigned when models support variable thinking tokens.</span>
-          </div>
-          <AnimatedSelect
-            value={defaultEffort || 'default'}
-            onChange={handleThinkAt}
-            options={effortOptions}
-            placeholder="Reasoning…"
-            minWidth={140}
-          />
-        </div>
-      </div>
-
-      {/* Category: Chats */}
-      <div className="set-section-label">Chats</div>
-      <div className="set-box">
-        <div className="set-box-row">
-          <div className="set-row-text">
-            <span className="set-row-title">Archive chats instead of deleting</span>
-            <span className="set-row-desc">Archived chats are kept in local storage and can be reviewed or restored.</span>
-          </div>
-          <Switch
-            on={Boolean(archiveChats)}
-            onChange={(val) => setArchiveChats?.(val)}
-            tone="default"
-          />
-        </div>
-
-        <div className="set-box-row">
-          <div className="set-row-text">
-            <span className="set-row-title">Confirm destructive actions</span>
-            <span className="set-row-desc">Always display confirmation dialogs before deleting conversations or clearing memory.</span>
-          </div>
-          <Switch
-            on={Boolean(confirmDestructive)}
-            onChange={(val) => setConfirmDestructive?.(val)}
-            tone="default"
-          />
-        </div>
-
-        <div className="set-box-row">
-          <div className="set-row-text">
-            <span className="set-row-title">Restore open tabs on restart</span>
-            <span className="set-row-desc">Restore your active conversation and panel state when relaunching Amethyst.</span>
-          </div>
-          <Switch
-            on={Boolean(restoreTabs)}
-            onChange={(val) => setRestoreTabs?.(val)}
-            tone="default"
-          />
-        </div>
-      </div>
-
-      {/* Category: Inspector */}
-      <div className="set-section-label">Inspector</div>
-      <div className="set-box">
-        <div className="set-box-row">
-          <div className="set-row-text">
-            <span className="set-row-title">Show usage</span>
-            <span className="set-row-desc">Display token consumption and provider latency telemetry in the inspector sidebar.</span>
-          </div>
-          <Switch
-            on={Boolean(showUsage)}
-            onChange={(val) => setShowUsage?.(val)}
-            tone="default"
-          />
-        </div>
-      </div>
-
-      {/* Category: Working Directory */}
-      <div className="set-section-label">Working Directory</div>
-      <div className="set-box">
-        <div className="set-box-row" style={{ flexWrap: 'wrap', gap: 12 }}>
-          <div className="set-row-text" style={{ flex: '1 1 240px' }}>
-            <span className="set-row-title">Default workspace path</span>
-            <span className="set-row-desc">Directory where file tools read, write, and execute by default.</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 320px', justifyContent: 'flex-end' }}>
-            <HouseInput
-              type="text"
-              value={wsDraft}
-              onChange={(e) => setWsDraft(e.target.value)}
-              placeholder="e.g. /home/user/project or ~"
-              className="set-input"
-              style={{ flex: 1, minWidth: 160 }}
-            />
-            <HouseButton type="button" className="set-btn-sm" onClick={handleBrowseDir} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              <Icon name="folder" size={13} />
-              <span>Browse…</span>
-            </HouseButton>
-            <HouseButton type="button" className="set-btn-sm is-primary" onClick={saveWorkspace} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              <Icon name="check" size={13} />
-              <span>Save</span>
-            </HouseButton>
-          </div>
-        </div>
-      </div>
-
-      {/* Category: Beta Features */}
-      <div className="set-section-label">Beta Features</div>
-      <div className="set-box">
-        <div className="set-box-row">
-          <div className="set-row-text">
-            <span className="set-row-title">Enable Beta Pages</span>
-            <span className="set-row-desc">Show Automations and Mail tabs in the sidebar.</span>
-          </div>
-          <Switch
-            on={Boolean(betaPages)}
-            onChange={(val) => setBetaPages?.(val)}
-            tone="default"
-          />
-        </div>
-      </div>
-
-      {/* Category: Automation & Rhythm */}
-      <div className="set-section-label">Automation & Rhythm</div>
-      <div className="set-box">
-        <div className="set-box-row">
-          <div className="set-row-left">
-            <div className="set-row-icon-box">
-              <Icon name="sliders" size={16} />
-            </div>
+    <div className="set-panel" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div>
+        <div className="set-section-label">Alerts & Notifications</div>
+        <div className="set-box" style={{ borderRadius: 16 }}>
+          <div className="set-box-row">
             <div className="set-row-text">
-              <span className="set-row-title">Autonomous iteration limit</span>
-              <span className="set-row-desc">How many tool calls and model round trips one turn may take before stopping.</span>
+              <span className="set-row-title">Turn completion notifications</span>
+              <span className="set-row-desc">Set when Amethyst alerts you that an agent turn is finished.</span>
             </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <HouseInput
-              type="range"
-              min={4}
-              max={40}
-              value={maxIterations}
-              onChange={(e) => handleIterationsChange(Number(e.target.value))}
-              className="set-range-slider"
-              style={{ width: 140 }}
-            />
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: 600, color: 'var(--text)', minWidth: 26, textAlign: 'right' }}>
-              {maxIterations}
-            </span>
-          </div>
-        </div>
-
-        <div className="set-box-row">
-          <div className="set-row-left">
-            <div className="set-row-icon-box">
-              <Icon name="clock" size={16} />
-            </div>
-            <div className="set-row-text">
-              <span className="set-row-title">Morning briefing</span>
-              <span className="set-row-desc">Written from your calendar, tasks, inbox and library at the configured hour.</span>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <AnimatedSelect
-              value={briefingHour}
-              onChange={handleBriefingHourChange}
-              options={briefingHours}
-              placeholder="Hour…"
-              minWidth={95}
+              value={turnCompletion}
+              onChange={(v) => { setTurnCompletion(v); toast(`Turn alerts set to ${v}`, 'ok') }}
+              options={turnOptions}
+              minWidth={170}
             />
-            <Switch on={briefingEnabled} onChange={handleBriefingToggle} tone="default" />
+          </div>
+
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Enable permission notifications</span>
+              <span className="set-row-desc">Show alerts when filesystem or shell permissions are requested.</span>
+            </div>
+            <Switch on={permissionAlerts} onChange={(val) => setPermissionAlerts(val)} tone="default" />
+          </div>
+
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Enable question notifications</span>
+              <span className="set-row-desc">Show alerts when input is needed to continue.</span>
+            </div>
+            <Switch on={questionAlerts} onChange={(val) => setQuestionAlerts(val)} tone="default" />
+          </div>
+
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Desktop system notifications</span>
+              <span className="set-row-desc">Native OS notifications when Amethyst is backgrounded.</span>
+            </div>
+            <Switch on={notifyOnDone} onChange={handleNotificationToggle} tone="default" />
+          </div>
+
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Notification sound</span>
+              <span className="set-row-desc">Sound for task completion, permission requests, and questions.</span>
+            </div>
+            <AnimatedSelect
+              value={soundSetting}
+              onChange={(v) => { setSoundSetting(v); toast(`Sound set to ${v}`, 'ok') }}
+              options={soundOptions}
+              minWidth={140}
+            />
           </div>
         </div>
+      </div>
 
-        <div className="set-box-row">
-          <div className="set-row-left">
-            <div className="set-row-icon-box">
-              <Icon name="bell" size={16} />
+      <div>
+        <div className="set-section-label">Briefing & Routine</div>
+        <div className="set-box" style={{ borderRadius: 16 }}>
+          <div className="set-box-row">
+            <div className="set-row-left">
+              <div className="set-row-icon-box">
+                <Icon name="clock" size={16} />
+              </div>
+              <div className="set-row-text">
+                <span className="set-row-title">Morning briefing</span>
+                <span className="set-row-desc">Written from your calendar, tasks, and notes at the configured hour.</span>
+              </div>
             </div>
-            <div className="set-row-text">
-              <span className="set-row-title">Desktop notifications</span>
-              <span className="set-row-desc">Alert when a long-running autonomous turn finishes while Amethyst is in the background.</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <AnimatedSelect
+                value={briefingHour}
+                onChange={handleBriefingHourChange}
+                options={briefingHours}
+                placeholder="Hour…"
+                minWidth={95}
+              />
+              <Switch on={briefingEnabled} onChange={handleBriefingToggle} tone="default" />
             </div>
           </div>
-          <Switch on={notifyOnDone} onChange={handleNotificationToggle} tone="default" />
         </div>
+      </div>
 
-        <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
-          <div className="set-row-left">
-            <div className="set-row-icon-box">
-              <Icon name="spark" size={16} />
-            </div>
-            <div className="set-row-text">
-              <span className="set-row-title">BoardUI Notification System</span>
-              <span className="set-row-desc">
-                Interactive preview of BoardUI Notification states with timed auto-dismiss countdown, avatars, status icons, and actions.
-              </span>
-            </div>
+      <div>
+        <div className="set-section-label">Notification Preview</div>
+        <div className="set-box" style={{ borderRadius: 16, padding: '16px' }}>
+          <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 12 }}>
+            Interactive preview of BoardUI Notification toasts:
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingLeft: 40 }}>
-            <HouseButton
-              type="button"
-              className="set-btn-sm"
-              onClick={() => showBoardUINotification("information")}
-            >
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification("information")} style={{ borderRadius: 12 }}>
               Information
             </HouseButton>
-            <HouseButton
-              type="button"
-              className="set-btn-sm"
-              onClick={() => showBoardUINotification("success")}
-            >
+            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification("success")} style={{ borderRadius: 12 }}>
               Success
             </HouseButton>
-            <HouseButton
-              type="button"
-              className="set-btn-sm"
-              onClick={() => showBoardUINotification("error")}
-            >
+            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification("error")} style={{ borderRadius: 12 }}>
               Error
             </HouseButton>
-            <HouseButton
-              type="button"
-              className="set-btn-sm"
-              onClick={() => showBoardUINotification("avatar")}
-            >
+            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification("avatar")} style={{ borderRadius: 12 }}>
               With avatar
             </HouseButton>
-            <HouseButton
-              type="button"
-              className="set-btn-sm"
-              onClick={() => showBoardUINotification("actions")}
-            >
+            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification("actions")} style={{ borderRadius: 12 }}>
               With buttons
             </HouseButton>
-          </div>
-        </div>
-      </div>
-
-      {/* Category: Launcher & Shortcuts */}
-      <div className="set-section-label">Launcher & Keyboard Shortcuts</div>
-      <div className="set-box">
-        <div className="set-box-row">
-          <div className="set-row-text">
-            <span className="set-row-title">Global summon shortcut</span>
-            <span className="set-row-desc">
-              Global system chord to summon or dismiss the Damon launcher from anywhere.
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <HouseInput
-              type="text"
-              value={hotkeyDraft}
-              onChange={(e) => setHotkeyDraft(e.target.value)}
-              placeholder="<ctrl>+<alt>+<space>"
-              style={{ width: 180, fontFamily: 'var(--font-mono)', fontSize: '13px' }}
-            />
-            <HouseButton
-              type="button"
-              className="set-btn-sm"
-              onClick={handleSaveHotkey}
-            >
-              Save
-            </HouseButton>
-          </div>
-        </div>
-
-        <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-          <div className="set-row-text">
-            <span className="set-row-title">Common shortcut presets</span>
-            <span className="set-row-desc">One-click standard chords for desktop launchers:</span>
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {[
-              { label: 'Ctrl+Alt+Space', chord: '<ctrl>+<alt>+<space>' },
-              { label: 'Ctrl+Space', chord: '<ctrl>+<space>' },
-              { label: 'Super+Space', chord: '<super>+<space>' },
-              { label: 'Alt+Space', chord: '<alt>+<space>' },
-            ].map((p) => (
-              <HouseButton
-                key={p.chord}
-                type="button"
-                className={`set-btn-sm${hotkeyDraft === p.chord ? ' is-active' : ''}`}
-                onClick={() => {
-                  setHotkeyDraft(p.chord)
-                  handleSaveHotkeyExplicit(p.chord)
-                }}
-              >
-                {p.label}
-              </HouseButton>
-            ))}
-          </div>
-        </div>
-
-        <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
-          <div className="set-row-text">
-            <span className="set-row-title">Auto-Assigned Launcher Shortcuts</span>
-            <span className="set-row-desc">These shortcuts are dynamically mapped for fast keyboard navigation:</span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8 }}>
-            <div className="set-box-inner" style={{ padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13, color: 'var(--text)' }}>Primary Action (Open / Run)</span>
-              <kbd className="kbd">↵</kbd>
-            </div>
-            <div className="set-box-inner" style={{ padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13, color: 'var(--text)' }}>Action Panel</span>
-              <kbd className="kbd">⌘K / Ctrl+K</kbd>
-            </div>
-            <div className="set-box-inner" style={{ padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13, color: 'var(--text)' }}>Quick Items 1–9</span>
-              <kbd className="kbd">⌘1 – ⌘9</kbd>
-            </div>
-            <div className="set-box-inner" style={{ padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13, color: 'var(--text)' }}>Filter Mode Switch</span>
-              <kbd className="kbd">Tab</kbd>
-            </div>
-            <div className="set-box-inner" style={{ padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13, color: 'var(--text)' }}>Hierarchical Dismiss</span>
-              <kbd className="kbd">Esc</kbd>
-            </div>
-            <div className="set-box-inner" style={{ padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13, color: 'var(--text)' }}>Copy Text / Path</span>
-              <kbd className="kbd">⌘C</kbd>
-            </div>
           </div>
         </div>
       </div>
     </div>
   )
 }
+
 
 /* ==========================================================================
    2. APPEARANCE VIEW (Themes, Scaled UI & Fonts, Accent, Loader, Material)
@@ -4703,6 +4984,7 @@ function Shortcuts() {
 const PANELS = {
   profile: Profile,
   general: General,
+  notifications: Notifications,
   shortcuts: Shortcuts,
   appearance: Appearance,
   models: Models,
@@ -4718,6 +5000,7 @@ const PANELS = {
 export default function Settings() {
   const { setView, theme, setTheme } = useApp()
   const [section, setSection] = useState(() => (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null) || 'general')
+  const [searchQuery, setSearchQuery] = useState('')
   const [isClosing, setIsClosing] = useState(false)
 
   const handleClose = () => {
@@ -4734,6 +5017,17 @@ export default function Settings() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
+
+  const filteredSections = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return SECTIONS
+    return SECTIONS.filter(
+      (s) =>
+        s.label.toLowerCase().includes(q) ||
+        (s.desc && s.desc.toLowerCase().includes(q)) ||
+        (s.group && s.group.toLowerCase().includes(q))
+    )
+  }, [searchQuery])
 
   const Panel = PANELS[section] || General
 
@@ -4770,32 +5064,104 @@ export default function Settings() {
           </div>
         </div>
 
-        {Object.entries(
-          SECTIONS.reduce((acc, item) => {
-            const grp = item.group || 'App'
-            if (!acc[grp]) acc[grp] = []
-            acc[grp].push(item)
-            return acc
-          }, {})
-        ).map(([grp, items]) => (
-          <div key={grp} className="set-nav-group">
-            <div className="set-nav-group-label">{grp}</div>
-            {items.map((item) => {
-              const isSel = section === item.id
-              return (
-                <HouseButton
-                  key={item.id}
-                  type="button"
-                  className={`set-nav-item${isSel ? ' active' : ''}`}
-                  onClick={() => setSection(item.id)}
-                >
-                  <Icon name={item.icon} size={15} />
-                  <span className="set-nav-label">{item.label}</span>
-                </HouseButton>
-              )
-            })}
+        {/* Live Search Input */}
+        <div style={{ padding: '0 12px 12px 12px' }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <span style={{ position: 'absolute', left: 10, color: 'var(--text-dim)', pointerEvents: 'none', display: 'flex' }}>
+              <Icon name="search" size={13} />
+            </span>
+            <HouseInput
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search settings…"
+              className="set-input"
+              style={{
+                width: '100%',
+                paddingLeft: 30,
+                paddingRight: searchQuery ? 28 : 10,
+                height: 32,
+                fontSize: 12,
+                borderRadius: 10,
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border-subtle, rgba(0,0,0,0.06))',
+              }}
+            />
+            {searchQuery && (
+              <HouseButton
+                type="button"
+                onClick={() => setSearchQuery('')}
+                style={{
+                  position: 'absolute',
+                  right: 6,
+                  padding: 3,
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-dim)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+                title="Clear search"
+              >
+                <Icon name="x" size={11} />
+              </HouseButton>
+            )}
           </div>
-        ))}
+        </div>
+
+        {filteredSections.length === 0 ? (
+          <div style={{ padding: '16px 12px', fontSize: 13, color: 'var(--text-dim)', textAlign: 'center' }}>
+            No matching settings
+          </div>
+        ) : (
+          Object.entries(
+            filteredSections.reduce((acc, item) => {
+              const grp = item.group || 'Personal'
+              if (!acc[grp]) acc[grp] = []
+              acc[grp].push(item)
+              return acc
+            }, {})
+          ).map(([grp, items]) => (
+            <div key={grp} className="set-nav-group">
+              <div className="set-nav-group-label">{grp}</div>
+              {items.map((item) => {
+                const isSel = section === item.id
+                return (
+                  <HouseButton
+                    key={item.id}
+                    type="button"
+                    data-section={item.id}
+                    className={`set-nav-item${isSel ? ' active' : ''}`}
+                    onClick={() => setSection(item.id)}
+                    style={{
+                      position: 'relative',
+                      borderRadius: 12,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                    }}
+                  >
+                    {isSel && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          left: 2,
+                          width: 3,
+                          height: 14,
+                          borderRadius: 2,
+                          background: '#873FFF',
+                        }}
+                      />
+                    )}
+                    <Icon name={item.icon} size={15} />
+                    <span className="set-nav-label">{item.label}</span>
+                  </HouseButton>
+                )
+              })}
+            </div>
+          ))
+        )}
       </nav>
 
       {/* Main content pane */}
