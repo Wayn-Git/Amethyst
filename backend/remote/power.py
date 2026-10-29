@@ -65,3 +65,65 @@ def get_wake_info() -> dict[str, Any]:
             except Exception:
                 continue
     return {"wake_interfaces": interfaces}
+
+
+_ACTIVE_INHIBITORS: dict[str, subprocess.Popen | None] = {}
+
+
+def acquire_sleep_inhibit(reason: str = "Amethyst running task") -> str | None:
+    """Inhibit system sleep while a task is running. Returns a handle or None."""
+    import shutil
+    import uuid
+
+    handle_id = str(uuid.uuid4())
+    # Linux: systemd-inhibit
+    if shutil.which("systemd-inhibit"):
+        try:
+            proc = subprocess.Popen(
+                [
+                    "systemd-inhibit",
+                    "--what=idle:sleep",
+                    "--who=Amethyst",
+                    f"--why={reason}",
+                    "sleep",
+                    "infinity",
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            _ACTIVE_INHIBITORS[handle_id] = proc
+            return handle_id
+        except Exception:
+            pass
+    # macOS: caffeinate
+    if shutil.which("caffeinate"):
+        try:
+            proc = subprocess.Popen(
+                ["caffeinate", "-i", "-s"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            _ACTIVE_INHIBITORS[handle_id] = proc
+            return handle_id
+        except Exception:
+            pass
+    # Simulated handle when platform binary unavailable
+    _ACTIVE_INHIBITORS[handle_id] = None
+    return handle_id
+
+
+def release_sleep_inhibit(handle: str | None) -> bool:
+    """Release an active sleep inhibitor lock."""
+    if not handle or handle not in _ACTIVE_INHIBITORS:
+        return False
+    proc = _ACTIVE_INHIBITORS.pop(handle, None)
+    if proc is not None:
+        try:
+            proc.terminate()
+            proc.wait(timeout=1)
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+    return True

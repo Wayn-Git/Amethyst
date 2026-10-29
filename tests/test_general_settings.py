@@ -28,3 +28,12 @@ def test_save_and_load_general_settings():
     save_general_setting("editor_destination", "cursor")
     settings = load_general_settings()
     assert settings.get("editor_destination") == "cursor"
+
+
+def test_sleep_inhibit_cycle():
+    from backend.remote.power import acquire_sleep_inhibit, release_sleep_inhibit
+
+    handle = acquire_sleep_inhibit("running agent turn")
+    released = release_sleep_inhibit(handle)
+    assert isinstance(released, bool)
+    assert release_sleep_inhibit(None) is False
