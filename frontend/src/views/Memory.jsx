@@ -156,14 +156,7 @@ function FormattedFactText({ text = '', searchQuery = '', onCopyCode }) {
     return (
       <React.Fragment>
         {str.slice(0, idx)}
-        <mark
-          style={{
-            backgroundColor: 'rgba(139, 114, 255, 0.25)',
-            color: 'var(--text)',
-            borderRadius: '2px',
-            padding: '0 2px',
-          }}
-        >
+        <mark className="mem-highlight">
           {str.slice(idx, idx + q.length)}
         </mark>
         {str.slice(idx + q.length)}
@@ -184,20 +177,28 @@ function FormattedFactText({ text = '', searchQuery = '', onCopyCode }) {
         if (part.startsWith('`') && part.endsWith('`')) {
           const codeVal = part.slice(1, -1)
           return (
-            <HouseButton
-              type="button"
+            <code
               key={i}
+              className="mem-inline-code"
+              title="Click to copy identifier"
               onClick={(e) => {
                 e.stopPropagation()
                 navigator.clipboard?.writeText(codeVal)
                 onCopyCode?.(codeVal)
               }}
-              title="Click to copy identifier"
-              className="mem-code-chip"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  navigator.clipboard?.writeText(codeVal)
+                  onCopyCode?.(codeVal)
+                }
+              }}
             >
-              <span>{highlightMatch(codeVal)}</span>
-              <Icon name="copy" size={10} style={{ opacity: 0.5 }} />
-            </HouseButton>
+              {highlightMatch(codeVal)}
+            </code>
           )
         }
         return <React.Fragment key={i}>{highlightMatch(part)}</React.Fragment>
@@ -218,19 +219,19 @@ function MemoryCardSkeleton({ index = 0 }) {
   ][index % 4]
   return (
     <div className="mem-card is-skeleton" aria-hidden="true" style={{ pointerEvents: 'none', userSelect: 'none' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+      <div className="mem-card-inner">
         <div
           style={{
-            width: 14,
-            height: 14,
+            width: 16,
+            height: 16,
             borderRadius: 3,
             border: '1.5px solid var(--hairline-strong)',
             marginTop: '4px',
             opacity: 0.35,
           }}
         />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="mem-card-head" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <div className="mem-card-body">
+          <div className="mem-card-head">
             <Skeleton w={catW} h={18} r={99} />
             <Skeleton w={32} h={11} r={3} />
           </div>
@@ -395,6 +396,22 @@ export default function Memory() {
   const liveCount = useMemo(() => facts.filter((f) => f.status === 'live').length, [facts])
   const retiredCount = useMemo(() => facts.filter((f) => f.status === 'retired').length, [facts])
 
+  const categoryCounts = useMemo(() => {
+    const counts = { all: 0, identity: 0, connections: 0, projects: 0, approvals: 0, other: 0 }
+    facts.forEach((f) => {
+      if (statusFilter === 'live' && f.status !== 'live') return
+      if (statusFilter === 'retired' && f.status !== 'retired') return
+      counts.all += 1
+      const cat = deriveCategory(f.fact)
+      if (counts[cat] !== undefined) {
+        counts[cat] += 1
+      } else {
+        counts.other += 1
+      }
+    })
+    return counts
+  }, [facts, statusFilter])
+
   // -------------------------------------------------------------
   // Operations
   // -------------------------------------------------------------
@@ -535,32 +552,31 @@ export default function Memory() {
     <div className="mem-view" ref={rootRef}>
       <div className="mem-container">
         {/* =========================================================================
-            HEADER (Clean, Calm, Simple Actions)
+            HEADER (Amethyst Design System vheader)
         ========================================================================= */}
-        <header className="vheader" data-enter style={{ marginBottom: '24px', paddingBottom: '16px' }}>
+        <header className="vheader" data-enter>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 600 }}>
-                What AMETHYST remembers
-              </h1>
-              <Badge tone="info">{liveCount} held</Badge>
+            <div className="vheader-eyebrow">
+              <Icon name="brain" size={12} />
+              <span>Long-Term Memory</span>
             </div>
-            <div className="vheader-sub" style={{ marginTop: '4px', fontSize: '13px' }}>
+            <div className="mem-title-row">
+              <h1>What AMETHYST remembers</h1>
+              <Badge tone="info" className="mem-count-badge">{liveCount} held</Badge>
+            </div>
+            <div className="vheader-sub">
               Standing facts, extracted after a turn and recalled in later conversations.
             </div>
           </div>
 
-          {/* Simple header buttons: clean, greyed out when off, no extra nested boxes */}
-          <div className="mem-header-actions">
+          {/* Header actions */}
+          <div className="vheader-actions mem-header-actions">
             <HouseButton
               type="button"
               className={`btn btn--small mem-btn-interactive ${enabled ? 'btn--primary' : 'btn--ghost'}`}
               disabled={busy === 'toggle'}
               onClick={toggleMemoryGlobal}
-              style={{
-                opacity: enabled ? 1 : 0.6,
-                transition: 'all 140ms ease',
-              }}
+              aria-label={enabled ? 'Turn memory off' : 'Turn memory on'}
             >
               {enabled ? 'Memory on' : 'Memory off'}
             </HouseButton>
@@ -570,6 +586,7 @@ export default function Memory() {
               className="btn btn--ghost btn--small mem-btn-interactive"
               onClick={load}
               disabled={loading}
+              aria-label="Refresh remembered facts"
             >
               Refresh
             </HouseButton>
@@ -577,7 +594,7 @@ export default function Memory() {
         </header>
 
         {/* =========================================================================
-            STREAMLINED COMPOSER (Single clean row, no heavy card)
+            STREAMLINED COMPOSER (Single clean row, responsive layout)
         ========================================================================= */}
         <form className="mem-composer-row" onSubmit={handleAddFact} data-enter>
           <div className="mem-composer-field">
@@ -588,6 +605,7 @@ export default function Memory() {
               onChange={(e) => setNewFact(e.target.value)}
               placeholder="Add a fact for AMETHYST to remember (press N to focus)..."
               disabled={busy === 'add'}
+              aria-label="Add a fact for AMETHYST to remember"
             />
             {newFact && (
               <Badge tone="info">{deriveCategory(newFact)}</Badge>
@@ -596,29 +614,47 @@ export default function Memory() {
 
           <HouseButton
             type="submit"
-            className="btn btn--primary btn--small mem-btn-interactive"
+            className="btn btn--primary btn--small mem-btn-interactive mem-composer-submit"
             disabled={!newFact.trim() || busy === 'add'}
-            style={{ flexShrink: 0, height: '38px', padding: '0 16px' }}
           >
             Remember
           </HouseButton>
         </form>
 
         {/* =========================================================================
-            CLEAN TOOLBAR (Segmented tabs + Category chips + Search)
+            CLEAN TOOLBAR (Category chips left + Segmented Status & Search right)
         ========================================================================= */}
         <div className="mem-toolbar" data-enter>
-          <div className="mem-toolbar-left">
-            {/* Status Tabs */}
-            <div className="mem-segmented">
+          {/* Category Filter Pills (Topic dimension) */}
+          <div className="mem-category-group" role="group" aria-label="Filter facts by category">
+            {CATEGORIES.map((cat) => {
+              const count = categoryCounts[cat.id] ?? 0
+              return (
+                <HouseButton
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat.id)}
+                  className={`mem-category-chip ${selectedCategory === cat.id ? 'is-active' : ''}`}
+                >
+                  <span>{cat.label}</span>
+                  <span className="mem-chip-count">{count}</span>
+                </HouseButton>
+              )
+            })}
+          </div>
+
+          <div className="mem-toolbar-right">
+            {/* Status Segmented Toggle (Lifecycle dimension: Live vs Retired) */}
+            <div className="mem-segmented" role="tablist" aria-label="Filter facts by status">
               {[
                 { id: 'live', label: `Live (${liveCount})` },
                 { id: 'retired', label: `Retired (${retiredCount})` },
-                { id: 'all', label: 'All' },
               ].map((tab) => (
                 <HouseButton
                   key={tab.id}
                   type="button"
+                  role="tab"
+                  aria-selected={statusFilter === tab.id}
                   onClick={() => setStatusFilter(tab.id)}
                   className={`mem-segmented-btn ${statusFilter === tab.id ? 'is-active' : ''}`}
                 >
@@ -627,47 +663,33 @@ export default function Memory() {
               ))}
             </div>
 
-            {/* Category Chips */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-              {CATEGORIES.map((cat) => (
+            {/* Search */}
+            <div className="inline-search mem-search-wrap">
+              <Icon name="search" size={13} />
+              <HouseInput
+                ref={searchInputRef}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Filter facts (/ to focus)..."
+                aria-label="Filter facts"
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape' && searchQuery) {
+                    e.stopPropagation()
+                    setSearchQuery('')
+                  }
+                }}
+              />
+              {searchQuery && (
                 <HouseButton
-                  key={cat.id}
                   type="button"
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`mem-category-chip ${selectedCategory === cat.id ? 'is-active' : ''}`}
+                  className="icon-btn mem-btn-interactive"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Clear filter"
                 >
-                  {cat.label}
+                  <Icon name="x" size={12} />
                 </HouseButton>
-              ))}
+              )}
             </div>
-          </div>
-
-          {/* Search */}
-          <div className="inline-search" style={{ minWidth: '200px' }}>
-            <Icon name="search" size={13} />
-            <HouseInput
-              ref={searchInputRef}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Filter facts (/ to focus)..."
-              aria-label="Filter facts"
-              onKeyDown={(e) => {
-                if (e.key === 'Escape' && searchQuery) {
-                  e.stopPropagation()
-                  setSearchQuery('')
-                }
-              }}
-            />
-            {searchQuery && (
-              <HouseButton
-                type="button"
-                className="icon-btn"
-                onClick={() => setSearchQuery('')}
-                aria-label="Clear filter"
-              >
-                <Icon name="x" size={12} />
-              </HouseButton>
-            )}
           </div>
         </div>
 
@@ -701,7 +723,7 @@ export default function Memory() {
             data-enter
             style={{
               opacity: enabled ? 1 : 0.6,
-              transition: 'opacity 140ms ease',
+              transition: 'opacity 150ms var(--ease-out, ease-out)',
             }}
           >
             {filteredFacts.map((fact) => {
@@ -718,10 +740,11 @@ export default function Memory() {
                   onClick={() => setSelectedFactId(fact.id)}
                   className={`mem-card ${isSelected ? 'is-selected' : ''} ${isRetired ? 'is-retired' : ''}`}
                 >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                  <div className="mem-card-inner">
                     {/* Checkbox */}
                     <HouseInput
                       type="checkbox"
+                      className="mem-card-checkbox"
                       checked={isChecked}
                       onChange={(e) => {
                         e.stopPropagation()
@@ -730,28 +753,23 @@ export default function Memory() {
                         )
                       }}
                       onClick={(e) => e.stopPropagation()}
-                      style={{
-                        marginTop: '4px',
-                        accentColor: 'var(--accent)',
-                        cursor: 'pointer',
-                      }}
                       aria-label={`Select fact #${fact.id}`}
                     />
 
                     {/* Fact Body */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="mem-card-body">
                       {/* Category & Tag Row */}
                       <div className="mem-card-head">
                         <Badge tone="info">{category}</Badge>
 
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--text-faint)' }}>
+                        <span className="mem-fact-id">
                           #{fact.id}
                         </span>
 
                         {isRetired && <Badge tone="info">Retired</Badge>}
 
                         {fact.supersedes_id && (
-                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--text-faint)' }}>
+                          <span className="mem-fact-relation">
                             (corrected from #{fact.supersedes_id})
                           </span>
                         )}
@@ -773,33 +791,16 @@ export default function Memory() {
 
                       {/* Fact Text or Inline Edit */}
                       {isEditing ? (
-                        <div onClick={(e) => e.stopPropagation()} style={{ marginTop: '8px' }}>
+                        <div className="mem-edit-box" onClick={(e) => e.stopPropagation()}>
                           <HouseTextarea
                             value={editDraft}
                             onChange={(e) => setEditDraft(e.target.value)}
                             rows={3}
-                            style={{
-                              width: '100%',
-                              padding: '8px 10px',
-                              background: 'var(--canvas)',
-                              border: '1px solid var(--accent)',
-                              borderRadius: 'var(--radius-cards, 6px)',
-                              fontSize: '14px',
-                              lineHeight: '1.6',
-                              color: 'var(--text)',
-                              outline: 'none',
-                              resize: 'none',
-                              fontFamily: 'inherit',
-                            }}
+                            className="mem-edit-textarea"
+                            placeholder="Edit fact text..."
+                            aria-label="Edit fact text"
                           />
-                          <div
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'flex-end',
-                              gap: '8px',
-                              marginTop: '8px',
-                            }}
-                          >
+                          <div className="mem-edit-actions">
                             <HouseButton
                               type="button"
                               className="btn btn--ghost btn--small mem-btn-interactive"
@@ -829,7 +830,7 @@ export default function Memory() {
 
                       {/* Provenance Metadata */}
                       <div className="mem-card-meta">
-                        <span title={fact.created_at}>
+                        <span className="mem-timestamp" title={fact.created_at}>
                           learned {formatRelativeTime(fact.created_at)}
                         </span>
 
@@ -837,11 +838,7 @@ export default function Memory() {
                           <a
                             href={`/chat/${fact.conversation_id}`}
                             onClick={(e) => e.stopPropagation()}
-                            style={{
-                              color: 'var(--text-faint)',
-                              fontFamily: 'var(--font-mono)',
-                              textDecoration: 'none',
-                            }}
+                            className="mem-conv-link"
                             title="Jump to originating conversation"
                           >
                             conv-{fact.conversation_id.slice(0, 8)}
@@ -856,18 +853,7 @@ export default function Memory() {
                               e.stopPropagation()
                               setExpandedHistory((prev) => ({ ...prev, [fact.id]: !prev[fact.id] }))
                             }}
-                            className="mem-btn-interactive"
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: 'var(--accent)',
-                              fontSize: '11.5px',
-                              cursor: 'pointer',
-                              padding: 0,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '3px',
-                            }}
+                            className="mem-history-btn mem-btn-interactive"
                           >
                             <span>{fact.history.length + 1} versions</span>
                             <Icon name={isHistoryOpen ? 'caret-up' : 'caret-down'} size={10} />
@@ -883,9 +869,9 @@ export default function Memory() {
                               setEditingId(fact.id)
                               setEditDraft(fact.fact)
                             }}
-                            className="btn btn--ghost btn--small mem-btn-interactive"
+                            className="btn btn--ghost btn--small mem-btn-interactive mem-action-btn"
                             title="Correct fact (E)"
-                            style={{ padding: '3px 8px', fontSize: '11.5px' }}
+                            aria-label={`Correct fact #${fact.id}`}
                           >
                             <Icon name="edit" size={12} />
                             <span>Correct</span>
@@ -897,9 +883,9 @@ export default function Memory() {
                               e.stopPropagation()
                               handleForget(fact.id)
                             }}
-                            className="btn btn--ghost btn--small mem-btn-interactive"
+                            className="btn btn--ghost btn--small mem-btn-interactive mem-action-btn"
                             title="Forget fact (Del)"
-                            style={{ padding: '3px 8px', fontSize: '11.5px' }}
+                            aria-label={`Forget fact #${fact.id}`}
                           >
                             <Icon name="trash" size={12} />
                             <span>Forget</span>
@@ -912,7 +898,7 @@ export default function Memory() {
                         <div className="mem-history-drawer">
                           <div className="mem-history-row" style={{ color: 'var(--text)' }}>
                             <span><strong>v2 (Current)</strong>: {fact.fact}</span>
-                            <span style={{ color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
+                            <span className="mem-history-meta">
                               {formatRelativeTime(fact.created_at)}
                             </span>
                           </div>
@@ -928,7 +914,7 @@ export default function Memory() {
                                   </span>
                                 )}
                               </div>
-                              <span style={{ fontFamily: 'var(--font-mono)' }}>
+                              <span className="mem-history-meta">
                                 {formatRelativeTime(h.retired_at)}
                               </span>
                             </div>
@@ -947,29 +933,11 @@ export default function Memory() {
             FLOATING BULK ACTIONS BAR
         ========================================================================= */}
         {multiSelectIds.length > 0 && (
-          <div
-            data-enter
-            style={{
-              position: 'fixed',
-              bottom: '24px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              zIndex: 40,
-              background: 'var(--surface-3)',
-              border: '1px solid var(--hairline-strong)',
-              borderRadius: 'var(--radius-inputs, 9999px)',
-              padding: '6px 14px',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              fontSize: '12px',
-            }}
-          >
-            <span style={{ fontWeight: 500, color: 'var(--text)' }}>
+          <div className="mem-floating-bar" data-enter role="region" aria-label="Bulk actions">
+            <span className="mem-floating-count">
               {multiSelectIds.length} selected
             </span>
-            <div style={{ width: '1px', height: '14px', background: 'var(--hairline-strong)' }} />
+            <div className="mem-floating-divider" />
             <HouseButton
               type="button"
               className="btn btn--ghost btn--small mem-btn-interactive"
@@ -999,6 +967,7 @@ export default function Memory() {
               className="icon-btn mem-btn-interactive"
               onClick={() => setMultiSelectIds([])}
               title="Clear selection"
+              aria-label="Clear selection"
             >
               <Icon name="x" size={12} />
             </HouseButton>
@@ -1009,26 +978,8 @@ export default function Memory() {
             UNDO TOAST
         ========================================================================= */}
         {undoToast && (
-          <div
-            data-enter
-            style={{
-              position: 'fixed',
-              bottom: '24px',
-              right: '24px',
-              zIndex: 50,
-              background: 'var(--surface-3)',
-              border: '1px solid var(--hairline-strong)',
-              borderRadius: 'var(--radius-cards, 6px)',
-              padding: '10px 14px',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              fontSize: '12.5px',
-              color: 'var(--text)',
-            }}
-          >
-            <span>{undoToast.msg}</span>
+          <div className="mem-undo-toast" data-enter role="status" aria-live="polite">
+            <span style={{ flex: 1 }}>{undoToast.msg}</span>
             {undoToast.onUndo && (
               <HouseButton
                 type="button"

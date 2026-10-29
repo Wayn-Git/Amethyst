@@ -1,63 +1,116 @@
-/* What AMETHYST remembers — Clean, Minimal, Uncluttered
- * Emil Design Engineering principles: spacious, tactile feedback, no over-engineering.
+/* What AMETHYST remembers — Memory Section Styles
+ * Rigorously audited against:
+ *   - /superfuture-design-review (visual hierarchy, states, contrast, tokens)
+ *   - /better-layout (logical properties, shared edges, responsiveness, overflow protection)
+ *   - /better-typography (type scale, unitless line-heights, tabular-nums, pretty wrap)
+ *   - /better-ui (outer/inner radius rhythm, 0.96 active physics, hover-only queries, reduced motion)
  */
 
+/* ─── Root View Container ───────────────────────────────────── */
 .mem-view {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 40px 32px 100px;
+  overscroll-behavior: contain;
+  scroll-padding-block-start: var(--space-2xl, 24px);
+  padding-block: var(--space-3xl, 32px) var(--space-5xl, 80px);
+  padding-inline: var(--space-2xl, 24px);
 }
 
 @media (max-width: 768px) {
   .mem-view {
-    padding: 24px 16px 80px;
+    padding-block: var(--space-xl, 20px) var(--space-4xl, 60px);
+    padding-inline: var(--space-lg, 16px);
   }
 }
 
 .mem-container {
-  max-width: 1080px;
-  margin: 0 auto;
+  max-width: 1040px;
+  margin-inline: auto;
   width: 100%;
 }
 
-/* ─── Clean Header Actions ─────────────────────────────────── */
+/* ─── View Header Scope (Calm, Proportional Scale) ─────────── */
+.mem-view .vheader {
+  margin-block-end: var(--space-xl, 20px);
+  padding-block-end: var(--space-md, 14px);
+  gap: var(--space-md, 14px);
+}
+
+.mem-view .vheader h1 {
+  font-size: clamp(1.375rem, 2vw, 1.5625rem); /* 22px–25px balanced title */
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+}
+
+.mem-view .vheader-sub {
+  font-size: 0.875rem; /* 14px */
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin-block-start: 4px;
+}
+
+.mem-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs, 8px);
+  flex-wrap: wrap;
+}
+
+.mem-count-badge {
+  font-variant-numeric: tabular-nums;
+}
+
 .mem-header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-xs, 8px);
+  flex-wrap: wrap;
 }
 
 /* ─── Streamlined Composer ─────────────────────────────────── */
 .mem-composer-row {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 24px;
+  align-items: stretch;
+  gap: var(--space-sm, 10px);
+  margin-block-end: var(--space-xl, 20px);
+}
+
+@media (max-width: 640px) {
+  .mem-composer-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .mem-composer-field {
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-sm, 10px);
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--radius-lg, 12px);
-  padding: 10px 16px;
-  transition: border-color 140ms ease, box-shadow 140ms ease;
+  border-radius: var(--radius-lg, 10px);
+  padding-inline: var(--space-lg, 16px);
+  padding-block: 10px;
+  transition: border-color 150ms var(--ease-out, ease-out),
+              box-shadow 150ms var(--ease-out, ease-out);
 }
 
 .mem-composer-field:focus-within {
-  border-color: var(--accent-line);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 0 3px var(--focus-ring);
 }
 
 .mem-composer-field input {
   flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
   font-family: var(--font-body);
-  font-size: 14.5px;
+  font-size: max(16px, 0.9375rem); /* Prevents iOS auto-zoom while holding rem scale */
   color: var(--text);
   outline: none;
 }
@@ -66,20 +119,33 @@
   color: var(--text-faint);
 }
 
-/* ─── Toolbar (Tabs & Search) ──────────────────────────────── */
+.mem-composer-submit {
+  flex-shrink: 0;
+  height: 42px;
+  padding-inline: var(--space-lg, 18px);
+}
+
+@media (max-width: 640px) {
+  .mem-composer-submit {
+    height: 40px;
+    width: 100%;
+  }
+}
+
+/* ─── Toolbar (Tabs, Category Chips & Search) ──────────────── */
 .mem-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: var(--space-md, 12px);
+  margin-block-end: var(--space-xl, 20px);
   flex-wrap: wrap;
 }
 
 .mem-toolbar-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-sm, 10px);
   flex-wrap: wrap;
 }
 
@@ -88,198 +154,484 @@
   align-items: center;
   background: var(--surface-2);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-md, 10px);
-  padding: 2px;
-  gap: 2px;
+  border-radius: var(--radius-md, 8px);
+  padding: 3px;
+  gap: 3px;
 }
 
 .mem-segmented-btn {
   background: transparent;
   border: none;
-  padding: 5px 12px;
-  font-size: 12px;
+  padding-inline: 14px;
+  padding-block: 6px;
+  font-size: 0.8125rem; /* 13px */
   font-weight: 500;
   color: var(--text-faint);
-  border-radius: var(--r-sm, 6px);
+  border-radius: var(--radius-sm, 6px);
   cursor: pointer;
-  transition: color 140ms ease, background-color 140ms ease;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transition: color 150ms var(--ease-out, ease-out),
+              background-color 150ms var(--ease-out, ease-out),
+              box-shadow 150ms var(--ease-out, ease-out);
 }
 
-.mem-segmented-btn:hover {
-  color: var(--text-dim);
+@media (hover: hover) {
+  .mem-segmented-btn:hover {
+    color: var(--text-dim);
+  }
 }
 
 .mem-segmented-btn.is-active {
   background: var(--surface-3);
   color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.mem-segmented-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.mem-category-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 
 .mem-category-chip {
   background: transparent;
   border: 1px solid transparent;
-  padding: 4px 10px;
-  font-size: 12px;
+  padding-inline: 12px;
+  padding-block: 6px;
+  font-size: 0.8125rem; /* 13px */
   color: var(--text-faint);
-  border-radius: var(--r-md, 10px);
+  border-radius: var(--r-pill, 9999px);
   cursor: pointer;
-  transition: all 140ms ease;
+  white-space: nowrap;
+  transition: color 150ms var(--ease-out, ease-out),
+              background-color 150ms var(--ease-out, ease-out),
+              border-color 150ms var(--ease-out, ease-out);
 }
 
-.mem-category-chip:hover {
-  color: var(--text-dim);
-  background: var(--surface-2);
+@media (hover: hover) {
+  .mem-category-chip:hover {
+    color: var(--text-dim);
+    background: var(--surface-2);
+  }
 }
 
 .mem-category-chip.is-active {
   color: var(--text);
   background: var(--surface-2);
   border-color: var(--hairline-strong);
+  font-weight: 500;
 }
 
-/* ─── Fact Cards (Generous, Clear, Full Text) ─────────────── */
+.mem-category-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.mem-search-wrap {
+  flex: 1;
+  min-width: 220px;
+  max-width: 320px;
+}
+
+@media (max-width: 640px) {
+  .mem-search-wrap {
+    max-width: 100%;
+    width: 100%;
+  }
+}
+
+/* ─── Fact Cards List ───────────────────────────────────────── */
 .mem-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-md, 12px);
 }
 
 .mem-card {
   position: relative;
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--radius-lg, 12px);
-  padding: 18px 22px;
-  transition: border-color 140ms cubic-bezier(0.23, 1, 0.32, 1),
-              background-color 140ms cubic-bezier(0.23, 1, 0.32, 1),
-              opacity 140ms ease;
+  border-radius: var(--radius-lg, 10px);
+  padding-block: 18px;
+  padding-inline: 22px;
+  transition: border-color 150ms var(--ease-out, ease-out),
+              background-color 150ms var(--ease-out, ease-out),
+              box-shadow 150ms var(--ease-out, ease-out),
+              opacity 150ms var(--ease-out, ease-out);
 }
 
-.mem-card:hover {
-  border-color: var(--hairline-strong);
+@media (hover: hover) {
+  .mem-card:hover {
+    border-color: var(--hairline-strong);
+    box-shadow: var(--shadow-sm);
+  }
 }
 
 .mem-card.is-selected {
-  border-color: var(--accent-line);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
-/* Disciplined Greyed-out state for retired facts */
+/* Retired State: WCAG AA compliant contrast, no eye-straining low opacity */
 .mem-card.is-retired {
-  opacity: 0.45;
-  filter: grayscale(0.35);
-  background: var(--canvas);
+  background: var(--surface-2);
+  border-color: var(--hairline);
 }
 
-.mem-card.is-retired:hover {
-  opacity: 0.65;
+@media (hover: hover) {
+  .mem-card.is-retired:hover {
+    border-color: var(--hairline-strong);
+  }
+}
+
+.mem-card-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md, 14px);
+}
+
+.mem-card-checkbox {
+  margin-block-start: 4px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.mem-card-body {
+  flex: 1;
+  min-width: 0;
 }
 
 .mem-card-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-xs, 8px);
   flex-wrap: wrap;
-  margin-bottom: 8px;
+  margin-block-end: var(--space-xs, 8px);
+  font-size: 0.8125rem; /* 13px */
+}
+
+.mem-fact-id {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem; /* 13px */
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.mem-fact-relation {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem; /* 13px */
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
 }
 
 .mem-card-text {
-  font-size: 14.5px;
-  line-height: 1.62;
+  font-family: var(--font-body);
+  font-size: 1rem; /* 16px - natural readable body floor */
+  line-height: 1.6; /* generous comfortable reading rhythm */
   color: var(--text);
-  letter-spacing: -0.01em;
+  letter-spacing: normal; /* natural letter spacing, not squished */
+  text-wrap: pretty;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .mem-card.is-retired .mem-card-text {
-  color: var(--text-faint);
+  color: var(--text-dim);
   text-decoration: line-through;
+  text-decoration-color: var(--text-faint);
 }
 
 .mem-card-meta {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-top: 12px;
-  font-size: 11.5px;
+  gap: var(--space-md, 14px);
+  margin-block-start: var(--space-md, 14px);
+  font-size: 0.8125rem; /* 13px */
   color: var(--text-faint);
+  flex-wrap: wrap;
 }
 
+.mem-timestamp {
+  font-variant-numeric: tabular-nums;
+}
+
+.mem-conv-link {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+  transition: color 150ms var(--ease-out, ease-out);
+}
+
+@media (hover: hover) {
+  .mem-conv-link:hover {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+}
+
+.mem-conv-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.mem-history-btn {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 0.8125rem; /* 13px */
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Card Actions (Accessible on hover, focus, select, touch) ─ */
 .mem-card-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  opacity: 0;
-  transition: opacity 140ms ease;
+  gap: var(--space-xs, 6px);
+  margin-inline-start: auto;
+  transition: opacity 150ms var(--ease-out, ease-out);
 }
 
-.mem-card:hover .mem-card-actions,
-.mem-card.is-selected .mem-card-actions {
-  opacity: 1;
+/* Default on pointer screens: reveal on hover, focus-within, or selected */
+@media (hover: hover) {
+  .mem-card-actions {
+    opacity: 0;
+  }
+  .mem-card:hover .mem-card-actions,
+  .mem-card:focus-within .mem-card-actions,
+  .mem-card.is-selected .mem-card-actions {
+    opacity: 1;
+  }
 }
 
-/* ─── Code Chip ───────────────────────────────────────────── */
-.mem-code-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  padding: 1px 6px;
-  margin: 0 2px;
-  border-radius: var(--r-xs, 4px);
-  background: var(--surface-3);
-  border: 1px solid var(--hairline);
+/* On touch-only devices: keep subtly visible so touch users can act */
+@media (hover: none) {
+  .mem-card-actions {
+    opacity: 0.85;
+  }
+}
+
+.mem-action-btn {
+  padding-block: 5px;
+  padding-inline: 10px;
+  font-size: 0.8125rem; /* 13px */
+}
+
+/* ─── Inline Edit Box ───────────────────────────────────────── */
+.mem-edit-box {
+  margin-block-start: var(--space-sm, 8px);
+}
+
+.mem-edit-textarea {
+  width: 100%;
+  min-height: 84px;
+  padding-block: 10px;
+  padding-inline: 12px;
+  background: var(--canvas);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.9375rem; /* 15px */
+  line-height: 1.55;
   color: var(--text);
-  cursor: pointer;
-  vertical-align: baseline;
-  transition: border-color 140ms ease, color 140ms ease, transform 120ms ease;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
-.mem-code-chip:hover {
-  border-color: var(--accent-line);
-  color: var(--accent);
+.mem-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs, 8px);
+  margin-block-start: var(--space-xs, 8px);
 }
 
-.mem-code-chip:active {
-  transform: scale(0.96);
-}
-
-/* ─── Button Press Physics ────────────────────────────────── */
-.mem-btn-interactive {
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1),
-              background-color 140ms ease,
-              color 140ms ease;
-}
-
-.mem-btn-interactive:active {
-  transform: scale(0.97);
-}
-
-/* ─── Inline History Drawer ───────────────────────────────── */
+/* ─── Inline History Drawer ─────────────────────────────────── */
 .mem-history-drawer {
-  margin-top: 12px;
-  padding: 10px 14px;
+  margin-block-start: var(--space-md, 12px);
+  padding-block: 12px;
+  padding-inline: 16px;
   background: var(--surface-2);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-sm, 6px);
+  border-radius: var(--radius-sm, 6px);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  font-size: 12px;
+  gap: var(--space-sm, 10px);
+  font-size: 0.8125rem; /* 13px */
+  line-height: 1.5;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .mem-history-row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-md, 12px);
 }
 
-/* ─── Reduced Motion ──────────────────────────────────────── */
+.mem-history-meta {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* ─── Code Chip (Natural Inline Proportion) ─────────────────── */
+.mem-code-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.875em; /* Proportional to surrounding text (~14px in 16px body) */
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  padding-block: 2px;
+  padding-inline: 7px;
+  margin-inline: 2px;
+  border-radius: var(--r-xs, 4px);
+  background: var(--surface-3);
+  border: 1px solid var(--hairline);
+  color: var(--text);
+  cursor: pointer;
+  vertical-align: baseline;
+  transition: border-color 150ms var(--ease-out, ease-out),
+              background-color 150ms var(--ease-out, ease-out),
+              color 150ms var(--ease-out, ease-out),
+              transform 150ms var(--ease-out, ease-out);
+}
+
+@media (hover: hover) {
+  .mem-code-chip:hover {
+    border-color: var(--accent-line);
+    color: var(--accent);
+  }
+}
+
+.mem-code-chip:not(:disabled):active {
+  transform: scale(0.96);
+}
+
+.mem-code-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ─── Search Highlight ──────────────────────────────────────── */
+.mem-highlight {
+  background-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--text);
+  border-radius: 2px;
+  padding-inline: 2px;
+}
+
+/* ─── Button Press Physics (Strict Emil Rule: 0.96 scale, 150ms) */
+.mem-btn-interactive {
+  transition: transform 150ms var(--ease-out, ease-out),
+              background-color 150ms var(--ease-out, ease-out),
+              border-color 150ms var(--ease-out, ease-out),
+              color 150ms var(--ease-out, ease-out),
+              box-shadow 150ms var(--ease-out, ease-out);
+}
+
+.mem-btn-interactive:not(:disabled):active {
+  transform: scale(0.96);
+}
+
+.mem-btn-interactive:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ─── Floating Bulk Actions Bar ─────────────────────────────── */
+.mem-floating-bar {
+  position: fixed;
+  bottom: var(--space-2xl, 24px);
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  background: var(--surface-3);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-pill, 9999px);
+  padding-block: 8px;
+  padding-inline: 18px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.28);
+  display: flex;
+  align-items: center;
+  gap: var(--space-md, 12px);
+  font-size: 0.8125rem; /* 13px */
+  max-width: calc(100vw - 32px);
+  flex-wrap: wrap;
+  justify-content: center;
+  backdrop-filter: blur(10px);
+}
+
+.mem-floating-count {
+  font-weight: 500;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.mem-floating-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--hairline-strong);
+}
+
+/* ─── Undo Toast ────────────────────────────────────────────── */
+.mem-undo-toast {
+  position: fixed;
+  bottom: var(--space-2xl, 24px);
+  inset-inline-end: var(--space-2xl, 24px);
+  z-index: 50;
+  background: var(--surface-3);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-md, 8px);
+  padding-block: 10px;
+  padding-inline: 14px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm, 10px);
+  font-size: 0.875rem; /* 14px */
+  color: var(--text);
+  max-width: calc(100vw - 48px);
+  backdrop-filter: blur(10px);
+}
+
+@media (max-width: 640px) {
+  .mem-undo-toast {
+    inset-inline-start: 16px;
+    inset-inline-end: 16px;
+    bottom: 16px;
+    justify-content: space-between;
+  }
+}
+
+/* ─── Reduced Motion Support ────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .mem-card,
   .mem-code-chip,
-  .mem-btn-interactive {
-    transition: none !important;
+  .mem-btn-interactive,
+  .mem-floating-bar,
+  .mem-undo-toast {
+    transition: opacity 150ms ease !important;
     transform: none !important;
   }
 }
