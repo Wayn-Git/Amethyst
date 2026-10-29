@@ -556,6 +556,65 @@ def _clamp_iterations(value: int) -> int:
     return max(MIN_MAX_ITERATIONS, min(MAX_MAX_ITERATIONS, value))
 
 
+GENERAL_SETTINGS_DEFAULTS: dict[str, Any] = {
+    "editor_destination": "vscode",
+    "speed_profile": "standard",
+    "prevent_sleep": False,
+    "auto_archive_days": 0,
+    "compress_history": True,
+    "follow_up_behavior": "queue",
+    "confirm_close": "shortcut-only",
+    "full_view_default": False,
+    "restore_tabs": False,
+    "plain_text_composer": False,
+    "show_context_usage": False,
+    "confetti_enabled": False,
+    "default_standalone_chat": False,
+}
+
+
+def load_general_settings() -> dict[str, Any]:
+    """Load general application settings from app_settings with defaults."""
+    res = dict(GENERAL_SETTINGS_DEFAULTS)
+    try:
+        from backend.db.connection import get_connection
+
+        rows = get_connection().execute(
+            "SELECT key, value FROM app_settings WHERE key IN ("
+            + ",".join(f"'{k}'" for k in GENERAL_SETTINGS_DEFAULTS)
+            + ")"
+        ).fetchall()
+        for k, v in rows:
+            default_val = GENERAL_SETTINGS_DEFAULTS.get(k)
+            if isinstance(default_val, bool):
+                res[k] = v in ("1", "true", "True")
+            elif isinstance(default_val, int):
+                try:
+                    res[k] = int(v)
+                except ValueError:
+                    res[k] = default_val
+            else:
+                res[k] = v
+    except Exception:
+        pass
+    return res
+
+
+def save_general_setting(key: str, value: Any) -> Any:
+    """Save one general setting to app_settings."""
+    from backend.db.connection import get_connection
+
+    str_val = "1" if value is True else ("0" if value is False else str(value))
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO app_settings (key, value) VALUES (?, ?)"
+        " ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')",
+        (key, str_val),
+    )
+    conn.commit()
+    return value
+
+
 def clear_tier(tier: str, path: Path | None = None) -> bool:
     """Unassign a tier, so its callers fall back to the conversation's own model.
 

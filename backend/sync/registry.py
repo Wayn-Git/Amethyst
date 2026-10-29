@@ -76,6 +76,19 @@ SYNCED_PREFERENCES = (
     "notifyOnDone",
     "draftProvider",
     "draftModel",
+    "editorDestination",
+    "confirmClose",
+    "fullViewDefault",
+    "restoreTabs",
+    "preventSleep",
+    "autoArchiveDays",
+    "compressHistory",
+    "speedProfile",
+    "followUpBehavior",
+    "plainTextComposer",
+    "showContextUsage",
+    "confettiEnabled",
+    "defaultStandaloneChat",
 )
 
 ENTITIES: dict[str, Entity] = {}
