@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { request } from '../api.js'
+import Icon from '../../components/Icon.jsx'
 
 function localInput(value) {
   if (!value) return ''
@@ -51,14 +52,41 @@ export default function Items({ data, widgetId }) {
         {widgetId !== 'dev.recovery' && <label>Due<input type="datetime-local" required={['task.deadlines', 'task.reminders'].includes(widgetId)} value={editing.due} onChange={event => setEditing({ ...editing, due: event.target.value })} /></label>}
         <div className="widget-buttons"><button disabled={busy} type="submit">Review change</button><button disabled={busy} type="button" onClick={() => setEditing(null)}>Cancel</button></div>
       </form> : <form className="widget-inline-add" onSubmit={event => { event.preventDefault(); setEditing({ title, due: '' }); setTitle('') }}><input aria-label="New item title" placeholder="Add a task…" maxLength={500} value={title} onChange={event => setTitle(event.target.value)} /><button disabled={busy}>Add item</button></form>}
-      <ul className="widget-list">{(data?.items || []).map(item => <li key={item.id}>
-        <div><strong>{item.title}</strong>{widgetId === 'task.backlog' && <p>Idle {item.idle_days} {item.idle_days === 1 ? 'day' : 'days'}</p>}{item.due_at && <p>{new Date(item.due_at).getTime() <= now ? 'Overdue' : 'Due'} · {new Date(item.due_at).toLocaleString()}</p>}{widgetId === 'task.deadlines' && <p>{countdown(item.due_at, now)}</p>}</div>
-        {item.editable ? <details className="widget-row-menu"><summary aria-label={`Actions ${item.title}`}>Actions</summary><div className="widget-buttons">
-          <button disabled={busy} aria-label={`Edit ${item.title}`} onClick={() => setEditing({ id: item.id, title: item.title, due: localInput(item.due_at) })}>Edit</button>
-          <button disabled={busy} aria-label={`Complete ${item.title}`} onClick={() => propose('complete', { id: item.id })}>Complete</button>
-          <button disabled={busy} aria-label={`Delete ${item.title}`} onClick={() => propose('delete', { id: item.id })}>Delete</button>
-        </div></details> : null}
-      </li>)}</ul>
+      <ul className="widget-list">{(data?.items || []).map(item => {
+        const isOverdue = item.due_at && new Date(item.due_at).getTime() <= now
+        const isCompleted = item.completed || item.status === 'done' || item.state === 'done'
+        return <li key={item.id} className="task-item-row">
+          <div className="task-content-wrap">
+            {widgetId === 'task.today' && item.editable && (
+              <button
+                type="button"
+                className={`task-check-button${isCompleted ? ' is-completed' : ''}`}
+                disabled={busy}
+                aria-label={`Toggle complete ${item.title}`}
+                onClick={() => propose('complete', { id: item.id })}
+                title="Complete task"
+              >
+                {isCompleted && <Icon name="check-simple" size={13} />}
+              </button>
+            )}
+            <div className={`task-label-wrap${isCompleted ? ' is-completed' : ''}`}>
+              <strong>{item.title}</strong>
+              {widgetId === 'task.backlog' && <p>Idle {item.idle_days} {item.idle_days === 1 ? 'day' : 'days'}</p>}
+              {item.due_at && (
+                <span className={`task-due-chip ${isOverdue ? 'is-overdue' : 'is-due'}`}>
+                  {isOverdue ? 'Overdue' : 'Due'} · {new Date(item.due_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+              {widgetId === 'task.deadlines' && <p>{countdown(item.due_at, now)}</p>}
+            </div>
+          </div>
+          {item.editable ? <details className="widget-row-menu"><summary aria-label={`Actions ${item.title}`}>Actions</summary><div className="widget-buttons">
+            <button disabled={busy} aria-label={`Edit ${item.title}`} onClick={() => setEditing({ id: item.id, title: item.title, due: localInput(item.due_at) })}>Edit</button>
+            <button disabled={busy} aria-label={`Complete ${item.title}`} onClick={() => propose('complete', { id: item.id })}>Complete</button>
+            <button disabled={busy} aria-label={`Delete ${item.title}`} onClick={() => propose('delete', { id: item.id })}>Delete</button>
+          </div></details> : null}
+        </li>
+      })}</ul>
     </>}
   </div>
 }
