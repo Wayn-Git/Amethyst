@@ -27,7 +27,7 @@ Install frontend dependencies with `npm ci` in `frontend`, then run `npm run mob
 
 ## Remaining before release
 
-- Compile and test on Android/iOS hardware, including secure-storage lifecycle, TLS, keyboard/insets, pairing, revoked permissions, and reconnect. This Linux environment has no Java/Android SDK/adb and cannot run Xcode.
+- Compile and test on Android/iOS hardware, including secure-storage lifecycle, TLS, keyboard/insets, pairing, revoked permissions, and reconnect. Java 21 and Android SDK 36 are now installed locally for APK builds. Hardware validation remains outstanding; this Linux environment cannot run Xcode.
 - Native share extension/intents, attachment import, push notifications and background transfer are not implemented.
 - Agent UI currently uses the existing queued relay workflow; live direct conversation streaming and native session handoff remain to be implemented. Relay jobs do not yet expose interactive approvals.
 - Only capture/snapshot storage is encrypted locally. Existing sync replica/outbox and widget caches retain their browser storage behavior; native-wide encrypted persistence is unfinished.
@@ -37,3 +37,13 @@ Install frontend dependencies with `npm ci` in `frontend`, then run `npm run mob
 - Queue dispatch rechecks device grants, but accepted agent jobs need another grant check at execution and interactive permission handling before broader remote-agent rollout.
 
 Changes are in the shared worktree alongside unrelated UI work; only companion-owned files belong to this implementation.
+
+## Android APK — 2026-10-29
+
+Built a debug-signed APK at `/home/wayne/Downloads/Amethyst-Companion-debug.apk` (Android 7.0/API 24 or newer). The app still uses the shared JavaScript/React frontend. Camera permission is declared for the existing QR pairing flow; camera hardware is optional. The generated instrumentation package assertion now matches `app.amethyst.companion`.
+
+Validation: 5 mobile tests and 35 sync tests passed; Vite build and Capacitor Android sync passed; Gradle `:app:assembleDebug :app:lintDebug` succeeded. APK v2 signature and zip alignment verified. No physical-device or emulator run was performed.
+
+Transfer the APK to Android, open it, and allow installation from that file source when prompted. Pair using Settings → Devices on the desktop. The host must be reachable over trusted HTTPS; installing the APK does not put the Python backend on the phone. This is a development build, not a Play Store release.
+
+Local build tools live under `/home/wayne/.local/share/amethyst-build/`: `jdk`, `android-sdk`, and `gradle-8.14.3`. Set JAVA_HOME and ANDROID_HOME to those directories and run Gradle from `frontend/android` after building and syncing the frontend. The debug signing key stays outside the repository in the standard Android user directory; retain it for updates to this installation.

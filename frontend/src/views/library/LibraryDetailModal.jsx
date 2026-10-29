@@ -15,6 +15,7 @@ import LibraryDetectedSection from './LibraryDetectedSection.jsx'
 import LibraryRightRail from './LibraryRightRail.jsx'
 import LibraryQueuePopover from './LibraryQueuePopover.jsx'
 import LibraryShortcutsModal from './LibraryShortcutsModal.jsx'
+import AppButton from '../../components/ui/AppButton.jsx'
 import './library-detail.css'
 
 export function formatModelDisplayName(modelStr) {
@@ -347,7 +348,7 @@ export default function LibraryDetailModal({
         if (parsed >= 28 && parsed <= 65) return parsed
       }
     } catch {}
-    return 38
+    return 42
   })
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false)
 
@@ -563,10 +564,10 @@ export default function LibraryDetailModal({
     return u.includes('/reel/') || u.includes('/reels/') || u.includes('/shorts/') || u.includes('tiktok.com')
   }, [item.is_reel, item.url])
 
-  // Display title with sentence-casing fallback
+  // Display title without forced sentence-case lowercasing
   const displayTitle = useMemo(() => {
     const raw = item.title || 'Untitled Resource'
-    return formatSentenceCase(cleanTitleText(raw))
+    return cleanTitleText(raw)
   }, [item.title])
 
   // Platform source info
@@ -852,16 +853,17 @@ export default function LibraryDetailModal({
         <header className="lib-page-header">
           <div className="lib-page-header-left">
             {/* Back to Library */}
-            <button
-              type="button"
+            <AppButton
+              variant="secondary"
+              size="medium"
               className="lib-page-back-btn"
               onClick={onClose}
               title="Back to Library (Esc)"
               aria-label="Back to Library"
+              icon={<Icon name="arrow-left" size={14} />}
             >
-              <Icon name="arrow-left" size={14} />
-              <span>Library</span>
-            </button>
+              Library
+            </AppButton>
           </div>
 
           <div className="lib-page-header-right">
@@ -890,7 +892,7 @@ export default function LibraryDetailModal({
                   <span>
                     {currentIndex + 1} of {items.length}
                   </span>
-                  <Icon name="chevron-down" size={10} />
+                  <Icon name="chevron-down" size={12} />
                 </button>
 
                 <button
@@ -920,40 +922,39 @@ export default function LibraryDetailModal({
 
             {/* Copy Link Button */}
             {item.url && (
-              <button
-                type="button"
+              <AppButton
+                variant="secondary"
+                size="icon"
                 className="lib-page-icon-btn"
                 onClick={handleCopyLink}
                 title="Copy original link (C)"
                 aria-label="Copy link"
-              >
-                <Icon name={copiedLink ? 'check' : 'copy'} size={14} />
-              </button>
+                icon={<Icon name={copiedLink ? 'check' : 'copy'} size={14} />}
+              />
             )}
 
             {/* Keyboard Shortcuts Guide Trigger */}
-            <button
-              type="button"
+            <AppButton
+              variant="secondary"
+              size="icon"
               className="lib-page-icon-btn"
               onClick={() => setShowShortcutsModal(true)}
               title="Keyboard shortcuts (?)"
               aria-label="Keyboard shortcuts"
-            >
-              <Icon name="keyboard" size={14} />
-            </button>
+              icon={<Icon name="keyboard" size={14} />}
+            />
 
-            {/* The ONLY Theater Mode toggle in the entire view */}
-            <button
-              type="button"
+            {/* The ONLY Theater Mode toggle in the entire view (icon-only like others) */}
+            <AppButton
+              variant="secondary"
+              size="icon"
               className={`lib-header-theater-btn ${isTheater ? 'lib-header-theater-btn--active' : ''}`}
               onClick={() => setIsTheater((prev) => !prev)}
               title={isTheater ? 'Exit Theater Mode' : 'Focus media in Theater Mode'}
               aria-label={isTheater ? 'Exit theater mode' : 'Enter theater mode'}
               aria-pressed={isTheater}
-            >
-              <Icon name={isTheater ? 'collapse' : 'desktop'} size={13} />
-              <span>{isTheater ? 'Exit Theater' : 'Theater'}</span>
-            </button>
+              icon={<Icon name={isTheater ? 'collapse' : 'desktop'} size={14} />}
+            />
 
             {/* Close Button */}
             <CloseButton size="sm" onClick={onClose} slot={null} aria-label="Close detail view" />
@@ -1036,7 +1037,7 @@ export default function LibraryDetailModal({
                             onClick={() => setCurrentSlideIndex((prev) => (prev > 0 ? prev - 1 : slideItems.length - 1))}
                             aria-label="Previous slide"
                           >
-                            <Icon name="chevron-left" size={13} />
+                            <Icon name="chevron-left" size={14} />
                           </button>
                           <span className="lib-slide-nav-counter">
                             {currentSlideIndex + 1} / {slideItems.length}
@@ -1047,7 +1048,7 @@ export default function LibraryDetailModal({
                             onClick={() => setCurrentSlideIndex((prev) => (prev < slideItems.length - 1 ? prev + 1 : 0))}
                             aria-label="Next slide"
                           >
-                            <Icon name="chevron-right" size={13} />
+                            <Icon name="chevron-right" size={14} />
                           </button>
                         </div>
                       )}
@@ -1100,7 +1101,7 @@ export default function LibraryDetailModal({
                     onClick={() => setIsCaptionExpanded((v) => !v)}
                   >
                     <span>{isCaptionExpanded ? 'Show less' : 'Show more'}</span>
-                    <Icon name={isCaptionExpanded ? 'chevron-up' : 'chevron-down'} size={11} />
+                    <Icon name={isCaptionExpanded ? 'chevron-up' : 'chevron-down'} size={12} />
                   </button>
                 )}
               </div>
@@ -1158,14 +1159,14 @@ export default function LibraryDetailModal({
                         role="button"
                       >
                         {displayTitle}
-                        <Icon name="edit" size={13} className="lib-title-edit-pencil" />
+                        <Icon name="edit" size={14} className="lib-title-edit-pencil" />
                       </h1>
                     )}
 
                     {/* Original caption secondary subtitle */}
                     {cleanCaption && !isEditingTitle && (
                       <p className="lib-title-secondary-caption" title={cleanCaption}>
-                        {cleanCaption.slice(0, 160)}{cleanCaption.length > 160 ? '...' : ''}
+                        {cleanCaption}
                       </p>
                     )}
                   </div>
@@ -1206,17 +1207,18 @@ export default function LibraryDetailModal({
                     )}
                     {item.status === 'index_failed' && (
                       <div className="lib-meta-indexing-tag lib-meta-indexing-tag--failed">
-                        <Icon name="alert" size={11} />
+                        <Icon name="alert" size={12} />
                         <span>Index failed</span>
                       </div>
                     )}
                   </div>
 
-                  {/* Actions Row (Primary actions) */}
+                  {/* Actions Row using clean secondary AppButton styling */}
                   <div className="lib-page-cta-row">
-                    <button
-                      type="button"
-                      className="lib-page-cta-pill lib-page-cta-pill--primary"
+                    <AppButton
+                      variant="secondary"
+                      size="medium"
+                      className="lib-page-cta-pill lib-page-cta-pill--secondary"
                       onClick={() => {
                         const colName = window.prompt('Collection name:')
                         if (colName && colName.trim()) {
@@ -1224,36 +1226,37 @@ export default function LibraryDetailModal({
                         }
                       }}
                       title="Add item to a collection"
+                      icon={<Icon name="folder-plus" size={14} />}
                     >
-                      <Icon name="folder" size={13} />
-                      <span>Add to collection</span>
-                    </button>
+                      Add to collection
+                    </AppButton>
 
                     {item.url && (
-                      <button
-                        type="button"
+                      <AppButton
+                        variant="secondary"
+                        size="medium"
                         className="lib-page-cta-pill lib-page-cta-pill--secondary"
                         onClick={handleCopyLink}
                         title="Copy link to clipboard"
+                        icon={<Icon name={copiedLink ? 'check' : 'copy'} size={14} />}
                       >
-                        <Icon name={copiedLink ? 'check' : 'copy'} size={13} />
-                        <span>{copiedLink ? 'Copied' : 'Copy link'}</span>
-                      </button>
+                        {copiedLink ? 'Copied' : 'Copy link'}
+                      </AppButton>
                     )}
 
                     {/* "..." Overflow Menu (Re-analyze, Delete, Export) */}
                     <div className="lib-cta-overflow-menu-wrap" ref={actionsMenuRef}>
-                      <button
-                        type="button"
+                      <AppButton
+                        variant="secondary"
+                        size="medium"
                         className="lib-page-cta-pill lib-page-cta-pill--secondary"
                         onClick={() => setShowActionsMenu((v) => !v)}
                         title="More actions"
                         aria-label="More actions"
                         aria-haspopup="true"
                         aria-expanded={showActionsMenu}
-                      >
-                        <Icon name="dots" size={14} />
-                      </button>
+                        icon={<Icon name="dots" size={14} />}
+                      />
 
                       {showActionsMenu && (
                         <div className="lib-overflow-menu" role="menu">
@@ -1266,7 +1269,7 @@ export default function LibraryDetailModal({
                               handleEnrich()
                             }}
                           >
-                            <Icon name="spark" size={13} />
+                            <Icon name="spark" size={14} />
                             <span>Re-analyze</span>
                           </button>
 
@@ -1280,7 +1283,7 @@ export default function LibraryDetailModal({
                                 handleExportPlaylistTrigger(item.resources.filter((r) => r.type === 'music'))
                               }}
                             >
-                              <Icon name="list-plus" size={13} />
+                              <Icon name="list-plus" size={14} />
                               <span>Export Playlist</span>
                             </button>
                           )}
@@ -1297,7 +1300,7 @@ export default function LibraryDetailModal({
                               }
                             }}
                           >
-                            <Icon name="trash" size={13} />
+                            <Icon name="trash" size={14} />
                             <span>Delete item</span>
                           </button>
                         </div>
@@ -1454,7 +1457,7 @@ export default function LibraryDetailModal({
                             )}
                             {notesSavedIndicator && (
                               <span className="lib-notes-status-text lib-notes-status-text--saved">
-                                <Icon name="check" size={11} />
+                                <Icon name="check" size={12} />
                                 <span>Saved</span>
                               </span>
                             )}

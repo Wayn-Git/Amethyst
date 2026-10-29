@@ -5,53 +5,57 @@ import Icon from './Icon.jsx'
 import { api } from '../api.js'
 
 const PERMISSION_DEFINITIONS = [
+  { id: 'dashboard', name: 'Today dashboard', desc: 'Read widget data and configure the mobile layout.', default: true, icon: 'sun' },
+  { id: 'library', name: 'Knowledge library', desc: 'Read saved knowledge and submit captures.', default: true, icon: 'book' },
+  { id: 'system', name: 'Processes and applications', desc: 'List running processes and installed applications.', default: false, icon: 'monitor' },
+  { id: 'clipboard', name: 'Clipboard', desc: 'Read and replace the desktop clipboard.', default: false, icon: 'copy' },
   {
     id: 'screen',
     name: 'Screen Monitoring & Capture',
     desc: 'Low-latency MJPEG live screen stream and on-demand screenshot snapshots.',
-    default: true,
+    default: false,
     icon: 'monitor',
   },
   {
     id: 'input',
     name: 'Mouse & Keyboard Control',
     desc: 'Virtual trackpad (moving, clicking, scrolling) and keystroke simulation.',
-    default: true,
+    default: false,
     icon: 'mouse',
   },
   {
     id: 'audio',
     name: 'Media & Audio Playback',
     desc: 'Control volume, switch sinks, MPRIS2 playback, and speaker playback.',
-    default: true,
+    default: false,
     icon: 'music',
   },
   {
     id: 'files',
     name: 'File Transfers',
     desc: 'Upload and download files securely scoped to ~/Downloads/Amethyst Transfers.',
-    default: true,
+    default: false,
     icon: 'folder',
   },
   {
     id: 'terminal',
     name: 'Mobile Terminal Access',
     desc: 'Access interactive shell sessions via xterm.js directly from the companion.',
-    default: true,
+    default: false,
     icon: 'term',
   },
   {
     id: 'agent',
     name: 'Amethyst Agent & Approvals',
     desc: 'Monitor running tasks, prompt completions, and approve/reject tool calls remotely.',
-    default: true,
+    default: false,
     icon: 'sparkle',
   },
   {
     id: 'power',
     name: 'Power & Session Controls',
     desc: 'Lock screen, put PC to sleep, reboot, or shut down with confirmation.',
-    default: true,
+    default: false,
     icon: 'power',
   },
   {
@@ -73,7 +77,7 @@ const PERMISSION_DEFINITIONS = [
   {
     id: 'root',
     name: 'Sudo / Elevated Execution',
-    desc: 'Allow elevated administrative commands in terminal. Leave disabled unless strictly required.',
+    desc: 'Allow the elevated command action. Interactive terminal access already runs with your OS account permissions.',
     default: false,
     danger: 'Security risk',
     icon: 'shield',
