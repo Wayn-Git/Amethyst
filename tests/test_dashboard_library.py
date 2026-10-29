@@ -214,6 +214,8 @@ async def test_readlater_reviews_url_and_rejects_replay(db, monkeypatch):
 
 
 async def test_readlater_audits_redirects_and_reuses_cached_summary(db, monkeypatch):
+    import json
+
     import httpx
 
     from backend.dashboard.store import cache_write
@@ -242,9 +244,7 @@ async def test_readlater_audits_redirects_and_reuses_cached_summary(db, monkeypa
 
     async def ask(*args, **kwargs):
         return {
-            "text": __import__("json").dumps(
-                {"summaries": [{"id": item_id, "summary": "Grow spring seeds."}]}
-            )
+            "text": json.dumps({"summaries": [{"id": item_id, "summary": "Grow spring seeds."}]})
         }
 
     monkeypatch.setattr("backend.workers.llm.ask", ask)
@@ -350,6 +350,95 @@ def test_daily_rejects_a_different_calendar_day(db):
     from fastapi import HTTPException
 
     from backend.dashboard.library import DailyInput, draft
+
     with pytest.raises(HTTPException) as error:
         draft("lib.daily", "create", DailyInput(day="2000-01-01"))
     assert error.value.status_code == 409
+
+
+async def test_collections_reuse_library_tags_and_filtering(db):
+    import json
+
+    import pytest
+    from fastapi import HTTPException
+
+    from backend.dashboard.items import decide
+    from backend.dashboard.library import CollectionInput, draft
+    from backend.dashboard.store import settings_write
+    from backend.library.store import LibraryStore
+
+    store = LibraryStore(db)
+    note = store.create(kind="note", title="Tagged fixture")
+    store.update(note, tags=json.dumps(["existing"]))
+    other = store.create(kind="note", title="Other fixture")
+    body = CollectionInput(tag="Research")
+    pending = draft("lib.collections", "add", body)
+    await decide("lib.collections", pending["draft_id"], False)
+    assert (await provide("lib.collections"))["collections"] == []
+    pending = draft("lib.collections", "add", body)
+    await decide("lib.collections", pending["draft_id"], True)
+    assert (await provide("lib.collections"))["collections"] == ["Research"]
+    pending = draft("lib.collections", "tag", CollectionInput(tag="Research", id=note))
+    await decide("lib.collections", pending["draft_id"], False)
+    assert json.loads(store.get(note)["tags"]) == ["existing"]
+    pending = draft("lib.collections", "tag", CollectionInput(tag="Research", id=note))
+    await decide("lib.collections", pending["draft_id"], True)
+    assert json.loads(store.get(note)["tags"]) == ["existing", "Research"]
+    settings_write("lib.collections", {"tag": "Research"})
+    assert [item["id"] for item in (await provide("lib.collections"))["items"]] == [note]
+    settings_write("lib.collections", {"tag": "missing"})
+    assert (await provide("lib.collections"))["items"] == []
+    settings_write("lib.collections", {"tag": ""})
+    assert {item["id"] for item in (await provide("lib.collections"))["items"]} == {note, other}
+    pending = draft("lib.collections", "tag", CollectionInput(tag="New", id=note))
+    store.update(note, title="Changed fixture")
+    with pytest.raises(HTTPException) as error:
+        await decide("lib.collections", pending["draft_id"], True)
+    assert error.value.status_code == 409
+    with pytest.raises(HTTPException):
+        draft("lib.collections", "add", CollectionInput(tag=" "))
+
+
+async def test_library_gate_refusal_cannot_write_collection(db, monkeypatch):
+    from types import SimpleNamespace
+
+    from backend.dashboard.items import decide
+    from backend.dashboard.library import CollectionInput, draft
+    from backend.security.confirmation import ConfirmationService
+
+    async def refuse(*args, **kwargs):
+        return SimpleNamespace(allowed=False, decision="denied")
+
+    monkeypatch.setattr(ConfirmationService, "check", refuse)
+    pending = draft("lib.collections", "add", CollectionInput(tag="Denied"))
+    assert await decide("lib.collections", pending["draft_id"], True) == {"state": "denied"}
+    assert db.execute("SELECT count(*) FROM dashboard_library_collections").fetchone()[0] == 0
+
+
+async def test_ask_refresh_keeps_cached_answer_while_local_model_runs(db, monkeypatch):
+    import asyncio
+
+    from backend.dashboard.service import read_data, refresh
+    from backend.dashboard.store import cache_write, settings_write
+
+    settings_write("lib.ask", {"query": "seeds"})
+    cache_write("lib.ask", {"items": [{"id": 1}], "answer": "Cached passage"}, "ok")
+    started, release = asyncio.Event(), asyncio.Event()
+
+    async def search(*args, **kwargs):
+        return [{"id": 1, "kind": "note", "excerpt": "Sow in spring."}]
+
+    async def local_model(*args, **kwargs):
+        assert kwargs["paid_ok"] is False
+        started.set()
+        await release.wait()
+        return {"text": '{"quotes": [{"id": 1, "text": "Sow in spring."}]}'}
+
+    monkeypatch.setattr(LibraryService, "search", search)
+    monkeypatch.setattr("backend.workers.llm.ask", local_model)
+    pending = asyncio.create_task(refresh("lib.ask"))
+    await asyncio.wait_for(started.wait(), 1)
+    assert read_data("lib.ask")["payload"]["answer"] == "Cached passage"
+    release.set()
+    await pending
+    assert read_data("lib.ask")["payload"]["answer"] == "Sow in spring."

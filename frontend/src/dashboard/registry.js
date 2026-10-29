@@ -57,6 +57,7 @@ export const WIDGETS = {
   'lib.readlater': lazy(() => import('./widgets/ReadLater.jsx')),
   'lib.highlights': lazy(() => import('./widgets/Highlights.jsx')),
   'lib.daily': lazy(() => import('./widgets/DailyNote.jsx')),
+  'lib.collections': lazy(() => import('./widgets/Collections.jsx')),
   'lib.ask': lazy(() => import('./widgets/LibraryAsk.jsx')),
   'lib.search': lazy(() => import('./widgets/LibrarySearch.jsx')),
   'lib.recent': lazy(() => import('./widgets/Library.jsx')),

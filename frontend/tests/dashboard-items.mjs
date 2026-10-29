@@ -118,6 +118,21 @@ try {
     await card.getByText('Same url: Original fixture', { exact: true }).waitFor()
     assert.equal(await card.getByRole('button', { name: /delete|merge/i }).count(), 0)
   }
+  if (widgets.includes('lib.collections')) {
+    const card = page.locator('[data-widget="lib.collections"]')
+    await card.getByLabel('Collection tag', { exact: true }).fill('Research fixture')
+    await card.getByRole('button', { name: 'Review collection', exact: true }).click()
+    await card.getByRole('button', { name: 'Reject change', exact: true }).click()
+    assert.equal(await card.getByRole('button', { name: 'Research fixture', exact: true }).count(), 0)
+    await card.getByRole('button', { name: 'Review collection', exact: true }).click()
+    await card.getByRole('button', { name: 'Approve change', exact: true }).click()
+    await card.getByRole('button', { name: 'Research fixture', exact: true }).waitFor()
+    await card.getByLabel('Note to tag', { exact: true }).selectOption({ label: 'Collection note fixture' })
+    await card.getByRole('button', { name: 'Review tag', exact: true }).click()
+    await card.getByRole('button', { name: 'Approve change', exact: true }).click()
+    await card.getByLabel('Filter by tag', { exact: true }).selectOption('Research fixture')
+    await card.getByRole('list', { name: 'Notes', exact: true }).getByRole('link', { name: 'Collection note fixture', exact: true }).waitFor()
+  }
   if (widgets.includes('lib.daily')) {
     const card = page.locator('[data-widget="lib.daily"]')
     await card.getByRole('button', { name: "Review create today's note", exact: true }).click()

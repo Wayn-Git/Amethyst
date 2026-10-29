@@ -154,3 +154,7 @@ CREATE TABLE IF NOT EXISTS dashboard_permission_rules (
     tool_name TEXT PRIMARY KEY,
     decision TEXT NOT NULL DEFAULT 'ask' CHECK(decision IN ('allow','ask','deny'))
 );
+
+CREATE TABLE IF NOT EXISTS dashboard_library_collections (
+    tag TEXT PRIMARY KEY NOT NULL
+);

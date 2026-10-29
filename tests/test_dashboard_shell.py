@@ -73,6 +73,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "lib.readlater",
         "lib.highlights",
         "lib.daily",
+        "lib.collections",
         "lib.ask",
         "lib.inbox",
         "lib.dupes",

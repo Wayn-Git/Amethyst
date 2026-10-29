@@ -30,6 +30,24 @@ async def provide(widget_id):
     if widget_id == "lib.capture":
         return {"items": []}
     library = LibraryService()
+    if widget_id == "lib.collections":
+        tag = settings_read(widget_id).get("tag", "")
+        collections = [
+            row["tag"]
+            for row in get_connection().execute(
+                "SELECT tag FROM dashboard_library_collections ORDER BY tag"
+            )
+        ]
+        return {
+            "tag": tag,
+            "collections": collections,
+            "tags": sorted(set(library.tag_counts()) | set(collections)),
+            "notes": [display(item) for item in library.recent(kind="note", limit=100)],
+            "items": [
+                {**display(item), "tags": item["tags"]}
+                for item in library.recent(kind="note", tag=tag or None, limit=20)
+            ],
+        }
     if widget_id == "lib.daily":
         day = local_now().date()
         note = library.store.by_source_ref(f"daily:{day.isoformat()}")
@@ -248,6 +266,19 @@ class LibraryInput(StrictModel):
 def draft(widget_id, action, body):
     from urllib.parse import urlparse
 
+    if widget_id == "lib.collections" and action in ("add", "tag"):
+        if not body.tag.strip():
+            raise HTTPException(422, "Collection tag is required")
+        payload = body.model_dump(mode="json")
+        payload["tag"] = body.tag.strip()
+        if action == "tag":
+            note = LibraryService().store.get(body.id) if body.id else None
+            if note is None or note["kind"] != "note":
+                raise HTTPException(404, "Note not found")
+            payload["expected"] = dict(note)
+        elif body.id is not None:
+            raise HTTPException(422, "Collections cannot specify a note id")
+        return save_draft(widget_id, action, body, payload)
     if widget_id == "lib.daily" and action == "create":
         if body.day != local_now().date().isoformat():
             raise HTTPException(409, "The day changed; refresh before creating a note")
@@ -263,13 +294,40 @@ def draft(widget_id, action, body):
         return save_draft(widget_id, action, body, payload)
     if widget_id != "lib.readlater" or action != "add":
         raise HTTPException(404, "Unknown Library action")
-    if not body.title.strip() or urlparse(body.url).scheme not in ("http", "https"):
+    from backend.library.enrich import normalize_url
+
+    url = normalize_url(body.url)
+    parsed_url = urlparse(url)
+    if (
+        not body.title.strip()
+        or parsed_url.scheme not in ("http", "https")
+        or not parsed_url.hostname
+    ):
         raise HTTPException(422, "Title and HTTP URL are required")
+    body = body.model_copy(update={"url": url})
     return save_draft(widget_id, action, body, body.model_dump(mode="json"))
 
 
 async def apply(widget_id, action, body):
     library = LibraryService()
+    if widget_id == "lib.collections" and action in ("add", "tag"):
+        if action == "add":
+            conn = get_connection()
+            conn.execute(
+                "INSERT OR IGNORE INTO dashboard_library_collections(tag) VALUES(?)", (body["tag"],)
+            )
+            conn.commit()
+        else:
+            from backend.library.service import as_dict
+
+            note = library.store.get(body["id"])
+            if note is None or dict(note) != body["expected"]:
+                raise HTTPException(409, "Note changed; review a new draft")
+            tags = as_dict(note, include_content=False)["tags"]
+            if body["tag"] not in tags:
+                tags.append(body["tag"])
+            library.store.update(note["id"], tags=json.dumps(tags))
+        return
     if widget_id == "lib.daily" and action == "create":
         if body["day"] != local_now().date().isoformat():
             raise HTTPException(409, "The day changed; review a new draft")
@@ -313,4 +371,18 @@ class DailyInput(StrictModel):
     day: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
-INPUTS = {"lib.readlater": LibraryInput, "lib.highlights": HighlightInput, "lib.daily": DailyInput}
+class CollectionInput(StrictModel):
+    tag: str = Field(min_length=1, max_length=80)
+    id: int | None = Field(default=None, gt=0)
+
+
+class CollectionSettings(StrictModel):
+    tag: str = Field(default="", max_length=80)
+
+
+INPUTS = {
+    "lib.readlater": LibraryInput,
+    "lib.highlights": HighlightInput,
+    "lib.daily": DailyInput,
+    "lib.collections": CollectionInput,
+}

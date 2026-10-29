@@ -164,6 +164,10 @@ def put_settings(widget_id: str, body: dict, background_tasks: BackgroundTasks):
             value = AgendaSettings.model_validate(body).model_dump()
         elif widget_id in ("dev.backup", "dev.unpushed"):
             value = RepoSettings.model_validate(body).model_dump()
+        elif widget_id == "lib.collections":
+            from backend.dashboard.library import CollectionSettings
+
+            value = CollectionSettings.model_validate(body).model_dump()
         elif widget_id in ("lib.search", "lib.ask"):
             value = SearchSettings.model_validate(body).model_dump()
         elif widget_id == "glance.clock":
@@ -207,7 +211,7 @@ class DraftDecision(StrictModel):
 async def item_action(widget_id: str, action: str, body: dict):
     enabled(widget_id)
     try:
-        if widget_id in ("lib.readlater", "lib.highlights", "lib.daily"):
+        if widget_id in ("lib.readlater", "lib.highlights", "lib.daily", "lib.collections"):
             from backend.dashboard.library import INPUTS
             from backend.dashboard.library import draft as library_draft
 
