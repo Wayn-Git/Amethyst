@@ -110,35 +110,6 @@ function parseQueryIntent(raw) {
   return { service: null, subject: text }
 }
 
-function resolveAppIcon(cmd) {
-  if (cmd.icon && cmd.icon !== 'app' && cmd.icon !== 'search') return cmd.icon
-  const l = (cmd.label || cmd.title || '').toLowerCase()
-  if (l.includes('chrome') || l.includes('firefox') || l.includes('edge') || l.includes('browser')) return 'chrome'
-  if (l.includes('terminal') || l.includes('console') || l.includes('bash') || l.includes('zsh') || l.includes('shell')) return 'terminal'
-  if (l.includes('code') || l.includes('studio') || l.includes('sublime') || l.includes('editor')) return 'code'
-  if (l.includes('file') || l.includes('nautilus') || l.includes('folder') || l.includes('thunar')) return 'folder'
-  if (l.includes('calc')) return 'target'
-  if (l.includes('music') || l.includes('spotify') || l.includes('audio') || l.includes('player')) return 'music'
-  if (l.includes('setting') || l.includes('config') || l.includes('preference')) return 'system'
-  if (l.includes('mail') || l.includes('email') || l.includes('thunderbird')) return 'envelope'
-  if (l.includes('note') || l.includes('text') || l.includes('document')) return 'document'
-  if (l.includes('image') || l.includes('photo') || l.includes('gimp') || l.includes('draw')) return 'camera'
-  if (l.includes('video') || l.includes('vlc') || l.includes('mpv')) return 'video'
-  if (l.includes('chat') || l.includes('discord') || l.includes('slack') || l.includes('telegram')) return 'user'
-  return 'app'
-}
-
-function getItemTone(cmd) {
-  const g = (cmd.group || '').toLowerCase()
-  if (g.includes('app')) return 'app'
-  if (g.includes('file')) return 'file'
-  if (g.includes('window')) return 'window'
-  if (g.includes('clip')) return 'clip'
-  if (g.includes('system')) return 'sys'
-  if (g.includes('command') || cmd.icon === 'zap') return 'cmd'
-  return 'default'
-}
-
 /** Question words and shapes that mean "answer this", not "list articles".
  *
  *  Deliberately cheap: no model call to classify, no regex zoo. The words
@@ -1485,20 +1456,8 @@ export default function CommandPalette({ bare = false }) {
                   data-active={i === index}
                   onClick={() => runCommand(command)}
                 >
-                  <div className={`damon-item-icon-box damon-item-icon-box--${getItemTone(command)}`}>
-                    {command.icon && (command.icon.startsWith('/') || command.icon.startsWith('http') || command.icon.startsWith('data:')) ? (
-                      <img
-                        src={command.icon}
-                        alt=""
-                        className="damon-item-icon-img"
-                        onError={(e) => { e.currentTarget.style.display = 'none'; if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'inline-block' }}
-                      />
-                    ) : null}
-                    <Icon
-                      name={resolveAppIcon(command)}
-                      size={14}
-                      style={command.icon && (command.icon.startsWith('/') || command.icon.startsWith('http') || command.icon.startsWith('data:')) ? { display: 'none' } : undefined}
-                    />
+                  <div className="damon-item-icon-box">
+                    <Icon name={command.icon || 'play'} size={16} />
                   </div>
                   <div className="damon-item-main">
                     <span className="damon-item-title">{command.label}</span>

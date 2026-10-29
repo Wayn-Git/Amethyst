@@ -156,24 +156,16 @@ function useGlobalKeys() {
       // is open does it reach the running turn. The drawer sits between them --
       // it covers the page on a phone, so it is "what is open" there too.
       if (combo === 'escape') {
-        if (overlay && overlay !== 'palette') { e.preventDefault(); setOverlay(null); return }
+        if (overlay) { e.preventDefault(); setOverlay(null); return }
         if (compact && railOpen) { e.preventDefault(); closeRail(); return }
         if (chat.turnRunning) { e.preventDefault(); chat.stop?.(); return }
         return
       }
 
-      if (combo === 'mod+k' || combo === 'mod+space' || combo === 'alt+space') {
-        if (overlay !== 'palette') {
-          e.preventDefault()
-          e.stopPropagation()
-          setOverlay('palette')
-          return
-        } else if (combo === 'mod+space' || combo === 'alt+space') {
-          e.preventDefault()
-          e.stopPropagation()
-          setOverlay(null)
-          return
-        }
+      if (combo === 'mod+k') {
+        e.preventDefault()
+        setOverlay((curr) => (curr === 'palette' ? null : 'palette'))
+        return
       }
       if (combo === 'mod+shift+o') { e.preventDefault(); setView('chat'); chat.startFresh?.(); return }
       if (combo === 'mod+l') { e.preventDefault(); setView('chat'); chat.focusComposer?.(); return }
@@ -209,8 +201,8 @@ function useGlobalKeys() {
       }
     }
 
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
   }, [
     view, setView, overlay, setOverlay, chat, cycleConversation, activeId,
     toggleRail, closeRail, compact, railOpen, betaPages, toggleTerminal,
