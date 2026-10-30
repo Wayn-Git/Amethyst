@@ -507,3 +507,5 @@ Shared card/detail composition keeps editors mounted across resizing, preserves 
 - 2026-10-30 — `glance.clock`: replaced the prior clock styling with Wigggle digital, seconds, weekday, analog, Roman and world-time variants using live time/saved zones; nine-theme size/settings checks pass; Done remains checked.
 - 2026-10-30 — `glance.weather`: bound the 11 Wigggle weather compositions to existing cached readings with explicit missing measurements and daily-forecast limitation; location/freshness/permission paths retained; live variant checks pass; Done remains checked.
 - 2026-10-30 — `glance.next-event`: added Wigggle month compositions using actual cached calendar events and retained event countdown/details; variant/composition checks pass; Done remains checked.
+
+- 2026-10-30 — `glance.weather`: replaced hard-coded missing readings with audited Open-Meteo humidity, apparent temperature, wind, precipitation, condition codes, 12 hourly readings and seven daily forecasts; enabled all 11 weather designs, preserved zero/null readings and fixed date-only weekday display. Eight provider tests plus setup/live-design checks pass; Done remains checked.

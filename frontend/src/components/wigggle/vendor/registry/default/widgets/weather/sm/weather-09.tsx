@@ -8,7 +8,7 @@ import { getWeatherIcon } from "@/components/wigggle/vendor/registry/default/lib
 import { Widget, WidgetContent } from "@/components/wigggle/vendor/registry/default/ui/widget";
 
 const getDayName = (dateStr: string) => {
-  const date = new Date(dateStr);
+  const date = new Date(`${dateStr.slice(0, 10)}T12:00:00`);
   return date.toLocaleDateString("en-US", { weekday: "short" });
 };
 

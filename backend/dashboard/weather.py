@@ -62,24 +62,45 @@ async def provide(widget_id):
             "timezone": raw["timezone"],
         }
     params.update(
-        current="temperature_2m",
-        hourly="temperature_2m,precipitation_probability",
+        current="temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,is_day",
+        hourly="temperature_2m,precipitation_probability,weather_code",
+        daily="temperature_2m_max,temperature_2m_min,weather_code",
         forecast_hours=12,
+        forecast_days=7,
     )
     raw = await fetch("https://api.open-meteo.com/v1/forecast", params, widget_id)
     hourly = raw["hourly"]
     hours = [
-        {"time": t, "temperature": v, "rain": r}
-        for t, v, r in zip(
+        {"time": t, "temperature": v, "rain": r, "weather_code": code}
+        for t, v, r, code in zip(
             hourly["time"],
             hourly["temperature_2m"],
             hourly["precipitation_probability"],
+            hourly.get("weather_code", [None] * len(hourly["time"])),
+            strict=True,
+        )
+    ]
+    daily = raw.get("daily", {})
+    days = [
+        {"date": date, "temperature_max": high, "temperature_min": low, "weather_code": code}
+        for date, high, low, code in zip(
+            daily.get("time", []),
+            daily.get("temperature_2m_max", []),
+            daily.get("temperature_2m_min", []),
+            daily.get("weather_code", []),
             strict=True,
         )
     ]
     return {
         "temperature": raw["current"]["temperature_2m"],
+        "humidity": raw["current"].get("relative_humidity_2m"),
+        "feels_like": raw["current"].get("apparent_temperature"),
+        "wind_speed": raw["current"].get("wind_speed_10m"),
+        "precipitation": raw["current"].get("precipitation"),
+        "weather_code": raw["current"].get("weather_code"),
+        "is_day": raw["current"].get("is_day"),
         "hours": hours,
+        "daily": days,
         "rain_alert": any(h["rain"] is not None and h["rain"] >= 50 for h in hours),
         "timezone": raw["timezone"],
     }
