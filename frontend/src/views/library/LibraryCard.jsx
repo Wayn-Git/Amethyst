@@ -5,7 +5,7 @@ import Icon from '../../components/Icon.jsx'
 import { api } from '../../api.js'
 import { getRatingTier } from './ratingUtils.js'
 import { formatDisplayDate } from './dateUtils.js'
-import ProgressSegmentedControl from './ProgressSegmentedControl.jsx'
+import ProgressSegmentedControl, { shouldShowProgress } from './ProgressSegmentedControl.jsx'
 import LibraryReminderBanner from './LibraryReminderBanner.jsx'
 
 export const KIND_ICON = {
@@ -778,15 +778,17 @@ function LibraryCardComponent({
           )}
         </h3>
 
-        {/* SaveToList Feature 1: Progress Tracking Segmented Control */}
-        <div className="lib-card-progress-row" onClick={(e) => e.stopPropagation()}>
-          <ProgressSegmentedControl
-            progress={item.progress}
-            kind={item.kind}
-            variant="compact"
-            onChange={(nextProgress) => onProgressChange ? onProgressChange(item, nextProgress) : api.updateLibraryItem(item.id, { progress: nextProgress })}
-          />
-        </div>
+        {/* SaveToList Feature 1: Progress Tracking Segmented Control (Books, Videos, Places, or active progress) */}
+        {shouldShowProgress(item) && (
+          <div className="lib-card-progress-row" onClick={(e) => e.stopPropagation()}>
+            <ProgressSegmentedControl
+              progress={item.progress}
+              kind={item.kind}
+              variant="compact"
+              onChange={(nextProgress) => onProgressChange ? onProgressChange(item, nextProgress) : api.updateLibraryItem(item.id, { progress: nextProgress })}
+            />
+          </div>
+        )}
 
         {/* SaveToList Feature 2: Reminder Callout Banner */}
         {Boolean(item.remind_at) && (

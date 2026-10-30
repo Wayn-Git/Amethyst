@@ -8976,7 +8976,7 @@
 
 /* 1. Progress Segmented Control */
 .lib-card-progress-row {
-  margin-top: 8px;
+  margin-top: 6px;
   margin-bottom: 4px;
 }
 
@@ -8986,9 +8986,9 @@
   background: var(--surface-2, #f1f3f5);
   border: 1px solid var(--hairline, rgba(0, 0, 0, 0.06));
   border-radius: var(--radius-xl, 12px);
-  padding: 3px;
-  gap: 3px;
-  min-height: 44px;
+  padding: 2px;
+  gap: 2px;
+  min-height: 34px;
   box-sizing: border-box;
 }
 
@@ -8997,13 +8997,13 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-height: 38px;
-  padding: 0 12px;
+  min-height: 28px;
+  padding: 0 10px;
   border-radius: 9px;
   border: none;
   background: transparent;
   color: var(--text-dim, #64748b);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
@@ -9016,20 +9016,20 @@
 }
 
 .lib-progress-segment--active {
-  background: #3b82f6 !important;
-  color: #ffffff !important;
+  background: var(--surface, #ffffff) !important;
+  color: var(--accent, #873fff) !important;
   font-weight: 600;
-  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .lib-progress-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-height: 36px;
+  min-height: 30px;
   padding: 0 10px;
   border-radius: 9px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
@@ -9037,17 +9037,17 @@
 }
 
 .lib-progress-badge--completed {
-  background: rgba(59, 130, 246, 0.08);
-  border-color: rgba(59, 130, 246, 0.25);
-  color: #2563eb;
+  background: rgba(135, 63, 255, 0.08);
+  border-color: rgba(135, 63, 255, 0.2);
+  color: var(--accent, #873fff);
 }
 
 .lib-progress-badge--completed:hover {
-  background: rgba(59, 130, 246, 0.14);
+  background: rgba(135, 63, 255, 0.14);
 }
 
 .lib-progress-check-icon {
-  color: #2563eb;
+  color: var(--accent, #873fff);
 }
 
 /* 2. Reminder Banner & Popover */

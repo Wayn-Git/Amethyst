@@ -5,7 +5,7 @@ import { api } from '../../api.js'
 import { KIND_ICON, getDomain, getFaviconUrl } from './LibraryCard.jsx'
 import { getRatingTier } from './ratingUtils.js'
 import { formatDisplayDate, formatRelativeDate } from './dateUtils.js'
-import ProgressSegmentedControl from './ProgressSegmentedControl.jsx'
+import ProgressSegmentedControl, { shouldShowProgress } from './ProgressSegmentedControl.jsx'
 import LibraryReminderBanner from './LibraryReminderBanner.jsx'
 
 function LibraryRowComponent({
@@ -136,14 +136,16 @@ function LibraryRowComponent({
       </div>
 
       {/* SaveToList Progress State */}
-      <div className="lib-row-progress-col" onClick={(e) => e.stopPropagation()}>
-        <ProgressSegmentedControl
-          progress={item.progress}
-          kind={item.kind}
-          variant="compact"
-          onChange={(next) => onProgressChange ? onProgressChange(item, next) : api.updateLibraryItem(item.id, { progress: next })}
-        />
-      </div>
+      {shouldShowProgress(item) && (
+        <div className="lib-row-progress-col" onClick={(e) => e.stopPropagation()}>
+          <ProgressSegmentedControl
+            progress={item.progress}
+            kind={item.kind}
+            variant="compact"
+            onChange={(next) => onProgressChange ? onProgressChange(item, next) : api.updateLibraryItem(item.id, { progress: next })}
+          />
+        </div>
+      )}
 
       {/* SaveToList Reminder Indicator */}
       {Boolean(item.remind_at) && (

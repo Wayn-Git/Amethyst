@@ -1,31 +1,44 @@
 import React, { useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 
+export const TRACKABLE_PROGRESS_KINDS = new Set([
+  'book',
+  'video',
+  'movie',
+  'place',
+  'podcast',
+])
+
+export function isTrackableKind(kind) {
+  return TRACKABLE_PROGRESS_KINDS.has((kind || '').toLowerCase())
+}
+
+export function shouldShowProgress(item) {
+  if (!item) return false
+  const k = (item.kind || '').toLowerCase()
+  if (TRACKABLE_PROGRESS_KINDS.has(k)) return true
+  if (item.progress && item.progress !== 'unstarted') return true
+  return false
+}
+
 /**
  * Kind-aware options mapping.
  * Each item maps to 3 standard states: 'unstarted' | 'in_progress' | 'completed'
  */
-export function getProgressOptions(kind = 'article') {
+export function getProgressOptions(kind = 'book') {
   const k = (kind || '').toLowerCase()
-  if (k === 'book' || k === 'article' || k === 'newsletter' || k === 'paper') {
+  if (k === 'book') {
     return [
       { key: 'unstarted', label: 'Want to read' },
       { key: 'in_progress', label: 'Reading' },
       { key: 'completed', label: 'Read' },
     ]
   }
-  if (k === 'video') {
+  if (k === 'video' || k === 'movie') {
     return [
       { key: 'unstarted', label: 'Want to watch' },
       { key: 'in_progress', label: 'Watching' },
       { key: 'completed', label: 'Watched' },
-    ]
-  }
-  if (k === 'podcast' || k === 'music') {
-    return [
-      { key: 'unstarted', label: 'Want to listen' },
-      { key: 'in_progress', label: 'Listening' },
-      { key: 'completed', label: 'Listened' },
     ]
   }
   if (k === 'place') {
@@ -33,6 +46,20 @@ export function getProgressOptions(kind = 'article') {
       { key: 'unstarted', label: 'Want to visit' },
       { key: 'in_progress', label: 'Visiting' },
       { key: 'completed', label: 'Visited' },
+    ]
+  }
+  if (k === 'podcast') {
+    return [
+      { key: 'unstarted', label: 'Want to listen' },
+      { key: 'in_progress', label: 'Listening' },
+      { key: 'completed', label: 'Listened' },
+    ]
+  }
+  if (k === 'article' || k === 'newsletter' || k === 'paper') {
+    return [
+      { key: 'unstarted', label: 'To read' },
+      { key: 'in_progress', label: 'Reading' },
+      { key: 'completed', label: 'Read' },
     ]
   }
   return [
@@ -49,7 +76,7 @@ export function getProgressOptions(kind = 'article') {
  */
 export default function ProgressSegmentedControl({
   progress = 'unstarted',
-  kind = 'article',
+  kind = 'book',
   onChange,
   variant = 'compact', // 'compact' | 'full'
   disabled = false,
