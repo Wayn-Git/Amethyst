@@ -7518,6 +7518,23 @@ def get_storage_stats() -> dict[str, Any]:
     except Exception:
         pass
 
+    library_bytes = 0
+    library_dir = home / "library"
+    if library_dir.exists():
+        try:
+            lib_du = subprocess.run(["du", "-sb", str(library_dir)], capture_output=True, text=True, timeout=2)
+            if lib_du.returncode == 0:
+                library_bytes = int(lib_du.stdout.split()[0])
+        except Exception:
+            pass
+
+    library_count = 0
+    try:
+        row_lib = conn.execute("SELECT count(*) FROM library_items").fetchone()
+        library_count = row_lib[0] if row_lib else 0
+    except Exception:
+        pass
+
     total_bytes = 0
     try:
         du_res = subprocess.run(["du", "-sb", str(home)], capture_output=True, text=True, timeout=2)
@@ -7526,9 +7543,9 @@ def get_storage_stats() -> dict[str, Any]:
     except Exception:
         pass
     if not total_bytes or total_bytes < base_db:
-        total_bytes = base_db + subagents_bytes
+        total_bytes = base_db + subagents_bytes + library_bytes
 
-    other_bytes = max(0, total_bytes - chats_bytes - subagents_bytes - archived_bytes - worktrees_bytes)
+    other_bytes = max(0, total_bytes - chats_bytes - subagents_bytes - archived_bytes - worktrees_bytes - library_bytes)
 
     def fmt(b: int) -> str:
         if b < 1024:
@@ -7552,6 +7569,9 @@ def get_storage_stats() -> dict[str, Any]:
         "archived_formatted": fmt(archived_bytes),
         "worktrees_bytes": worktrees_bytes,
         "worktrees_formatted": fmt(worktrees_bytes),
+        "library_bytes": library_bytes,
+        "library_formatted": fmt(library_bytes),
+        "library_count": library_count,
         "other_bytes": other_bytes,
         "other_formatted": fmt(other_bytes),
         "conversation_count": total_convs,

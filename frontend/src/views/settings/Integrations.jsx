@@ -371,7 +371,6 @@ export default function Integrations() {
                         <span className="int-provider-name">{engine.name}</span>
                         {isPrimary && (
                           <span className="int-status-pill is-active">
-                            <span className="int-status-dot is-live" />
                             Active
                           </span>
                         )}
@@ -523,12 +522,10 @@ export default function Integrations() {
                   <span className="int-provider-name">Composio</span>
                   {isComposioConnected ? (
                     <span className="int-status-pill is-active">
-                      <span className="int-status-dot is-live" />
                       Connected
                     </span>
                   ) : (
                     <span className="int-status-pill is-muted">
-                      <span className="int-status-dot" />
                       Not connected
                     </span>
                   )}
@@ -660,7 +657,6 @@ export default function Integrations() {
                   >
                     <ServiceIcon card={toolkit} size="small" />
                     <span className="int-tool-name">{toolkit.name}</span>
-                    <span className="int-status-dot is-live" />
                   </HouseButton>
                 ))}
               </div>
@@ -710,11 +706,10 @@ export default function Integrations() {
                     <span className="int-provider-name">Notification Recipient</span>
                     {notifier?.recipient_email ? (
                       <span className="int-status-pill is-active">
-                        <span className="int-status-dot is-live" />
                         {notifier.recipient_email}
                       </span>
                     ) : (
-                      <span className="int-status-pill">Not Set</span>
+                      <span className="int-status-pill is-muted">Not Set</span>
                     )}
                   </div>
                   <span className="int-provider-desc">
@@ -785,11 +780,10 @@ export default function Integrations() {
                     <span className="int-provider-name">AgentMail (Outbound Delivery)</span>
                     {notifier?.agentmail_configured ? (
                       <span className="int-status-pill is-active">
-                        <span className="int-status-dot is-live" />
                         Connected {notifier.agentmail_inbox_id ? `· ${notifier.agentmail_inbox_id}` : ''}
                       </span>
                     ) : (
-                      <span className="int-status-pill">Not Configured</span>
+                      <span className="int-status-pill is-muted">Not Configured</span>
                     )}
                   </div>
                   <span className="int-provider-desc">
@@ -876,11 +870,10 @@ export default function Integrations() {
                     <span className="int-provider-name">Turso Cloud State (Deduplication)</span>
                     {notifier?.turso_configured ? (
                       <span className="int-status-pill is-active">
-                        <span className="int-status-dot is-live" />
                         Connected
                       </span>
                     ) : (
-                      <span className="int-status-pill">Local SQLite Fallback</span>
+                      <span className="int-status-pill is-muted">Local SQLite Fallback</span>
                     )}
                   </div>
                   <span className="int-provider-desc">

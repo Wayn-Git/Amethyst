@@ -7,7 +7,7 @@ import { api, copyText } from '../../api.js'
 import { useApp } from '../../store.jsx'
 
 export default function Storage() {
-  const { toast } = useApp()
+  const { toast, setView } = useApp()
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -52,6 +52,7 @@ export default function Storage() {
         subagents: stats.subagents_bytes || 0,
         archived: stats.archived_bytes || 0,
         worktrees: stats.worktrees_bytes || 0,
+        library: stats.library_bytes || 0,
         other: stats.other_bytes || 0,
       },
     ]
@@ -70,7 +71,7 @@ export default function Storage() {
           This device
         </div>
         <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: 0 }}>
-          Manage chats and worktrees stored on this computer
+          Manage chats, library media, and worktrees stored on this computer
         </p>
       </div>
 
@@ -133,6 +134,7 @@ export default function Storage() {
               <Bar dataKey="subagents" stackId="storage" fill="#a855f7" />
               <Bar dataKey="archived" stackId="storage" fill="#f97316" />
               <Bar dataKey="worktrees" stackId="storage" fill="#22c55e" />
+              <Bar dataKey="library" stackId="storage" fill="#0ea5e9" />
               <Bar dataKey="other" stackId="storage" fill="#71717a" radius={[0, 7, 7, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -155,6 +157,10 @@ export default function Storage() {
           <div className="codex-legend-item">
             <span className="codex-legend-dot" style={{ backgroundColor: '#22c55e' }} />
             <span>Worktrees <span style={{ color: 'var(--text)', fontWeight: 500 }}>{stats?.worktrees_formatted || '0 bytes'}</span></span>
+          </div>
+          <div className="codex-legend-item">
+            <span className="codex-legend-dot" style={{ backgroundColor: '#0ea5e9' }} />
+            <span>Library <span style={{ color: 'var(--text)', fontWeight: 500 }}>{stats?.library_formatted || '0 bytes'}</span></span>
           </div>
           <div className="codex-legend-item">
             <span className="codex-legend-dot" style={{ backgroundColor: '#71717a' }} />
@@ -202,6 +208,26 @@ export default function Storage() {
               style={{ padding: '5px 16px', fontSize: '13px' }}
             >
               Review
+            </HouseButton>
+          </div>
+        </div>
+
+        {/* Card 2: Library media */}
+        <div className="codex-card">
+          <div className="codex-row" style={{ padding: '16px 20px' }}>
+            <div className="codex-row-info">
+              <span className="codex-row-title">Library media</span>
+              <span className="codex-row-desc">
+                {stats?.library_count ? `${stats.library_count} saved items and media files (${stats?.library_formatted || '0 bytes'})` : 'Manage saved books, media, downloads, and attachments'}
+              </span>
+            </div>
+            <HouseButton
+              type="button"
+              className="set-btn-sm"
+              onClick={() => setView?.('library')}
+              style={{ padding: '5px 16px', fontSize: '13px' }}
+            >
+              Manage
             </HouseButton>
           </div>
         </div>
