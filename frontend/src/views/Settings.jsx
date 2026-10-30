@@ -1749,9 +1749,9 @@ const THEMES_CONFIG = [
     label: 'System',
     hint: 'Follows OS preference',
     mode: 'auto',
-    canvas: 'linear-gradient(135deg, #f8f9fa 50%, #121316 50%)',
-    sidebar: 'linear-gradient(135deg, #ffffff 50%, #18191d 50%)',
-    card: 'linear-gradient(135deg, #ffffff 50%, #1f2024 50%)',
+    canvas: '#121316',
+    sidebar: '#18191d',
+    card: '#202126',
     accent: '#3b82f6',
   },
   {
@@ -1835,6 +1835,203 @@ const THEMES_CONFIG = [
     accent: '#0ea5e9',
   },
 ]
+
+function ThemeMiniWindow({ config, compact = false }) {
+  if (config.id === 'system' || config.mode === 'auto') {
+    return (
+      <div className={`theme-mini-window theme-mini-window--split${compact ? ' is-compact' : ''}`}>
+        <div className="theme-mini-split-side theme-mini-split-side--light">
+          <div className="theme-mini-chrome">
+            <div className="theme-mini-dots">
+              <span className="theme-mini-dot" style={{ background: '#ff5f56' }} />
+              <span className="theme-mini-dot" style={{ background: '#ffbd2e' }} />
+              <span className="theme-mini-dot" style={{ background: '#27c93f' }} />
+            </div>
+            {!compact && <span className="theme-mini-title-pill" style={{ background: 'rgba(0,0,0,0.14)' }} />}
+          </div>
+          <div className="theme-mini-body">
+            <div className="theme-mini-sidebar" style={{ background: '#f8f9fa', borderRight: '1px solid rgba(0,0,0,0.06)' }}>
+              <div className="theme-mini-nav-item is-active" style={{ background: 'rgba(0,0,0,0.06)' }}>
+                <span className="theme-mini-nav-indicator" style={{ background: '#2563eb' }} />
+                <span className="theme-mini-nav-text" style={{ width: '52%', background: 'rgba(0,0,0,0.18)' }} />
+              </div>
+              <div className="theme-mini-nav-item">
+                <span className="theme-mini-nav-text" style={{ width: '68%', background: 'rgba(0,0,0,0.08)' }} />
+              </div>
+              {!compact && (
+                <div className="theme-mini-nav-bottom">
+                  <span className="theme-mini-avatar" style={{ background: 'rgba(0,0,0,0.15)' }} />
+                </div>
+              )}
+            </div>
+            <div className="theme-mini-content" style={{ background: '#ffffff' }}>
+              <div className="theme-mini-user-bubble" style={{ background: 'rgba(0,0,0,0.04)', borderColor: 'rgba(0,0,0,0.05)' }}>
+                <span className="theme-mini-bubble-text" style={{ width: '65%', background: 'rgba(0,0,0,0.18)' }} />
+              </div>
+              <div className="theme-mini-assistant-card" style={{ background: '#f8f9fa', borderColor: 'rgba(0,0,0,0.06)' }}>
+                <div className="theme-mini-card-header">
+                  <span className="theme-mini-card-avatar" style={{ background: '#2563eb' }} />
+                  <span className="theme-mini-card-name" style={{ width: '42%', background: 'rgba(0,0,0,0.18)' }} />
+                </div>
+                <span className="theme-mini-card-line" style={{ width: '88%', background: 'rgba(0,0,0,0.16)' }} />
+              </div>
+              <div className="theme-mini-input-bar" style={{ background: 'rgba(0,0,0,0.03)', borderColor: 'rgba(0,0,0,0.05)' }}>
+                <span className="theme-mini-input-placeholder" style={{ width: '45%', background: 'rgba(0,0,0,0.08)' }} />
+                <span className="theme-mini-action-pill" style={{ background: '#2563eb' }} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="theme-mini-split-line" />
+
+        <div className="theme-mini-split-side theme-mini-split-side--dark">
+          <div className="theme-mini-chrome">
+            {!compact && <span className="theme-mini-title-pill" style={{ background: 'rgba(255,255,255,0.15)', margin: 'auto' }} />}
+          </div>
+          <div className="theme-mini-body">
+            <div className="theme-mini-sidebar" style={{ background: '#18191d', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="theme-mini-nav-item is-active" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                <span className="theme-mini-nav-indicator" style={{ background: '#3b82f6' }} />
+                <span className="theme-mini-nav-text" style={{ width: '52%', background: 'rgba(255,255,255,0.22)' }} />
+              </div>
+              <div className="theme-mini-nav-item">
+                <span className="theme-mini-nav-text" style={{ width: '68%', background: 'rgba(255,255,255,0.1)' }} />
+              </div>
+              {!compact && (
+                <div className="theme-mini-nav-bottom">
+                  <span className="theme-mini-avatar" style={{ background: 'rgba(255,255,255,0.2)' }} />
+                </div>
+              )}
+            </div>
+            <div className="theme-mini-content" style={{ background: '#121316' }}>
+              <div className="theme-mini-user-bubble" style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.07)' }}>
+                <span className="theme-mini-bubble-text" style={{ width: '65%', background: 'rgba(255,255,255,0.24)' }} />
+              </div>
+              <div className="theme-mini-assistant-card" style={{ background: '#202126', borderColor: 'rgba(255,255,255,0.08)' }}>
+                <div className="theme-mini-card-header">
+                  <span className="theme-mini-card-avatar" style={{ background: '#3b82f6' }} />
+                  <span className="theme-mini-card-name" style={{ width: '42%', background: 'rgba(255,255,255,0.22)' }} />
+                </div>
+                <span className="theme-mini-card-line" style={{ width: '88%', background: 'rgba(255,255,255,0.2)' }} />
+              </div>
+              <div className="theme-mini-input-bar" style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.07)' }}>
+                <span className="theme-mini-input-placeholder" style={{ width: '45%', background: 'rgba(255,255,255,0.1)' }} />
+                <span className="theme-mini-action-pill" style={{ background: '#3b82f6' }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const isLight = config.mode === 'light'
+  const borderHairline = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)'
+  const subtleLine = isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.22)'
+  const dimLine = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.10)'
+
+  return (
+    <div
+      className={`theme-mini-window${compact ? ' is-compact' : ''}`}
+      style={{
+        background: config.canvas,
+        borderColor: borderHairline,
+      }}
+    >
+      <div
+        className="theme-mini-chrome"
+        style={{
+          borderBottomColor: borderHairline,
+          background: isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)',
+        }}
+      >
+        <div className="theme-mini-dots">
+          <span className="theme-mini-dot" style={{ background: '#ff5f56' }} />
+          <span className="theme-mini-dot" style={{ background: '#ffbd2e' }} />
+          <span className="theme-mini-dot" style={{ background: '#27c93f' }} />
+        </div>
+        {!compact && <span className="theme-mini-title-pill" style={{ background: subtleLine }} />}
+        <div style={{ width: 12 }} />
+      </div>
+
+      <div className="theme-mini-body">
+        <div
+          className="theme-mini-sidebar"
+          style={{
+            background: config.sidebar,
+            borderRightColor: borderHairline,
+          }}
+        >
+          <div
+            className="theme-mini-nav-item is-active"
+            style={{
+              background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.07)',
+            }}
+          >
+            <span
+              className="theme-mini-nav-indicator"
+              style={{ background: config.accent }}
+            />
+            <span className="theme-mini-nav-text" style={{ width: '52%', background: subtleLine }} />
+          </div>
+          <div className="theme-mini-nav-item">
+            <span className="theme-mini-nav-text" style={{ width: '70%', background: dimLine }} />
+          </div>
+          {!compact && (
+            <div className="theme-mini-nav-item">
+              <span className="theme-mini-nav-text" style={{ width: '48%', background: dimLine }} />
+            </div>
+          )}
+          {!compact && (
+            <div className="theme-mini-nav-bottom">
+              <span className="theme-mini-avatar" style={{ background: subtleLine }} />
+              <span className="theme-mini-nav-text" style={{ width: '42%', background: dimLine }} />
+            </div>
+          )}
+        </div>
+
+        <div className="theme-mini-content" style={{ background: config.canvas }}>
+          <div
+            className="theme-mini-user-bubble"
+            style={{
+              background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)',
+              borderColor: borderHairline,
+            }}
+          >
+            <span className="theme-mini-bubble-text" style={{ width: '65%', background: subtleLine }} />
+          </div>
+
+          <div
+            className="theme-mini-assistant-card"
+            style={{
+              background: config.card,
+              borderColor: borderHairline,
+            }}
+          >
+            <div className="theme-mini-card-header">
+              <span className="theme-mini-card-avatar" style={{ background: config.accent }} />
+              <span className="theme-mini-card-name" style={{ width: '38%', background: subtleLine }} />
+            </div>
+            <span className="theme-mini-card-line" style={{ width: '88%', background: subtleLine }} />
+            {!compact && <span className="theme-mini-card-line" style={{ width: '58%', background: dimLine }} />}
+          </div>
+
+          <div
+            className="theme-mini-input-bar"
+            style={{
+              background: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.04)',
+              borderColor: borderHairline,
+            }}
+          >
+            <span className="theme-mini-input-placeholder" style={{ width: '42%', background: dimLine }} />
+            <span className="theme-mini-action-pill" style={{ background: config.accent }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function Appearance() {
   const {
@@ -1992,26 +2189,7 @@ function Appearance() {
               onClick={() => setTheme('system')}
               title="System Mode (Follows OS)"
             >
-              <div style={{ width: '50%', height: '100%', background: '#ffffff', display: 'flex', borderRight: '1px solid #e4e4e7' }}>
-                <div style={{ width: 12, height: '100%', background: '#f4f4f5', padding: '5px 2px', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                  <div style={{ width: '80%', height: 2, background: '#d4d4d8', borderRadius: 1 }} />
-                  <div style={{ width: '60%', height: 2, background: '#d4d4d8', borderRadius: 1 }} />
-                </div>
-                <div style={{ flex: 1, padding: '5px 4px', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                  <div style={{ width: '70%', height: 2.5, background: '#a1a1aa', borderRadius: 1 }} />
-                  <div style={{ width: '90%', height: 2, background: '#e4e4e7', borderRadius: 1 }} />
-                </div>
-              </div>
-              <div style={{ width: '50%', height: '100%', background: '#111111', display: 'flex' }}>
-                <div style={{ width: 12, height: '100%', background: '#1c1c1f', padding: '5px 2px', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                  <div style={{ width: '80%', height: 2, background: '#3f3f46', borderRadius: 1 }} />
-                  <div style={{ width: '60%', height: 2, background: '#3f3f46', borderRadius: 1 }} />
-                </div>
-                <div style={{ flex: 1, padding: '5px 4px', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                  <div style={{ width: '70%', height: 2.5, background: '#71717a', borderRadius: 1 }} />
-                  <div style={{ width: '55%', height: 3, background: 'var(--accent, #3b82f6)', borderRadius: 1.5, marginTop: 'auto' }} />
-                </div>
-              </div>
+              <ThemeMiniWindow config={THEMES_CONFIG[0]} compact={true} />
             </HouseButton>
 
             {/* Light */}
@@ -2021,18 +2199,10 @@ function Appearance() {
               onClick={() => setTheme(preferredLightTheme || 'paper')}
               title="Light Mode"
             >
-              <div style={{ width: '100%', height: '100%', background: '#ffffff', display: 'flex' }}>
-                <div style={{ width: 22, height: '100%', background: '#f4f4f5', borderRight: '1px solid #e4e4e7', padding: '6px 3px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <div style={{ width: '85%', height: 2.5, background: '#a1a1aa', borderRadius: 1 }} />
-                  <div style={{ width: '70%', height: 2, background: '#d4d4d8', borderRadius: 1 }} />
-                  <div style={{ width: '50%', height: 2, background: '#d4d4d8', borderRadius: 1 }} />
-                </div>
-                <div style={{ flex: 1, padding: '6px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <div style={{ width: '60%', height: 2.5, background: '#71717a', borderRadius: 1 }} />
-                  <div style={{ width: '85%', height: 2, background: '#e4e4e7', borderRadius: 1 }} />
-                  <div style={{ width: '45%', height: 3, background: '#3b82f6', borderRadius: 1.5, marginTop: 'auto' }} />
-                </div>
-              </div>
+              <ThemeMiniWindow
+                config={THEMES_CONFIG.find((t) => t.id === 'paper') || THEMES_CONFIG[5]}
+                compact={true}
+              />
             </HouseButton>
 
             {/* Dark */}
@@ -2042,18 +2212,10 @@ function Appearance() {
               onClick={() => setTheme(preferredDarkTheme || 'graphite')}
               title="Dark Mode"
             >
-              <div style={{ width: '100%', height: '100%', background: '#111111', display: 'flex' }}>
-                <div style={{ width: 22, height: '100%', background: '#1c1c1f', borderRight: '1px solid #27272a', padding: '6px 3px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <div style={{ width: '85%', height: 2.5, background: '#71717a', borderRadius: 1 }} />
-                  <div style={{ width: '70%', height: 2, background: '#3f3f46', borderRadius: 1 }} />
-                  <div style={{ width: '50%', height: 2, background: '#3f3f46', borderRadius: 1 }} />
-                </div>
-                <div style={{ flex: 1, padding: '6px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <div style={{ width: '60%', height: 2.5, background: '#a1a1aa', borderRadius: 1 }} />
-                  <div style={{ width: '85%', height: 2, background: '#27272a', borderRadius: 1 }} />
-                  <div style={{ width: '45%', height: 3, background: 'var(--accent, #3b82f6)', borderRadius: 1.5, marginTop: 'auto' }} />
-                </div>
-              </div>
+              <ThemeMiniWindow
+                config={THEMES_CONFIG.find((t) => t.id === 'graphite') || THEMES_CONFIG[1]}
+                compact={true}
+              />
             </HouseButton>
           </div>
         </div>
@@ -2068,7 +2230,7 @@ function Appearance() {
         <div className="theme-grid-3">
           {THEMES_CONFIG.map((t) => {
             const isSel = theme === t.id
-            const isLight = t.mode === 'light'
+            const isSplit = t.id === 'system'
             return (
               <HouseButton
                 key={t.id}
@@ -2077,59 +2239,52 @@ function Appearance() {
                 onClick={() => setTheme(t.id)}
                 title={`${t.label} — ${t.hint}`}
               >
-                <div className="theme-card-inner">
-                  <div className="theme-mockup-frame" style={{ background: t.canvas }}>
-                    <div className="theme-mockup-sidebar" style={{ background: t.sidebar }}>
-                      <div style={{ width: '85%', height: 3, background: isLight ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.25)', borderRadius: 1.5 }} />
-                      <div style={{ width: '60%', height: 2, background: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.12)', borderRadius: 1 }} />
-                      <div style={{ width: '70%', height: 2, background: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.12)', borderRadius: 1 }} />
-                    </div>
-                    <div className="theme-mockup-content">
-                      <div style={{ width: '45%', height: 3, background: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.35)', borderRadius: 1.5 }} />
-                      <div style={{ width: '88%', height: 20, background: t.card, borderRadius: 5, padding: '3px 6px', display: 'flex', alignItems: 'center', border: `1px solid ${isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)'}` }}>
-                        <div style={{ width: '50%', height: 2.5, background: isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.2)', borderRadius: 1 }} />
-                      </div>
-                      <div style={{ width: '38%', height: 3.5, background: t.accent, borderRadius: 2, marginTop: 'auto' }} />
+                <ThemeMiniWindow config={t} />
+                <div className="theme-card-footer">
+                  <div className="theme-card-title-row">
+                    <span className="theme-card-label">{t.label}</span>
+                    <div className="theme-card-swatches">
+                      <span
+                        className="theme-swatch-dot"
+                        style={{
+                          background: isSplit
+                            ? 'linear-gradient(135deg, #ffffff 50%, #121316 50%)'
+                            : t.canvas,
+                        }}
+                        title="Canvas"
+                      />
+                      <span
+                        className="theme-swatch-dot"
+                        style={{
+                          background: isSplit
+                            ? 'linear-gradient(135deg, #f8f9fa 50%, #18191d 50%)'
+                            : t.sidebar,
+                        }}
+                        title="Sidebar"
+                      />
+                      <span
+                        className="theme-swatch-dot"
+                        style={{
+                          background: isSplit
+                            ? 'linear-gradient(135deg, #f8f9fa 50%, #202126 50%)'
+                            : t.card,
+                        }}
+                        title="Card"
+                      />
+                      <span
+                        className="theme-swatch-dot is-accent"
+                        style={{
+                          background: t.accent,
+                          boxShadow: `0 0 4px ${t.accent}66`,
+                        }}
+                        title="Accent"
+                      />
+                      {isSel && (
+                        <Icon name="check" size={12} style={{ color: 'var(--accent)', marginLeft: 3 }} />
+                      )}
                     </div>
                   </div>
-                  <div className="theme-card-info">
-                    <div style={{ minWidth: 0 }}>
-                      <div className="theme-card-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.label}</span>
-                        <span style={{
-                          fontSize: 9,
-                          fontWeight: 600,
-                          padding: '1px 5px',
-                          borderRadius: 4,
-                          textTransform: 'uppercase',
-                          background: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.08)',
-                          color: 'var(--text-dim)',
-                          flexShrink: 0
-                        }}>
-                          {t.mode}
-                        </span>
-                      </div>
-                      <div className="theme-card-hint" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {t.hint}
-                      </div>
-                    </div>
-                    {isSel && (
-                      <div style={{
-                        width: 18,
-                        height: 18,
-                        borderRadius: '50%',
-                        background: 'var(--accent)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#ffffff',
-                        flexShrink: 0,
-                        marginLeft: 6
-                      }}>
-                        <Icon name="check" size={11} />
-                      </div>
-                    )}
-                  </div>
+                  <span className="theme-card-hint">{t.hint}</span>
                 </div>
               </HouseButton>
             )
@@ -2173,21 +2328,71 @@ function Appearance() {
               label: t.label,
               hint: t.hint,
             }))}
-            renderOption={(opt, isSelected) => {
+            renderIcon={(opt) => {
               const meta = THEMES_CONFIG.find((m) => m.id === opt.value)
+              const isSplit = opt.value === 'system'
               return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minWidth: 0 }}>
-                  <div style={{
+                <div
+                  style={{
                     width: 18,
                     height: 18,
-                    borderRadius: 4,
-                    background: meta?.canvas || 'var(--raised)',
-                    border: '1px solid var(--hairline-strong)',
+                    borderRadius: '50%',
+                    background: isSplit
+                      ? 'linear-gradient(135deg, #2563eb 50%, #121316 50%)'
+                      : meta?.accent || 'var(--accent)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 9.5,
+                    fontWeight: 700,
+                    color: '#ffffff',
                     flexShrink: 0,
-                    position: 'relative',
-                    overflow: 'hidden'
-                  }}>
-                    <div style={{ position: 'absolute', bottom: 0, right: 0, width: 7, height: 7, background: meta?.accent || 'var(--accent)', borderRadius: '2px 0 0 0' }} />
+                    boxShadow: `0 0 6px ${meta?.accent ? meta.accent + '40' : 'rgba(0,0,0,0.2)'}`,
+                  }}
+                >
+                  {opt.label.slice(0, 2)}
+                </div>
+              )
+            }}
+            renderOption={(opt, isSelected) => {
+              const meta = THEMES_CONFIG.find((m) => m.id === opt.value)
+              const isSplit = opt.value === 'system'
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minWidth: 0 }}>
+                  <div
+                    style={{
+                      width: 20,
+                      height: 14,
+                      borderRadius: 3,
+                      background: isSplit
+                        ? 'linear-gradient(90deg, #ffffff 50%, #121316 50%)'
+                        : meta?.canvas || 'var(--raised)',
+                      border: '1px solid var(--hairline-strong)',
+                      flexShrink: 0,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      display: 'flex',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '32%',
+                        height: '100%',
+                        background: isSplit ? '#f4f4f5' : meta?.sidebar || 'var(--surface)',
+                        borderRight: '1px solid var(--hairline)',
+                      }}
+                    />
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: 1.5,
+                        right: 1.5,
+                        width: 4,
+                        height: 3,
+                        borderRadius: 1,
+                        background: meta?.accent || 'var(--accent)',
+                      }}
+                    />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, textAlign: 'left', flex: 1 }}>
                     <span style={{ fontSize: 12.5, fontWeight: isSelected ? 600 : 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
