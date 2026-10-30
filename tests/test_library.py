@@ -1129,6 +1129,7 @@ async def test_capture_media_updates_skeleton_item():
 
 @pytest.mark.asyncio
 async def test_savetolist_library_features():
+    import json
     from backend.api.main import app
     from starlette.testclient import TestClient
 
@@ -1160,6 +1161,39 @@ async def test_savetolist_library_features():
     # Pinned item Piranesi should appear first before unpinned_id
     ids = [r["id"] for r in listed]
     assert ids.index(item_id) < ids.index(unpinned_id)
+
+    # 3. Add anything: place and idea kinds
+    place_id = svc.store.create(kind="place", title="Fushimi Inari", notes="Kyoto shrine trail")
+    svc.store.update(place_id, tags=json.dumps(["japan", "travel"]))
+    idea_id = svc.store.create(kind="idea", title="Local-First Sync Protocol", notes="CRDT state replication")
+    svc.store.update(idea_id, tags=json.dumps(["tech", "ideas"]))
+    assert svc.store.get(place_id)["kind"] == "place"
+    assert svc.store.get(idea_id)["kind"] == "idea"
+
+    # 4. Search everything: finding by private note, tag, or title
+    search_res = await svc.search("marvelous setting")
+    assert any(it["id"] == item_id for it in search_res)
+
+    search_place = await svc.search("Kyoto shrine")
+    assert any(it["id"] == place_id for it in search_place)
+
+    # 5. Arrange items / manual reordering
+    reorder_res = client.post("/api/library/reorder", json={"item_ids": [idea_id, place_id, unpinned_id, item_id]})
+    assert reorder_res.status_code == 200
+    manual_list = svc.store.list(order="manual")
+    # Pinned items still come first (item_id is pinned), then unpinned in custom position order (idea_id before place_id)
+    manual_ids = [r["id"] for r in manual_list]
+    assert manual_ids.index(idea_id) < manual_ids.index(place_id)
+
+    # 6. Merge lists: combining two tags into one
+    merge_res = client.post("/api/library/merge-lists", json={"source": "travel", "destination": "japan", "type": "tag"})
+    assert merge_res.status_code == 200
+    merged_data = merge_res.json()
+    assert merged_data["merged"] >= 1
+    updated_place = svc.store.get(place_id)
+    updated_tags = json.loads(updated_place["tags"])
+    assert "japan" in updated_tags
+    assert "travel" not in updated_tags
 
 
 

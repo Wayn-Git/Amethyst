@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import gsap from 'gsap'
 import LibraryRow from './LibraryRow.jsx'
 import { groupItemsByDate } from './dateUtils.js'
@@ -15,9 +15,56 @@ function LibraryListViewComponent({
   onProgressChange,
   onSaveReminder,
   onClearReminder,
+  onReorder,
 }) {
   const containerRef = useRef(null)
   const animatedIdsRef = useRef(new Set())
+  const [draggedId, setDraggedId] = useState(null)
+  const [dragOverId, setDragOverId] = useState(null)
+
+  const handleDragStart = (e, item) => {
+    if (!onReorder) return
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', String(item.id))
+    setDraggedId(item.id)
+  }
+
+  const handleDragOver = (e, item) => {
+    if (!onReorder) return
+    e.preventDefault()
+    if (draggedId && draggedId !== item.id) {
+      setDragOverId(item.id)
+    }
+  }
+
+  const handleDragLeave = () => {
+    setDragOverId(null)
+  }
+
+  const handleDrop = (e, targetItem) => {
+    if (!onReorder) return
+    e.preventDefault()
+    setDragOverId(null)
+    if (!draggedId || draggedId === targetItem.id) {
+      setDraggedId(null)
+      return
+    }
+    const fromIndex = items.findIndex((it) => it.id === draggedId)
+    const toIndex = items.findIndex((it) => it.id === targetItem.id)
+    if (fromIndex !== -1 && toIndex !== -1) {
+      const next = [...items]
+      const [moved] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, moved)
+      onReorder(next)
+    }
+    setDraggedId(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedId(null)
+    setDragOverId(null)
+  }
+
   const groups = useMemo(() => groupItemsByDate(items), [items])
 
   useEffect(() => {
@@ -75,6 +122,14 @@ function LibraryListViewComponent({
                 onProgressChange={onProgressChange}
                 onSaveReminder={onSaveReminder}
                 onClearReminder={onClearReminder}
+                isDraggable={Boolean(onReorder)}
+                onDragStart={(e) => handleDragStart(e, item)}
+                onDragOver={(e) => handleDragOver(e, item)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, item)}
+                onDragEnd={handleDragEnd}
+                isDragOver={dragOverId === item.id}
+                isDragged={draggedId === item.id}
               />
             ))}
           </div>

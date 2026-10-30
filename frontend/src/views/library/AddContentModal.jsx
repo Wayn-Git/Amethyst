@@ -19,7 +19,12 @@ export default function AddContentModal({
   const urlInputRef = useRef(null)
   useModalDismiss(open, onClose)
 
-  const [mode, setMode] = useState(initialMode) // 'url' | 'file' | 'note' | 'wiki'
+  const [mode, setMode] = useState(initialMode) // 'anything' | 'url' | 'file' | 'note' | 'wiki'
+  const [anythingKind, setAnythingKind] = useState('book') // 'book' | 'place' | 'idea' | 'note' | 'other'
+  const [anythingTitle, setAnythingTitle] = useState('')
+  const [anythingDetail, setAnythingDetail] = useState('')
+  const [anythingNotes, setAnythingNotes] = useState('')
+  const [anythingPrivateNotes, setAnythingPrivateNotes] = useState('')
   const [urlInput, setUrlInput] = useState('')
   const [noteTitle, setNoteTitle] = useState('')
   const [noteContent, setNoteContent] = useState('')
@@ -53,6 +58,36 @@ export default function AddContentModal({
       }
     }
     return results
+  }
+
+  // Add Anything Submission (Book, Place, Idea, Note)
+  const handleAnythingSubmit = async (e) => {
+    e?.preventDefault()
+    if (!anythingTitle.trim()) {
+      toast?.('Title or name is required', 'bad')
+      return
+    }
+
+    setBusy(true)
+    try {
+      await onSubmit?.({
+        title: anythingTitle.trim(),
+        kind: anythingKind,
+        author: anythingDetail.trim() || null,
+        category: anythingKind === 'place' ? 'travel' : anythingKind === 'book' ? 'books' : anythingKind === 'idea' ? 'ideas' : 'general',
+        notes: anythingNotes.trim() || null,
+        private_notes: anythingPrivateNotes.trim() || null,
+      })
+      setAnythingTitle('')
+      setAnythingDetail('')
+      setAnythingNotes('')
+      setAnythingPrivateNotes('')
+      onClose()
+    } catch (err) {
+      toast?.(err.message || 'Could not save item', 'bad')
+    } finally {
+      setBusy(false)
+    }
   }
 
   // URL Submission
@@ -232,6 +267,14 @@ export default function AddContentModal({
             <div className="lib-modal-tabs">
               <HouseButton
                 type="button"
+                className={`lib-modal-tab ${mode === 'anything' ? 'lib-modal-tab--active' : ''}`}
+                onClick={() => setMode('anything')}
+              >
+                <Icon name="spark" size={14} />
+                <span>Add Anything</span>
+              </HouseButton>
+              <HouseButton
+                type="button"
                 className={`lib-modal-tab ${mode === 'url' ? 'lib-modal-tab--active' : ''}`}
                 onClick={() => setMode('url')}
               >
@@ -267,6 +310,130 @@ export default function AddContentModal({
 
           {/* Body */}
           <div className="lib-modal-body">
+            {mode === 'anything' && (
+              <form onSubmit={handleAnythingSubmit} className="lib-form-group" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* Kind chips */}
+                <div>
+                  <span className="lib-form-label" style={{ display: 'block', marginBottom: 6 }}>
+                    What are you saving?
+                  </span>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {[
+                      { id: 'book', label: 'Book', icon: 'book' },
+                      { id: 'place', label: 'Place', icon: 'globe' },
+                      { id: 'idea', label: 'Idea', icon: 'spark' },
+                      { id: 'note', label: 'Note', icon: 'edit' },
+                      { id: 'other', label: 'Other', icon: 'link' },
+                    ].map((k) => (
+                      <HouseButton
+                        key={k.id}
+                        type="button"
+                        className={`lib-btn ${anythingKind === k.id ? 'lib-btn--primary' : 'btn--ghost'}`}
+                        style={{ height: 38, padding: '0 12px', fontSize: 13, borderRadius: 12 }}
+                        onClick={() => setAnythingKind(k.id)}
+                      >
+                        <Icon name={k.icon} size={14} />
+                        <span>{k.label}</span>
+                      </HouseButton>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Title */}
+                <div>
+                  <label className="lib-form-label" htmlFor="lib-anything-title">
+                    {anythingKind === 'book'
+                      ? 'Book Title'
+                      : anythingKind === 'place'
+                      ? 'Place Name'
+                      : anythingKind === 'idea'
+                      ? 'Idea or Concept'
+                      : 'Title'}
+                  </label>
+                  <HouseInput
+                    id="lib-anything-title"
+                    type="text"
+                    className="lib-form-input"
+                    placeholder={
+                      anythingKind === 'book'
+                        ? 'e.g. Klara and the Sun'
+                        : anythingKind === 'place'
+                        ? 'e.g. Fushimi Inari Taisha'
+                        : anythingKind === 'idea'
+                        ? 'e.g. Local-first sync engine'
+                        : 'Title or subject…'
+                    }
+                    value={anythingTitle}
+                    onChange={(e) => setAnythingTitle(e.target.value)}
+                    style={{ minHeight: 44 }}
+                  />
+                </div>
+
+                {/* Detail (Author/Location/Context) */}
+                <div>
+                  <label className="lib-form-label" htmlFor="lib-anything-detail">
+                    {anythingKind === 'book'
+                      ? 'Author (optional)'
+                      : anythingKind === 'place'
+                      ? 'Location / Address (optional)'
+                      : anythingKind === 'idea'
+                      ? 'Domain or Category (optional)'
+                      : 'Author / Source (optional)'}
+                  </label>
+                  <HouseInput
+                    id="lib-anything-detail"
+                    type="text"
+                    className="lib-form-input"
+                    placeholder={
+                      anythingKind === 'book'
+                        ? 'e.g. Kazuo Ishiguro'
+                        : anythingKind === 'place'
+                        ? 'e.g. Kyoto, Japan'
+                        : anythingKind === 'idea'
+                        ? 'e.g. Distributed Systems'
+                        : ''
+                    }
+                    value={anythingDetail}
+                    onChange={(e) => setAnythingDetail(e.target.value)}
+                    style={{ minHeight: 44 }}
+                  />
+                </div>
+
+                {/* Public / Shared Notes */}
+                <div>
+                  <label className="lib-form-label" htmlFor="lib-anything-notes">
+                    Notes & Details (optional)
+                  </label>
+                  <HouseTextarea
+                    id="lib-anything-notes"
+                    className="lib-form-textarea"
+                    placeholder="Why you saved this, quotes, key thoughts…"
+                    rows={2}
+                    value={anythingNotes}
+                    onChange={(e) => setAnythingNotes(e.target.value)}
+                  />
+                </div>
+
+                {/* Private Notes */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <Icon name="lock" size={13} style={{ color: 'var(--accent)' }} />
+                    <label className="lib-form-label" htmlFor="lib-anything-privatenotes" style={{ margin: 0 }}>
+                      Private Notes
+                    </label>
+                    <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Only you can see them</span>
+                  </div>
+                  <HouseTextarea
+                    id="lib-anything-privatenotes"
+                    className="lib-form-textarea"
+                    placeholder="Confidential notes, personal impressions, sensitive details…"
+                    rows={2}
+                    value={anythingPrivateNotes}
+                    onChange={(e) => setAnythingPrivateNotes(e.target.value)}
+                  />
+                </div>
+              </form>
+            )}
             {mode === 'url' && (
               <form onSubmit={handleUrlSubmit} className="lib-form-group">
                 <label className="lib-form-label" htmlFor="lib-url-input">
@@ -382,7 +549,9 @@ export default function AddContentModal({
               className="lib-btn lib-btn--primary"
               disabled={busy}
               onClick={
-                mode === 'url'
+                mode === 'anything'
+                  ? handleAnythingSubmit
+                  : mode === 'url'
                   ? handleUrlSubmit
                   : mode === 'note'
                   ? handleNoteSubmit

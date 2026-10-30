@@ -17,6 +17,7 @@ import LibraryListView from './library/LibraryListView.jsx'
 import LibraryDetailModal from './library/LibraryDetailModal.jsx'
 import AddContentModal from './library/AddContentModal.jsx'
 import ExportPlaylistModal from './library/ExportPlaylistModal.jsx'
+import MergeListsModal from './library/MergeListsModal.jsx'
 import { CaptureIntegrationsModal } from './library/SharePanels.jsx'
 import { getDomain } from './library/LibraryCard.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -59,7 +60,8 @@ export default function Library() {
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false)
-  const [addModalMode, setAddModalMode] = useState('url')
+  const [addModalMode, setAddModalMode] = useState('anything')
+  const [showMergeModal, setShowMergeModal] = useState(false)
   const [showShare, setShowShare] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
   const [exportItems, setExportItems] = useState([])
@@ -402,7 +404,19 @@ export default function Library() {
     } else if (isBareDomain) {
       handleAddResource({ url: `https://${text}` })
     } else {
-      handleAddResource({ notes: text, title: text.slice(0, 48) })
+      const match = text.match(/^(book|place|idea|note):\s*(.+)$/i)
+      if (match) {
+        const kind = match[1].toLowerCase()
+        const title = match[2].trim()
+        handleAddResource({
+          title,
+          kind,
+          category: kind === 'place' ? 'travel' : kind === 'book' ? 'books' : kind === 'idea' ? 'ideas' : 'general',
+          notes: text,
+        })
+      } else {
+        handleAddResource({ notes: text, title: text.slice(0, 48) })
+      }
     }
     setQuickCaptureText('')
   }
@@ -546,6 +560,22 @@ export default function Library() {
     [toast, load]
   )
 
+  const handleReorder = useCallback(
+    async (newItems) => {
+      const withPositions = newItems.map((item, idx) => ({ ...item, position: idx }))
+      setItems(withPositions)
+      setOrder('manual')
+      try {
+        await api.reorderLibrary(newItems.map((it) => it.id))
+        toast('Rearranged items', 'ok')
+      } catch (err) {
+        toast(err.message || 'Failed to persist order', 'bad')
+        load()
+      }
+    },
+    [toast, load]
+  )
+
   const handleClearFilters = useCallback(() => {
     setSelectedKinds([])
     setSelectedCategories([])
@@ -592,6 +622,8 @@ export default function Library() {
     }
     if (order === 'rating') {
       result = [...result].sort((a, b) => (b.rating || 0) - (a.rating || 0))
+    } else if (order === 'manual') {
+      result = [...result].sort((a, b) => (a.position || 0) - (b.position || 0))
     }
     // Always prioritize pinned items on top
     result = [...result].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0))
@@ -703,9 +735,10 @@ export default function Library() {
               hasMusic={hasMusic}
               onOpenExport={handleOpenExport}
               onOpenAddModal={(mode) => {
-                setAddModalMode(mode || 'url')
+                setAddModalMode(mode || 'anything')
                 setShowAddModal(true)
               }}
+              onOpenMergeModal={() => setShowMergeModal(true)}
               counts={counts}
               categoryCounts={categoryCounts}
               tagCounts={tagCounts}
@@ -794,6 +827,7 @@ export default function Library() {
                     onProgressChange={handleProgressChange}
                     onSaveReminder={handleSaveReminder}
                     onClearReminder={handleClearReminder}
+                    onReorder={handleReorder}
                   />
                 ) : (
                   <LibraryListView
@@ -808,6 +842,7 @@ export default function Library() {
                     onProgressChange={handleProgressChange}
                     onSaveReminder={handleSaveReminder}
                     onClearReminder={handleClearReminder}
+                    onReorder={handleReorder}
                   />
                 )}
               </main>
@@ -819,6 +854,16 @@ export default function Library() {
           initialMode={addModalMode}
           onClose={() => setShowAddModal(false)}
           onSubmit={handleAddResource}
+          toast={toast}
+        />
+
+        {/* Merge Lists Modal */}
+        <MergeListsModal
+          open={showMergeModal}
+          onClose={() => setShowMergeModal(false)}
+          tagCounts={tagCounts}
+          categoryCounts={categoryCounts}
+          onMerged={load}
           toast={toast}
         />
 

@@ -20,6 +20,14 @@ function LibraryRowComponent({
   onProgressChange,
   onSaveReminder,
   onClearReminder,
+  isDraggable = false,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd,
+  isDragOver = false,
+  isDragged = false,
 }) {
   const isOptimistic = Boolean(item.isOptimistic)
   const isProcessing = Boolean(item.isProcessing) || item.status === 'processing' || item.status === 'enriching'
@@ -40,7 +48,13 @@ function LibraryRowComponent({
   return (
     <article
       data-item-id={item.id}
-      className={`lib-row ${isProcessing ? 'lib-card--processing' : ''}`}
+      draggable={isDraggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+      className={`lib-row ${isProcessing ? 'lib-card--processing' : ''} ${isDragOver ? 'lib-row--drag-over' : ''} ${isDragged ? 'lib-row--dragged' : ''}`}
       onClick={handleRowClick}
       tabIndex={0}
       role="button"
@@ -180,6 +194,16 @@ function LibraryRowComponent({
 
       {/* Row Action Buttons */}
       <div className="lib-row-actions">
+        {isDraggable && (
+          <span
+            className="lib-dock-btn lib-row-drag-handle"
+            title="Drag to rearrange"
+            aria-label="Drag to rearrange"
+          >
+            <Icon name="dots-six" size={13} />
+          </span>
+        )}
+
         <HouseButton
           type="button"
           className={`lib-dock-btn ${item.is_pinned ? 'lib-dock-btn--pinned' : ''}`}

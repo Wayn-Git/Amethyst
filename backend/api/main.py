@@ -8125,6 +8125,12 @@ class LibraryBody(BaseModel):
     consumed_on: str | None = None
     rating: int | None = None
     media_path: str | None = None
+    progress: str | None = None
+    is_pinned: int | bool | None = None
+    position: int | None = None
+    remind_at: str | None = None
+    remind_action: str | None = None
+    private_notes: str | None = None
 
 
 class LibraryPatch(BaseModel):
@@ -8141,10 +8147,21 @@ class LibraryPatch(BaseModel):
     resources: list[dict] | None = None
     progress: str | None = None
     is_pinned: int | bool | None = None
+    position: int | None = None
     remind_at: str | None = None
     remind_action: str | None = None
     reminded_at: str | None = None
     private_notes: str | None = None
+
+
+class ReorderLibraryBody(BaseModel):
+    item_ids: list[int]
+
+
+class MergeListsBody(BaseModel):
+    source: str
+    destination: str
+    type: str = "tag"
 
 
 @app.get("/api/library")
@@ -8613,6 +8630,27 @@ async def consolidate_library_tags() -> dict[str, Any]:
     from backend.library.service import LibraryService
 
     return LibraryService().consolidate_tags()
+
+
+@app.post("/api/library/reorder")
+async def reorder_library_items(body: ReorderLibraryBody) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    LibraryService().reorder(body.item_ids)
+    return {"reordered": len(body.item_ids)}
+
+
+@app.post("/api/library/merge-lists")
+async def merge_library_lists(body: MergeListsBody) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    merged_count = LibraryService().merge_lists(body.source, body.destination, body.type)
+    return {
+        "merged": merged_count,
+        "source": body.source,
+        "destination": body.destination,
+        "type": body.type,
+    }
 
 
 class ExportPlaylistBody(BaseModel):

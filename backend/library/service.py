@@ -289,6 +289,7 @@ def as_dict(row, *, include_content: bool = True) -> dict:
 
     data["progress"] = data.get("progress") or "unstarted"
     data["is_pinned"] = bool(data.get("is_pinned"))
+    data["position"] = int(data.get("position") or 0)
     data["remind_at"] = data.get("remind_at") or None
     data["remind_action"] = data.get("remind_action") or "revisit"
     data["reminded_at"] = data.get("reminded_at") or None
@@ -1925,47 +1926,106 @@ class LibraryService:
     def counts(self) -> dict[str, int]:
         return self.store.counts()
 
-    async def search(self, query: str, *, limit: int = 20) -> list[dict]:
+    def reorder(self, item_ids: list[int]) -> None:
+        """Set manual order for library items."""
+        self.store.reorder(item_ids)
+
+    def merge_lists(self, source: str, destination: str, list_type: str = "tag") -> int:
+        """Combine two lists (tags or categories) into one."""
+        source = (source or "").strip()
+        destination = (destination or "").strip()
+        if not source or not destination or source.lower() == destination.lower():
+            return 0
+
+        affected = 0
+        if list_type == "category":
+            cursor = self.store.conn.execute(
+                "UPDATE library_items SET category = ? WHERE LOWER(category) = LOWER(?)",
+                (destination, source),
+            )
+            self.store.conn.commit()
+            affected = cursor.rowcount
+        else:
+            rows = self.store.list(limit=10000)
+            for row in rows:
+                raw_tags = _json_list(row["tags"])
+                has_source = any(t.lower() == source.lower() for t in raw_tags)
+                if has_source:
+                    new_tags = [t for t in raw_tags if t.lower() != source.lower()]
+                    if not any(t.lower() == destination.lower() for t in new_tags):
+                        new_tags.append(destination)
+                    self.store.update(row["id"], tags=json.dumps(new_tags))
+                    affected += 1
+            try:
+                self.store.conn.execute(
+                    "UPDATE dashboard_library_collections SET tag = ? WHERE LOWER(tag) = LOWER(?)",
+                    (destination, source),
+                )
+                self.store.conn.commit()
+            except Exception:
+                pass
+
+        return affected
+
+    async def search(self, query: str, *, limit: int = 50) -> list[dict]:
         """Find library items by meaning and by keyword, ranked together.
 
-        Results are items, not chunks: a hit is joined back to what you read, so
-        the answer is "this article, and the passage that matched" rather than a
-        path under ~/.amethyst.
+        Searches across titles, notes, private notes, tags, summaries, authors, and URLs,
+        blended with vector index matches.
         """
         query = (query or "").strip()
         if not query:
             return []
-        searcher = SearchService()
-        hits = await searcher.search(query, limit=limit * 3, source="library")
-        # Recorded on the service so a caller can say the result is a floor
-        # rather than a total. With the embedder unreachable this is keyword
-        # matching alone, and half this library's titles are an emoji.
-        self.last_search_degraded = searcher.degraded
-        if not hits:
-            return []
-
-        conn = get_connection()
-        placeholders = ",".join("?" * len(hits))
-        rows = conn.execute(
-            "SELECT c.id AS chunk_id, c.document_id FROM document_chunks c"
-            f" WHERE c.id IN ({placeholders})",
-            [hit.chunk_id for hit in hits],
-        ).fetchall()
-        document_for = {row["chunk_id"]: row["document_id"] for row in rows}
-        items = self.store.by_document_ids(sorted({row["document_id"] for row in rows}))
 
         out: list[dict] = []
         seen: set[int] = set()
-        for hit in hits:
-            document_id = document_for.get(hit.chunk_id)
-            item = items.get(document_id) if document_id else None
-            if item is None or item["id"] in seen:
-                continue
-            seen.add(item["id"])
-            out.append({**as_dict(item, include_content=False), "excerpt": _excerpt(hit.content), "score": hit.score})
-            if len(out) >= limit:
-                break
-        return out
+
+        # 1. SQL keyword search across all library item metadata
+        try:
+            text_rows = self.store.search_text(query, limit=limit)
+            for r in text_rows:
+                seen.add(r["id"])
+                out.append({
+                    **as_dict(r, include_content=False),
+                    "excerpt": r["private_notes"] or r["notes"] or r["summary"] or r["title"],
+                    "score": 1.0,
+                })
+        except Exception:
+            pass
+
+        # 2. Vector semantic search
+        try:
+            searcher = SearchService()
+            hits = await searcher.search(query, limit=limit * 2, source="library")
+            self.last_search_degraded = searcher.degraded
+            if hits:
+                conn = get_connection()
+                placeholders = ",".join("?" * len(hits))
+                rows = conn.execute(
+                    "SELECT c.id AS chunk_id, c.document_id FROM document_chunks c"
+                    f" WHERE c.id IN ({placeholders})",
+                    [hit.chunk_id for hit in hits],
+                ).fetchall()
+                document_for = {row["chunk_id"]: row["document_id"] for row in rows}
+                items = self.store.by_document_ids(sorted({row["document_id"] for row in rows}))
+
+                for hit in hits:
+                    document_id = document_for.get(hit.chunk_id)
+                    item = items.get(document_id) if document_id else None
+                    if item is None or item["id"] in seen:
+                        continue
+                    seen.add(item["id"])
+                    out.append({
+                        **as_dict(item, include_content=False),
+                        "excerpt": _excerpt(hit.content),
+                        "score": hit.score,
+                    })
+                    if len(out) >= limit:
+                        break
+        except Exception:
+            pass
+
+        return out[:limit]
 
     async def sweep_unsummarized(self, max_items: int = 50, force: bool = False) -> int:
         """Find items that lack summaries and enrich them sequentially.

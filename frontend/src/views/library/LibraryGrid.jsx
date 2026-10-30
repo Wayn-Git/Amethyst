@@ -1,4 +1,4 @@
-import React, { memo, useMemo } from 'react'
+import React, { memo, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import LibraryCard from './LibraryCard.jsx'
 import { groupItemsByDate } from './dateUtils.js'
@@ -82,9 +82,56 @@ function LibraryGridComponent({
   onProgressChange,
   onSaveReminder,
   onClearReminder,
+  onReorder,
   columns,
   className,
 }) {
+  const [draggedId, setDraggedId] = useState(null)
+  const [dragOverId, setDragOverId] = useState(null)
+
+  const handleDragStart = (e, item) => {
+    if (!onReorder) return
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', String(item.id))
+    setDraggedId(item.id)
+  }
+
+  const handleDragOver = (e, item) => {
+    if (!onReorder) return
+    e.preventDefault()
+    if (draggedId && draggedId !== item.id) {
+      setDragOverId(item.id)
+    }
+  }
+
+  const handleDragLeave = () => {
+    setDragOverId(null)
+  }
+
+  const handleDrop = (e, targetItem) => {
+    if (!onReorder) return
+    e.preventDefault()
+    setDragOverId(null)
+    if (!draggedId || draggedId === targetItem.id) {
+      setDraggedId(null)
+      return
+    }
+    const fromIndex = items.findIndex((it) => it.id === draggedId)
+    const toIndex = items.findIndex((it) => it.id === targetItem.id)
+    if (fromIndex !== -1 && toIndex !== -1) {
+      const next = [...items]
+      const [moved] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, moved)
+      onReorder(next)
+    }
+    setDraggedId(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedId(null)
+    setDragOverId(null)
+  }
+
   const groups = useMemo(() => groupItemsByDate(items), [items])
 
   if (!items || items.length === 0) {
@@ -137,6 +184,14 @@ function LibraryGridComponent({
                       onProgressChange={onProgressChange}
                       onSaveReminder={onSaveReminder}
                       onClearReminder={onClearReminder}
+                      isDraggable={Boolean(onReorder)}
+                      onDragStart={(e) => handleDragStart(e, item)}
+                      onDragOver={(e) => handleDragOver(e, item)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, item)}
+                      onDragEnd={handleDragEnd}
+                      isDragOver={dragOverId === item.id}
+                      isDragged={draggedId === item.id}
                     />
                   </motion.div>
                 )

@@ -11,6 +11,8 @@ import LibraryReminderBanner from './LibraryReminderBanner.jsx'
 export const KIND_ICON = {
   article: 'book',
   book: 'book',
+  place: 'globe',
+  idea: 'spark',
   video: 'image',
   podcast: 'spark',
   music: 'music',
@@ -164,6 +166,14 @@ function LibraryCardComponent({
   onProgressChange,
   onSaveReminder,
   onClearReminder,
+  isDraggable = false,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd,
+  isDragOver = false,
+  isDragged = false,
 }) {
   const cardRef = useRef(null)
   const status = item.status || 'ready'
@@ -393,7 +403,13 @@ function LibraryCardComponent({
     <article
       ref={cardRef}
       data-item-id={item.id}
-      className={`lib-card lib-card--${cardVariant} ${isPost ? 'lib-card--post' : ''} ${isLiveProcessing ? 'lib-card--processing' : ''} ${item.rating === 5 ? 'lib-card--essential' : ''}`}
+      draggable={isDraggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+      className={`lib-card lib-card--${cardVariant} ${isPost ? 'lib-card--post' : ''} ${isLiveProcessing ? 'lib-card--processing' : ''} ${item.rating === 5 ? 'lib-card--essential' : ''} ${isDragOver ? 'lib-card--drag-over' : ''} ${isDragged ? 'lib-card--dragged' : ''}`}
       onClick={handleCardClick}
       tabIndex={0}
       role="button"
@@ -671,6 +687,16 @@ function LibraryCardComponent({
 
             {!isOptimistic && (
               <div className="lib-card-inline-actions" role="toolbar" aria-label="Card quick actions" onClick={(e) => e.stopPropagation()}>
+                {isDraggable && (
+                  <span
+                    className="lib-card-action-btn lib-card-drag-handle"
+                    title="Drag to rearrange"
+                    aria-label="Drag to rearrange"
+                  >
+                    <Icon name="dots-six" size={13} />
+                  </span>
+                )}
+
                 <HouseButton
                   type="button"
                   className={`lib-card-action-btn ${item.is_pinned ? 'lib-card-action-btn--pinned' : ''}`}

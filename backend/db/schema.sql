@@ -570,6 +570,7 @@ CREATE TABLE IF NOT EXISTS library_items (
     -- SaveToList feature fields: progress tracking, pinning, reminders, and private notes
     progress         TEXT DEFAULT 'unstarted', -- unstarted|in_progress|completed
     is_pinned        INTEGER DEFAULT 0,
+    position         INTEGER DEFAULT 0, -- manual sort order for arrange items
     remind_at        TEXT,              -- ISO/naive local timestamp when reminder should fire
     remind_action    TEXT DEFAULT 'revisit', -- e.g. 'read', 'watch', 'book', 'revisit'
     reminded_at      TEXT,              -- timestamp when reminder was announced
@@ -587,6 +588,8 @@ CREATE INDEX IF NOT EXISTS idx_library_source_ref
     ON library_items(source_ref) WHERE source_ref IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_library_pinned
     ON library_items(is_pinned DESC);
+CREATE INDEX IF NOT EXISTS idx_library_position
+    ON library_items(position ASC);
 CREATE INDEX IF NOT EXISTS idx_library_progress
     ON library_items(progress);
 CREATE INDEX IF NOT EXISTS idx_library_remind

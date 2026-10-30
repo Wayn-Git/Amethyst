@@ -28,6 +28,7 @@ export default function LibraryToolbar({
   hasMusic,
   onOpenExport,
   onOpenAddModal,
+  onOpenMergeModal,
   counts,
   categoryCounts,
   tagCounts,
@@ -58,7 +59,7 @@ export default function LibraryToolbar({
     [counts]
   )
 
-  const sortLabel = order === 'asc' ? 'Oldest' : order === 'rating' ? 'Top rated' : 'Newest'
+  const sortLabel = order === 'asc' ? 'Oldest' : order === 'rating' ? 'Top rated' : order === 'manual' ? 'Custom order' : 'Newest'
 
   useEffect(() => {
     const keydown = (event) => {
@@ -136,8 +137,18 @@ export default function LibraryToolbar({
 
           <HouseButton
             type="button"
+            className="btn btn--ghost btn--small"
+            onClick={onOpenMergeModal}
+            title="Combine two lists into one"
+          >
+            <Icon name="copy" size={14} />
+            <span>Merge lists</span>
+          </HouseButton>
+
+          <HouseButton
+            type="button"
             className="btn btn--primary btn--small"
-            onClick={() => onOpenAddModal?.('url')}
+            onClick={() => onOpenAddModal?.('anything')}
             title={`Add resource (${mac ? '⌘K' : 'Ctrl+K'})`}
           >
             <Icon name="plus" size={14} />
@@ -259,6 +270,7 @@ export default function LibraryToolbar({
               <option value="desc">Newest</option>
               <option value="asc">Oldest</option>
               <option value="rating">Top rated</option>
+              <option value="manual">Custom order (Arrange)</option>
             </HouseSelect>
           </label>
 

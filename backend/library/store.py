@@ -28,6 +28,8 @@ log = logging.getLogger(__name__)
 KINDS = (
     "article",
     "book",
+    "place",
+    "idea",
     "video",
     "podcast",
     "music",
@@ -77,6 +79,7 @@ _UPDATABLE = frozenset(
         # SaveToList feature fields
         "progress",
         "is_pinned",
+        "position",
         "remind_at",
         "remind_action",
         "reminded_at",
@@ -218,6 +221,7 @@ class LibraryStore:
         for col, col_type in (
             ("progress", "TEXT DEFAULT 'unstarted'"),
             ("is_pinned", "INTEGER DEFAULT 0"),
+            ("position", "INTEGER DEFAULT 0"),
             ("remind_at", "TEXT"),
             ("remind_action", "TEXT DEFAULT 'revisit'"),
             ("reminded_at", "TEXT"),
@@ -402,8 +406,11 @@ class LibraryStore:
             sql += " " + " ".join(joins)
         if where:
             sql += " WHERE " + " AND ".join(where)
-        order_dir = "ASC" if str(order).lower() == "asc" else "DESC"
-        sql += f" ORDER BY library_items.is_pinned DESC, library_items.consumed_on {order_dir}, library_items.id {order_dir} LIMIT ? OFFSET ?"
+        if str(order).lower() == "manual":
+            sql += " ORDER BY library_items.is_pinned DESC, library_items.position ASC, library_items.consumed_on DESC, library_items.id DESC LIMIT ? OFFSET ?"
+        else:
+            order_dir = "ASC" if str(order).lower() == "asc" else "DESC"
+            sql += f" ORDER BY library_items.is_pinned DESC, library_items.consumed_on {order_dir}, library_items.id {order_dir} LIMIT ? OFFSET ?"
         params.extend([limit, offset])
         return self.conn.execute(sql, params).fetchall()
 
@@ -497,3 +504,34 @@ class LibraryStore:
         cursor = self.conn.execute("DELETE FROM library_items WHERE id = ?", (item_id,))
         self.conn.commit()
         return cursor.rowcount > 0
+
+    def reorder(self, item_ids: list[int]) -> None:
+        """Set manual sort position for a sequence of item ids."""
+        if not item_ids:
+            return
+        self.conn.executemany(
+            "UPDATE library_items SET position = ? WHERE id = ?",
+            [(idx, item_id) for idx, item_id in enumerate(item_ids)],
+        )
+        self.conn.commit()
+
+    def search_text(self, query: str, limit: int = 50) -> list[sqlite3.Row]:
+        """Search across all text fields in library_items (titles, notes, private notes, tags, summaries)."""
+        term = f"%{query}%"
+        return self.conn.execute(
+            """
+            SELECT * FROM library_items
+            WHERE title LIKE ?
+               OR notes LIKE ?
+               OR private_notes LIKE ?
+               OR summary LIKE ?
+               OR author LIKE ?
+               OR url LIKE ?
+               OR tags LIKE ?
+               OR category LIKE ?
+               OR site LIKE ?
+            ORDER BY is_pinned DESC, position ASC, id DESC
+            LIMIT ?
+            """,
+            (term, term, term, term, term, term, term, term, term, limit),
+        ).fetchall()

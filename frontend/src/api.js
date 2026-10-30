@@ -957,6 +957,11 @@ export const api = {
   exportPlaylist: (itemIds, name = '') =>
     j('/library/export-playlist', json('POST', { item_ids: itemIds, name })),
 
+  // SaveToList Tier 2: arrange items and merge lists
+  reorderLibrary: (itemIds) => j('/library/reorder', json('POST', { item_ids: itemIds })),
+  mergeLibraryLists: (source, destination, type = 'tag') =>
+    j('/library/merge-lists', json('POST', { source, destination, type })),
+
   // Instagram capture. Credentials go one way only — set and delete; the status
   // reports whether each is present, never what it is.
   instagram: () => j('/instagram'),

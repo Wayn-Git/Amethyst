@@ -9412,3 +9412,50 @@
   margin-bottom: 12px;
 }
 
+/* SaveToList Arrange Items (Drag & Drop Reordering) */
+.lib-card-drag-handle,
+.lib-row-drag-handle {
+  cursor: grab !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  border-radius: 6px;
+  user-select: none;
+  touch-action: none;
+  min-width: 24px;
+  min-height: 24px;
+}
+
+.lib-card-drag-handle:hover,
+.lib-row-drag-handle:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.lib-card-drag-handle:active,
+.lib-row-drag-handle:active {
+  cursor: grabbing !important;
+}
+
+.lib-card--drag-over {
+  outline: 2px dashed var(--accent, #6366f1) !important;
+  outline-offset: 4px;
+  border-radius: 12px;
+  background-color: color-mix(in srgb, var(--accent) 6%, transparent) !important;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.lib-row--drag-over {
+  border-color: var(--accent, #6366f1) !important;
+  background-color: color-mix(in srgb, var(--accent) 8%, transparent) !important;
+  box-shadow: 0 0 0 1.5px var(--accent, #6366f1);
+}
+
+.lib-card--dragged,
+.lib-row--dragged {
+  opacity: 0.45 !important;
+  transform: scale(0.98);
+}
+
+
