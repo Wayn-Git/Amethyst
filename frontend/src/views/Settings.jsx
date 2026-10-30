@@ -5,7 +5,7 @@ import Skeleton from '../components/Skeleton.jsx'
 import BrandMark from '../components/BrandMark.jsx'
 import AiProviderIcon from '../components/AiProviderIcon.jsx'
 import { api, copyText } from '../api.js'
-import { useApp } from '../store.jsx'
+import { useApp, DARK_THEMES, LIGHT_THEMES } from '../store.jsx'
 import { forSettings } from '../nav.js'
 import { useConfirm } from '../components/ui/ConfirmDialog.jsx'
 import Badge from '../components/ui/Badge.jsx'
@@ -1717,32 +1717,52 @@ function Appearance() {
   const {
     theme, setTheme,
     accentColor, setAccentColor,
-    textSize, setTextSize,
-    density, setDensity,
+    uiFontSize, setUiFontSize,
+    codeFontSize, setCodeFontSize,
+    reduceMotion, setReduceMotion,
+    separateLightDark, setSeparateLightDark,
+    preferredDarkTheme, setPreferredDarkTheme,
+    preferredLightTheme, setPreferredLightTheme,
+    uiFontStyle, setUiFontStyle,
+    contentFont, setContentFont,
+    contentFontWeight, setContentFontWeight,
+    codeFont, setCodeFont,
+    codeFontWeight, setCodeFontWeight,
+    contrast, setContrast,
+    diffMarkers, setDiffMarkers,
+    pointerCursors, setPointerCursors,
+    customBg, setCustomBg,
+    customFg, setCustomFg,
+    fontFamily, setFontFamily,
     agentLoader, setAgentLoader,
     thinkingStyle, setThinkingStyle,
-    autoHideTopBar, setAutoHideTopBar,
     glassMaterial, setGlassMaterial,
     spotlightAnimation, setSpotlightAnimation,
+    autoHideTopBar, setAutoHideTopBar,
     toast,
   } = useApp()
 
-  const handleGlassChange = (val) => {
-    setGlassMaterial?.(val)
-  }
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
-  const handleResetAppearance = () => {
-    setTheme('system')
-    setAccentColor('#3b82f6')
-    setTextSize?.(100)
-    setDensity?.('comfortable')
-    setAgentLoader?.('pixels')
-    setThinkingStyle?.('cards')
-    setGlassMaterial?.('full')
-    setSpotlightAnimation?.('spring')
-    setAutoHideTopBar?.(false)
-    toast('Appearance reset to defaults', 'ok')
-  }
+  const isDark = theme === 'system'
+    ? (typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)').matches : true)
+    : DARK_THEMES.includes(theme)
+
+  const effectiveBg = customBg || (isDark ? '#111111' : '#ffffff')
+  const effectiveFg = customFg || (isDark ? '#fcfcfc' : '#111111')
+
+  const ACCENT_PRESETS = [
+    { hex: '#3b82f6', label: 'Blue' },
+    { hex: '#14b8a6', label: 'Teal' },
+    { hex: '#10b981', label: 'Green' },
+    { hex: '#f59e0b', label: 'Amber' },
+    { hex: '#ec4899', label: 'Pink' },
+    { hex: '#64748b', label: 'Slate' },
+  ]
+
+  const isPresetAccent = ACCENT_PRESETS.some(
+    (p) => p.hex.toLowerCase() === (accentColor || '#3b82f6').toLowerCase()
+  )
 
   const SPOTLIGHT_ANIMATIONS = [
     { id: 'spring', label: 'Spring', hint: 'Drops in with a slight overshoot. The default.' },
@@ -1750,15 +1770,6 @@ function Appearance() {
     { id: 'scale', label: 'Scale', hint: 'Grows from its own centre.' },
     { id: 'slide', label: 'Slide', hint: 'Rises from below, like a sheet.' },
     { id: 'instant', label: 'Instant', hint: 'No animation at all.' },
-  ]
-
-  const ACCENT_PRESETS = [
-    { id: 'blue', hex: '#3b82f6', label: 'Blue' },
-    { id: 'teal', hex: '#14b8a6', label: 'Teal' },
-    { id: 'green', hex: '#10b981', label: 'Green' },
-    { id: 'amber', hex: '#f59e0b', label: 'Amber' },
-    { id: 'pink', hex: '#ec4899', label: 'Pink' },
-    { id: 'slate', hex: '#64748b', label: 'Slate' },
   ]
 
   const AGENT_LOADERS = [
@@ -1780,339 +1791,638 @@ function Appearance() {
     { id: 'tumble', label: 'Tumble' },
   ]
 
-  const SCALE_PRESETS = [
-    { label: '80%', val: 80 },
-    { label: '90%', val: 90 },
-    { label: '100%', val: 100 },
-    { label: '110%', val: 110 },
-    { label: '125%', val: 125 },
-  ]
+  const handleExportTheme = () => {
+    const tokens = {
+      theme,
+      accentColor: accentColor || '#3b82f6',
+      customBg: customBg || null,
+      customFg: customFg || null,
+      fontFamily,
+      uiFontSize,
+      codeFontSize,
+      contrast,
+    }
+    const blob = new Blob([JSON.stringify(tokens, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `amethyst-theme-${theme}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast('Theme configuration downloaded', 'ok')
+  }
 
-  const currentScale = textSize || 100
+  const handleCopyTheme = () => {
+    const text = `Theme: ${theme}\nAccent: ${accentColor || '#3b82f6'}\nBackground: ${effectiveBg}\nForeground: ${effectiveFg}`
+    copyText(text)
+    toast('Theme palette copied to clipboard', 'ok')
+  }
+
+  const handleResetAppearance = () => {
+    setTheme('system')
+    setAccentColor('#3b82f6')
+    setCustomBg?.('')
+    setCustomFg?.('')
+    setFontFamily?.('system')
+    setUiFontSize?.(14)
+    setCodeFontSize?.(12)
+    setReduceMotion?.('system')
+    setSeparateLightDark?.(false)
+    setUiFontStyle?.('400')
+    setContentFont?.('same')
+    setContentFontWeight?.('400')
+    setCodeFont?.('system')
+    setCodeFontWeight?.('400')
+    setContrast?.(60)
+    setDiffMarkers?.('color')
+    setPointerCursors?.(false)
+    setAgentLoader?.('pixels')
+    setThinkingStyle?.('cards')
+    setGlassMaterial?.('full')
+    setSpotlightAnimation?.('spring')
+    setAutoHideTopBar?.(false)
+    toast('Appearance reset to defaults', 'ok')
+  }
 
   return (
-    <div className="set-panel">
-      {/* Theme Section with Reset button */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
-        <div>
-          <span className="set-section-label" style={{ margin: 0 }}>Theme</span>
-          <span style={{ display: 'block', fontSize: '12px', color: 'var(--text-dim)', marginTop: 2 }}>
-            Choose the palette the window is drawn in.
-          </span>
+    <div className="codex-settings-container">
+      {/* Title */}
+      <div style={{ marginBottom: 26 }}>
+        <h1 style={{ fontSize: 26, fontWeight: 600, color: 'var(--text)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>
+          Appearance
+        </h1>
+        <div style={{ fontSize: 13, color: 'var(--text-dim)', fontWeight: 500 }}>
+          Visual style
         </div>
-        <HouseButton
-          type="button"
-          className="set-btn-sm"
-          onClick={handleResetAppearance}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-          title="Reset appearance to default settings"
-        >
-          <Icon name="refresh" size={12} />
-          <span>Reset Defaults</span>
-        </HouseButton>
       </div>
 
-      <div className="theme-grid-3" style={{ marginBottom: 24 }}>
-        {THEME_CHOICES.map((choice) => {
-          const isSel = theme === choice.id
-          return (
-            <div
-              key={choice.id}
-              className={`theme-card-outer${isSel ? ' is-active' : ''}`}
-              onClick={() => setTheme(choice.id)}
-            >
-              <div className="theme-card-inner">
-                <div className={`theme-mockup-frame theme-mockup--${choice.id}`}>
-                  {choice.id === 'system' ? (
-                    <>
-                      <div className="mockup-left">
-                        <div className="theme-bar" style={{ width: '40%', height: 4, background: '#a1a1aa' }} />
-                        <div className="theme-bar" style={{ width: '75%', height: 3, background: '#d4d4d8' }} />
-                        <div className="theme-bar" style={{ width: '60%', height: 3, background: '#d4d4d8' }} />
-                        <div style={{ marginTop: 'auto' }}>
-                          <div className="theme-bar" style={{ width: '50%', height: 6, background: '#e4e4e7', borderRadius: 3 }} />
-                        </div>
-                      </div>
-                      <div className="mockup-right">
-                        <div className="theme-bar" style={{ width: '40%', height: 4, background: '#71717a' }} />
-                        <div className="theme-bar" style={{ width: '75%', height: 3, background: '#27272a' }} />
-                        <div className="theme-bar" style={{ width: '60%', height: 3, background: '#27272a' }} />
-                        <div style={{ marginTop: 'auto' }}>
-                          <div className="theme-bar" style={{ width: '50%', height: 6, background: '#27272a', borderRadius: 3 }} />
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="theme-mockup-sidebar">
-                        <div className="theme-bar" style={{ width: '70%', height: 4, background: ['paper', 'sand', 'claude', 'cursor'].includes(choice.id) ? '#a1a1aa' : '#52525b' }} />
-                        <div className="theme-bar" style={{ width: '85%', height: 3, background: ['paper', 'sand', 'claude', 'cursor'].includes(choice.id) ? '#d4d4d8' : '#27272a' }} />
-                        <div className="theme-bar" style={{ width: '60%', height: 3, background: ['paper', 'sand', 'claude', 'cursor'].includes(choice.id) ? '#d4d4d8' : '#27272a' }} />
-                      </div>
-                      <div className="theme-mockup-content">
-                        <div className="theme-bar" style={{ width: '45%', height: 4, background: ['paper', 'sand', 'claude', 'cursor'].includes(choice.id) ? '#71717a' : '#71717a' }} />
-                        <div className="theme-bar" style={{ width: '85%', height: 3, background: ['paper', 'sand', 'claude', 'cursor'].includes(choice.id) ? '#e4e4e7' : '#27272a' }} />
-                        <div className="theme-bar" style={{ width: '70%', height: 3, background: ['paper', 'sand', 'claude', 'cursor'].includes(choice.id) ? '#e4e4e7' : '#27272a' }} />
-                        <div style={{ marginTop: 'auto' }}>
-                          <div
-                            className="theme-bar"
-                            style={{
-                              width: '40%',
-                              height: 7,
-                              background: {
-                                graphite: '#a78bfa',
-                                ink: '#818cf8',
-                                nocturne: '#38bdf8',
-                                nvidia: '#76b900',
-                                paper: '#7c3aed',
-                                sand: '#d97706',
-                                claude: '#d97706',
-                                cursor: '#2563eb',
-                              }[choice.id] || (['paper', 'sand', 'claude', 'cursor'].includes(choice.id) ? '#e4e4e7' : '#27272a'),
-                              borderRadius: 3,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
+      {/* Card 1: Mode */}
+      <div className="codex-card" style={{ marginBottom: 16 }}>
+        <div className="codex-row">
+          <span className="codex-row-title">Mode</span>
 
-                <div className="theme-card-info">
-                  <div>
-                    <div className="theme-card-name">{choice.label}</div>
-                    <div className="theme-card-hint">{choice.hint}</div>
-                  </div>
-                  {isSel && <Icon name="check" size={14} style={{ color: 'var(--accent)' }} />}
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Interface Scaling Section */}
-      <div style={{ marginBottom: 12 }}>
-        <span className="set-section-label" style={{ margin: 0 }}>Interface Scaling</span>
-      </div>
-      <div className="set-box" style={{ marginBottom: 24 }}>
-        <div className="set-box-row">
-          <div className="set-row-text">
-            <span className="set-row-title">Global Interface Scale</span>
-            <span className="set-row-desc">
-              Scales the entire app interface (sidebar, chat, composer, typography, buttons, cards) seamlessly.
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div className="set-seg-ctrl">
-              {SCALE_PRESETS.map((s) => {
-                const isActive = Math.abs(currentScale - s.val) < 2
-                return (
-                  <HouseButton
-                    key={s.label}
-                    type="button"
-                    className={`set-seg-btn${isActive ? ' is-active' : ''}`}
-                    onClick={() => setTextSize?.(s.val)}
-                  >
-                    {s.label}
-                  </HouseButton>
-                )
-              })}
-            </div>
+          <div className="codex-mode-grid">
+            {/* Auto (System) */}
             <HouseButton
               type="button"
-              className="set-btn-sm"
-              onClick={() => setTextSize?.(100)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
-              title="Reset scale to 100%"
+              className={`codex-mode-thumbnail${theme === 'system' ? ' is-active' : ''}`}
+              onClick={() => setTheme('system')}
+              title="System Mode (Follows OS)"
             >
-              <Icon name="refresh" size={11} />
-              <span>Reset</span>
+              <div style={{ width: '50%', height: '100%', background: '#ffffff', display: 'flex', borderRight: '1px solid #e4e4e7' }}>
+                <div style={{ width: 12, height: '100%', background: '#f4f4f5', padding: '5px 2px', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                  <div style={{ width: '80%', height: 2, background: '#d4d4d8', borderRadius: 1 }} />
+                  <div style={{ width: '60%', height: 2, background: '#d4d4d8', borderRadius: 1 }} />
+                </div>
+                <div style={{ flex: 1, padding: '5px 4px', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                  <div style={{ width: '70%', height: 2.5, background: '#a1a1aa', borderRadius: 1 }} />
+                  <div style={{ width: '90%', height: 2, background: '#e4e4e7', borderRadius: 1 }} />
+                </div>
+              </div>
+              <div style={{ width: '50%', height: '100%', background: '#111111', display: 'flex' }}>
+                <div style={{ width: 12, height: '100%', background: '#1c1c1f', padding: '5px 2px', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                  <div style={{ width: '80%', height: 2, background: '#3f3f46', borderRadius: 1 }} />
+                  <div style={{ width: '60%', height: 2, background: '#3f3f46', borderRadius: 1 }} />
+                </div>
+                <div style={{ flex: 1, padding: '5px 4px', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                  <div style={{ width: '70%', height: 2.5, background: '#71717a', borderRadius: 1 }} />
+                  <div style={{ width: '55%', height: 3, background: 'var(--accent, #3b82f6)', borderRadius: 1.5, marginTop: 'auto' }} />
+                </div>
+              </div>
+            </HouseButton>
+
+            {/* Light */}
+            <HouseButton
+              type="button"
+              className={`codex-mode-thumbnail${LIGHT_THEMES.includes(theme) ? ' is-active' : ''}`}
+              onClick={() => setTheme(preferredLightTheme || 'paper')}
+              title="Light Mode"
+            >
+              <div style={{ width: '100%', height: '100%', background: '#ffffff', display: 'flex' }}>
+                <div style={{ width: 22, height: '100%', background: '#f4f4f5', borderRight: '1px solid #e4e4e7', padding: '6px 3px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <div style={{ width: '85%', height: 2.5, background: '#a1a1aa', borderRadius: 1 }} />
+                  <div style={{ width: '70%', height: 2, background: '#d4d4d8', borderRadius: 1 }} />
+                  <div style={{ width: '50%', height: 2, background: '#d4d4d8', borderRadius: 1 }} />
+                </div>
+                <div style={{ flex: 1, padding: '6px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <div style={{ width: '60%', height: 2.5, background: '#71717a', borderRadius: 1 }} />
+                  <div style={{ width: '85%', height: 2, background: '#e4e4e7', borderRadius: 1 }} />
+                  <div style={{ width: '45%', height: 3, background: '#3b82f6', borderRadius: 1.5, marginTop: 'auto' }} />
+                </div>
+              </div>
+            </HouseButton>
+
+            {/* Dark */}
+            <HouseButton
+              type="button"
+              className={`codex-mode-thumbnail${DARK_THEMES.includes(theme) ? ' is-active' : ''}`}
+              onClick={() => setTheme(preferredDarkTheme || 'graphite')}
+              title="Dark Mode"
+            >
+              <div style={{ width: '100%', height: '100%', background: '#111111', display: 'flex' }}>
+                <div style={{ width: 22, height: '100%', background: '#1c1c1f', borderRight: '1px solid #27272a', padding: '6px 3px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <div style={{ width: '85%', height: 2.5, background: '#71717a', borderRadius: 1 }} />
+                  <div style={{ width: '70%', height: 2, background: '#3f3f46', borderRadius: 1 }} />
+                  <div style={{ width: '50%', height: 2, background: '#3f3f46', borderRadius: 1 }} />
+                </div>
+                <div style={{ flex: 1, padding: '6px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <div style={{ width: '60%', height: 2.5, background: '#a1a1aa', borderRadius: 1 }} />
+                  <div style={{ width: '85%', height: 2, background: '#27272a', borderRadius: 1 }} />
+                  <div style={{ width: '45%', height: 3, background: 'var(--accent, #3b82f6)', borderRadius: 1.5, marginTop: 'auto' }} />
+                </div>
+              </div>
             </HouseButton>
           </div>
         </div>
       </div>
 
-      {/* Accent Color Section */}
-      <div style={{ marginBottom: 12 }}>
-        <span className="set-section-label" style={{ margin: 0 }}>Accent</span>
-      </div>
-      <div className="set-box" style={{ marginBottom: 24, padding: '12px 18px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          {ACCENT_PRESETS.map((a) => {
-            const isSelected = (accentColor || '#3b82f6').toLowerCase() === a.hex.toLowerCase()
-            return (
+      {/* Card 2: Visual Style Tokens */}
+      <div className="codex-card" style={{ marginBottom: 16 }}>
+        {/* Row 1: Theme */}
+        <div className="codex-row">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span className="codex-row-title">Theme</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <HouseButton
-                key={a.id}
                 type="button"
-                className={`set-accent-dot${isSelected ? ' is-active' : ''}`}
-                style={{ '--dot-color': a.hex }}
-                onClick={() => setAccentColor(a.hex)}
-                aria-label={a.label}
-                title={a.label}
+                className="codex-channel-btn"
+                onClick={handleExportTheme}
+                title="Download theme tokens as JSON"
+                style={{ padding: '4px 8px' }}
               >
-                {isSelected && <Icon name="check" size={11} />}
+                <Icon name="download" size={12} />
               </HouseButton>
-            )
-          })}
-          <div style={{ width: 1, height: 20, background: 'var(--hairline)', margin: '0 4px' }} />
+              <HouseButton
+                type="button"
+                className="codex-channel-btn"
+                onClick={handleCopyTheme}
+                title="Copy theme colors to clipboard"
+                style={{ padding: '4px 8px' }}
+              >
+                <Icon name="copy" size={12} />
+              </HouseButton>
+            </div>
+          </div>
+
+          <AnimatedSelect
+            value={theme}
+            onChange={(val) => setTheme(val)}
+            options={THEME_CHOICES.map((t) => ({
+              value: t.id,
+              label: t.label,
+              description: t.hint,
+            }))}
+            minWidth={160}
+          />
+        </div>
+
+        {/* Row 2: Accent */}
+        <div className="codex-row">
+          <span className="codex-row-title">Accent</span>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>Custom</span>
-            <div
-              className="set-custom-color-circle"
-              style={{
-                backgroundColor: accentColor || '#3b82f6',
+            <AnimatedSelect
+              value={isPresetAccent ? (accentColor || '#3b82f6').toLowerCase() : 'custom'}
+              onChange={(val) => {
+                if (val !== 'custom') setAccentColor(val)
               }}
-              title="Choose custom accent color"
-            >
-              <HouseInput
+              options={[
+                { value: '#3b82f6', label: 'Blue' },
+                { value: '#14b8a6', label: 'Teal' },
+                { value: '#10b981', label: 'Green' },
+                { value: '#f59e0b', label: 'Amber' },
+                { value: '#ec4899', label: 'Pink' },
+                { value: '#64748b', label: 'Slate' },
+                { value: 'custom', label: 'Custom' },
+              ]}
+              minWidth={110}
+            />
+
+            <label className="codex-color-pill" title="Click to pick custom accent color">
+              <span className="codex-color-dot" style={{ backgroundColor: accentColor || '#3b82f6' }} />
+              <span>{(accentColor || '#3b82f6').toUpperCase()}</span>
+              {/* eslint-disable-next-line amethyst-ui/no-raw-controls */}
+              <input
                 type="color"
                 value={accentColor || '#3b82f6'}
                 onChange={(e) => setAccentColor(e.target.value)}
-                aria-label="Choose custom accent color"
+                style={{ position: 'absolute', opacity: 0, inset: 0, width: '100%', height: '100%', cursor: 'pointer' }}
               />
-            </div>
+            </label>
           </div>
         </div>
-      </div>
 
-      {/* Loader Section */}
-      <div style={{ marginBottom: 12 }}>
-        <span className="set-section-label" style={{ margin: 0 }}>Loader</span>
-      </div>
-      <div className="set-box" style={{ marginBottom: 24, padding: '10px 14px' }}>
-        <div className="set-loader-strip">
-          {AGENT_LOADERS.map((anim) => {
-            const isSel = agentLoader === anim.id
-            return (
+        {/* Row 3: Background */}
+        <div className="codex-row">
+          <span className="codex-row-title">Background</span>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {customBg && (
               <HouseButton
-                key={anim.id}
                 type="button"
-                className={`set-loader-item${isSel ? ' is-active' : ''}`}
-                onClick={() => setAgentLoader(anim.id)}
-                title={anim.label}
+                className="codex-row-link"
+                onClick={() => setCustomBg('')}
+                title="Reset to theme default"
+                style={{ fontSize: 11.5 }}
               >
-                <LoaderIcon type={anim.id} />
+                Reset
               </HouseButton>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Material Section */}
-      <div style={{ marginBottom: 12 }}>
-        <span className="set-section-label" style={{ margin: 0 }}>Material</span>
-      </div>
-      <div className="set-box" style={{ marginBottom: 24 }}>
-        <div className="set-box-row">
-          <div className="set-row-text">
-            <span className="set-row-title">Glass</span>
-            <span className="set-row-desc">
-              How much of the window material shows through menus, the composer and the palette. Off paints the window flat straight away.
-            </span>
+            )}
+            <label className="codex-color-pill" title="Click to customize background color">
+              <span className="codex-color-dot" style={{ backgroundColor: effectiveBg }} />
+              <span>{effectiveBg.toUpperCase()}</span>
+              {/* eslint-disable-next-line amethyst-ui/no-raw-controls */}
+              <input
+                type="color"
+                value={effectiveBg}
+                onChange={(e) => setCustomBg(e.target.value)}
+                style={{ position: 'absolute', opacity: 0, inset: 0, width: '100%', height: '100%', cursor: 'pointer' }}
+              />
+            </label>
           </div>
-          <div className="set-seg-ctrl">
-            {['off', 'subtle', 'full'].map((m) => (
+        </div>
+
+        {/* Row 4: Foreground */}
+        <div className="codex-row">
+          <span className="codex-row-title">Foreground</span>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {customFg && (
               <HouseButton
-                key={m}
                 type="button"
-                className={`set-seg-btn${glassMaterial === m ? ' is-active' : ''}`}
-                onClick={() => handleGlassChange(m)}
-                style={{ textTransform: 'capitalize' }}
+                className="codex-row-link"
+                onClick={() => setCustomFg('')}
+                title="Reset to theme default"
+                style={{ fontSize: 11.5 }}
               >
-                {m}
+                Reset
               </HouseButton>
-            ))}
+            )}
+            <label className="codex-color-pill" title="Click to customize text color">
+              <span className="codex-color-dot" style={{ backgroundColor: effectiveFg }} />
+              <span>{effectiveFg.toUpperCase()}</span>
+              {/* eslint-disable-next-line amethyst-ui/no-raw-controls */}
+              <input
+                type="color"
+                value={effectiveFg}
+                onChange={(e) => setCustomFg(e.target.value)}
+                style={{ position: 'absolute', opacity: 0, inset: 0, width: '100%', height: '100%', cursor: 'pointer' }}
+              />
+            </label>
           </div>
         </div>
-      </div>
 
-      {/* Spotlight */}
-      <div style={{ marginBottom: 12 }}>
-        <span className="set-section-label" style={{ margin: 0 }}>Spotlight</span>
-      </div>
-      <div className="set-box" style={{ marginBottom: 24 }}>
-        <div className="set-box-row">
-          <div className="set-row-text">
-            <span className="set-row-title">Open &amp; close animation</span>
-            <span className="set-row-desc">
-              How the spotlight arrives and leaves. Instant plays nothing at all.
-              Your system&rsquo;s reduce-motion setting overrides every option here.
-            </span>
-          </div>
-          <div className="set-seg-ctrl">
-            {SPOTLIGHT_ANIMATIONS.map((a) => (
-              <HouseButton
-                key={a.id}
-                type="button"
-                title={a.hint}
-                className={`set-seg-btn${(spotlightAnimation || 'spring') === a.id ? ' is-active' : ''}`}
-                onClick={() => setSpotlightAnimation?.(a.id)}
-              >
-                {a.label}
-              </HouseButton>
-            ))}
-          </div>
-        </div>
-      </div>
+        {/* Row 5: Font */}
+        <div className="codex-row">
+          <span className="codex-row-title">Font</span>
 
-      {/* Thinking & Tool Execution Style */}
-      <div style={{ marginBottom: 12 }}>
-        <span className="set-section-label" style={{ margin: 0 }}>Thinking &amp; Tools</span>
-      </div>
-      <div className="set-box" style={{ marginBottom: 24 }}>
-        <div className="set-box-row">
-          <div className="set-row-text">
-            <span className="set-row-title">Thinking trace style</span>
-            <span className="set-row-desc">
-              Choose between detailed execution cards, compact tool chips, or an adaptive chronological activity stream.
-            </span>
-          </div>
-          <div className="set-seg-ctrl">
-            <HouseButton
-              type="button"
-              className={`set-seg-btn${(thinkingStyle || 'cards') === 'cards' ? ' is-active' : ''}`}
-              onClick={() => setThinkingStyle?.('cards')}
-            >
-              Cards
-            </HouseButton>
-            <HouseButton
-              type="button"
-              className={`set-seg-btn${thinkingStyle === 'chips' ? ' is-active' : ''}`}
-              onClick={() => setThinkingStyle?.('chips')}
-            >
-              Tool Chips
-            </HouseButton>
-            <HouseButton
-              type="button"
-              className={`set-seg-btn${thinkingStyle === 'activity' ? ' is-active' : ''}`}
-              onClick={() => setThinkingStyle?.('activity')}
-            >
-              Activity Stream
-            </HouseButton>
-          </div>
-        </div>
-      </div>
-
-      {/* Navigation & Layout */}
-      <div style={{ marginBottom: 12 }}>
-        <span className="set-section-label" style={{ margin: 0 }}>Navigation</span>
-      </div>
-      <div className="set-box">
-        <div className="set-box-row">
-          <div className="set-row-text">
-            <span className="set-row-title">Auto-hide Top Bar</span>
-            <span className="set-row-desc">
-              Keep the top navigation hidden by default to maximize canvas space. Hover near the top edge to smoothly slide it into view.
-            </span>
-          </div>
-          <Switch
-            on={Boolean(autoHideTopBar)}
-            onChange={(val) => setAutoHideTopBar(val)}
-            tone="default"
+          <AnimatedSelect
+            value={fontFamily || 'system'}
+            onChange={(val) => setFontFamily(val)}
+            options={[
+              { value: 'system', label: 'System' },
+              { value: 'inter', label: 'Inter' },
+              { value: 'plus-jakarta', label: 'Plus Jakarta Sans' },
+              { value: 'geist', label: 'Geist' },
+              { value: 'serif', label: 'Serif' },
+            ]}
+            minWidth={130}
           />
         </div>
       </div>
+
+      {/* Advanced Collapsible Accordion */}
+      <div style={{ marginTop: 4, marginBottom: 14 }}>
+        <HouseButton
+          type="button"
+          onClick={() => setShowAdvanced((prev) => !prev)}
+          className="codex-accordion-btn"
+        >
+          <span style={{ fontWeight: 600, color: 'var(--text)' }}>Advanced</span>
+          <motion.div
+            animate={{ rotate: showAdvanced ? 90 : 0 }}
+            transition={{ duration: 0.15 }}
+            style={{ display: 'flex', alignItems: 'center' }}
+          >
+            <Icon name="chevron-right" size={13} />
+          </motion.div>
+        </HouseButton>
+      </div>
+
+      <AnimatePresence>
+        {showAdvanced && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.18 }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden' }}
+          >
+            {/* Advanced Card 1: Font Sizes */}
+            <div className="codex-card">
+              <div className="codex-row">
+                <div className="codex-row-info">
+                  <span className="codex-row-title">UI font size</span>
+                  <span className="codex-row-desc">Adjust the base size used for Amethyst</span>
+                </div>
+                <div className="codex-number-box">
+                  <HouseInput
+                    type="number"
+                    min={11}
+                    max={22}
+                    value={uiFontSize}
+                    onChange={(e) => setUiFontSize(Number(e.target.value))}
+                    className="codex-number-input"
+                  />
+                  <span className="codex-number-unit">px</span>
+                </div>
+              </div>
+
+              <div className="codex-row">
+                <div className="codex-row-info">
+                  <span className="codex-row-title">Code font size</span>
+                  <span className="codex-row-desc">Adjust the base size used for code across chats and diffs</span>
+                </div>
+                <div className="codex-number-box">
+                  <HouseInput
+                    type="number"
+                    min={9}
+                    max={22}
+                    value={codeFontSize}
+                    onChange={(e) => setCodeFontSize(Number(e.target.value))}
+                    className="codex-number-input"
+                  />
+                  <span className="codex-number-unit">px</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Advanced Card 2: Motion & Modes */}
+            <div className="codex-card">
+              <div className="codex-row">
+                <div className="codex-row-info">
+                  <span className="codex-row-title">Reduce motion</span>
+                  <span className="codex-row-desc">Reduce animations or match your system</span>
+                </div>
+                <div className="codex-seg-group">
+                  {['system', 'on', 'off'].map((m) => (
+                    <HouseButton
+                      key={m}
+                      type="button"
+                      className={`codex-seg-item${(reduceMotion || 'system') === m ? ' is-active' : ''}`}
+                      onClick={() => setReduceMotion(m)}
+                      style={{ textTransform: 'capitalize' }}
+                    >
+                      {m}
+                    </HouseButton>
+                  ))}
+                </div>
+              </div>
+
+              <div className="codex-row">
+                <div className="codex-row-info">
+                  <span className="codex-row-title">Separate light and dark modes</span>
+                  <span className="codex-row-desc">Choose a theme, colors, and font for each</span>
+                </div>
+                <Switch
+                  on={Boolean(separateLightDark)}
+                  onChange={(val) => setSeparateLightDark(val)}
+                  tone="default"
+                />
+              </div>
+            </div>
+
+            {/* Advanced Card 3: Typography & Contrast */}
+            <div className="codex-card">
+              <div className="codex-row">
+                <span className="codex-row-title">UI font style</span>
+                <AnimatedSelect
+                  value={uiFontStyle || '400'}
+                  onChange={(val) => setUiFontStyle(val)}
+                  options={[
+                    { value: '400', label: 'Regular' },
+                    { value: '500', label: 'Medium' },
+                    { value: '600', label: 'SemiBold' },
+                  ]}
+                  minWidth={120}
+                />
+              </div>
+
+              <div className="codex-row">
+                <span className="codex-row-title">Content font</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <AnimatedSelect
+                    value={contentFont || 'same'}
+                    onChange={(val) => setContentFont(val)}
+                    options={[
+                      { value: 'same', label: 'Same as UI font' },
+                      { value: 'inter', label: 'Inter' },
+                      { value: 'system', label: 'System' },
+                      { value: 'serif', label: 'Serif' },
+                    ]}
+                    minWidth={150}
+                  />
+                  <AnimatedSelect
+                    value={contentFontWeight || '400'}
+                    onChange={(val) => setContentFontWeight(val)}
+                    options={[
+                      { value: '400', label: 'Regular' },
+                      { value: '500', label: 'Medium' },
+                    ]}
+                    minWidth={110}
+                  />
+                </div>
+              </div>
+
+              <div className="codex-row">
+                <span className="codex-row-title">Code font</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <AnimatedSelect
+                    value={codeFont || 'system'}
+                    onChange={(val) => setCodeFont(val)}
+                    options={[
+                      { value: 'system', label: 'System' },
+                      { value: 'geist', label: 'Geist Mono' },
+                      { value: 'jetbrains', label: 'JetBrains Mono' },
+                      { value: 'fira', label: 'Fira Code' },
+                      { value: 'sfmono', label: 'SF Mono' },
+                    ]}
+                    minWidth={140}
+                  />
+                  <AnimatedSelect
+                    value={codeFontWeight || '400'}
+                    onChange={(val) => setCodeFontWeight(val)}
+                    options={[
+                      { value: '400', label: 'Regular' },
+                      { value: '500', label: 'Medium' },
+                    ]}
+                    minWidth={110}
+                  />
+                </div>
+              </div>
+
+              <div className="codex-row">
+                <span className="codex-row-title">Contrast</span>
+                <div className="codex-slider-wrap">
+                  {/* eslint-disable-next-line amethyst-ui/no-raw-controls */}
+                  <input
+                    type="range"
+                    min={30}
+                    max={100}
+                    value={contrast}
+                    onChange={(e) => setContrast(Number(e.target.value))}
+                    className="codex-slider"
+                  />
+                  <span style={{ fontSize: 13, fontFamily: 'var(--font-mono, monospace)', color: 'var(--text)', minWidth: 24, textAlign: 'right' }}>
+                    {contrast}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Advanced Card 4: Diff markers & Pointer cursors */}
+            <div className="codex-card">
+              <div className="codex-row">
+                <div className="codex-row-info">
+                  <span className="codex-row-title">Diff markers</span>
+                  <span className="codex-row-desc">Show changes using colors or +/- markers</span>
+                </div>
+                <div className="codex-seg-group">
+                  <HouseButton
+                    type="button"
+                    className={`codex-seg-item${(diffMarkers || 'color') === 'color' ? ' is-active' : ''}`}
+                    onClick={() => setDiffMarkers('color')}
+                  >
+                    Color
+                  </HouseButton>
+                  <HouseButton
+                    type="button"
+                    className={`codex-seg-item${diffMarkers === 'markers' ? ' is-active' : ''}`}
+                    onClick={() => setDiffMarkers('markers')}
+                  >
+                    +/-
+                  </HouseButton>
+                </div>
+              </div>
+
+              <div className="codex-row">
+                <div className="codex-row-info">
+                  <span className="codex-row-title">Use pointer cursors</span>
+                  <span className="codex-row-desc">Change the cursor to a pointer when hovering over interactive elements</span>
+                </div>
+                <Switch
+                  on={Boolean(pointerCursors)}
+                  onChange={(val) => setPointerCursors(val)}
+                  tone="default"
+                />
+              </div>
+            </div>
+
+            {/* Advanced Card 5: Amethyst Canvas, Loaders & Animations */}
+            <div className="codex-card">
+              <div className="codex-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+                <div className="codex-row-info">
+                  <span className="codex-row-title">Agent loader animation</span>
+                  <span className="codex-row-desc">Choose the animation style while reasoning and running tools</span>
+                </div>
+                <div className="set-loader-strip" style={{ marginTop: 4 }}>
+                  {AGENT_LOADERS.map((anim) => {
+                    const isSel = agentLoader === anim.id
+                    return (
+                      <HouseButton
+                        key={anim.id}
+                        type="button"
+                        className={`set-loader-item${isSel ? ' is-active' : ''}`}
+                        onClick={() => setAgentLoader(anim.id)}
+                        title={anim.label}
+                      >
+                        <LoaderIcon type={anim.id} />
+                      </HouseButton>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="codex-row">
+                <div className="codex-row-info">
+                  <span className="codex-row-title">Thinking trace style</span>
+                  <span className="codex-row-desc">Cards, compact chips, or activity stream</span>
+                </div>
+                <div className="codex-seg-group">
+                  {['cards', 'chips', 'activity'].map((t) => (
+                    <HouseButton
+                      key={t}
+                      type="button"
+                      className={`codex-seg-item${(thinkingStyle || 'cards') === t ? ' is-active' : ''}`}
+                      onClick={() => setThinkingStyle(t)}
+                      style={{ textTransform: 'capitalize' }}
+                    >
+                      {t === 'chips' ? 'Tool Chips' : t === 'activity' ? 'Activity' : 'Cards'}
+                    </HouseButton>
+                  ))}
+                </div>
+              </div>
+
+              <div className="codex-row">
+                <div className="codex-row-info">
+                  <span className="codex-row-title">Glass material</span>
+                  <span className="codex-row-desc">Translucency of window material across menus</span>
+                </div>
+                <div className="codex-seg-group">
+                  {['off', 'subtle', 'full'].map((m) => (
+                    <HouseButton
+                      key={m}
+                      type="button"
+                      className={`codex-seg-item${(glassMaterial || 'full') === m ? ' is-active' : ''}`}
+                      onClick={() => setGlassMaterial(m)}
+                      style={{ textTransform: 'capitalize' }}
+                    >
+                      {m}
+                    </HouseButton>
+                  ))}
+                </div>
+              </div>
+
+              <div className="codex-row">
+                <div className="codex-row-info">
+                  <span className="codex-row-title">Spotlight animation</span>
+                  <span className="codex-row-desc">How spotlight dialog arrives and departs</span>
+                </div>
+                <AnimatedSelect
+                  value={spotlightAnimation || 'spring'}
+                  onChange={(val) => setSpotlightAnimation(val)}
+                  options={SPOTLIGHT_ANIMATIONS.map((a) => ({ value: a.id, label: a.label, description: a.hint }))}
+                  minWidth={130}
+                />
+              </div>
+
+              <div className="codex-row">
+                <div className="codex-row-info">
+                  <span className="codex-row-title">Auto-hide Top Bar</span>
+                  <span className="codex-row-desc">Hover near top edge to slide navigation into view</span>
+                </div>
+                <Switch
+                  on={Boolean(autoHideTopBar)}
+                  onChange={(val) => setAutoHideTopBar(val)}
+                  tone="default"
+                />
+              </div>
+
+              <div className="codex-row" style={{ justifyContent: 'flex-end', background: 'rgba(0, 0, 0, 0.15)' }}>
+                <HouseButton
+                  type="button"
+                  className="codex-channel-btn"
+                  onClick={handleResetAppearance}
+                  style={{ color: '#ef4444' }}
+                >
+                  <Icon name="refresh" size={12} />
+                  <span>Reset All Appearance Defaults</span>
+                </HouseButton>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -5884,7 +6194,7 @@ export default function Settings() {
         </div>
 
         <div className="set-panel-frame">
-          {section !== 'usage' && section !== 'activity' && section !== 'profile' && section !== 'notifications' && (
+          {section !== 'usage' && section !== 'activity' && section !== 'profile' && section !== 'notifications' && section !== 'appearance' && (
             <h1 className="set-panel-title">
               {SECTIONS.find((s) => s.id === section)?.label}
             </h1>

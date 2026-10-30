@@ -269,6 +269,81 @@ if (typeof document !== 'undefined') document.documentElement.setAttribute('data
 // summon of a session played the default animation rather than the chosen one.
 if (typeof document !== 'undefined') document.documentElement.setAttribute('data-spotlight-anim', loadPrefs().spotlightAnimation || 'spring')
 
+export function applyAppearanceSettings(prefs = {}) {
+  if (typeof document === 'undefined') return
+  const root = document.documentElement
+
+  if (prefs.uiFontSize) {
+    root.style.setProperty('--ui-font-size', `${prefs.uiFontSize}px`)
+    root.style.setProperty('--text-scale', prefs.uiFontSize / 14)
+  }
+  if (prefs.codeFontSize) {
+    root.style.setProperty('--code-font-size', `${prefs.codeFontSize}px`)
+  }
+  if (prefs.reduceMotion) {
+    root.setAttribute('data-reduce-motion', prefs.reduceMotion)
+  }
+  if (prefs.uiFontStyle) {
+    root.style.setProperty('--font-weight-ui', prefs.uiFontStyle)
+  }
+  if (prefs.fontFamily && prefs.fontFamily !== 'system') {
+    const familyMap = {
+      inter: "'Inter', system-ui, sans-serif",
+      'plus-jakarta': "'Plus Jakarta Sans', system-ui, sans-serif",
+      geist: "'Geist', system-ui, sans-serif",
+      serif: "Charter, 'Bitstream Charter', 'Sitka Text', Cambria, serif",
+    }
+    if (familyMap[prefs.fontFamily]) {
+      root.style.setProperty('--font-sans', familyMap[prefs.fontFamily])
+    }
+  } else if (prefs.fontFamily === 'system') {
+    root.style.removeProperty('--font-sans')
+  }
+
+  if (prefs.codeFont && prefs.codeFont !== 'system') {
+    const codeMap = {
+      geist: "'Geist Mono', ui-monospace, monospace",
+      jetbrains: "'JetBrains Mono', ui-monospace, monospace",
+      fira: "'Fira Code', ui-monospace, monospace",
+      sfmono: "'SF Mono', Monaco, Menlo, monospace",
+    }
+    if (codeMap[prefs.codeFont]) {
+      root.style.setProperty('--font-mono', codeMap[prefs.codeFont])
+    }
+  } else if (prefs.codeFont === 'system') {
+    root.style.removeProperty('--font-mono')
+  }
+
+  if (prefs.contrast !== undefined) {
+    const factor = Number(prefs.contrast) / 60
+    root.style.setProperty('--contrast-factor', factor)
+  }
+
+  if (prefs.diffMarkers) {
+    root.setAttribute('data-diff-style', prefs.diffMarkers)
+  }
+
+  root.setAttribute('data-pointer-cursors', prefs.pointerCursors ? 'true' : 'false')
+
+  if (prefs.customBg) {
+    root.style.setProperty('--canvas', prefs.customBg)
+    root.style.setProperty('--surface', prefs.customBg)
+    root.style.setProperty('--bg-app', prefs.customBg)
+  } else {
+    root.style.removeProperty('--canvas')
+    root.style.removeProperty('--surface')
+    root.style.removeProperty('--bg-app')
+  }
+
+  if (prefs.customFg) {
+    root.style.setProperty('--text', prefs.customFg)
+  } else {
+    root.style.removeProperty('--text')
+  }
+}
+
+applyAppearanceSettings(loadPrefs())
+
 
 export function AppProvider({ children }) {
   const prefs = useRef(loadPrefs()).current
@@ -432,6 +507,126 @@ export function AppProvider({ children }) {
     savePrefs({ thinkingStyle: v })
   }, [])
 
+  /* Codex Appearance Preferences */
+  const [uiFontSize, setUiFontSizeRaw] = useState(() => Number(prefs.uiFontSize) || 14)
+  const setUiFontSize = useCallback((val) => {
+    const n = Math.min(22, Math.max(10, Math.round(Number(val) || 14)))
+    setUiFontSizeRaw(n)
+    savePrefs({ uiFontSize: n })
+    applyAppearanceSettings({ ...loadPrefs(), uiFontSize: n })
+  }, [])
+
+  const [codeFontSize, setCodeFontSizeRaw] = useState(() => Number(prefs.codeFontSize) || 12)
+  const setCodeFontSize = useCallback((val) => {
+    const n = Math.min(22, Math.max(9, Math.round(Number(val) || 12)))
+    setCodeFontSizeRaw(n)
+    savePrefs({ codeFontSize: n })
+    applyAppearanceSettings({ ...loadPrefs(), codeFontSize: n })
+  }, [])
+
+  const [reduceMotion, setReduceMotionRaw] = useState(prefs.reduceMotion || 'system')
+  const setReduceMotion = useCallback((val) => {
+    setReduceMotionRaw(val)
+    savePrefs({ reduceMotion: val })
+    applyAppearanceSettings({ ...loadPrefs(), reduceMotion: val })
+  }, [])
+
+  const [separateLightDark, setSeparateLightDarkRaw] = useState(Boolean(prefs.separateLightDark))
+  const setSeparateLightDark = useCallback((val) => {
+    const b = Boolean(val)
+    setSeparateLightDarkRaw(b)
+    savePrefs({ separateLightDark: b })
+  }, [])
+
+  const [preferredDarkTheme, setPreferredDarkThemeRaw] = useState(prefs.preferredDarkTheme || 'graphite')
+  const setPreferredDarkTheme = useCallback((val) => {
+    setPreferredDarkThemeRaw(val)
+    savePrefs({ preferredDarkTheme: val })
+  }, [])
+
+  const [preferredLightTheme, setPreferredLightThemeRaw] = useState(prefs.preferredLightTheme || 'paper')
+  const setPreferredLightTheme = useCallback((val) => {
+    setPreferredLightThemeRaw(val)
+    savePrefs({ preferredLightTheme: val })
+  }, [])
+
+  const [uiFontStyle, setUiFontStyleRaw] = useState(prefs.uiFontStyle || '400')
+  const setUiFontStyle = useCallback((val) => {
+    setUiFontStyleRaw(val)
+    savePrefs({ uiFontStyle: val })
+    applyAppearanceSettings({ ...loadPrefs(), uiFontStyle: val })
+  }, [])
+
+  const [contentFont, setContentFontRaw] = useState(prefs.contentFont || 'same')
+  const setContentFont = useCallback((val) => {
+    setContentFontRaw(val)
+    savePrefs({ contentFont: val })
+    applyAppearanceSettings({ ...loadPrefs(), contentFont: val })
+  }, [])
+
+  const [contentFontWeight, setContentFontWeightRaw] = useState(prefs.contentFontWeight || '400')
+  const setContentFontWeight = useCallback((val) => {
+    setContentFontWeightRaw(val)
+    savePrefs({ contentFontWeight: val })
+  }, [])
+
+  const [codeFont, setCodeFontRaw] = useState(prefs.codeFont || 'system')
+  const setCodeFont = useCallback((val) => {
+    setCodeFontRaw(val)
+    savePrefs({ codeFont: val })
+    applyAppearanceSettings({ ...loadPrefs(), codeFont: val })
+  }, [])
+
+  const [codeFontWeight, setCodeFontWeightRaw] = useState(prefs.codeFontWeight || '400')
+  const setCodeFontWeight = useCallback((val) => {
+    setCodeFontWeightRaw(val)
+    savePrefs({ codeFontWeight: val })
+  }, [])
+
+  const [contrast, setContrastRaw] = useState(prefs.contrast !== undefined ? Number(prefs.contrast) : 60)
+  const setContrast = useCallback((val) => {
+    const n = Math.min(100, Math.max(30, Math.round(Number(val) || 60)))
+    setContrastRaw(n)
+    savePrefs({ contrast: n })
+    applyAppearanceSettings({ ...loadPrefs(), contrast: n })
+  }, [])
+
+  const [diffMarkers, setDiffMarkersRaw] = useState(prefs.diffMarkers || 'color')
+  const setDiffMarkers = useCallback((val) => {
+    setDiffMarkersRaw(val)
+    savePrefs({ diffMarkers: val })
+    applyAppearanceSettings({ ...loadPrefs(), diffMarkers: val })
+  }, [])
+
+  const [pointerCursors, setPointerCursorsRaw] = useState(Boolean(prefs.pointerCursors))
+  const setPointerCursors = useCallback((val) => {
+    const b = Boolean(val)
+    setPointerCursorsRaw(b)
+    savePrefs({ pointerCursors: b })
+    applyAppearanceSettings({ ...loadPrefs(), pointerCursors: b })
+  }, [])
+
+  const [customBg, setCustomBgRaw] = useState(prefs.customBg || '')
+  const setCustomBg = useCallback((val) => {
+    setCustomBgRaw(val)
+    savePrefs({ customBg: val })
+    applyAppearanceSettings({ ...loadPrefs(), customBg: val })
+  }, [])
+
+  const [customFg, setCustomFgRaw] = useState(prefs.customFg || '')
+  const setCustomFg = useCallback((val) => {
+    setCustomFgRaw(val)
+    savePrefs({ customFg: val })
+    applyAppearanceSettings({ ...loadPrefs(), customFg: val })
+  }, [])
+
+  const [fontFamily, setFontFamilyRaw] = useState(prefs.fontFamily || 'system')
+  const setFontFamily = useCallback((val) => {
+    setFontFamilyRaw(val)
+    savePrefs({ fontFamily: val })
+    applyAppearanceSettings({ ...loadPrefs(), fontFamily: val })
+  }, [])
+
   const [shellConfirm, setShellConfirmRaw] = useState(prefs.shellConfirm !== false)
   const setShellConfirm = useCallback((value) => { setShellConfirmRaw(value); savePrefs({ shellConfirm: value }) }, [])
   const [fileConfirm, setFileConfirmRaw] = useState(prefs.fileConfirm !== false)
@@ -559,6 +754,13 @@ export function AppProvider({ children }) {
     setThemeRaw(value)
     applyTheme(value)
     savePrefs({ theme: value })
+    if (DARK_THEMES.includes(value)) {
+      setPreferredDarkThemeRaw(value)
+      savePrefs({ preferredDarkTheme: value })
+    } else if (LIGHT_THEMES.includes(value)) {
+      setPreferredLightThemeRaw(value)
+      savePrefs({ preferredLightTheme: value })
+    }
   }, [])
 
   /* Beta pages -- Mail and Automations -- are hidden until this is on.
@@ -1091,6 +1293,23 @@ export function AppProvider({ children }) {
     agentLoader, setAgentLoader,
     thinkingStyle, setThinkingStyle,
     autoHideTopBar, setAutoHideTopBar,
+    uiFontSize, setUiFontSize,
+    codeFontSize, setCodeFontSize,
+    reduceMotion, setReduceMotion,
+    separateLightDark, setSeparateLightDark,
+    preferredDarkTheme, setPreferredDarkTheme,
+    preferredLightTheme, setPreferredLightTheme,
+    uiFontStyle, setUiFontStyle,
+    contentFont, setContentFont,
+    contentFontWeight, setContentFontWeight,
+    codeFont, setCodeFont,
+    codeFontWeight, setCodeFontWeight,
+    contrast, setContrast,
+    diffMarkers, setDiffMarkers,
+    pointerCursors, setPointerCursors,
+    customBg, setCustomBg,
+    customFg, setCustomFg,
+    fontFamily, setFontFamily,
     defaultGuard, setDefaultGuard,
     guard: defaultGuard, setGuard: setDefaultGuard,
     defaultEffort, setDefaultEffort,
@@ -1123,6 +1342,23 @@ export function AppProvider({ children }) {
     agentLoader, setAgentLoader,
     thinkingStyle, setThinkingStyle,
     autoHideTopBar, setAutoHideTopBar,
+    uiFontSize, setUiFontSize,
+    codeFontSize, setCodeFontSize,
+    reduceMotion, setReduceMotion,
+    separateLightDark, setSeparateLightDark,
+    preferredDarkTheme, setPreferredDarkTheme,
+    preferredLightTheme, setPreferredLightTheme,
+    uiFontStyle, setUiFontStyle,
+    contentFont, setContentFont,
+    contentFontWeight, setContentFontWeight,
+    codeFont, setCodeFont,
+    codeFontWeight, setCodeFontWeight,
+    contrast, setContrast,
+    diffMarkers, setDiffMarkers,
+    pointerCursors, setPointerCursors,
+    customBg, setCustomBg,
+    customFg, setCustomFg,
+    fontFamily, setFontFamily,
     defaultGuard, setDefaultGuard,
     defaultEffort, setDefaultEffort,
     sendWith, setSendWith,
