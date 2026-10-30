@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Stat, Chip } from '../../components/ui/bento/index.jsx'
 import { Drop } from '@phosphor-icons/react'
 import LocationSettings from './LocationSettings.jsx'
+import LiveWeather from '../../components/wigggle/LiveWeather.jsx'
 
 export function WeatherFace({ data, size = 'm' }) {
   const hours = Array.isArray(data?.hours) ? data.hours.slice(0, size === 's' ? 1 : size === 'l' ? 12 : 6) : []
@@ -37,14 +38,14 @@ export function EnvironmentFace({ data, widgetId }) {
   return <div className="adoption-air"><Stat value={Number.isFinite(data?.european_aqi) ? data.european_aqi : 'Unavailable'} label="European AQI" /><div className="ui-split adoption-particles">{[['pm2_5', 'PM2.5'], ['pm10', 'PM10']].map(([key, label]) => <div key={key}><span className="adoption-label">{label}</span><p><strong>{Number.isFinite(data?.[key]) ? data[key] : 'Unavailable'}</strong>{Number.isFinite(data?.[key]) && <small> µg/m³</small>}</p></div>)}</div>{data?.time && <time className="adoption-label" dateTime={data.time}>{data.time.replace('T', ' · ')}</time>}</div>
 }
 
-export default function Weather({ data, widgetId, full = false, size = 'm' }) {
+export default function Weather({ data, widgetId, full = false, design }) {
   const [locationOpen, setLocationOpen] = useState(null)
   const showLocation = (locationOpen ?? full) || Boolean(data?.set_location)
   return <div className="adoption-stack">
     {data?.set_location && <StateView role="status">Choose your location</StateView>}
     {!data?.set_location && data && (['glance.air', 'glance.sun'].includes(widgetId)
       ? <EnvironmentFace data={data} widgetId={widgetId} />
-      : <><WeatherFace data={data} size={size} /><details hidden={!full}><summary>Hourly forecast</summary><ul className="widget-list">{data.hours?.map(h => <WidgetRow key={h.time}>{h.time} · {h.temperature ?? 'Unknown'} °C · Rain {h.rain ?? 'unknown'}%</WidgetRow>)}</ul></details></>)}
+      : <><LiveWeather data={data} design={design} /><details hidden={!full}><summary>Hourly forecast</summary><ul className="widget-list">{data.hours?.map(h => <WidgetRow key={h.time}>{h.time} · {h.temperature ?? 'Unknown'} °C · Rain {h.rain ?? 'unknown'}%</WidgetRow>)}</ul></details></>)}
     <div className="weather-options" hidden={!full && !data?.set_location}><details open={showLocation} onToggle={event => setLocationOpen(event.currentTarget.open)}><summary>Location settings</summary>{(locationOpen !== null || showLocation) && <LocationSettings active={(full || Boolean(data?.set_location)) && showLocation} />}</details>
     <details className="adoption-source"><summary>Weather data and attribution</summary><p>{widgetId === 'glance.air' && <><a href="https://ads.atmosphere.copernicus.eu/">CAMS ENSEMBLE data</a> · </>}<a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Weather data by Open-Meteo</a> · <a href="https://open-meteo.com/en/terms">Free API: non-commercial use</a> · <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a></p></details></div>
   </div>
