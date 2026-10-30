@@ -4,6 +4,7 @@ import { SYSTEM_WIDGETS, WIDGET_ICONS, widgetTone, preferredWidgetSize } from '.
 import { Button, Input, Select, Segmented, Chip, IconBadge } from '../components/ui/bento/index.jsx'
 import Icon from '../components/Icon.jsx'
 import WidgetFrame from './WidgetFrame.jsx'
+import DesignCatalog from '../components/wigggle/DesignCatalog.jsx'
 
 const GROUPS = [['glance', 'Glance', 'clock'], ['needs-you', 'Needs you', 'mail'], ['communication', 'Communication', 'chat'], ['agent', 'Agent', 'sparkle'], ['library', 'Library', 'bookmark'], ['tasks', 'Tasks', 'tasks'], ['developer', 'Developer', 'branch'], ['student', 'Student', 'book'], ['feed', 'Feed', 'globe'], ['life', 'Life', 'sun'], ['system', 'System', 'settings'], ['proactive', 'Proactive', 'bell'], ['dashboard', 'Home', 'grid']]
 const categoryOf = manifest => GROUPS.some(([group]) => group === manifest.group) ? manifest.group : 'system'
@@ -18,13 +19,13 @@ function CatalogCard({ manifest: m, added, addWidget, removeWidget, openWidget, 
   return <article className="today-catalog-row home-catalog-row" aria-label={m.title}>
     <Button variant="ghost" className="catalog-thumbnail ui-tile" data-tone={widgetTone(m.id)} data-preview-size={size} aria-label={`Choose ${m.title}`} aria-expanded={selected} aria-controls={id} onClick={select}>
       <IconBadge label={m.title}><Icon name={m.icon || WIDGET_ICONS[m.id] || 'grid'} size={20} /></IconBadge>
-      <div className="catalog-silhouette"><span /><span /><span /></div>
+      <span className="catalog-widget-source">{sources(m).map(source => sourceNames[source.toolkit] || source.toolkit || source.type).join(' · ')}</span>
       <span className="catalog-preview-label">{selected ? 'Hide options' : 'Choose widget'}</span>
     </Button>
     <div className="today-catalog-copy"><h4>{m.title}</h4><p title={m.description || `View ${m.title.toLowerCase()}.`}>{m.description || `View ${m.title.toLowerCase()}.`}</p></div>
     {added && <span className="catalog-added"><Icon name="check-simple" size={14} />On Home</span>}
     <div id={id} hidden={!selected} className="catalog-options">
-    {m.id === 'glance.clock' && selected && <div className="catalog-live-preview bento-foundation widget-home" aria-label={`${m.title} ${size.toUpperCase()} preview`}><WidgetFrame manifest={m} size={size} preview /></div>}
+    {selected && <div className="catalog-live-preview bento-foundation widget-home" aria-label={`${m.title} ${size.toUpperCase()} preview`}><WidgetFrame manifest={m} size={size} preview /></div>}
     <div className="catalog-connectors">{connectors(m).map(source => <Chip key={source}><span>{sourceNames[source] || source}</span>{connections?.data?.items?.find(item => item.id === source)?.status === 'connected' ? <span>Connected</span> : <Button size="small" variant="ghost" onClick={() => connectSource(source)} aria-label={`Connect ${sourceNames[source] || source} for ${m.title}`}>Connect</Button>}</Chip>)}</div>
     <div className="catalog-card-actions"><Segmented aria-label={`Size for ${m.title}`} value={size} onValueChange={setSize} options={m.sizes.map(value => ({ value, label: value.toUpperCase() }))} />{system ? <Button size="small" onClick={() => openWidget(m.id)}>Open</Button> : added ? <div className="catalog-membership"><span><Icon name="check-simple" size={14} />On Home</span><Button size="small" variant="ghost" onClick={() => removeWidget(m.id)}>Remove</Button></div> : <Button size="small" variant="primary" onClick={() => addWidget(m.id, size)}><Icon name="plus" size={14} />Add</Button>}</div>
     </div>
@@ -33,6 +34,7 @@ function CatalogCard({ manifest: m, added, addWidget, removeWidget, openWidget, 
 
 export default function AddWidget({ compact = false }) {
   const { manifests, layout, addWidget, removeWidget, openWidget, connections, connectSource } = useDashboard()
+  const [tab, setTab] = useState('widgets')
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(null)
   const [category, setCategory] = useState('all')
@@ -41,6 +43,8 @@ export default function AddWidget({ compact = false }) {
   const count = id => id === 'all' ? manifests.length : manifests.filter(m => categoryOf(m) === id).length
   const matches = manifests.filter(m => (category === 'all' || categoryOf(m) === category) && `${m.title} ${m.id} ${m.group} ${m.description || ''} ${sources(m).map(source => source.toolkit || source.type).join(' ')}`.toLowerCase().includes(query.trim().toLowerCase()))
   return <div className={`today-catalog${compact ? ' is-compact' : ''}`}>
+    <div className="wigggle-catalog-tabs" role="group" aria-label="Widget catalogue"><Button aria-pressed={tab === 'widgets'} onClick={() => setTab('widgets')}>Home widgets</Button><Button aria-pressed={tab === 'designs'} onClick={() => setTab('designs')}>Wigggle designs <span>92</span></Button></div>
+    {tab === 'designs' ? <DesignCatalog /> : <>
     <div className="today-catalog-search"><Icon name="search" size={18} /><Input type="search" aria-label="Search widgets" placeholder="Search widgets…" value={query} onChange={event => setQuery(event.target.value)} />{query && <Button size="small" variant="ghost" onClick={() => setQuery('')} aria-label="Clear widget search"><Icon name="x" size={14} /></Button>}</div>
     <div className="today-catalog-browser">
       <nav className="today-catalog-categories" aria-label="Widget categories">{categories.map(([id, title, icon]) => <Button key={id} variant="ghost" aria-pressed={category === id} onClick={() => setCategory(id)}><Icon name={icon} size={16} /><span>{title}</span><small>{count(id)}</small></Button>)}</nav>
@@ -51,6 +55,7 @@ export default function AddWidget({ compact = false }) {
         {!matches.length && <div className="today-catalog-empty" role="status"><Icon name="search" size={24} /><strong>No matching widgets</strong><p>Try another name or category.</p><Button size="small" onClick={() => { setQuery(''); setCategory('all') }}>Clear filters</Button></div>}
       </div>
     </div>
+    </>}
     <footer className="today-catalog-footer"><Icon name="grid" size={14} /><span>{layout.widgets.filter(w => !SYSTEM_WIDGETS.includes(w.id)).length} widgets on Home</span></footer>
   </div>
 }

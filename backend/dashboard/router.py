@@ -98,8 +98,8 @@ def put_layout(
         enabled(item.id)
         if item.size not in REGISTRY[item.id]["manifest"]["sizes"]:
             raise HTTPException(422, "Widget size is not allowed")
-    layout_write(mode, body.model_dump())
-    return body.model_dump()
+    layout_write(mode, body.model_dump(exclude_none=True))
+    return body.model_dump(exclude_none=True)
 
 
 @router.get("/widgets/{widget_id}/settings")

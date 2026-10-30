@@ -7,13 +7,6 @@
 .today-catalog .today-catalog-row { --ui-text: var(--tile-light-text); --ui-muted: var(--tile-light-muted); --ui-raised: var(--tile-light); --ui-border: color-mix(in srgb, var(--tile-light-text) 12%, transparent); display: flex; flex-direction: column; align-items: stretch; gap: var(--tile-space-3); min-width: 0; padding: var(--tile-space-4); border: 0; border-radius: var(--tile-radius); background: var(--tile-light); color: var(--tile-light-text); box-shadow: var(--tile-shadow); }
 .catalog-thumbnail.ui-tile { display: flex; flex-direction: column; gap: var(--tile-space-3); min-height: 132px; padding: var(--tile-space-4); border: 0; box-shadow: none; border-radius: calc(var(--tile-radius) - var(--tile-space-2)); }
 .catalog-thumbnail .ui-icon-badge { width: 40px; height: 40px; }
-.catalog-silhouette { display: grid; gap: var(--tile-space-2); width: 100%; }
-.catalog-silhouette span { height: 6px; width: 60%; background: currentColor; opacity: .12; border-radius: var(--tile-space-1); }
-.catalog-silhouette span:first-child { width: 40%; height: 12px; opacity: .24; }
-.catalog-silhouette span:last-child { width: 80%; }
-[data-preview-size='s'] .catalog-silhouette span:last-child { display: none; }
-[data-preview-size='l'] .catalog-silhouette { grid-template-columns: 1fr 1fr; }
-[data-preview-size='l'] .catalog-silhouette span { width: 100%; }
 .catalog-preview-label { font: var(--tile-label); color: var(--tile-muted); }
 .today-catalog-copy h4 { margin: 0; color: var(--tile-light-text); font: var(--tile-title); }
 .today-catalog .today-catalog-copy p { margin: var(--tile-space-1) 0 0; color: var(--tile-light-muted); font: var(--tile-body); }
@@ -38,7 +31,6 @@
 @media (prefers-reduced-motion: reduce) { .today-catalog-drawer[open] { animation: none; } }
 
 .today-catalog .catalog-thumbnail.ui-tile { height: auto; min-height: 112px; align-items: flex-start; text-align: left; width: 100%; }
-.catalog-thumbnail .catalog-silhouette { pointer-events: none; }
 .catalog-options { display: grid; gap: var(--tile-space-3); }
 .catalog-options[hidden] { display: none; }
 .catalog-added { display: flex; align-items: center; gap: var(--tile-space-1); color: var(--tile-light-muted); }

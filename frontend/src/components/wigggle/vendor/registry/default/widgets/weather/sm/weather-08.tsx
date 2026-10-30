@@ -1,0 +1,73 @@
+
+
+import { MoveDownIcon, MoveUpIcon } from "lucide-react";
+
+import { Label } from "@/components/wigggle/vendor/components/ui/label";
+import {
+  DEFAULT_LOCATION,
+  useLocation,
+} from "@/components/wigggle/vendor/registry/default/hooks/use-location";
+import { useWeather } from "@/components/wigggle/vendor/registry/default/hooks/use-weather";
+import { getWeatherIcon } from "@/components/wigggle/vendor/registry/default/lib/weather-utils";
+import {
+  Widget,
+  WidgetContent,
+  WidgetFooter,
+  WidgetTitle,
+} from "@/components/wigggle/vendor/registry/default/ui/widget";
+
+const WidgetDemo = () => {
+  const { coordinates, city, isLoading: isLoadingLocation } = useLocation();
+  const { data: weather, isLoading: isLoadingWeather } = useWeather(
+    coordinates?.lat ?? DEFAULT_LOCATION.lat,
+    coordinates?.lon ?? DEFAULT_LOCATION.lon
+  );
+
+  const isLoading = isLoadingLocation || isLoadingWeather;
+
+  const todayMax = weather?.daily?.temperatureMax[0];
+  const todayMin = weather?.daily?.temperatureMin[0];
+
+  if (isLoading) {
+    return (
+      <Widget>
+        <WidgetContent className="flex items-center justify-center">
+          <Label>
+            <span className="animate-pulse">Loading...</span>
+          </Label>
+        </WidgetContent>
+      </Widget>
+    );
+  }
+
+  return (
+    <Widget>
+      <WidgetTitle>{city || "Unknown"}</WidgetTitle>
+      <WidgetContent className="flex items-center justify-center gap-2">
+        {weather &&
+          getWeatherIcon(weather.weatherCode, "size-10", { strokeWidth: 2 })}
+        <Label size="xxxxl">{weather?.temperature}&deg;</Label>
+      </WidgetContent>
+      <WidgetFooter className="justify-between gap-3">
+        <div className="flex items-center justify-start">
+          <MoveDownIcon
+            fill="currentColor"
+            className="mr-1 size-4"
+            strokeWidth={4}
+          />
+          <Label>{todayMin}&deg;</Label>
+        </div>
+        <div className="flex h-max items-center justify-start">
+          <MoveUpIcon
+            fill="currentColor"
+            className="mr-1 size-4"
+            strokeWidth={4}
+          />
+          <Label>{todayMax}&deg;</Label>
+        </div>
+      </WidgetFooter>
+    </Widget>
+  );
+};
+
+export default WidgetDemo;

@@ -332,3 +332,14 @@ def test_clock_settings_trim_refresh_remove_and_survive_restart(client):
     reset_connection()
     assert client.get("/api/widgets/glance.clock/settings").json() == {"zones": []}
     assert client.post("/api/widgets/glance.clock/refresh").json()["payload"]["zones"] == []
+
+
+def test_wigggle_design_layout_persistence_and_validation(client):
+    layout = {"widgets": [{"id": "glance.clock", "size": "s", "height": 3, "design": "clock-sm-06"}]}
+    assert client.put("/api/layout", json=layout).status_code == 200
+    reset_connection()
+    assert client.get("/api/layout").json() == layout
+    for design in ["../../secret", "clock-sm-99", "unknown-sm-01", "weather-lg-01"]:
+        layout["widgets"][0]["design"] = design
+        assert client.put("/api/layout", json=layout).status_code == 422
+    assert client.get("/api/layout").json()["widgets"][0]["design"] == "clock-sm-06"

@@ -1,7 +1,8 @@
 import Icon from '../components/Icon.jsx'
+import { Widget } from '../components/wigggle/Widget.jsx'
 import { freshness } from './layout.js'
 
-export function WidgetCard({ as: Tag = 'article', className = '', ...props }) { return <Tag className={`widget-card ${className}`} {...props} /> }
+export function WidgetCard({ as: Tag = 'article', className = '', ...props }) { return <Widget as={Tag} className={`widget-card ${className}`} {...props} /> }
 export function CardHeader(props) { return <header {...props} /> }
 export function WidgetRow({ className = 'widget-row', ...props }) { return <li className={className} {...props} /> }
 export function Tile({ className = '', ...props }) { return <div className={`widget-tile ${className}`} {...props} /> }

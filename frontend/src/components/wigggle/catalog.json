@@ -1,0 +1,646 @@
+[
+  {
+    "id": "calendar-lg-01",
+    "category": "calendar",
+    "size": "l",
+    "name": "Calendar 01",
+    "module": "./vendor/registry/default/widgets/calendar/lg/calendar-01.tsx"
+  },
+  {
+    "id": "calendar-lg-02",
+    "category": "calendar",
+    "size": "l",
+    "name": "Calendar 02",
+    "module": "./vendor/registry/default/widgets/calendar/lg/calendar-02.tsx"
+  },
+  {
+    "id": "calendar-lg-03",
+    "category": "calendar",
+    "size": "l",
+    "name": "Calendar 03",
+    "module": "./vendor/registry/default/widgets/calendar/lg/calendar-03.tsx"
+  },
+  {
+    "id": "calendar-lg-04",
+    "category": "calendar",
+    "size": "l",
+    "name": "Calendar 04",
+    "module": "./vendor/registry/default/widgets/calendar/lg/calendar-04.tsx"
+  },
+  {
+    "id": "calendar-lg-05",
+    "category": "calendar",
+    "size": "l",
+    "name": "Calendar 05",
+    "module": "./vendor/registry/default/widgets/calendar/lg/calendar-05.tsx"
+  },
+  {
+    "id": "calendar-lg-06",
+    "category": "calendar",
+    "size": "l",
+    "name": "Calendar 06",
+    "module": "./vendor/registry/default/widgets/calendar/lg/calendar-06.tsx"
+  },
+  {
+    "id": "calendar-md-01",
+    "category": "calendar",
+    "size": "m",
+    "name": "Calendar 01",
+    "module": "./vendor/registry/default/widgets/calendar/md/calendar-01.tsx"
+  },
+  {
+    "id": "calendar-md-02",
+    "category": "calendar",
+    "size": "m",
+    "name": "Calendar 02",
+    "module": "./vendor/registry/default/widgets/calendar/md/calendar-02.tsx"
+  },
+  {
+    "id": "calendar-md-03",
+    "category": "calendar",
+    "size": "m",
+    "name": "Calendar 03",
+    "module": "./vendor/registry/default/widgets/calendar/md/calendar-03.tsx"
+  },
+  {
+    "id": "calendar-md-04",
+    "category": "calendar",
+    "size": "m",
+    "name": "Calendar 04",
+    "module": "./vendor/registry/default/widgets/calendar/md/calendar-04.tsx"
+  },
+  {
+    "id": "calendar-md-05",
+    "category": "calendar",
+    "size": "m",
+    "name": "Calendar 05",
+    "module": "./vendor/registry/default/widgets/calendar/md/calendar-05.tsx"
+  },
+  {
+    "id": "calendar-md-06",
+    "category": "calendar",
+    "size": "m",
+    "name": "Calendar 06",
+    "module": "./vendor/registry/default/widgets/calendar/md/calendar-06.tsx"
+  },
+  {
+    "id": "calendar-sm-01",
+    "category": "calendar",
+    "size": "s",
+    "name": "Calendar 01",
+    "module": "./vendor/registry/default/widgets/calendar/sm/calendar-01.tsx"
+  },
+  {
+    "id": "calendar-sm-02",
+    "category": "calendar",
+    "size": "s",
+    "name": "Calendar 02",
+    "module": "./vendor/registry/default/widgets/calendar/sm/calendar-02.tsx"
+  },
+  {
+    "id": "calendar-sm-03",
+    "category": "calendar",
+    "size": "s",
+    "name": "Calendar 03",
+    "module": "./vendor/registry/default/widgets/calendar/sm/calendar-03.tsx"
+  },
+  {
+    "id": "calendar-sm-04",
+    "category": "calendar",
+    "size": "s",
+    "name": "Calendar 04",
+    "module": "./vendor/registry/default/widgets/calendar/sm/calendar-04.tsx"
+  },
+  {
+    "id": "calendar-sm-05",
+    "category": "calendar",
+    "size": "s",
+    "name": "Calendar 05",
+    "module": "./vendor/registry/default/widgets/calendar/sm/calendar-05.tsx"
+  },
+  {
+    "id": "calendar-sm-06",
+    "category": "calendar",
+    "size": "s",
+    "name": "Calendar 06",
+    "module": "./vendor/registry/default/widgets/calendar/sm/calendar-06.tsx"
+  },
+  {
+    "id": "calendar-sm-07",
+    "category": "calendar",
+    "size": "s",
+    "name": "Calendar 07",
+    "module": "./vendor/registry/default/widgets/calendar/sm/calendar-07.tsx"
+  },
+  {
+    "id": "calendar-sm-08",
+    "category": "calendar",
+    "size": "s",
+    "name": "Calendar 08",
+    "module": "./vendor/registry/default/widgets/calendar/sm/calendar-08.tsx"
+  },
+  {
+    "id": "calendar-sm-09",
+    "category": "calendar",
+    "size": "s",
+    "name": "Calendar 09",
+    "module": "./vendor/registry/default/widgets/calendar/sm/calendar-09.tsx"
+  },
+  {
+    "id": "clock-sm-01",
+    "category": "clock",
+    "size": "s",
+    "name": "Clock 01",
+    "module": "./vendor/registry/default/widgets/clock/sm/clock-01.tsx"
+  },
+  {
+    "id": "clock-sm-02",
+    "category": "clock",
+    "size": "s",
+    "name": "Clock 02",
+    "module": "./vendor/registry/default/widgets/clock/sm/clock-02.tsx"
+  },
+  {
+    "id": "clock-sm-03",
+    "category": "clock",
+    "size": "s",
+    "name": "Clock 03",
+    "module": "./vendor/registry/default/widgets/clock/sm/clock-03.tsx"
+  },
+  {
+    "id": "clock-sm-04",
+    "category": "clock",
+    "size": "s",
+    "name": "Clock 04",
+    "module": "./vendor/registry/default/widgets/clock/sm/clock-04.tsx"
+  },
+  {
+    "id": "clock-sm-05",
+    "category": "clock",
+    "size": "s",
+    "name": "Clock 05",
+    "module": "./vendor/registry/default/widgets/clock/sm/clock-05.tsx"
+  },
+  {
+    "id": "clock-sm-06",
+    "category": "clock",
+    "size": "s",
+    "name": "Clock 06",
+    "module": "./vendor/registry/default/widgets/clock/sm/clock-06.tsx"
+  },
+  {
+    "id": "clock-sm-07",
+    "category": "clock",
+    "size": "s",
+    "name": "Clock 07",
+    "module": "./vendor/registry/default/widgets/clock/sm/clock-07.tsx"
+  },
+  {
+    "id": "clock-sm-08",
+    "category": "clock",
+    "size": "s",
+    "name": "Clock 08",
+    "module": "./vendor/registry/default/widgets/clock/sm/clock-08.tsx"
+  },
+  {
+    "id": "clock-sm-09",
+    "category": "clock",
+    "size": "s",
+    "name": "Clock 09",
+    "module": "./vendor/registry/default/widgets/clock/sm/clock-09.tsx"
+  },
+  {
+    "id": "clock-sm-10",
+    "category": "clock",
+    "size": "s",
+    "name": "Clock 10",
+    "module": "./vendor/registry/default/widgets/clock/sm/clock-10.tsx"
+  },
+  {
+    "id": "clock-sm-11",
+    "category": "clock",
+    "size": "s",
+    "name": "Clock 11",
+    "module": "./vendor/registry/default/widgets/clock/sm/clock-11.tsx"
+  },
+  {
+    "id": "clock-sm-12",
+    "category": "clock",
+    "size": "s",
+    "name": "Clock 12",
+    "module": "./vendor/registry/default/widgets/clock/sm/clock-12.tsx"
+  },
+  {
+    "id": "clock-sm-13",
+    "category": "clock",
+    "size": "s",
+    "name": "Clock 13",
+    "module": "./vendor/registry/default/widgets/clock/sm/clock-13.tsx"
+  },
+  {
+    "id": "dashboard-lg-01",
+    "category": "dashboard",
+    "size": "l",
+    "name": "Dashboard 01",
+    "module": "./vendor/registry/default/widgets/dashboard/lg/dashboard-01.tsx"
+  },
+  {
+    "id": "dashboard-lg-02",
+    "category": "dashboard",
+    "size": "l",
+    "name": "Dashboard 02",
+    "module": "./vendor/registry/default/widgets/dashboard/lg/dashboard-02.tsx"
+  },
+  {
+    "id": "dashboard-md-01",
+    "category": "dashboard",
+    "size": "m",
+    "name": "Dashboard 01",
+    "module": "./vendor/registry/default/widgets/dashboard/md/dashboard-01.tsx"
+  },
+  {
+    "id": "dashboard-md-02",
+    "category": "dashboard",
+    "size": "m",
+    "name": "Dashboard 02",
+    "module": "./vendor/registry/default/widgets/dashboard/md/dashboard-02.tsx"
+  },
+  {
+    "id": "dashboard-sm-01",
+    "category": "dashboard",
+    "size": "s",
+    "name": "Dashboard 01",
+    "module": "./vendor/registry/default/widgets/dashboard/sm/dashboard-01.tsx"
+  },
+  {
+    "id": "dashboard-sm-02",
+    "category": "dashboard",
+    "size": "s",
+    "name": "Dashboard 02",
+    "module": "./vendor/registry/default/widgets/dashboard/sm/dashboard-02.tsx"
+  },
+  {
+    "id": "dashboard-sm-03",
+    "category": "dashboard",
+    "size": "s",
+    "name": "Dashboard 03",
+    "module": "./vendor/registry/default/widgets/dashboard/sm/dashboard-03.tsx"
+  },
+  {
+    "id": "dashboard-sm-04",
+    "category": "dashboard",
+    "size": "s",
+    "name": "Dashboard 04",
+    "module": "./vendor/registry/default/widgets/dashboard/sm/dashboard-04.tsx"
+  },
+  {
+    "id": "dashboard-sm-05",
+    "category": "dashboard",
+    "size": "s",
+    "name": "Dashboard 05",
+    "module": "./vendor/registry/default/widgets/dashboard/sm/dashboard-05.tsx"
+  },
+  {
+    "id": "dashboard-sm-06",
+    "category": "dashboard",
+    "size": "s",
+    "name": "Dashboard 06",
+    "module": "./vendor/registry/default/widgets/dashboard/sm/dashboard-06.tsx"
+  },
+  {
+    "id": "media-md-01",
+    "category": "media",
+    "size": "m",
+    "name": "Media 01",
+    "module": "./vendor/registry/default/widgets/media/md/media-01.tsx"
+  },
+  {
+    "id": "media-md-02",
+    "category": "media",
+    "size": "m",
+    "name": "Media 02",
+    "module": "./vendor/registry/default/widgets/media/md/media-02.tsx"
+  },
+  {
+    "id": "media-md-03",
+    "category": "media",
+    "size": "m",
+    "name": "Media 03",
+    "module": "./vendor/registry/default/widgets/media/md/media-03.tsx"
+  },
+  {
+    "id": "media-md-04",
+    "category": "media",
+    "size": "m",
+    "name": "Media 04",
+    "module": "./vendor/registry/default/widgets/media/md/media-04.tsx"
+  },
+  {
+    "id": "media-md-05",
+    "category": "media",
+    "size": "m",
+    "name": "Media 05",
+    "module": "./vendor/registry/default/widgets/media/md/media-05.tsx"
+  },
+  {
+    "id": "media-sm-01",
+    "category": "media",
+    "size": "s",
+    "name": "Media 01",
+    "module": "./vendor/registry/default/widgets/media/sm/media-01.tsx"
+  },
+  {
+    "id": "media-sm-02",
+    "category": "media",
+    "size": "s",
+    "name": "Media 02",
+    "module": "./vendor/registry/default/widgets/media/sm/media-02.tsx"
+  },
+  {
+    "id": "media-sm-03",
+    "category": "media",
+    "size": "s",
+    "name": "Media 03",
+    "module": "./vendor/registry/default/widgets/media/sm/media-03.tsx"
+  },
+  {
+    "id": "media-sm-04",
+    "category": "media",
+    "size": "s",
+    "name": "Media 04",
+    "module": "./vendor/registry/default/widgets/media/sm/media-04.tsx"
+  },
+  {
+    "id": "media-sm-05",
+    "category": "media",
+    "size": "s",
+    "name": "Media 05",
+    "module": "./vendor/registry/default/widgets/media/sm/media-05.tsx"
+  },
+  {
+    "id": "media-sm-06",
+    "category": "media",
+    "size": "s",
+    "name": "Media 06",
+    "module": "./vendor/registry/default/widgets/media/sm/media-06.tsx"
+  },
+  {
+    "id": "media-sm-07",
+    "category": "media",
+    "size": "s",
+    "name": "Media 07",
+    "module": "./vendor/registry/default/widgets/media/sm/media-07.tsx"
+  },
+  {
+    "id": "media-sm-08",
+    "category": "media",
+    "size": "s",
+    "name": "Media 08",
+    "module": "./vendor/registry/default/widgets/media/sm/media-08.tsx"
+  },
+  {
+    "id": "productivity-md-01",
+    "category": "productivity",
+    "size": "m",
+    "name": "Productivity 01",
+    "module": "./vendor/registry/default/widgets/productivity/md/productivity-01.tsx"
+  },
+  {
+    "id": "productivity-md-02",
+    "category": "productivity",
+    "size": "m",
+    "name": "Productivity 02",
+    "module": "./vendor/registry/default/widgets/productivity/md/productivity-02.tsx"
+  },
+  {
+    "id": "productivity-md-03",
+    "category": "productivity",
+    "size": "m",
+    "name": "Productivity 03",
+    "module": "./vendor/registry/default/widgets/productivity/md/productivity-03.tsx"
+  },
+  {
+    "id": "productivity-md-04",
+    "category": "productivity",
+    "size": "m",
+    "name": "Productivity 04",
+    "module": "./vendor/registry/default/widgets/productivity/md/productivity-04.tsx"
+  },
+  {
+    "id": "productivity-sm-01",
+    "category": "productivity",
+    "size": "s",
+    "name": "Productivity 01",
+    "module": "./vendor/registry/default/widgets/productivity/sm/productivity-01.tsx"
+  },
+  {
+    "id": "productivity-sm-02",
+    "category": "productivity",
+    "size": "s",
+    "name": "Productivity 02",
+    "module": "./vendor/registry/default/widgets/productivity/sm/productivity-02.tsx"
+  },
+  {
+    "id": "productivity-sm-03",
+    "category": "productivity",
+    "size": "s",
+    "name": "Productivity 03",
+    "module": "./vendor/registry/default/widgets/productivity/sm/productivity-03.tsx"
+  },
+  {
+    "id": "productivity-sm-04",
+    "category": "productivity",
+    "size": "s",
+    "name": "Productivity 04",
+    "module": "./vendor/registry/default/widgets/productivity/sm/productivity-04.tsx"
+  },
+  {
+    "id": "productivity-sm-05",
+    "category": "productivity",
+    "size": "s",
+    "name": "Productivity 05",
+    "module": "./vendor/registry/default/widgets/productivity/sm/productivity-05.tsx"
+  },
+  {
+    "id": "productivity-sm-06",
+    "category": "productivity",
+    "size": "s",
+    "name": "Productivity 06",
+    "module": "./vendor/registry/default/widgets/productivity/sm/productivity-06.tsx"
+  },
+  {
+    "id": "productivity-sm-07",
+    "category": "productivity",
+    "size": "s",
+    "name": "Productivity 07",
+    "module": "./vendor/registry/default/widgets/productivity/sm/productivity-07.tsx"
+  },
+  {
+    "id": "sports-sm-01",
+    "category": "sports",
+    "size": "s",
+    "name": "Sports 01",
+    "module": "./vendor/registry/default/widgets/sports/sm/sports-01.tsx"
+  },
+  {
+    "id": "sports-sm-02",
+    "category": "sports",
+    "size": "s",
+    "name": "Sports 02",
+    "module": "./vendor/registry/default/widgets/sports/sm/sports-02.tsx"
+  },
+  {
+    "id": "sports-sm-03",
+    "category": "sports",
+    "size": "s",
+    "name": "Sports 03",
+    "module": "./vendor/registry/default/widgets/sports/sm/sports-03.tsx"
+  },
+  {
+    "id": "sports-sm-04",
+    "category": "sports",
+    "size": "s",
+    "name": "Sports 04",
+    "module": "./vendor/registry/default/widgets/sports/sm/sports-04.tsx"
+  },
+  {
+    "id": "sports-sm-05",
+    "category": "sports",
+    "size": "s",
+    "name": "Sports 05",
+    "module": "./vendor/registry/default/widgets/sports/sm/sports-05.tsx"
+  },
+  {
+    "id": "sports-sm-06",
+    "category": "sports",
+    "size": "s",
+    "name": "Sports 06",
+    "module": "./vendor/registry/default/widgets/sports/sm/sports-06.tsx"
+  },
+  {
+    "id": "sports-sm-07",
+    "category": "sports",
+    "size": "s",
+    "name": "Sports 07",
+    "module": "./vendor/registry/default/widgets/sports/sm/sports-07.tsx"
+  },
+  {
+    "id": "stocks-sm-01",
+    "category": "stocks",
+    "size": "s",
+    "name": "Stocks 01",
+    "module": "./vendor/registry/default/widgets/stocks/sm/stock-01.tsx"
+  },
+  {
+    "id": "stocks-sm-02",
+    "category": "stocks",
+    "size": "s",
+    "name": "Stocks 02",
+    "module": "./vendor/registry/default/widgets/stocks/sm/stock-02.tsx"
+  },
+  {
+    "id": "stocks-sm-03",
+    "category": "stocks",
+    "size": "s",
+    "name": "Stocks 03",
+    "module": "./vendor/registry/default/widgets/stocks/sm/stock-03.tsx"
+  },
+  {
+    "id": "stocks-sm-04",
+    "category": "stocks",
+    "size": "s",
+    "name": "Stocks 04",
+    "module": "./vendor/registry/default/widgets/stocks/sm/stock-04.tsx"
+  },
+  {
+    "id": "stocks-sm-05",
+    "category": "stocks",
+    "size": "s",
+    "name": "Stocks 05",
+    "module": "./vendor/registry/default/widgets/stocks/sm/stock-05.tsx"
+  },
+  {
+    "id": "stocks-sm-06",
+    "category": "stocks",
+    "size": "s",
+    "name": "Stocks 06",
+    "module": "./vendor/registry/default/widgets/stocks/sm/stock-06.tsx"
+  },
+  {
+    "id": "weather-md-01",
+    "category": "weather",
+    "size": "m",
+    "name": "Weather 01",
+    "module": "./vendor/registry/default/widgets/weather/md/weather-01.tsx"
+  },
+  {
+    "id": "weather-md-02",
+    "category": "weather",
+    "size": "m",
+    "name": "Weather 02",
+    "module": "./vendor/registry/default/widgets/weather/md/weather-02.tsx"
+  },
+  {
+    "id": "weather-sm-01",
+    "category": "weather",
+    "size": "s",
+    "name": "Weather 01",
+    "module": "./vendor/registry/default/widgets/weather/sm/weather-01.tsx"
+  },
+  {
+    "id": "weather-sm-02",
+    "category": "weather",
+    "size": "s",
+    "name": "Weather 02",
+    "module": "./vendor/registry/default/widgets/weather/sm/weather-02.tsx"
+  },
+  {
+    "id": "weather-sm-03",
+    "category": "weather",
+    "size": "s",
+    "name": "Weather 03",
+    "module": "./vendor/registry/default/widgets/weather/sm/weather-03.tsx"
+  },
+  {
+    "id": "weather-sm-04",
+    "category": "weather",
+    "size": "s",
+    "name": "Weather 04",
+    "module": "./vendor/registry/default/widgets/weather/sm/weather-04.tsx"
+  },
+  {
+    "id": "weather-sm-05",
+    "category": "weather",
+    "size": "s",
+    "name": "Weather 05",
+    "module": "./vendor/registry/default/widgets/weather/sm/weather-05.tsx"
+  },
+  {
+    "id": "weather-sm-06",
+    "category": "weather",
+    "size": "s",
+    "name": "Weather 06",
+    "module": "./vendor/registry/default/widgets/weather/sm/weather-06.tsx"
+  },
+  {
+    "id": "weather-sm-07",
+    "category": "weather",
+    "size": "s",
+    "name": "Weather 07",
+    "module": "./vendor/registry/default/widgets/weather/sm/weather-07.tsx"
+  },
+  {
+    "id": "weather-sm-08",
+    "category": "weather",
+    "size": "s",
+    "name": "Weather 08",
+    "module": "./vendor/registry/default/widgets/weather/sm/weather-08.tsx"
+  },
+  {
+    "id": "weather-sm-09",
+    "category": "weather",
+    "size": "s",
+    "name": "Weather 09",
+    "module": "./vendor/registry/default/widgets/weather/sm/weather-09.tsx"
+  }
+]

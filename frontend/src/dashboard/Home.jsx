@@ -139,14 +139,14 @@ export default function Home({ layoutMode = "default" }) {
       },
     }
   }
-  function addWidget(id, size) {
+  function addWidget(id, size, design) {
     const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []
     if (widgets.some(w => w.id === id)) return
     const manifest = manifests.find(m => m.id === id)
     const validSizes = manifest?.sizes || ['m']
     const chosenSize = size && validSizes.includes(size) ? size : manifest ? preferredWidgetSize(manifest) : 's'
     addedTile.current = id
-    persist({ widgets: [...widgets, { id, size: chosenSize, height: chosenSize === 's' ? 3 : chosenSize === 'l' ? 4 : 3 }] }, true, `${manifest?.title || 'Widget'} added to Home`)
+    persist({ widgets: [...widgets, { id, size: chosenSize, height: chosenSize === 's' ? 3 : chosenSize === 'l' ? 4 : 3, ...(design ? { design } : {}) }] }, true, `${manifest?.title || 'Widget'} added to Home`)
   }
   function toggleWidget(id) { const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []; persist({ widgets: widgets.some(w => w.id === id) ? widgets.filter(w => w.id !== id) : [...widgets, { id, size: manifests.find(m => m.id === id)?.sizes?.includes('m') ? 'm' : 's', height: 3 }] }) }
   const openWidget = id => setDrawer(SYSTEM_WIDGETS.includes(id) ? { type: 'settings', settingsId: id } : { id })
@@ -157,18 +157,18 @@ export default function Home({ layoutMode = "default" }) {
   useLayoutEffect(() => { actions.current = { removeWidget, openWidget, move, resize, grip } })
   const stable = useMemo(() => Object.fromEntries(['removeWidget', 'openWidget', 'move', 'resize', 'grip'].map(key => [key, (...args) => actions.current[key](...args)])), [])
   const frameContext = useMemo(() => ({ now, quiet, quietSettings, manifests, openPalette, setEditing, connectSource, connectionHealth: connections.data, refreshAll, ...stable, layout: { widgets: membership.split('|').map(id => ({ id })) } }), [now, quiet, quietSettings, manifests, openPalette, connectSource, connections.data, refreshAll, stable, membership])
-  const sizeKey = positions.map(p => `${p.id}:${p.size}`).sort().join('|')
+  const sizeKey = positions.map(p => `${p.id}:${p.size}:${p.design || ""}`).sort().join('|')
   // Size/membership encode content dependencies; order changes only move existing slots.
   // oxlint-disable react-hooks/exhaustive-deps
   const views = useMemo(() => new Map(positions.map(position => {
     const manifest = manifests.find(m => m.id === position.id)
-    return [position.id, manifest && <WidgetView key={manifest.id} context={frameContext} manifest={manifest} size={position.size} quiet={quiet} refreshVersion={refreshVersion} onData={onData} editing={false} tile={GLANCE_WIDGETS.includes(position.id)} full={false} />]
+    return [position.id, manifest && <WidgetView key={manifest.id} context={frameContext} manifest={manifest} size={position.size} design={position.design} quiet={quiet} refreshVersion={refreshVersion} onData={onData} editing={false} tile={GLANCE_WIDGETS.includes(position.id)} full={false} />]
   })), [manifests, frameContext, quiet, refreshVersion, onData, sizeKey])
   // oxlint-enable react-hooks/exhaustive-deps
   const renderWidget = (position, full = false) => {
     const manifest = manifests.find(m => m.id === position.id)
     if (!manifest) return null
-    if (full) return <WidgetView context={frameContext} manifest={manifest} size={position.size} quiet={quiet} refreshVersion={refreshVersion} onData={onData} editing={false} full />
+    if (full) return <WidgetView context={frameContext} manifest={manifest} size={position.size} design={position.design} quiet={quiet} refreshVersion={refreshVersion} onData={onData} editing={false} full />
     return <WidgetSlot key={manifest.id} id={manifest.id} title={manifest.title} size={position.size} displaySize={widgetDisplaySize(position.id, position.size)} sizes={manifest.sizes} editing={editing} dragging={dragging === manifest.id} dropTarget={dropTarget === manifest.id} move={stable.move} resize={stable.resize} grip={stable.grip}>{views.get(position.id)}</WidgetSlot>
   }
   const previousRects = useRef(new Map())
@@ -241,7 +241,7 @@ export default function Home({ layoutMode = "default" }) {
         {loaded && !homePositions.length && <section className="today-empty-layout"><span><Icon name="grid" size={28} /></span><h2>Make room for your day</h2><p>Add the widgets you want to see here.</p><Button variant="primary" onClick={() => setDrawer({ type: 'add' })}><Icon name="plus" size={16} />Add widget</Button></section>}
       </div>
     </div>
-    <DashboardContext.Provider value={{ openPalette, manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, addWidget, removeWidget, now, openWidget, connectSource, manageConnections, connections }}>
+    <DashboardContext.Provider value={{ openPalette, manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, addWidget, resize, removeWidget, now, openWidget, connectSource, manageConnections, connections }}>
     {(drawer?.type === 'settings' || settingsId) && <Drawer title="Home settings" description="Refresh, quiet hours, and keyboard shortcuts." onClose={closeDrawer}><HomeSettings key={settingsId || 'settings'} settingsId={settingsId} /></Drawer>}
     {drawer?.type === 'add' && <Drawer title="Add widget" description="Choose what belongs in your day." onClose={closeDrawer} className="today-catalog-drawer"><AddWidget /></Drawer>}
     {selected && <Drawer title={selected.title} onClose={closeDrawer}><div className="widget-home today-widgets">{renderWidget(layout.widgets.find(w => w.id === selected.id) || { id: selected.id, size: selected.sizes[0], height: 3 }, true)}</div></Drawer>}

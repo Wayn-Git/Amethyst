@@ -65,7 +65,7 @@ export function preferredWidgetSize(manifest) {
 }
 export function widgetDisplaySize(id, size) {
   if (size !== 'm') return size
-  return id === 'glance.sun' ? 'wide' : GLANCE_WIDGETS.includes(id) ? 's' : size
+  return id === 'glance.sun' ? 'wide' : size
 }
 export function rankNeeds(manifests, records) {
   const kind = { 'need.inbox': 'MAIL', 'need.drafts': 'DRAFT', 'need.waiting': 'WAITING', 'need.mentions': 'MENTION', 'need.overdue': 'OVERDUE' }
