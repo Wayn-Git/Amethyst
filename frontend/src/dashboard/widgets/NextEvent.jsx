@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
+import CalendarMonth from '../../components/wigggle/CalendarMonth.jsx'
 import { Stat, Chip } from '../../components/ui/bento/index.jsx'
 
-export default function NextEvent({ data }) {
+export default function NextEvent({ data, design = 'calendar-sm-06' }) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000)
@@ -13,8 +14,10 @@ export default function NextEvent({ data }) {
   const validStart = Number.isFinite(start.getTime())
   const minutes = Math.ceil((start.getTime() - now) / 60000)
   const ended = new Date(event.end || NaN).getTime() <= now
+  const monthDesign = ['calendar-sm-03', 'calendar-sm-04', 'calendar-md-01', 'calendar-md-02', 'calendar-md-03', 'calendar-md-04'].includes(design)
   const zone = { timeZone: data.timezone }
   return <div className="adoption-stack adoption-event">
+    {monthDesign && <CalendarMonth date={validStart ? start : new Date(now)} events={data.items} timezone={data.timezone} />}
     {validStart && <div className="event-calendar" aria-label={start.toLocaleDateString([], { ...zone, dateStyle: 'full' })}>
       <span className="event-day" aria-hidden="true">{start.toLocaleDateString([], { ...zone, day: 'numeric' })}</span>
       <div aria-hidden="true"><strong>{start.toLocaleDateString([], { ...zone, weekday: 'long' })}</strong><span>{start.toLocaleDateString([], { ...zone, month: 'long', year: 'numeric' })}</span></div>
