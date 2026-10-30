@@ -5,7 +5,7 @@ import Icon from '../../components/Icon.jsx'
 import { api } from '../../api.js'
 import { getRatingTier } from './ratingUtils.js'
 import { formatDisplayDate } from './dateUtils.js'
-import ProgressSegmentedControl, { shouldShowProgress } from './ProgressSegmentedControl.jsx'
+import ProgressSegmentedControl, { shouldShowProgress, isTrackableKind, getProgressLabel } from './ProgressSegmentedControl.jsx'
 import LibraryReminderBanner from './LibraryReminderBanner.jsx'
 
 export const KIND_ICON = {
@@ -706,6 +706,24 @@ function LibraryCardComponent({
                   <Icon name="pin" size={12} className={item.is_pinned ? 'text-amber-500 fill-amber-500' : ''} />
                 </HouseButton>
 
+                {isTrackableKind(item.kind) && (
+                  <HouseButton
+                    type="button"
+                    className={`lib-card-action-btn ${item.progress && item.progress !== 'unstarted' ? 'lib-card-action-btn--active' : ''}`}
+                    title={`Progress: ${getProgressLabel(item.kind, item.progress) || 'Unstarted'} (click to cycle)`}
+                    onClick={() => {
+                      const next = item.progress === 'completed'
+                        ? 'unstarted'
+                        : item.progress === 'in_progress'
+                        ? 'completed'
+                        : 'in_progress'
+                      onProgressChange ? onProgressChange(item, next) : api.updateLibraryItem(item.id, { progress: next })
+                    }}
+                  >
+                    <Icon name={item.progress === 'completed' ? 'check' : item.kind === 'video' ? 'play' : 'book'} size={12} />
+                  </HouseButton>
+                )}
+
                 {!item.remind_at && (
                   <LibraryReminderBanner
                     item={item}
@@ -778,15 +796,13 @@ function LibraryCardComponent({
           )}
         </h3>
 
-        {/* SaveToList Feature 1: Progress Tracking Segmented Control (Books, Videos, Places, or active progress) */}
-        {shouldShowProgress(item) && (
-          <div className="lib-card-progress-row" onClick={(e) => e.stopPropagation()}>
-            <ProgressSegmentedControl
-              progress={item.progress}
-              kind={item.kind}
-              variant="compact"
-              onChange={(nextProgress) => onProgressChange ? onProgressChange(item, nextProgress) : api.updateLibraryItem(item.id, { progress: nextProgress })}
-            />
+        {/* Subtle Progress Status Pill (Visible only when actively watching/reading/completed) */}
+        {item.progress && item.progress !== 'unstarted' && (
+          <div className="lib-card-status-row" onClick={(e) => e.stopPropagation()}>
+            <span className={`lib-card-status-pill lib-card-status-pill--${item.progress}`}>
+              {item.progress === 'completed' && <Icon name="check" size={11} className="inline mr-1" />}
+              {getProgressLabel(item.kind, item.progress)}
+            </span>
           </div>
         )}
 

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { IS_MAC } from '../../keys.js'
 import { KIND_ICON } from './LibraryCard.jsx'
+import { TRACKABLE_PROGRESS_KINDS } from './ProgressSegmentedControl.jsx'
 import LibraryFilterDesk from './LibraryFilterDesk.jsx'
 
 const BARE_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/.*)?$/i
@@ -43,12 +44,20 @@ export default function LibraryToolbar({
   onSelectTags,
   onSelectRatings,
   onClearFilters,
+  selectedProgress = 'all',
+  onSelectProgress,
+  shelfCounts = {},
 }) {
   const [filterOpen, setFilterOpen] = useState(false)
   const mac = IS_MAC || (typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || ''))
   const rawValue = quickCaptureText || query
   const capturing = isUrl(rawValue)
   const activeCount = selectedKinds.length + selectedCategories.length + selectedTags.length + selectedRatings.length
+
+  const activeTrackableKind =
+    selectedKinds.length === 1 && TRACKABLE_PROGRESS_KINDS.has(selectedKinds[0])
+      ? selectedKinds[0]
+      : null
 
   const primaryFormats = useMemo(
     () =>
@@ -115,43 +124,43 @@ export default function LibraryToolbar({
           {hasMusic && (
             <HouseButton
               type="button"
-              className="btn btn--ghost btn--small"
+              className="btn btn--ghost btn--small lib-vheader-btn"
               onClick={onOpenExport}
               title="Export audio & playlists"
             >
-              <Icon name="music" size={14} />
+              <Icon name="music" size={13} />
               <span>Export playlist</span>
             </HouseButton>
           )}
 
           <HouseButton
             type="button"
-            className={`btn btn--ghost btn--small ${showShare ? 'is-active' : ''}`}
+            className={`btn btn--ghost btn--small lib-vheader-btn ${showShare ? 'is-active' : ''}`}
             onClick={onToggleShare}
             aria-pressed={showShare}
             title="Knowledge connections & graph"
           >
-            <Icon name="link" size={14} />
+            <Icon name="link" size={13} />
             <span>Connections</span>
           </HouseButton>
 
           <HouseButton
             type="button"
-            className="btn btn--ghost btn--small"
+            className="btn btn--ghost btn--small lib-vheader-btn"
             onClick={onOpenMergeModal}
             title="Combine two lists into one"
           >
-            <Icon name="copy" size={14} />
+            <Icon name="copy" size={13} />
             <span>Merge lists</span>
           </HouseButton>
 
           <HouseButton
             type="button"
-            className="btn btn--primary btn--small"
+            className="btn btn--primary btn--small lib-vheader-btn"
             onClick={() => onOpenAddModal?.('anything')}
             title={`Add resource (${mac ? '⌘K' : 'Ctrl+K'})`}
           >
-            <Icon name="plus" size={14} />
+            <Icon name="plus" size={13} />
             <span>Add resource</span>
             <kbd className="lib-kbd lib-kbd--primary">{mac ? '⌘K' : 'Ctrl+K'}</kbd>
           </HouseButton>
@@ -299,6 +308,89 @@ export default function LibraryToolbar({
           </div>
         </div>
       </div>
+
+      {/* Dedicated Media Progress Shelf (Movies & Video / Books / Places) */}
+      {activeTrackableKind && (
+        <div className="lib-shelf-bar" data-enter>
+          <div className="lib-shelf-head">
+            <span className="lib-shelf-pill">
+              <Icon
+                name={activeTrackableKind === 'video' ? 'play' : activeTrackableKind === 'book' ? 'book' : 'globe'}
+                size={12}
+              />
+              <span>
+                {activeTrackableKind === 'video'
+                  ? 'Movies & Video'
+                  : activeTrackableKind === 'book'
+                  ? 'Books'
+                  : 'Places'}
+              </span>
+            </span>
+          </div>
+
+          <div className="lib-shelf-tabs" role="tablist" aria-label="Progress shelf">
+            <HouseButton
+              type="button"
+              role="tab"
+              aria-selected={selectedProgress === 'all'}
+              className={`lib-shelf-tab ${selectedProgress === 'all' ? 'is-active' : ''}`}
+              onClick={() => onSelectProgress?.('all')}
+            >
+              <span>All</span>
+              <span className="lib-shelf-count">{shelfCounts.all || 0}</span>
+            </HouseButton>
+            <HouseButton
+              type="button"
+              role="tab"
+              aria-selected={selectedProgress === 'unstarted'}
+              className={`lib-shelf-tab ${selectedProgress === 'unstarted' ? 'is-active' : ''}`}
+              onClick={() => onSelectProgress?.('unstarted')}
+            >
+              <span>
+                {activeTrackableKind === 'video'
+                  ? 'Want to watch'
+                  : activeTrackableKind === 'book'
+                  ? 'Want to read'
+                  : 'Want to visit'}
+              </span>
+              <span className="lib-shelf-count">{shelfCounts.unstarted || 0}</span>
+            </HouseButton>
+            <HouseButton
+              type="button"
+              role="tab"
+              aria-selected={selectedProgress === 'in_progress'}
+              className={`lib-shelf-tab ${selectedProgress === 'in_progress' ? 'is-active' : ''}`}
+              onClick={() => onSelectProgress?.('in_progress')}
+            >
+              <span>
+                {activeTrackableKind === 'video'
+                  ? 'Watching'
+                  : activeTrackableKind === 'book'
+                  ? 'Reading'
+                  : 'Visiting'}
+              </span>
+              <span className="lib-shelf-count">{shelfCounts.in_progress || 0}</span>
+            </HouseButton>
+            <HouseButton
+              type="button"
+              role="tab"
+              aria-selected={selectedProgress === 'completed'}
+              className={`lib-shelf-tab ${selectedProgress === 'completed' ? 'is-active' : ''}`}
+              onClick={() => onSelectProgress?.('completed')}
+            >
+              <Icon name="check" size={11} className="opacity-70" />
+              <span>
+                {activeTrackableKind === 'video'
+                  ? 'Watched'
+                  : activeTrackableKind === 'book'
+                  ? 'Read'
+                  : 'Visited'}
+              </span>
+              <span className="lib-shelf-count">{shelfCounts.completed || 0}</span>
+            </HouseButton>
+          </div>
+        </div>
+      )}
 
       <LibraryFilterDesk
         open={filterOpen}

@@ -5,7 +5,7 @@ import { api } from '../../api.js'
 import { KIND_ICON, getDomain, getFaviconUrl } from './LibraryCard.jsx'
 import { getRatingTier } from './ratingUtils.js'
 import { formatDisplayDate, formatRelativeDate } from './dateUtils.js'
-import ProgressSegmentedControl, { shouldShowProgress } from './ProgressSegmentedControl.jsx'
+import ProgressSegmentedControl, { shouldShowProgress, isTrackableKind, getProgressLabel } from './ProgressSegmentedControl.jsx'
 import LibraryReminderBanner from './LibraryReminderBanner.jsx'
 
 function LibraryRowComponent({
@@ -135,16 +135,12 @@ function LibraryRowComponent({
         </div>
       </div>
 
-      {/* SaveToList Progress State */}
-      {shouldShowProgress(item) && (
-        <div className="lib-row-progress-col" onClick={(e) => e.stopPropagation()}>
-          <ProgressSegmentedControl
-            progress={item.progress}
-            kind={item.kind}
-            variant="compact"
-            onChange={(next) => onProgressChange ? onProgressChange(item, next) : api.updateLibraryItem(item.id, { progress: next })}
-          />
-        </div>
+      {/* SaveToList Progress State (Subtle pill only when active) */}
+      {item.progress && item.progress !== 'unstarted' && (
+        <span className={`lib-row-status-pill lib-row-status-pill--${item.progress}`}>
+          {item.progress === 'completed' && <Icon name="check" size={10} className="inline mr-1" />}
+          {getProgressLabel(item.kind, item.progress)}
+        </span>
       )}
 
       {/* SaveToList Reminder Indicator */}
@@ -217,6 +213,25 @@ function LibraryRowComponent({
         >
           <Icon name="pin" size={13} className={item.is_pinned ? 'text-amber-500 fill-amber-500' : ''} />
         </HouseButton>
+
+        {isTrackableKind(item.kind) && (
+          <HouseButton
+            type="button"
+            className={`lib-dock-btn ${item.progress && item.progress !== 'unstarted' ? 'lib-dock-btn--active' : ''}`}
+            title={`Progress: ${getProgressLabel(item.kind, item.progress) || 'Unstarted'} (click to cycle)`}
+            onClick={(e) => {
+              e.stopPropagation()
+              const next = item.progress === 'completed'
+                ? 'unstarted'
+                : item.progress === 'in_progress'
+                ? 'completed'
+                : 'in_progress'
+              onProgressChange ? onProgressChange(item, next) : api.updateLibraryItem(item.id, { progress: next })
+            }}
+          >
+            <Icon name={item.progress === 'completed' ? 'check' : item.kind === 'video' ? 'play' : 'book'} size={13} />
+          </HouseButton>
+        )}
 
         {!item.remind_at && (
           <LibraryReminderBanner

@@ -22086,9 +22086,15 @@ html, body {
   font-weight: var(--font-weight-content, 400);
 }
 
-code, pre, kbd, samp, .mono, [data-code-block], .code-block, .cm-editor, .monaco-editor, .cm-content, .cm-line, pre code, .code-editor, textarea.mono {
+code, pre, samp, .mono, [data-code-block], .code-block, .cm-editor, .monaco-editor, .cm-content, .cm-line, pre code, .code-editor, textarea.mono {
   font-size: var(--code-font-size, 12px) !important;
   font-weight: var(--font-weight-code, 400) !important;
+}
+
+kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
+  font-size: 10px !important;
+  line-height: 1 !important;
+  font-family: var(--font-mono) !important;
 }
 
 /* Global behavioral hooks */

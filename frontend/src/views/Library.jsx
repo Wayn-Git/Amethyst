@@ -54,6 +54,7 @@ export default function Library() {
   const [selectedCategories, setSelectedCategories] = useState([])
   const [selectedTags, setSelectedTags] = useState([])
   const [selectedRatings, setSelectedRatings] = useState([])
+  const [selectedProgress, setSelectedProgress] = useState('all')
   const [order, setOrder] = useState('desc')
   const [layout, setLayout] = useState(() => safeStorage.getItem('amethyst_lib_layout', 'grid'))
   const [railOpen, setRailOpen] = useState(() => safeStorage.getItem('amethyst_lib_rail') !== 'false')
@@ -576,11 +577,17 @@ export default function Library() {
     [toast, load]
   )
 
+  const handleSelectKinds = useCallback((kinds) => {
+    setSelectedKinds(kinds)
+    setSelectedProgress('all')
+  }, [])
+
   const handleClearFilters = useCallback(() => {
     setSelectedKinds([])
     setSelectedCategories([])
     setSelectedTags([])
     setSelectedRatings([])
+    setSelectedProgress('all')
     setQuery('')
     setDebouncedQuery('')
   }, [])
@@ -598,6 +605,16 @@ export default function Library() {
     [counts]
   )
 
+  // Compute live shelf progress statistics for media types (Movies & Video / Books / Places)
+  const shelfCounts = useMemo(() => {
+    const counts = { all: items.length, unstarted: 0, in_progress: 0, completed: 0 }
+    for (const it of items) {
+      const p = it.progress || 'unstarted'
+      counts[p] = (counts[p] || 0) + 1
+    }
+    return counts
+  }, [items])
+
   // Compute live rating statistics from items
   const ratingCounts = useMemo(() => {
     let count5 = 0
@@ -612,9 +629,12 @@ export default function Library() {
     return { '5': count5, '4+': count4plus, 'rated': countRated }
   }, [items])
 
-  // Filter items reactively by selectedRating and order
+  // Filter items reactively by selectedProgress, selectedRating and order
   const displayedItems = useMemo(() => {
     let result = items
+    if (selectedProgress && selectedProgress !== 'all') {
+      result = result.filter((it) => (it.progress || 'unstarted') === selectedProgress)
+    }
     if (selectedRatings.length) {
       result = result.filter((it) => selectedRatings.some((rating) =>
         rating === '5' ? it.rating === 5 : rating === '4+' ? (it.rating || 0) >= 4 : (it.rating || 0) > 0
@@ -628,7 +648,7 @@ export default function Library() {
     // Always prioritize pinned items on top
     result = [...result].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0))
     return result
-  }, [items, selectedRatings, order])
+  }, [items, selectedProgress, selectedRatings, order])
 
   const appCounts = useMemo(() => {
     const known = ['pinterest', 'youtube', 'instagram', 'x', 'github', 'reddit', 'spotify', 'threads']
@@ -748,11 +768,14 @@ export default function Library() {
               selectedCategories={selectedCategories}
               selectedTags={selectedTags}
               selectedRatings={selectedRatings}
-              onSelectKinds={setSelectedKinds}
+              onSelectKinds={handleSelectKinds}
               onSelectCategories={setSelectedCategories}
               onSelectTags={setSelectedTags}
               onSelectRatings={setSelectedRatings}
               onClearFilters={handleClearFilters}
+              selectedProgress={selectedProgress}
+              onSelectProgress={setSelectedProgress}
+              shelfCounts={shelfCounts}
             />
 
             {/* Layout Area: Active Filter Strip (when active) + Content Canvas */}
@@ -763,7 +786,7 @@ export default function Library() {
                 selectedTags={selectedTags}
                 selectedRatings={selectedRatings}
                 query={query}
-                onSelectKinds={setSelectedKinds}
+                onSelectKinds={handleSelectKinds}
                 onSelectCategories={setSelectedCategories}
                 onSelectTags={setSelectedTags}
                 onSelectRatings={setSelectedRatings}

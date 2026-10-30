@@ -21,6 +21,13 @@ export function shouldShowProgress(item) {
   return false
 }
 
+export function getProgressLabel(kind, status) {
+  if (!status || status === 'unstarted') return null
+  const options = getProgressOptions(kind)
+  const match = options.find((o) => o.key === status)
+  return match ? match.label : status
+}
+
 /**
  * Kind-aware options mapping.
  * Each item maps to 3 standard states: 'unstarted' | 'in_progress' | 'completed'
