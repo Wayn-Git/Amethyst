@@ -170,10 +170,13 @@ function clampPanel(value) {
 
 function applyTheme(theme) {
   const root = document.documentElement
+  const prefs = loadPrefs()
+  const darkPref = prefs.preferredDarkTheme || 'graphite'
+  const lightPref = prefs.preferredLightTheme || 'paper'
   /* Resolve `system` to the machine's preference, then stamp it. All
      themes map to either a dark or light colour scheme for the browser chrome. */
   const resolved = theme === 'system'
-    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'graphite' : 'paper')
+    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? darkPref : lightPref)
     : theme
   root.setAttribute('data-theme', resolved)
   const isDark = DARK_THEMES.includes(resolved)
@@ -312,6 +315,28 @@ export function applyAppearanceSettings(prefs = {}) {
     }
   } else if (prefs.codeFont === 'system') {
     root.style.removeProperty('--font-mono')
+  }
+
+  if (prefs.contentFont && prefs.contentFont !== 'same') {
+    const contentMap = {
+      inter: "'Inter', system-ui, sans-serif",
+      system: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      serif: "Charter, 'Bitstream Charter', 'Sitka Text', Cambria, serif",
+    }
+    if (contentMap[prefs.contentFont]) {
+      root.style.setProperty('--font-chat-prose', contentMap[prefs.contentFont])
+      root.style.setProperty('--font-body', contentMap[prefs.contentFont])
+    }
+  } else if (prefs.contentFont === 'same') {
+    root.style.removeProperty('--font-chat-prose')
+    root.style.removeProperty('--font-body')
+  }
+
+  if (prefs.contentFontWeight) {
+    root.style.setProperty('--font-weight-content', prefs.contentFontWeight)
+  }
+  if (prefs.codeFontWeight) {
+    root.style.setProperty('--font-weight-code', prefs.codeFontWeight)
   }
 
   if (prefs.contrast !== undefined) {
@@ -542,12 +567,14 @@ export function AppProvider({ children }) {
   const setPreferredDarkTheme = useCallback((val) => {
     setPreferredDarkThemeRaw(val)
     savePrefs({ preferredDarkTheme: val })
+    if (loadPrefs().theme === 'system') applyTheme('system')
   }, [])
 
   const [preferredLightTheme, setPreferredLightThemeRaw] = useState(prefs.preferredLightTheme || 'paper')
   const setPreferredLightTheme = useCallback((val) => {
     setPreferredLightThemeRaw(val)
     savePrefs({ preferredLightTheme: val })
+    if (loadPrefs().theme === 'system') applyTheme('system')
   }, [])
 
   const [uiFontStyle, setUiFontStyleRaw] = useState(prefs.uiFontStyle || '400')

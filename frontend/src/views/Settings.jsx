@@ -1713,6 +1713,129 @@ function Notifications() {
    2. APPEARANCE VIEW (Themes, Scaled UI & Fonts, Accent, Loader, Material)
    ========================================================================== */
 
+function NumberStepper({ value, onChange, min = 10, max = 24, unit = 'px' }) {
+  const current = Number(value) || min
+  return (
+    <div className="codex-stepper-box">
+      <HouseButton
+        type="button"
+        className="codex-stepper-btn"
+        onClick={() => onChange(Math.max(min, current - 1))}
+        disabled={current <= min}
+        aria-label="Decrease"
+      >
+        <Icon name="minus" size={11} />
+      </HouseButton>
+      <div className="codex-stepper-val">
+        <span className="codex-stepper-num">{current}</span>
+        {unit && <span className="codex-stepper-unit">{unit}</span>}
+      </div>
+      <HouseButton
+        type="button"
+        className="codex-stepper-btn"
+        onClick={() => onChange(Math.min(max, current + 1))}
+        disabled={current >= max}
+        aria-label="Increase"
+      >
+        <Icon name="plus" size={11} />
+      </HouseButton>
+    </div>
+  )
+}
+
+const THEMES_CONFIG = [
+  {
+    id: 'system',
+    label: 'System',
+    hint: 'Follows OS preference',
+    mode: 'auto',
+    canvas: 'linear-gradient(135deg, #f8f9fa 50%, #121316 50%)',
+    sidebar: 'linear-gradient(135deg, #ffffff 50%, #18191d 50%)',
+    card: 'linear-gradient(135deg, #ffffff 50%, #1f2024 50%)',
+    accent: '#3b82f6',
+  },
+  {
+    id: 'graphite',
+    label: 'Graphite',
+    hint: 'Neutral dark slate & violet',
+    mode: 'dark',
+    canvas: '#121316',
+    sidebar: '#18191d',
+    card: '#202126',
+    accent: '#a78bfa',
+  },
+  {
+    id: 'ink',
+    label: 'Ink',
+    hint: 'Deep blue-black indigo',
+    mode: 'dark',
+    canvas: '#0b0d13',
+    sidebar: '#10131c',
+    card: '#171b26',
+    accent: '#38bdf8',
+  },
+  {
+    id: 'nocturne',
+    label: 'Nocturne',
+    hint: 'Near black cobalt cyan',
+    mode: 'dark',
+    canvas: '#050608',
+    sidebar: '#0a0b10',
+    card: '#121318',
+    accent: '#22d3ee',
+  },
+  {
+    id: 'nvidia',
+    label: 'NVIDIA',
+    hint: 'True black neon green',
+    mode: 'dark',
+    canvas: '#000000',
+    sidebar: '#08090a',
+    card: '#111215',
+    accent: '#76b900',
+  },
+  {
+    id: 'paper',
+    label: 'Paper',
+    hint: 'Pristine gallery white',
+    mode: 'light',
+    canvas: '#ffffff',
+    sidebar: '#f8f9fa',
+    card: '#ffffff',
+    accent: '#2563eb',
+  },
+  {
+    id: 'sand',
+    label: 'Sand',
+    hint: 'Warm parchment linen',
+    mode: 'light',
+    canvas: '#faf8f5',
+    sidebar: '#f3efe8',
+    card: '#ffffff',
+    accent: '#d97706',
+  },
+  {
+    id: 'claude',
+    label: 'Claude',
+    hint: 'Warm ivory cinnabar',
+    mode: 'light',
+    canvas: '#fbf9f4',
+    sidebar: '#f3eee4',
+    card: '#ffffff',
+    accent: '#c2410c',
+  },
+  {
+    id: 'cursor',
+    label: 'Cursor',
+    hint: 'Minimal porcelain cobalt',
+    mode: 'light',
+    canvas: '#f9f9fa',
+    sidebar: '#f2f2f4',
+    card: '#ffffff',
+    accent: '#0ea5e9',
+  },
+]
+
 function Appearance() {
   const {
     theme, setTheme,
@@ -1936,6 +2059,84 @@ function Appearance() {
         </div>
       </div>
 
+      {/* Theme Visual Previews */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Theme Previews</span>
+          <span style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>Select a palette preview</span>
+        </div>
+        <div className="theme-grid-3">
+          {THEMES_CONFIG.map((t) => {
+            const isSel = theme === t.id
+            const isLight = t.mode === 'light'
+            return (
+              <HouseButton
+                key={t.id}
+                type="button"
+                className={`theme-card-outer${isSel ? ' is-active' : ''}`}
+                onClick={() => setTheme(t.id)}
+                title={`${t.label} — ${t.hint}`}
+              >
+                <div className="theme-card-inner">
+                  <div className="theme-mockup-frame" style={{ background: t.canvas }}>
+                    <div className="theme-mockup-sidebar" style={{ background: t.sidebar }}>
+                      <div style={{ width: '85%', height: 3, background: isLight ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.25)', borderRadius: 1.5 }} />
+                      <div style={{ width: '60%', height: 2, background: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.12)', borderRadius: 1 }} />
+                      <div style={{ width: '70%', height: 2, background: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.12)', borderRadius: 1 }} />
+                    </div>
+                    <div className="theme-mockup-content">
+                      <div style={{ width: '45%', height: 3, background: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.35)', borderRadius: 1.5 }} />
+                      <div style={{ width: '88%', height: 20, background: t.card, borderRadius: 5, padding: '3px 6px', display: 'flex', alignItems: 'center', border: `1px solid ${isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)'}` }}>
+                        <div style={{ width: '50%', height: 2.5, background: isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.2)', borderRadius: 1 }} />
+                      </div>
+                      <div style={{ width: '38%', height: 3.5, background: t.accent, borderRadius: 2, marginTop: 'auto' }} />
+                    </div>
+                  </div>
+                  <div className="theme-card-info">
+                    <div style={{ minWidth: 0 }}>
+                      <div className="theme-card-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.label}</span>
+                        <span style={{
+                          fontSize: 9,
+                          fontWeight: 600,
+                          padding: '1px 5px',
+                          borderRadius: 4,
+                          textTransform: 'uppercase',
+                          background: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.08)',
+                          color: 'var(--text-dim)',
+                          flexShrink: 0
+                        }}>
+                          {t.mode}
+                        </span>
+                      </div>
+                      <div className="theme-card-hint" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {t.hint}
+                      </div>
+                    </div>
+                    {isSel && (
+                      <div style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: '50%',
+                        background: 'var(--accent)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#ffffff',
+                        flexShrink: 0,
+                        marginLeft: 6
+                      }}>
+                        <Icon name="check" size={11} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </HouseButton>
+            )
+          })}
+        </div>
+      </div>
+
       {/* Card 2: Visual Style Tokens */}
       <div className="codex-card" style={{ marginBottom: 16 }}>
         {/* Row 1: Theme */}
@@ -1970,9 +2171,41 @@ function Appearance() {
             options={THEME_CHOICES.map((t) => ({
               value: t.id,
               label: t.label,
-              description: t.hint,
+              hint: t.hint,
             }))}
-            minWidth={160}
+            renderOption={(opt, isSelected) => {
+              const meta = THEMES_CONFIG.find((m) => m.id === opt.value)
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minWidth: 0 }}>
+                  <div style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: 4,
+                    background: meta?.canvas || 'var(--raised)',
+                    border: '1px solid var(--hairline-strong)',
+                    flexShrink: 0,
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{ position: 'absolute', bottom: 0, right: 0, width: 7, height: 7, background: meta?.accent || 'var(--accent)', borderRadius: '2px 0 0 0' }} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, textAlign: 'left', flex: 1 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: isSelected ? 600 : 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {opt.label}
+                    </span>
+                    {opt.hint && (
+                      <span style={{ fontSize: 10, color: 'var(--text-dim)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {opt.hint}
+                      </span>
+                    )}
+                  </div>
+                  {isSelected && (
+                    <Icon name="check" size={12} style={{ color: 'var(--accent)', marginLeft: 6, flexShrink: 0 }} />
+                  )}
+                </div>
+              )
+            }}
+            minWidth={170}
           />
         </div>
 
@@ -2125,17 +2358,13 @@ function Appearance() {
                   <span className="codex-row-title">UI font size</span>
                   <span className="codex-row-desc">Adjust the base size used for Amethyst</span>
                 </div>
-                <div className="codex-number-box">
-                  <HouseInput
-                    type="number"
-                    min={11}
-                    max={22}
-                    value={uiFontSize}
-                    onChange={(e) => setUiFontSize(Number(e.target.value))}
-                    className="codex-number-input"
-                  />
-                  <span className="codex-number-unit">px</span>
-                </div>
+                <NumberStepper
+                  value={uiFontSize}
+                  onChange={(val) => setUiFontSize(val)}
+                  min={11}
+                  max={22}
+                  unit="px"
+                />
               </div>
 
               <div className="codex-row">
@@ -2143,17 +2372,13 @@ function Appearance() {
                   <span className="codex-row-title">Code font size</span>
                   <span className="codex-row-desc">Adjust the base size used for code across chats and diffs</span>
                 </div>
-                <div className="codex-number-box">
-                  <HouseInput
-                    type="number"
-                    min={9}
-                    max={22}
-                    value={codeFontSize}
-                    onChange={(e) => setCodeFontSize(Number(e.target.value))}
-                    className="codex-number-input"
-                  />
-                  <span className="codex-number-unit">px</span>
-                </div>
+                <NumberStepper
+                  value={codeFontSize}
+                  onChange={(val) => setCodeFontSize(val)}
+                  min={9}
+                  max={22}
+                  unit="px"
+                />
               </div>
             </div>
 
@@ -2190,6 +2415,41 @@ function Appearance() {
                   tone="default"
                 />
               </div>
+
+              {Boolean(separateLightDark) && (
+                <div style={{ padding: '12px 16px', background: 'var(--surface-2, rgba(255, 255, 255, 0.02))', borderTop: '1px solid var(--hairline)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>Preferred light theme</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>Used when operating system is in light mode</div>
+                    </div>
+                    <AnimatedSelect
+                      value={preferredLightTheme || 'paper'}
+                      onChange={(val) => setPreferredLightTheme(val)}
+                      options={LIGHT_THEMES.map((id) => {
+                        const match = THEME_CHOICES.find((t) => t.id === id)
+                        return { value: id, label: match?.label || id, hint: match?.hint }
+                      })}
+                      minWidth={140}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>Preferred dark theme</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>Used when operating system is in dark mode</div>
+                    </div>
+                    <AnimatedSelect
+                      value={preferredDarkTheme || 'graphite'}
+                      onChange={(val) => setPreferredDarkTheme(val)}
+                      options={DARK_THEMES.map((id) => {
+                        const match = THEME_CHOICES.find((t) => t.id === id)
+                        return { value: id, label: match?.label || id, hint: match?.hint }
+                      })}
+                      minWidth={140}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Advanced Card 3: Typography & Contrast */}

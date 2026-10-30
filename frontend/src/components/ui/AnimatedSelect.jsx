@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { createPortal } from 'react-dom'
 import Icon from '../Icon.jsx'
 
 export default function AnimatedSelect({
@@ -9,6 +9,7 @@ export default function AnimatedSelect({
   placeholder = 'Select option…',
   leadingIcon,
   renderIcon,
+  renderOption,
   searchable = false,
   searchPlaceholder = 'Search…',
   allowCustom = false,
@@ -17,18 +18,20 @@ export default function AnimatedSelect({
   align = 'right',
   ariaLabel = 'Select option',
 }) {
-  const [open, setOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
+  const [isClosing, setIsClosing] = useState(false)
   const [search, setSearch] = useState('')
   const [coords, setCoords] = useState({ top: 0, bottom: 0, left: 0, right: 0, width: 0, showAbove: false })
   const ref = useRef(null)
   const popoverRef = useRef(null)
   const searchInputRef = useRef(null)
+  const closeTimerRef = useRef(null)
 
   const updatePosition = () => {
     if (!ref.current) return
     const rect = ref.current.getBoundingClientRect()
     const spaceBelow = window.innerHeight - rect.bottom
-    const showAbove = spaceBelow < 240 && rect.top > 240
+    const showAbove = spaceBelow < 260 && rect.top > 260
     setCoords({
       top: rect.bottom + 6,
       bottom: window.innerHeight - rect.top + 6,
@@ -39,16 +42,40 @@ export default function AnimatedSelect({
     })
   }
 
+  const handleOpen = () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    updatePosition()
+    setSearch('')
+    setIsClosing(false)
+    setIsOpen(true)
+  }
+
+  const handleClose = () => {
+    if (!isOpen || isClosing) return
+    setIsClosing(true)
+    const closeMs = 150
+    closeTimerRef.current = setTimeout(() => {
+      setIsOpen(false)
+      setIsClosing(false)
+    }, closeMs)
+  }
+
   const handleToggle = () => {
-    if (!open) {
-      updatePosition()
-      setSearch('')
+    if (isOpen) {
+      handleClose()
+    } else {
+      handleOpen()
     }
-    setOpen((prev) => !prev)
   }
 
   useEffect(() => {
-    if (!open) return
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen) return
     updatePosition()
     if (searchable) {
       setTimeout(() => searchInputRef.current?.focus(), 50)
@@ -60,7 +87,7 @@ export default function AnimatedSelect({
       window.removeEventListener('resize', handleScrollOrResize)
       window.removeEventListener('scroll', handleScrollOrResize, true)
     }
-  }, [open, searchable])
+  }, [isOpen, searchable])
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -68,28 +95,28 @@ export default function AnimatedSelect({
         ref.current && !ref.current.contains(e.target) &&
         popoverRef.current && !popoverRef.current.contains(e.target)
       ) {
-        setOpen(false)
+        handleClose()
       }
     }
-    if (open) {
+    if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside)
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [open])
+  }, [isOpen])
 
   useEffect(() => {
     function handleKeyDown(e) {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') handleClose()
     }
-    if (open) {
+    if (isOpen) {
       document.addEventListener('keydown', handleKeyDown)
     }
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [open])
+  }, [isOpen])
 
   const selectedOpt = options.find((o) => String(o.value) === String(value))
 
@@ -100,7 +127,8 @@ export default function AnimatedSelect({
       (o) =>
         String(o.label || '').toLowerCase().includes(q) ||
         String(o.value || '').toLowerCase().includes(q) ||
-        (o.hint && String(o.hint).toLowerCase().includes(q))
+        (o.hint && String(o.hint).toLowerCase().includes(q)) ||
+        (o.description && String(o.description).toLowerCase().includes(q))
     )
   }, [options, search])
 
@@ -109,14 +137,18 @@ export default function AnimatedSelect({
     search.trim().length > 0 &&
     !options.some((o) => String(o.value).toLowerCase() === search.trim().toLowerCase())
 
+  const originClass = coords.showAbove
+    ? (align === 'right' ? 'bottom-right' : 'bottom-left')
+    : (align === 'right' ? 'top-right' : 'top-left')
+
   return (
     <div className="anim-select-root" ref={ref} style={style}>
       <button
         type="button"
-        className={`anim-select-trigger${open ? ' is-open' : ''}`}
+        className={`anim-select-trigger${isOpen ? ' is-open' : ''}`}
         onClick={handleToggle}
         aria-haspopup="listbox"
-        aria-expanded={open}
+        aria-expanded={isOpen}
         aria-label={ariaLabel}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, overflow: 'hidden' }}>
@@ -136,7 +168,7 @@ export default function AnimatedSelect({
             display: 'flex',
             alignItems: 'center',
             transition: 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-            transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
             color: 'var(--text-dim)',
             flexShrink: 0,
             marginLeft: 6,
@@ -146,159 +178,169 @@ export default function AnimatedSelect({
         </div>
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            ref={popoverRef}
-            className="anim-select-popover"
-            style={{
-              position: 'absolute',
-              top: coords.showAbove ? 'auto' : 'calc(100% + 4px)',
-              bottom: coords.showAbove ? 'calc(100% + 4px)' : 'auto',
-              left: align === 'left' ? 0 : 'auto',
-              right: align === 'right' ? 0 : 'auto',
-              minWidth: Math.max(minWidth, 160),
-              maxHeight: 280,
-              display: 'flex',
-              flexDirection: 'column',
-              zIndex: 99999,
-              overflow: 'hidden',
-            }}
-            initial={{ opacity: 0, scale: 0.96, y: coords.showAbove ? 4 : -4 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: coords.showAbove ? 4 : -4 }}
-            transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
-            role="listbox"
-          >
-                {searchable && (
-                  <div
+      {isOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={popoverRef}
+          className={`anim-select-popover t-dropdown${!isClosing ? ' is-open' : ' is-closing'}`}
+          data-origin={originClass}
+          style={{
+            position: 'fixed',
+            top: coords.showAbove ? 'auto' : coords.top,
+            bottom: coords.showAbove ? coords.bottom : 'auto',
+            left: align === 'left' ? coords.left : 'auto',
+            right: align === 'right' ? coords.right : 'auto',
+            minWidth: Math.max(minWidth, coords.width || 160),
+            maxWidth: 360,
+            maxHeight: 280,
+            display: 'flex',
+            flexDirection: 'column',
+            zIndex: 999999,
+          }}
+          role="listbox"
+        >
+          {searchable && (
+            <div
+              style={{
+                padding: '8px 10px',
+                borderBottom: '1px solid var(--hairline)',
+                background: 'var(--surface-2, rgba(255,255,255,0.03))',
+                flexShrink: 0,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: 'var(--raised)',
+                  borderRadius: 6,
+                  padding: '4px 8px',
+                  border: '1px solid var(--hairline)',
+                }}
+              >
+                <Icon name="search" size={12} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={searchPlaceholder}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    outline: 'none',
+                    color: 'var(--text)',
+                    fontSize: '12px',
+                    width: '100%',
+                    padding: 0,
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSearch('')
+                      searchInputRef.current?.focus()
+                    }}
                     style={{
-                      padding: '8px 10px',
-                      borderBottom: '1px solid var(--hairline)',
-                      background: 'var(--surface-2)',
-                      flexShrink: 0,
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                      color: 'var(--text-dim)',
+                      display: 'flex',
                     }}
                   >
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        background: 'var(--raised)',
-                        borderRadius: 6,
-                        padding: '4px 8px',
-                        border: '1px solid var(--hairline)',
-                      }}
-                    >
-                      <Icon name="search" size={12} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
-                      <input
-                        ref={searchInputRef}
-                        type="text"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder={searchPlaceholder}
-                        style={{
-                          border: 'none',
-                          background: 'transparent',
-                          outline: 'none',
-                          color: 'var(--text)',
-                          fontSize: '12px',
-                          width: '100%',
-                          padding: 0,
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      {search && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setSearch('')
-                            searchInputRef.current?.focus()
-                          }}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            padding: 0,
-                            color: 'var(--text-dim)',
-                            display: 'flex',
-                          }}
-                        >
-                          <Icon name="x" size={11} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                    <Icon name="x" size={11} />
+                  </button>
                 )}
+              </div>
+            </div>
+          )}
 
-                <div style={{ overflowY: 'auto', flex: 1, padding: '4px' }}>
-                  {canShowCustom && (
-                    <button
-                      type="button"
-                      className="anim-select-item"
-                      onClick={() => {
-                        onChange(search.trim())
-                        setOpen(false)
-                        setSearch('')
-                      }}
-                      style={{ borderBottom: '1px solid var(--hairline)', marginBottom: 2 }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Icon name="plus" size={13} style={{ color: 'var(--accent)' }} />
-                        <span style={{ fontSize: '12px' }}>
-                          Use custom: &ldquo;<strong>{search.trim()}</strong>&rdquo;
-                        </span>
-                      </div>
-                    </button>
-                  )}
+          <div style={{ overflowY: 'auto', flex: 1, padding: '4px' }}>
+            {canShowCustom && (
+              <button
+                type="button"
+                className="anim-select-item"
+                onClick={() => {
+                  onChange(search.trim())
+                  handleClose()
+                  setSearch('')
+                }}
+                style={{ borderBottom: '1px solid var(--hairline)', marginBottom: 2 }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Icon name="plus" size={13} style={{ color: 'var(--accent)' }} />
+                  <span style={{ fontSize: '12px' }}>
+                    Use custom: &ldquo;<strong>{search.trim()}</strong>&rdquo;
+                  </span>
+                </div>
+              </button>
+            )}
 
-                  {filteredOptions.length === 0 && !canShowCustom ? (
-                    <div style={{ padding: '14px 16px', fontSize: '12px', color: 'var(--text-dim)', textAlign: 'center' }}>
-                      No matching results
-                    </div>
-                  ) : (
-                    filteredOptions.map((opt) => {
-                      const isSelected = String(opt.value) === String(value)
-                      return (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          className={`anim-select-item${isSelected ? ' is-selected' : ''}`}
-                          onClick={() => {
-                            onChange(opt.value)
-                            setOpen(false)
-                            setSearch('')
-                          }}
-                          role="option"
-                          aria-selected={isSelected}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
-                            {renderIcon ? (
-                              renderIcon(opt)
-                            ) : opt.icon ? (
-                              <Icon name={opt.icon} size={13} />
-                            ) : null}
+            {filteredOptions.length === 0 && !canShowCustom ? (
+              <div style={{ padding: '14px 16px', fontSize: '12px', color: 'var(--text-dim)', textAlign: 'center' }}>
+                No matching results
+              </div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isSelected = String(opt.value) === String(value)
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className={`anim-select-item${isSelected ? ' is-selected' : ''}`}
+                    onClick={() => {
+                      onChange(opt.value)
+                      handleClose()
+                      setSearch('')
+                    }}
+                    role="option"
+                    aria-selected={isSelected}
+                  >
+                    {renderOption ? (
+                      renderOption(opt, isSelected)
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+                          {renderIcon ? (
+                            renderIcon(opt)
+                          ) : opt.icon ? (
+                            <Icon name={opt.icon} size={13} />
+                          ) : null}
+                          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, textAlign: 'left' }}>
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {opt.label}
                             </span>
-                            {opt.hint && (
-                              <span style={{ fontSize: '10px', color: 'var(--text-dim)', marginLeft: 'auto', paddingRight: 4 }}>
-                                {opt.hint}
+                            {opt.description && (
+                              <span style={{ fontSize: '10.5px', color: 'var(--text-dim)', marginTop: 1, fontWeight: 400 }}>
+                                {opt.description}
                               </span>
                             )}
                           </div>
-                          {isSelected && (
-                            <Icon name="check" size={12} style={{ color: 'var(--accent)', marginLeft: 8, flexShrink: 0 }} />
+                          {opt.hint && (
+                            <span style={{ fontSize: '10px', color: 'var(--text-dim)', marginLeft: 'auto', paddingRight: 4 }}>
+                              {opt.hint}
+                            </span>
                           )}
-                        </button>
-                      )
-                    })
-                  )}
-                </div>
-              </motion.div>
+                        </div>
+                        {isSelected && (
+                          <Icon name="check" size={12} style={{ color: 'var(--accent)', marginLeft: 8, flexShrink: 0 }} />
+                        )}
+                      </>
+                    )}
+                  </button>
+                )
+              })
             )}
-      </AnimatePresence>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }
+
