@@ -5,6 +5,8 @@ import { api } from '../../api.js'
 import { KIND_ICON, getDomain, getFaviconUrl } from './LibraryCard.jsx'
 import { getRatingTier } from './ratingUtils.js'
 import { formatDisplayDate, formatRelativeDate } from './dateUtils.js'
+import ProgressSegmentedControl from './ProgressSegmentedControl.jsx'
+import LibraryReminderBanner from './LibraryReminderBanner.jsx'
 
 function LibraryRowComponent({
   item,
@@ -14,6 +16,10 @@ function LibraryRowComponent({
   onEnrich,
   onDelete,
   onTagClick,
+  onTogglePin,
+  onProgressChange,
+  onSaveReminder,
+  onClearReminder,
 }) {
   const isOptimistic = Boolean(item.isOptimistic)
   const isProcessing = Boolean(item.isProcessing) || item.status === 'processing' || item.status === 'enriching'
@@ -66,6 +72,11 @@ function LibraryRowComponent({
       {/* Main Content Info */}
       <div className="lib-row-main">
         <div className="lib-row-title-line">
+          {Boolean(item.is_pinned) && (
+            <span className="lib-row-pinned-badge" title="Pinned to top">
+              <Icon name="pin" size={11} className="text-amber-500" />
+            </span>
+          )}
           <span className="lib-card-kind-badge">
             {item.app || item.kind || 'link'}
           </span>
@@ -110,6 +121,28 @@ function LibraryRowComponent({
         </div>
       </div>
 
+      {/* SaveToList Progress State */}
+      <div className="lib-row-progress-col" onClick={(e) => e.stopPropagation()}>
+        <ProgressSegmentedControl
+          progress={item.progress}
+          kind={item.kind}
+          variant="compact"
+          onChange={(next) => onProgressChange ? onProgressChange(item, next) : api.updateLibraryItem(item.id, { progress: next })}
+        />
+      </div>
+
+      {/* SaveToList Reminder Indicator */}
+      {Boolean(item.remind_at) && (
+        <div className="lib-row-reminder-col" onClick={(e) => e.stopPropagation()}>
+          <LibraryReminderBanner
+            item={item}
+            variant="compact"
+            onSaveReminder={(patch) => onSaveReminder ? onSaveReminder(item, patch) : api.updateLibraryItem(item.id, patch)}
+            onClearReminder={() => onClearReminder ? onClearReminder(item) : api.updateLibraryItem(item.id, { remind_at: null, reminded_at: null })}
+          />
+        </div>
+      )}
+
       {/* Dedicated Date Badge — Never Hidden */}
       <div className="lib-row-date-col" title={`Captured on ${dateFull}`}>
         <Icon name="calendar" size={11} className="opacity-60" />
@@ -147,6 +180,26 @@ function LibraryRowComponent({
 
       {/* Row Action Buttons */}
       <div className="lib-row-actions">
+        <HouseButton
+          type="button"
+          className={`lib-dock-btn ${item.is_pinned ? 'lib-dock-btn--pinned' : ''}`}
+          title={item.is_pinned ? 'Unpin from top' : 'Pin to top'}
+          onClick={(e) => {
+            e.stopPropagation()
+            onTogglePin ? onTogglePin(item) : api.updateLibraryItem(item.id, { is_pinned: !item.is_pinned })
+          }}
+        >
+          <Icon name="pin" size={13} className={item.is_pinned ? 'text-amber-500 fill-amber-500' : ''} />
+        </HouseButton>
+
+        {!item.remind_at && (
+          <LibraryReminderBanner
+            item={item}
+            variant="compact"
+            onSaveReminder={(patch) => onSaveReminder ? onSaveReminder(item, patch) : api.updateLibraryItem(item.id, patch)}
+            onClearReminder={() => onClearReminder ? onClearReminder(item) : api.updateLibraryItem(item.id, { remind_at: null, reminded_at: null })}
+          />
+        )}
         {item.url && (
           <a
             href={item.url}

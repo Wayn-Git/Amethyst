@@ -5,6 +5,8 @@ import Icon from '../../components/Icon.jsx'
 import { api } from '../../api.js'
 import { getRatingTier } from './ratingUtils.js'
 import { formatDisplayDate } from './dateUtils.js'
+import ProgressSegmentedControl from './ProgressSegmentedControl.jsx'
+import LibraryReminderBanner from './LibraryReminderBanner.jsx'
 
 export const KIND_ICON = {
   article: 'book',
@@ -158,6 +160,10 @@ function LibraryCardComponent({
   onEnrich,
   onDelete,
   onTagClick,
+  onTogglePin,
+  onProgressChange,
+  onSaveReminder,
+  onClearReminder,
 }) {
   const cardRef = useRef(null)
   const status = item.status || 'ready'
@@ -643,6 +649,12 @@ function LibraryCardComponent({
               {sourceLabel}
             </span>
 
+            {Boolean(item.is_pinned) && (
+              <span className="lib-card-pinned-chip" title="Pinned to top">
+                <Icon name="pin" size={10} className="text-amber-500" />
+              </span>
+            )}
+
             {item.author && app === 'reddit' && (
               <span className="lib-card-author" title={item.author}>
                 · {item.author.startsWith('/u/') ? item.author : `/u/${item.author}`}
@@ -659,6 +671,24 @@ function LibraryCardComponent({
 
             {!isOptimistic && (
               <div className="lib-card-inline-actions" role="toolbar" aria-label="Card quick actions" onClick={(e) => e.stopPropagation()}>
+                <HouseButton
+                  type="button"
+                  className={`lib-card-action-btn ${item.is_pinned ? 'lib-card-action-btn--pinned' : ''}`}
+                  title={item.is_pinned ? 'Unpin from top' : 'Pin to top'}
+                  onClick={() => onTogglePin ? onTogglePin(item) : api.updateLibraryItem(item.id, { is_pinned: !item.is_pinned })}
+                >
+                  <Icon name="pin" size={12} className={item.is_pinned ? 'text-amber-500 fill-amber-500' : ''} />
+                </HouseButton>
+
+                {!item.remind_at && (
+                  <LibraryReminderBanner
+                    item={item}
+                    variant="compact"
+                    onSaveReminder={(patch) => onSaveReminder ? onSaveReminder(item, patch) : api.updateLibraryItem(item.id, patch)}
+                    onClearReminder={() => onClearReminder ? onClearReminder(item) : api.updateLibraryItem(item.id, { remind_at: null, reminded_at: null })}
+                  />
+                )}
+
                 {item.url && (
                   <a
                     href={item.url}
@@ -721,6 +751,28 @@ function LibraryCardComponent({
             item.title || 'Untitled Resource'
           )}
         </h3>
+
+        {/* SaveToList Feature 1: Progress Tracking Segmented Control */}
+        <div className="lib-card-progress-row" onClick={(e) => e.stopPropagation()}>
+          <ProgressSegmentedControl
+            progress={item.progress}
+            kind={item.kind}
+            variant="compact"
+            onChange={(nextProgress) => onProgressChange ? onProgressChange(item, nextProgress) : api.updateLibraryItem(item.id, { progress: nextProgress })}
+          />
+        </div>
+
+        {/* SaveToList Feature 2: Reminder Callout Banner */}
+        {Boolean(item.remind_at) && (
+          <div className="lib-card-reminder-row" onClick={(e) => e.stopPropagation()}>
+            <LibraryReminderBanner
+              item={item}
+              variant="card"
+              onSaveReminder={(patch) => onSaveReminder ? onSaveReminder(item, patch) : api.updateLibraryItem(item.id, patch)}
+              onClearReminder={() => onClearReminder ? onClearReminder(item) : api.updateLibraryItem(item.id, { remind_at: null, reminded_at: null })}
+            />
+          </div>
+        )}
 
         {/* Detected Music / Audio Track Pill */}
         {musicResource && (

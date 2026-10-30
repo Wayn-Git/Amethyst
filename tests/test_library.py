@@ -1127,6 +1127,42 @@ async def test_capture_media_updates_skeleton_item():
     assert row["duration_seconds"] == 30
 
 
+@pytest.mark.asyncio
+async def test_savetolist_library_features():
+    from backend.api.main import app
+    from starlette.testclient import TestClient
+
+    svc = service()
+    item_id = svc.store.create(kind="book", title="Piranesi", author="Susanna Clarke")
+
+    client = TestClient(app)
+
+    # 1. Update progress to 'in_progress', pin item, set reminder, add private notes
+    patch_payload = {
+        "progress": "in_progress",
+        "is_pinned": True,
+        "remind_at": "2026-11-01 10:00:00",
+        "remind_action": "read",
+        "private_notes": "Read chapters 1 to 3, marvelous setting.",
+    }
+    res = client.patch(f"/api/library/{item_id}", json=patch_payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["progress"] == "in_progress"
+    assert data["is_pinned"] is True
+    assert data["remind_at"] == "2026-11-01 10:00:00"
+    assert data["remind_action"] == "read"
+    assert data["private_notes"] == "Read chapters 1 to 3, marvelous setting."
+
+    # 2. Verify sorting by is_pinned
+    unpinned_id = svc.store.create(kind="article", title="Regular Article")
+    listed = svc.store.list()
+    # Pinned item Piranesi should appear first before unpinned_id
+    ids = [r["id"] for r in listed]
+    assert ids.index(item_id) < ids.index(unpinned_id)
+
+
+
 
 
 

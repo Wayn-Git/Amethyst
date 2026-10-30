@@ -11,6 +11,10 @@ function LibraryListViewComponent({
   onEnrich,
   onDelete,
   onTagClick,
+  onTogglePin,
+  onProgressChange,
+  onSaveReminder,
+  onClearReminder,
 }) {
   const containerRef = useRef(null)
   const animatedIdsRef = useRef(new Set())
@@ -67,6 +71,10 @@ function LibraryListViewComponent({
                 onEnrich={onEnrich}
                 onDelete={onDelete}
                 onTagClick={onTagClick}
+                onTogglePin={onTogglePin}
+                onProgressChange={onProgressChange}
+                onSaveReminder={onSaveReminder}
+                onClearReminder={onClearReminder}
               />
             ))}
           </div>

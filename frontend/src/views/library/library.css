@@ -8968,3 +8968,447 @@
     width: 100%;
   }
 }
+
+/* ==========================================================================
+   SaveToList Feature Styles: Progress, Reminders, Pinning, Private Notes
+   Strict 12px squircle geometry, 44px hit targets, zero pill/circular buttons
+   ========================================================================== */
+
+/* 1. Progress Segmented Control */
+.lib-card-progress-row {
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+
+.lib-progress-segmented {
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface-2, #f1f3f5);
+  border: 1px solid var(--hairline, rgba(0, 0, 0, 0.06));
+  border-radius: var(--radius-xl, 12px);
+  padding: 3px;
+  gap: 3px;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.lib-progress-segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim, #64748b);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.lib-progress-segment:hover:not(:disabled) {
+  color: var(--text, #0f172a);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.lib-progress-segment--active {
+  background: #3b82f6 !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3);
+}
+
+.lib-progress-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.16s ease;
+}
+
+.lib-progress-badge--completed {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.25);
+  color: #2563eb;
+}
+
+.lib-progress-badge--completed:hover {
+  background: rgba(59, 130, 246, 0.14);
+}
+
+.lib-progress-check-icon {
+  color: #2563eb;
+}
+
+/* 2. Reminder Banner & Popover */
+.lib-card-reminder-row {
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+
+.lib-reminder-banner-container {
+  position: relative;
+  width: 100%;
+}
+
+.lib-reminder-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: var(--radius-xl, 12px);
+  background: rgba(59, 130, 246, 0.07);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-sizing: border-box;
+}
+
+.lib-reminder-banner:hover {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.lib-reminder-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text, #1e293b);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.lib-reminder-bell-icon {
+  color: #3b82f6;
+  flex-shrink: 0;
+}
+
+.lib-reminder-text {
+  text-transform: capitalize;
+}
+
+.lib-reminder-banner-right {
+  display: flex;
+  align-items: center;
+}
+
+.lib-reminder-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: rgba(59, 130, 246, 0.15);
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.lib-reminder-trigger-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.lib-reminder-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--hairline, rgba(0, 0, 0, 0.08));
+  background: var(--surface, #ffffff);
+  color: var(--text-dim, #64748b);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.lib-reminder-add-btn:hover {
+  color: #3b82f6;
+  border-color: rgba(59, 130, 246, 0.3);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.lib-reminder-popover {
+  position: absolute;
+  z-index: 100;
+  bottom: calc(100% + 6px);
+  left: 0;
+  min-width: 260px;
+  background: var(--raised, #ffffff);
+  border: 1px solid var(--hairline-strong, #e2e8f0);
+  border-radius: var(--radius-xl, 12px);
+  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.18);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lib-reminder-popover-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text, #0f172a);
+}
+
+.lib-reminder-popover-title {
+  letter-spacing: -0.01em;
+}
+
+.lib-reminder-action-input-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lib-reminder-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-faint, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.lib-reminder-action-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-2, #f8fafc);
+  border: 1px solid var(--hairline, #e2e8f0);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+
+.lib-reminder-action-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text, #0f172a);
+  width: 100%;
+}
+
+.lib-reminder-presets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.lib-reminder-preset-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+
+.lib-reminder-preset-btn:hover {
+  background: var(--surface-2, #f1f5f9);
+}
+
+.lib-reminder-preset-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text, #0f172a);
+}
+
+.lib-reminder-preset-time {
+  font-size: 11px;
+  color: var(--text-dim, #64748b);
+  font-family: var(--font-mono);
+}
+
+.lib-reminder-custom-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  color: #3b82f6;
+  font-weight: 500;
+  transition: background 0.14s ease;
+}
+
+.lib-reminder-custom-btn:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.lib-reminder-custom-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lib-reminder-datetime-input {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--hairline, #e2e8f0);
+  background: var(--surface-2, #f8fafc);
+  font-size: 12px;
+  color: var(--text, #0f172a);
+  outline: none;
+}
+
+.lib-reminder-custom-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.lib-reminder-btn-secondary {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lib-reminder-btn-primary {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: none;
+  background: #3b82f6;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lib-reminder-popover-footer {
+  border-top: 1px solid var(--hairline, #e2e8f0);
+  padding-top: 6px;
+}
+
+.lib-reminder-clear-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #ef4444;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lib-reminder-clear-btn:hover {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+/* 3. Pinning styles */
+.lib-card-pinned-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.15);
+  margin-left: 4px;
+}
+
+.lib-card-action-btn--pinned,
+.lib-dock-btn--pinned {
+  color: #d97706 !important;
+  background: rgba(245, 158, 11, 0.14) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+.lib-row-pinned-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 4px;
+}
+
+.lib-row-progress-col {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.lib-row-reminder-col {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* 4. Detail Modal & Private Notes */
+.lib-detail-progress-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.lib-detail-progress-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint, #94a3b8);
+}
+
+.lib-detail-reminder-section {
+  margin-top: 10px;
+}
+
+.lib-private-notes-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lib-private-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim, #64748b);
+  background: var(--surface-2, #f1f5f9);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.lib-private-notes-disclaimer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-dim, #64748b);
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}
+

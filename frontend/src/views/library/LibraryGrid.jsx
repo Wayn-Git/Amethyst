@@ -78,6 +78,10 @@ function LibraryGridComponent({
   onEnrich,
   onDelete,
   onTagClick,
+  onTogglePin,
+  onProgressChange,
+  onSaveReminder,
+  onClearReminder,
   columns,
   className,
 }) {
@@ -129,6 +133,10 @@ function LibraryGridComponent({
                       onEnrich={onEnrich}
                       onDelete={onDelete}
                       onTagClick={onTagClick}
+                      onTogglePin={onTogglePin}
+                      onProgressChange={onProgressChange}
+                      onSaveReminder={onSaveReminder}
+                      onClearReminder={onClearReminder}
                     />
                   </motion.div>
                 )

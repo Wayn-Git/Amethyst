@@ -482,6 +482,70 @@ export default function Library() {
     )
   }, [])
 
+  const handleTogglePin = useCallback(
+    async (item) => {
+      const nextPinned = !item.is_pinned
+      setItems((prev) =>
+        prev.map((it) => (it.id === item.id ? { ...it, is_pinned: nextPinned } : it))
+      )
+      toast(nextPinned ? 'Pinned to top' : 'Unpinned', 'ok')
+      try {
+        await api.updateLibraryItem(item.id, { is_pinned: nextPinned })
+      } catch (err) {
+        toast(err.message, 'bad')
+        load()
+      }
+    },
+    [toast, load]
+  )
+
+  const handleProgressChange = useCallback(
+    async (item, nextProgress) => {
+      setItems((prev) =>
+        prev.map((it) => (it.id === item.id ? { ...it, progress: nextProgress } : it))
+      )
+      try {
+        await api.updateLibraryItem(item.id, { progress: nextProgress })
+      } catch (err) {
+        toast(err.message, 'bad')
+        load()
+      }
+    },
+    [toast, load]
+  )
+
+  const handleSaveReminder = useCallback(
+    async (item, patch) => {
+      setItems((prev) =>
+        prev.map((it) => (it.id === item.id ? { ...it, ...patch } : it))
+      )
+      toast('Reminder set', 'ok')
+      try {
+        await api.updateLibraryItem(item.id, patch)
+      } catch (err) {
+        toast(err.message, 'bad')
+        load()
+      }
+    },
+    [toast, load]
+  )
+
+  const handleClearReminder = useCallback(
+    async (item) => {
+      setItems((prev) =>
+        prev.map((it) => (it.id === item.id ? { ...it, remind_at: null, reminded_at: null } : it))
+      )
+      toast('Reminder cleared', 'ok')
+      try {
+        await api.updateLibraryItem(item.id, { remind_at: null, reminded_at: null })
+      } catch (err) {
+        toast(err.message, 'bad')
+        load()
+      }
+    },
+    [toast, load]
+  )
+
   const handleClearFilters = useCallback(() => {
     setSelectedKinds([])
     setSelectedCategories([])
@@ -529,6 +593,8 @@ export default function Library() {
     if (order === 'rating') {
       result = [...result].sort((a, b) => (b.rating || 0) - (a.rating || 0))
     }
+    // Always prioritize pinned items on top
+    result = [...result].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0))
     return result
   }, [items, selectedRatings, order])
 
@@ -724,6 +790,10 @@ export default function Library() {
                     onEnrich={handleEnrich}
                     onDelete={handleDelete}
                     onTagClick={handleTagFilterClick}
+                    onTogglePin={handleTogglePin}
+                    onProgressChange={handleProgressChange}
+                    onSaveReminder={handleSaveReminder}
+                    onClearReminder={handleClearReminder}
                   />
                 ) : (
                   <LibraryListView
@@ -734,6 +804,10 @@ export default function Library() {
                     onEnrich={handleEnrich}
                     onDelete={handleDelete}
                     onTagClick={handleTagFilterClick}
+                    onTogglePin={handleTogglePin}
+                    onProgressChange={handleProgressChange}
+                    onSaveReminder={handleSaveReminder}
+                    onClearReminder={handleClearReminder}
                   />
                 )}
               </main>

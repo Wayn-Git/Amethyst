@@ -567,6 +567,13 @@ CREATE TABLE IF NOT EXISTS library_items (
     -- saving the same reel again a year later is a real event -- but it is what
     -- lets an ingest offer the existing row instead of making a second one.
     source_ref       TEXT,
+    -- SaveToList feature fields: progress tracking, pinning, reminders, and private notes
+    progress         TEXT DEFAULT 'unstarted', -- unstarted|in_progress|completed
+    is_pinned        INTEGER DEFAULT 0,
+    remind_at        TEXT,              -- ISO/naive local timestamp when reminder should fire
+    remind_action    TEXT DEFAULT 'revisit', -- e.g. 'read', 'watch', 'book', 'revisit'
+    reminded_at      TEXT,              -- timestamp when reminder was announced
+    private_notes    TEXT,              -- local-only private notes, confidential to user
     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
     -- A name that does not depend on insertion order, so a phone and a machine
@@ -578,6 +585,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_library_uuid
     ON library_items(uuid) WHERE uuid IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_library_source_ref
     ON library_items(source_ref) WHERE source_ref IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_library_pinned
+    ON library_items(is_pinned DESC);
+CREATE INDEX IF NOT EXISTS idx_library_progress
+    ON library_items(progress);
+CREATE INDEX IF NOT EXISTS idx_library_remind
+    ON library_items(remind_at) WHERE remind_at IS NOT NULL;
 -- Not unique: re-reading something a year later is a real event worth logging
 -- twice. Capture looks here first and offers what it finds rather than refusing.
 CREATE INDEX IF NOT EXISTS idx_library_url ON library_items(url) WHERE url IS NOT NULL;

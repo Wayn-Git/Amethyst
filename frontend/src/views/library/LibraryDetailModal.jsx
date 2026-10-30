@@ -16,6 +16,8 @@ import LibraryRightRail from './LibraryRightRail.jsx'
 import LibraryQueuePopover from './LibraryQueuePopover.jsx'
 import LibraryShortcutsModal from './LibraryShortcutsModal.jsx'
 import AppButton from '../../components/ui/AppButton.jsx'
+import ProgressSegmentedControl from './ProgressSegmentedControl.jsx'
+import LibraryReminderBanner from './LibraryReminderBanner.jsx'
 import './library-detail.css'
 
 export function formatModelDisplayName(modelStr) {
@@ -712,6 +714,55 @@ export default function LibraryDetailModal({
     } catch {}
   }
 
+  const handleTogglePin = async () => {
+    const nextPinned = !item.is_pinned
+    setDetailItem((prev) => ({ ...prev, is_pinned: nextPinned }))
+    onUpdate?.({ ...item, is_pinned: nextPinned })
+    try {
+      const res = await api.updateLibraryItem(item.id, { is_pinned: nextPinned })
+      if (res) {
+        setDetailItem(res)
+        onUpdate?.(res)
+      }
+    } catch {}
+  }
+
+  const handleProgressChange = async (nextProgress) => {
+    setDetailItem((prev) => ({ ...prev, progress: nextProgress }))
+    onUpdate?.({ ...item, progress: nextProgress })
+    try {
+      const res = await api.updateLibraryItem(item.id, { progress: nextProgress })
+      if (res) {
+        setDetailItem(res)
+        onUpdate?.(res)
+      }
+    } catch {}
+  }
+
+  const handleSaveReminder = async ({ remind_at, remind_action }) => {
+    setDetailItem((prev) => ({ ...prev, remind_at, remind_action }))
+    onUpdate?.({ ...item, remind_at, remind_action })
+    try {
+      const res = await api.updateLibraryItem(item.id, { remind_at, remind_action })
+      if (res) {
+        setDetailItem(res)
+        onUpdate?.(res)
+      }
+    } catch {}
+  }
+
+  const handleClearReminder = async () => {
+    setDetailItem((prev) => ({ ...prev, remind_at: null, reminded_at: null }))
+    onUpdate?.({ ...item, remind_at: null, reminded_at: null })
+    try {
+      const res = await api.updateLibraryItem(item.id, { remind_at: null, reminded_at: null })
+      if (res) {
+        setDetailItem(res)
+        onUpdate?.(res)
+      }
+    } catch {}
+  }
+
   const handleAddTag = async (newTag) => {
     const clean = newTag.trim().toLowerCase()
     if (!clean || tags.includes(clean)) return
@@ -1213,8 +1264,39 @@ export default function LibraryDetailModal({
                     )}
                   </div>
 
+                  {/* SaveToList Feature 1: Progress Tracking Segmented Control */}
+                  <div className="lib-detail-progress-section">
+                    <span className="lib-detail-progress-label">Progress</span>
+                    <ProgressSegmentedControl
+                      progress={item.progress}
+                      kind={item.kind}
+                      variant="full"
+                      onChange={handleProgressChange}
+                    />
+                  </div>
+
+                  {/* SaveToList Feature 2: Reminder Banner Callout */}
+                  <div className="lib-detail-reminder-section">
+                    <LibraryReminderBanner
+                      item={item}
+                      variant="detail"
+                      onSaveReminder={handleSaveReminder}
+                      onClearReminder={handleClearReminder}
+                    />
+                  </div>
+
                   {/* Actions Row using clean secondary AppButton styling */}
                   <div className="lib-page-cta-row">
+                    <AppButton
+                      variant="secondary"
+                      size="medium"
+                      className={`lib-page-cta-pill ${item.is_pinned ? 'lib-page-cta-pill--pinned' : ''}`}
+                      onClick={handleTogglePin}
+                      title={item.is_pinned ? 'Unpin from top' : 'Pin to top'}
+                      icon={<Icon name="pin" size={14} className={item.is_pinned ? 'text-amber-500 fill-amber-500' : ''} />}
+                    >
+                      {item.is_pinned ? 'Pinned' : 'Pin to top'}
+                    </AppButton>
                     <AppButton
                       variant="secondary"
                       size="medium"
@@ -1339,7 +1421,8 @@ export default function LibraryDetailModal({
                     className={`lib-underline-tab ${activeTab === 'notes' ? 'lib-underline-tab--active' : ''}`}
                     onClick={() => setActiveTab('notes')}
                   >
-                    <span>Notes</span>
+                    <Icon name="lock" size={12} className="inline mr-1 opacity-70" />
+                    <span>Private Notes</span>
                     {notes && <span className="lib-tab-count">1</span>}
                   </button>
                 </div>
@@ -1440,14 +1523,18 @@ export default function LibraryDetailModal({
                     </div>
                   )}
 
-                  {/* TAB 3: NOTES */}
+                  {/* TAB 3: PRIVATE NOTES */}
                   {activeTab === 'notes' && (
                     <div className="lib-tab-pane">
                       <div className="lib-notes-container">
                         <div className="lib-notes-header">
-                          <label htmlFor="lib-notes-editor" className="lib-section-label">
-                            Personal Notes
-                          </label>
+                          <div className="lib-private-notes-header-left">
+                            <Icon name="lock" size={13} className="text-amber-500" />
+                            <label htmlFor="lib-notes-editor" className="lib-section-label">
+                              Private Notes
+                            </label>
+                            <span className="lib-private-badge">Only you can see them</span>
+                          </div>
                           <div className="lib-notes-status">
                             {savingNotes && (
                               <span className="lib-notes-status-text">
@@ -1464,11 +1551,16 @@ export default function LibraryDetailModal({
                           </div>
                         </div>
 
+                        <div className="lib-private-notes-disclaimer">
+                          <Icon name="shield-check" size={13} className="text-emerald-500 flex-shrink-0" />
+                          <span>Confidential to this device. Excluded from public summaries and exports.</span>
+                        </div>
+
                         <textarea
                           id="lib-notes-editor"
                           ref={notesTextareaRef}
                           className="lib-notes-editor"
-                          placeholder="Write thoughts, takeaways, code snippets, or quotes..."
+                          placeholder="Write private thoughts, takeaways, quotes, or personal reminders..."
                           rows={10}
                           value={notes}
                           onChange={(e) => setNotes(e.target.value)}

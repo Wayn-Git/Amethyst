@@ -287,6 +287,13 @@ def as_dict(row, *, include_content: bool = True) -> dict:
     if not data.get("excerpt") and not data.get("summary") and data.get("enriched_at"):
         data["excerpt"] = data.get("notes") or data.get("title") or ""
 
+    data["progress"] = data.get("progress") or "unstarted"
+    data["is_pinned"] = bool(data.get("is_pinned"))
+    data["remind_at"] = data.get("remind_at") or None
+    data["remind_action"] = data.get("remind_action") or "revisit"
+    data["reminded_at"] = data.get("reminded_at") or None
+    data["private_notes"] = data.get("private_notes") or None
+
     return data
 
 

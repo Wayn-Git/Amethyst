@@ -74,6 +74,13 @@ _UPDATABLE = frozenset(
         "source_ref",
         "status",
         "entity",
+        # SaveToList feature fields
+        "progress",
+        "is_pinned",
+        "remind_at",
+        "remind_action",
+        "reminded_at",
+        "private_notes",
     }
 )
 
@@ -206,6 +213,21 @@ class LibraryStore:
             self.conn.commit()
         except (sqlite3.OperationalError, sqlite3.DatabaseError, Exception):
             pass
+
+        # SaveToList columns migration
+        for col, col_type in (
+            ("progress", "TEXT DEFAULT 'unstarted'"),
+            ("is_pinned", "INTEGER DEFAULT 0"),
+            ("remind_at", "TEXT"),
+            ("remind_action", "TEXT DEFAULT 'revisit'"),
+            ("reminded_at", "TEXT"),
+            ("private_notes", "TEXT"),
+        ):
+            try:
+                self.conn.execute(f"ALTER TABLE library_items ADD COLUMN {col} {col_type}")
+                self.conn.commit()
+            except (sqlite3.OperationalError, sqlite3.DatabaseError, Exception):
+                pass
 
         try:
             import json as _json
@@ -381,7 +403,7 @@ class LibraryStore:
         if where:
             sql += " WHERE " + " AND ".join(where)
         order_dir = "ASC" if str(order).lower() == "asc" else "DESC"
-        sql += f" ORDER BY library_items.consumed_on {order_dir}, library_items.id {order_dir} LIMIT ? OFFSET ?"
+        sql += f" ORDER BY library_items.is_pinned DESC, library_items.consumed_on {order_dir}, library_items.id {order_dir} LIMIT ? OFFSET ?"
         params.extend([limit, offset])
         return self.conn.execute(sql, params).fetchall()
 

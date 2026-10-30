@@ -134,6 +134,39 @@ async def fire_due(now: datetime | None = None) -> int:
             source_key=f"reminder:{reminder['id']}:{reminder['due_at']}",
         )
         sent += 1
+
+    # Library items with due reminders
+    conn = get_connection()
+    lib_rows = []
+    try:
+        lib_rows = conn.execute(
+            "SELECT id, title, kind, remind_action, remind_at FROM library_items "
+            "WHERE remind_at IS NOT NULL AND reminded_at IS NULL "
+            "AND julianday(remind_at) <= julianday(?)",
+            (moment.isoformat(sep=" ", timespec="seconds"),),
+        ).fetchall()
+    except Exception:
+        pass
+
+    for lib_item in lib_rows:
+        action = lib_item["remind_action"] or "revisit"
+        title = lib_item["title"] or "Saved Item"
+        kind = lib_item["kind"] or "save"
+        try:
+            conn.execute(
+                "UPDATE library_items SET reminded_at = ? WHERE id = ?",
+                (moment.isoformat(sep=" ", timespec="seconds"), lib_item["id"]),
+            )
+            conn.commit()
+            await notify(
+                f"Reminder: {title}",
+                f"Time to {action} this {kind}",
+                source_key=f"library:{lib_item['id']}:{lib_item['remind_at']}",
+            )
+            sent += 1
+        except Exception as e:
+            log.warning("failed to dispatch library reminder %s: %s", lib_item["id"], e)
+
     return sent
 
 
