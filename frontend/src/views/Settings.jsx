@@ -19,6 +19,8 @@ import PairingApprovalModal from '../components/PairingApprovalModal.jsx'
 import { showBoardUINotification } from '../lib/boardui-notifications.js'
 import { triggerConfetti } from '../components/ConfettiCannon.jsx'
 import Integrations from './settings/Integrations.jsx'
+import Configuration from './settings/Configuration.jsx'
+import Storage from './settings/Storage.jsx'
 
 /* ==========================================================================
    NAVIGATION SECTIONS & THEME DEFINITIONS
@@ -26,6 +28,8 @@ import Integrations from './settings/Integrations.jsx'
 
 const SECTIONS = [
   { id: 'general', label: 'General', icon: 'sliders', group: 'Personal', desc: 'Workspace, external editor destination, window behavior, speed, composer, confetti' },
+  { id: 'configuration', label: 'Configuration', icon: 'settings', group: 'Personal', desc: 'Approval policy, sandbox settings, web search, reasoning effort, workspace tools' },
+  { id: 'storage', label: 'Storage', icon: 'database', group: 'Personal', desc: 'Disk usage, clean up chats, manage worktrees, archived conversations' },
   { id: 'notifications', label: 'Notifications', icon: 'bell', group: 'Personal', desc: 'Desktop alerts, sound, turn completion, morning briefing, BoardUI' },
   { id: 'shortcuts', label: 'Shortcuts', icon: 'command', group: 'Personal', desc: 'Keyboard shortcuts, global launcher hotkey presets' },
   { id: 'appearance', label: 'Appearance', icon: 'palette', group: 'Personal', desc: 'Themes, accent color, text scaling, loader style, glass material' },
@@ -6469,6 +6473,8 @@ function Shortcuts() {
 const PANELS = {
   profile: Profile,
   general: General,
+  configuration: Configuration,
+  storage: Storage,
   notifications: Notifications,
   shortcuts: Shortcuts,
   appearance: Appearance,
@@ -6535,18 +6541,7 @@ export default function Settings() {
       {/* Navigation column */}
       <nav className="set-nav" aria-label="Settings navigation">
         <div className="set-nav-header">
-          <div className="set-nav-tab">
-            <span>Settings</span>
-            <HouseButton
-              type="button"
-              className="set-nav-tab-close"
-              onClick={handleClose}
-              title="Close Settings (Esc)"
-              aria-label="Close Settings"
-            >
-              <Icon name="x" size={12} />
-            </HouseButton>
-          </div>
+          <h2 className="set-nav-headline">Settings</h2>
         </div>
 
         {/* Live Search Input */}
@@ -6627,18 +6622,6 @@ export default function Settings() {
                       gap: 10,
                     }}
                   >
-                    {isSel && (
-                      <span
-                        style={{
-                          position: 'absolute',
-                          left: 2,
-                          width: 3,
-                          height: 14,
-                          borderRadius: 2,
-                          background: '#873FFF',
-                        }}
-                      />
-                    )}
                     <Icon name={item.icon} size={15} />
                     <span className="set-nav-label">{item.label}</span>
                   </HouseButton>
@@ -6659,7 +6642,7 @@ export default function Settings() {
         </div>
 
         <div className="set-panel-frame">
-          {section !== 'usage' && section !== 'activity' && section !== 'profile' && section !== 'notifications' && section !== 'appearance' && (
+          {section !== 'usage' && section !== 'activity' && section !== 'profile' && section !== 'notifications' && section !== 'appearance' && section !== 'storage' && section !== 'configuration' && (
             <h1 className="set-panel-title">
               {SECTIONS.find((s) => s.id === section)?.label}
             </h1>

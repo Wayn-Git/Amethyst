@@ -21137,44 +21137,25 @@ a.text-reveal-wrap {
 .settings-view .set-nav-header {
   display: flex;
   align-items: center;
-  margin-bottom: 18px;
-  padding: 0 4px 14px;
+  margin-bottom: 14px;
+  padding: 4px 6px 12px;
   border-bottom: 1px solid var(--hairline);
 }
 
-.settings-view .set-nav-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
+.settings-view .set-nav-headline {
+  font-size: 17px;
   font-weight: 600;
   color: var(--text);
-  background: var(--raised);
-  border: 1px solid var(--hairline);
-  padding: 5px 10px;
-  border-radius: 8px;
-  box-shadow: var(--shadow-micro);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.settings-view .set-nav-tab {
+  display: none;
 }
 
 .settings-view .set-nav-tab-close {
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  cursor: pointer;
-  padding: 2px;
-  display: flex;
-  align-items: center;
-  border-radius: 4px;
-  transition: background-color 0.15s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.15s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), filter 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.settings-view .set-nav-tab-close:hover {
-  color: var(--text);
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-}
-
-.settings-view .set-nav-tab-close:active {
-  transform: scale(0.92);
+  display: none;
 }
 
 .settings-view .set-nav-group {
@@ -21200,9 +21181,9 @@ a.text-reveal-wrap {
   gap: 10px !important;
   padding: 0 10px !important;
   border-radius: 8px !important;
-  font-size: 12.5px !important;
+  font-size: 13px !important;
   font-weight: 500 !important;
-  color: var(--text-dim) !important;
+  color: var(--text) !important;
   background: transparent !important;
   border: 1px solid transparent !important;
   cursor: pointer !important;
@@ -21211,7 +21192,7 @@ a.text-reveal-wrap {
 }
 
 .settings-view .set-nav-item:hover {
-  background: color-mix(in srgb, var(--text) 4%, transparent) !important;
+  background: color-mix(in srgb, var(--text) 6%, transparent) !important;
   color: var(--text) !important;
 }
 
@@ -21220,14 +21201,59 @@ a.text-reveal-wrap {
 }
 
 .settings-view .set-nav-item.active {
-  background: color-mix(in srgb, var(--text) 7%, transparent) !important;
+  background: color-mix(in srgb, var(--text) 8%, transparent) !important;
   border: 1px solid var(--hairline-strong) !important;
   color: var(--text) !important;
   box-shadow: var(--shadow-micro) !important;
 }
 
+.settings-view .set-nav-item svg {
+  color: var(--text-dim) !important;
+  transition: color 0.15s ease !important;
+}
+
+.settings-view .set-nav-item:hover svg,
 .settings-view .set-nav-item.active svg {
-  color: var(--accent) !important;
+  color: var(--text) !important;
+}
+
+/* Codex Storage & Configuration Styles */
+.codex-storage-bar {
+  width: 100%;
+  height: 14px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  overflow: hidden;
+  display: flex;
+  margin: 14px 0 12px;
+}
+
+.codex-storage-seg {
+  height: 100%;
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.codex-storage-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.codex-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.codex-legend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 /* Content Area */

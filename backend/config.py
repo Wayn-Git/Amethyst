@@ -570,6 +570,13 @@ GENERAL_SETTINGS_DEFAULTS: dict[str, Any] = {
     "show_context_usage": False,
     "confetti_enabled": False,
     "default_standalone_chat": False,
+    "approval_policy": "on_request",
+    "sandbox_mode": "read_only",
+    "web_search_mode": "cached",
+    "output_detail": "model_default",
+    "reasoning_summary": "auto",
+    "reasoning_efforts": "low,medium,high,max,auto",
+    "workspace_deps_enabled": True,
 }
 
 

@@ -499,7 +499,17 @@ export const api = {
   mcpServersImport: (jsonStr) => j('/mcp/servers/import', json('POST', { json: jsonStr })),
 
 
-  conversations: () => j('/conversations'),
+  conversations: (opts = {}) => {
+    const q = new URLSearchParams()
+    if (opts.archived) q.set('archived', 'true')
+    const qs = q.toString()
+    return j(`/conversations${qs ? '?' + qs : ''}`)
+  },
+  storageStats: () => j('/api/storage/stats'),
+  worktrees: () => j('/api/worktrees'),
+  pruneWorktrees: () => j('/api/worktrees/prune', json('POST', {})),
+  configToml: () => j('/api/config/toml'),
+  diagnoseWorkspace: () => j('/api/workspace/diagnose', json('POST', {})),
   createConversation: (provider, model, title) =>
     j('/conversations', json('POST', { provider, model, title })),
   updateConversation: (id, patch) => j(`/conversations/${id}`, json('PATCH', patch)),
