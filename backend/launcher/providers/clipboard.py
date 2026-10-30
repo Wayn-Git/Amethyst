@@ -131,10 +131,11 @@ class ClipboardProvider(BaseLauncherProvider):
         self, query: str, session_id: str
     ) -> AsyncIterator[LauncherResult]:
         raw = query.strip()
-        if not raw:
-            return
 
-        is_explicit = False
+        # An empty query means "show history", not "search for nothing".
+        # The intent router only wakes this provider when the user asked for
+        # the clipboard, so this cannot fire on every keystroke.
+        is_explicit = not raw
         search_term = raw
         if raw.lower().startswith("cb ") or raw.lower().startswith("clip "):
             is_explicit = True

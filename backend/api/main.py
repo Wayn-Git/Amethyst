@@ -8965,15 +8965,30 @@ def get_launcher_engine():
 
 
 @app.get("/api/launcher/stream")
-async def launcher_stream(q: str = "", session_id: str = "") -> StreamingResponse:
-    """Stream ranked launcher search results over SSE."""
+async def launcher_stream(
+    q: str = "",
+    session_id: str = "",
+    mode: str = "all",
+    providers: str = "",
+) -> StreamingResponse:
+    """Stream the routed intent, then ranked results for that intent only."""
     import asyncio
     import json
+
+    from backend.launcher.intent import classify_intent
+
     engine = get_launcher_engine()
+    intent = classify_intent(q, explicit_mode=mode)
+    requested = [p.strip() for p in providers.split(",") if p.strip()]
+    if requested:
+        intent["providers"] = requested
 
     async def event_generator():
         try:
-            async for batch in engine.query(q, session_id):
+            yield f"event: intent\ndata: {json.dumps(intent)}\n\n"
+            async for batch in engine.query(
+                intent["subject"], session_id, providers=intent["providers"]
+            ):
                 items = [r.to_dict() for r in batch]
                 yield f"data: {json.dumps(items)}\n\n"
         except asyncio.CancelledError:

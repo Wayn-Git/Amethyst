@@ -21,6 +21,7 @@ import LibraryView from './damon/views/LibraryView.jsx'
 import DamonSplitPane from './damon/DamonSplitPane.jsx'
 import ActionPanel from './damon/ActionPanel.jsx'
 import { evaluateMath } from './damon/calculator.js'
+import { classifyIntent } from './damon/intent.js'
 import { peek, put } from './damon/searchCache.js'
 import { request as dashboardRequest } from '../dashboard/api.js'
 import Capture from '../dashboard/widgets/Capture.jsx'
@@ -69,47 +70,6 @@ function score(haystack, needle) {
   return 400 - gaps * 2 + hits
 }
 
-/** Parse query to extract detected service and clean subject text */
-function parseQueryIntent(raw) {
-  const text = raw.trim()
-  if (!text) return { service: null, subject: '' }
-
-  // YouTube
-  if (/^(?:>\s*youtube|youtube|yt)\s+/i.test(text)) {
-    return { service: 'youtube', subject: text.replace(/^(?:>\s*youtube|youtube|yt)\s+/i, '').trim() }
-  }
-  // Web / Google
-  if (/^(?:>\s*google|google|web)\s+/i.test(text)) {
-    return { service: 'web', subject: text.replace(/^(?:>\s*google|google|web)\s+/i, '').trim() }
-  }
-  // Images
-  if (/^(?:>\s*images?|images?|img)\s+/i.test(text)) {
-    return { service: 'images', subject: text.replace(/^(?:>\s*images?|images?|img)\s+/i, '').trim() }
-  }
-  // Tasks
-  if (/^(?:>\s*tasks?|tasks?|todo)\s+/i.test(text)) {
-    return { service: 'tasks', subject: text.replace(/^(?:>\s*tasks?|tasks?|todo)\s+/i, '').trim() }
-  }
-  // Library
-  if (/^(?:>\s*library|library|lib)\s+/i.test(text)) {
-    return { service: 'library', subject: text.replace(/^(?:>\s*library|library|lib)\s+/i, '').trim() }
-  }
-  // GitHub
-  if (/^(?:>\s*github|github|gh)\s+/i.test(text)) {
-    return { service: 'github', subject: text.replace(/^(?:>\s*github|github|gh)\s+/i, '').trim() }
-  }
-  // Wiki
-  if (/^(?:>\s*wiki|wiki)\s+/i.test(text)) {
-    return { service: 'wiki', subject: text.replace(/^(?:>\s*wiki|wiki)\s+/i, '').trim() }
-  }
-  // Pure commands prefix
-  if (/^>\s*/.test(text)) {
-    return { service: 'commands', subject: text.replace(/^>\s*/, '').trim() }
-  }
-
-  return { service: null, subject: text }
-}
-
 function resolveAppIcon(cmd) {
   if (cmd.icon && cmd.icon !== 'app' && cmd.icon !== 'search') return cmd.icon
   const l = (cmd.label || cmd.title || '').toLowerCase()
@@ -137,25 +97,6 @@ function getItemTone(cmd) {
   if (g.includes('system')) return 'sys'
   if (g.includes('command') || cmd.icon === 'zap') return 'cmd'
   return 'default'
-}
-
-/** Question words and shapes that mean "answer this", not "list articles".
- *
- *  Deliberately cheap: no model call to classify, no regex zoo. The words
- *  people type when they want a fact start with these, and anything that
- *  doesn't is treated as a search, which is what it was before. 'youtube' and
- *  friends never reach here -- they carry their own service prefix.
- */
-const QUESTION_SHAPES = [
-  /^(when|where|who|what|why|how|which|whose)\b/i,
-  /\b(is|are|was|were|did|does|do|can|could|will|would|has|have)\b.*\?$/i,
-  /\?$/,
-]
-
-function looksLikeQuestion(q) {
-  const t = q.trim()
-  if (t.length < 8) return false
-  return QUESTION_SHAPES.some((re) => re.test(t))
 }
 
 export default function CommandPalette({ bare = false }) {
@@ -284,25 +225,27 @@ export default function CommandPalette({ bare = false }) {
   const previousFocusRef = useRef(null)
   const abortCtrlRef = useRef(null)
 
-  // Parse intent dynamically
-  const { service: detectedService, subject: querySubject } = useMemo(() => {
-    return parseQueryIntent(rawQuery)
-  }, [rawQuery])
+  /* One intent per keystroke.
+   *
+   * `classifyIntent` is a pure rule table shared with the backend. A chosen
+   * mode wins, then a keyword prefix, then shape rules (URL, math, path,
+   * question, power verb), then word count. Nothing is guessed by a model,
+   * so the answer is available before the first network packet.
+   */
+  const intent = useMemo(
+    () => classifyIntent(rawQuery, selectedMode),
+    [rawQuery, selectedMode],
+  )
 
-  // Effective mode: explicit mode tab wins, otherwise detected prefix service, otherwise 'all'
-  const activeMode = useMemo(() => {
-    if (selectedMode !== 'all') return selectedMode
-    return detectedService || 'all'
-  }, [selectedMode, detectedService])
-
-  // Effective search keyword: if in a specific mode, use clean subject
-  const effectiveQuery = useMemo(() => {
-    if (detectedService) return querySubject
-    return rawQuery.trim()
-  }, [detectedService, querySubject, rawQuery])
+  const activeMode = intent.view
+  const effectiveQuery = intent.subject
 
   useEffect(() => {
-    if (!open || activeMode !== 'all') return
+    if (!open || !intent.localSearch) {
+      setLocalResults({ query: '', items: [] })
+      setLocalStatus('')
+      return
+    }
     let active = true
     const timer = setTimeout(async () => {
       setLocalResults({ query: effectiveQuery, items: [] })
@@ -314,23 +257,27 @@ export default function CommandPalette({ bare = false }) {
       } catch (error) { if (active) setLocalStatus(`Local search unavailable: ${error.message}`) }
     }, 180)
     return () => { active = false; clearTimeout(timer) }
-  }, [open, activeMode, effectiveQuery])
+  }, [open, intent.localSearch, effectiveQuery])
+
+  // A prefix is syntax, not subject matter: switching modes or clearing the
+  // badge keeps the words the user meant to search.
+  const cleanPrefix = useCallback(() => {
+    if (intent.explicit && intent.subject !== rawQuery.trim()) {
+      setRawQuery(intent.subject)
+    }
+  }, [intent, rawQuery])
 
   // Seamless mode switcher that cleans up the query string
   const handleSelectMode = useCallback((newMode) => {
     setSelectedMode(newMode)
-    if (detectedService) {
-      setRawQuery(querySubject)
-    }
-  }, [detectedService, querySubject])
+    cleanPrefix()
+  }, [cleanPrefix])
 
   // Clear active mode pill (revert to 'all' while preserving query text)
   const handleClearMode = useCallback(() => {
     setSelectedMode('all')
-    if (detectedService) {
-      setRawQuery(querySubject)
-    }
-  }, [detectedService, querySubject])
+    cleanPrefix()
+  }, [cleanPrefix])
 
   // Reliable dismissal logic: 1st Escape closes Action Panel, 2nd resets query, 3rd closes Damon
   const handleDismiss = useCallback(() => {
@@ -412,43 +359,57 @@ export default function CommandPalette({ bare = false }) {
     return () => window.removeEventListener('blur', onWindowBlur)
   }, [bare])
 
-  // Stream unified launcher results from backend LauncherEngine
+  // Stream only the providers this intent selected. The backend classifies
+  // the same raw query against the same rule table, so a local query never
+  // wakes the filesystem, the window list, or the clipboard store.
+  const providerKey = intent.providers.join(',')
   useEffect(() => {
-    if (!open || activeMode !== 'all') {
+    if (!open || !providerKey) {
       setLauncherItems([])
       return
     }
 
+    setLauncherItems([])
+    const allowed = new Set(providerKey.split(','))
     const sessionId = 'session_' + Math.random().toString(36).slice(2)
-    const es = new EventSource(
-      `/api/launcher/stream?q=${encodeURIComponent(effectiveQuery)}&session_id=${sessionId}`
-    )
+    let es = null
 
-    es.onmessage = (event) => {
-      try {
-        const batch = JSON.parse(event.data)
-        if (Array.isArray(batch)) {
-          setLauncherItems((prev) => {
-            const map = new Map(prev.map((item) => [item.id, item]))
-            for (const item of batch) {
-              map.set(item.id, item)
-            }
-            return Array.from(map.values()).sort((a, b) => (b.score || 0) - (a.score || 0))
-          })
+    // 120ms is below the Doherty threshold and stops a seven-key burst from
+    // opening seven streams that the engine would cancel anyway.
+    const timer = setTimeout(() => {
+      es = new EventSource(
+        `/api/launcher/stream?q=${encodeURIComponent(rawQuery)}&session_id=${sessionId}&mode=${encodeURIComponent(selectedMode)}`
+      )
+
+      es.onmessage = (event) => {
+        try {
+          const batch = JSON.parse(event.data)
+          if (Array.isArray(batch)) {
+            const routed = batch.filter((item) => allowed.has(item.provider_id))
+            if (routed.length === 0) return
+            setLauncherItems((prev) => {
+              const map = new Map(prev.map((item) => [item.id, item]))
+              for (const item of routed) {
+                map.set(item.id, item)
+              }
+              return Array.from(map.values()).sort((a, b) => (b.score || 0) - (a.score || 0))
+            })
+          }
+        } catch (err) {
+          console.warn('Launcher SSE parse error', err)
         }
-      } catch (err) {
-        console.warn('Launcher SSE parse error', err)
       }
-    }
 
-    es.onerror = () => {
-      es.close()
-    }
+      es.onerror = () => {
+        es.close()
+      }
+    }, 120)
 
     return () => {
-      es.close()
+      clearTimeout(timer)
+      es?.close()
     }
-  }, [open, activeMode, effectiveQuery])
+  }, [open, providerKey, rawQuery, selectedMode])
 
   // Refresh tasks callback
   const refreshTasks = useCallback(() => {
@@ -482,7 +443,10 @@ export default function CommandPalette({ bare = false }) {
     }
 
     const q = effectiveQuery.trim()
-    if (!q || q.length < 2) {
+    const listKinds = intent.external
+    const wantsAnswer = intent.ask
+
+    if (!q || q.length < 2 || listKinds.length === 0) {
       setWebResults([])
       setWebNote(null)
       setYtResults([])
@@ -504,21 +468,6 @@ export default function CommandPalette({ bare = false }) {
     const ctrl = new AbortController()
     abortCtrlRef.current = ctrl
     const gone = () => ctrl.signal.aborted
-    const isQ = looksLikeQuestion(q)
-    const wantsAnswer = activeMode === 'web' || (activeMode === 'all' && isQ)
-
-    /* Universal mode searches the web, always.
-     *
-     * It used to fetch only Wikipedia unless the query happened to look like a
-     * question, so typing a plain subject -- a name, a library, a product --
-     * produced one encyclopaedia card and nothing else. That is the whole of
-     * "the web results are too random and it is only Wikipedia": for most
-     * queries no web search was ever made. The question test still decides
-     * whether a model is asked to *answer*, which is the part that costs
-     * something; it no longer decides whether to search at all. */
-    const listKinds = {
-      web: ['web'], youtube: ['yt'], images: ['img'], github: ['gh'], wiki: ['wiki'],
-    }[activeMode] || (activeMode === 'all' ? ['wiki', 'web', 'yt', 'img'] : [])
 
     const applyKind = {
       web: (v) => {
@@ -566,9 +515,8 @@ export default function CommandPalette({ bare = false }) {
       }
     }
     const answerHit = wantsAnswer ? peek('answer', q) : null
-    if (answerHit) setAnswerCard(answerHit.value?.answer ? answerHit.value : null)
-    // Only the answer card is question-only now; the evidence is always fetched.
-    if (activeMode === 'all' && !isQ) setAnswerCard(null)
+    if (answerHit?.value?.answer) setAnswerCard(answerHit.value)
+    else setAnswerCard(null)
     setSearchingExternal(listKinds.some((k) => !hits[k]?.fresh))
     setAnswerPending(wantsAnswer && !answerHit?.fresh)
 
@@ -605,41 +553,36 @@ export default function CommandPalette({ bare = false }) {
     const timer = setTimeout(() => {
       for (const kind of listKinds) run(kind)
 
-      if (activeMode === 'library') {
-        api.library({ q, limit: 10 }).then((d) => setLibraryItems(d.items || [])).catch(() => {})
-      } else if (activeMode === 'tasks') {
-        // Tasks search handled client-side over tasksList
-      } else if (wantsAnswer && !(answerHit && answerHit.fresh)) {
-        // The answer is written from the evidence already on screen, not
-        // from a second search: the web mode hands over its article list
-        // and says there is no wiki to wait for; the universal mode hands
-        // over both, in whatever state they landed.
-        const need = activeMode === 'web' ? ['web'] : ['web', 'wiki']
-        Promise.all(need.map(run)).then(([web, wiki]) => {
-          setTimeout(async () => {
-            if (gone()) return
-            try {
-              const value = await api.searchAnswer(
-                q,
-                ctrl.signal,
-                web?.results || [],
-                activeMode === 'web' ? null : (wiki ? wiki.result ?? null : undefined),
-              )
-              if (value?.answer) put('answer', q, value)
-              // An answer, or the reason there is not one. Discarding the error
-              // is what made the thinking animation look broken: the spinner
-              // ran, the card resolved to null, and it vanished with nothing in
-              // its place -- so "no model is configured" was indistinguishable
-              // from a spinner that simply stopped.
-              if (!gone()) setAnswerCard(value?.answer || value?.error ? value : null)
-            } catch (err) {
-              if (!gone()) setAnswerCard({ error: err?.message || 'The answer could not be written.' })
-            } finally {
-              if (!gone()) setAnswerPending(false)
-            }
-          }, 500)
-        })
-      }
+      if (!wantsAnswer || (answerHit && answerHit.fresh)) return
+
+      // The answer is written from the evidence this intent already selected,
+      // not from a second search. Web intent hands over articles and says
+      // "no wiki"; a question hands over both, in whatever state they landed.
+      const need = Array.from(new Set([...listKinds, ...intent.evidence]))
+      Promise.all(need.map(run)).then(() => {
+        setTimeout(async () => {
+          if (gone()) return
+          try {
+            const value = await api.searchAnswer(
+              q,
+              ctrl.signal,
+              got.web?.results || [],
+              intent.evidence.includes('wiki') ? (got.wiki?.result ?? null) : undefined,
+            )
+            if (value?.answer) put('answer', q, value)
+            // An answer, or the reason there is not one. Discarding the error
+            // is what made the thinking animation look broken: the spinner
+            // ran, the card resolved to null, and it vanished with nothing in
+            // its place -- so "no model is configured" was indistinguishable
+            // from a spinner that simply stopped.
+            if (!gone()) setAnswerCard(value?.answer || value?.error ? value : null)
+          } catch (err) {
+            if (!gone()) setAnswerCard({ error: err?.message || 'The answer could not be written.' })
+          } finally {
+            if (!gone()) setAnswerPending(false)
+          }
+        }, 500)
+      })
       // 140ms rather than 220: the debounce was sized for a backend that could
       // spend six seconds on one query, where waiting longer to ask was the
       // cheapest way to ask less. The engines race now and cancel cleanly on a
@@ -650,7 +593,18 @@ export default function CommandPalette({ bare = false }) {
       clearTimeout(timer)
       ctrl.abort()
     }
-  }, [effectiveQuery, activeMode, ytSort])
+  }, [effectiveQuery, intent, ytSort])
+
+  // The Library view is a dedicated panel, so it fetches its own page rather
+  // than borrowing the generic external-search pool.
+  useEffect(() => {
+    if (!open || intent.mode !== 'library') return
+    const q = intent.subject.trim()
+    const timer = setTimeout(() => {
+      api.library({ q, limit: 10 }).then((d) => setLibraryItems(d.items || [])).catch(() => {})
+    }, 180)
+    return () => clearTimeout(timer)
+  }, [open, intent.mode, intent.subject])
 
   /* Fetch the next page of a pool and append it, for infinite scroll.
    *
@@ -953,39 +907,47 @@ export default function CommandPalette({ bare = false }) {
       run: () => handleNavigate('chat', q),
     })
 
-    // 4. Search triggers (Clicking changes mode WITHOUT closing Damon)
+    // 4. Search triggers (Clicking changes mode WITHOUT closing Damon).
+    // A destination already selected by the intent is not offered again --
+    // one escape hatch, not three copies of the same query.
     if (activeMode === 'all') {
-      out.push({
-        id: 'trigger:web',
-        group: 'Search Destinations',
-        icon: 'globe',
-        label: `Search Web for “${q}”`,
-        hint: 'Switch to Google / DuckDuckGo web results',
-        isModeSwitch: true,
-        run: () => handleSelectMode('web'),
-      })
-      out.push({
-        id: 'trigger:youtube',
-        group: 'Search Destinations',
-        icon: 'play',
-        label: `Search YouTube for “${q}”`,
-        hint: 'Switch to YouTube video bento results',
-        isModeSwitch: true,
-        run: () => handleSelectMode('youtube'),
-      })
-      out.push({
-        id: 'trigger:images',
-        group: 'Search Destinations',
-        icon: 'image',
-        label: `Search Images for “${q}”`,
-        hint: 'Switch to visual high-res image grid',
-        isModeSwitch: true,
-        run: () => handleSelectMode('images'),
-      })
+      if (!intent.external.includes('web')) {
+        out.push({
+          id: 'trigger:web',
+          group: 'Search Destinations',
+          icon: 'globe',
+          label: `Search Web for “${q}”`,
+          hint: 'Switch to Google / DuckDuckGo web results',
+          isModeSwitch: true,
+          run: () => handleSelectMode('web'),
+        })
+      }
+      if (!intent.external.includes('yt')) {
+        out.push({
+          id: 'trigger:youtube',
+          group: 'Search Destinations',
+          icon: 'play',
+          label: `Search YouTube for “${q}”`,
+          hint: 'Switch to YouTube video bento results',
+          isModeSwitch: true,
+          run: () => handleSelectMode('youtube'),
+        })
+      }
+      if (!intent.external.includes('img')) {
+        out.push({
+          id: 'trigger:images',
+          group: 'Search Destinations',
+          icon: 'image',
+          label: `Search Images for “${q}”`,
+          hint: 'Switch to visual high-res image grid',
+          isModeSwitch: true,
+          run: () => handleSelectMode('images'),
+        })
+      }
     }
 
     return out
-  }, [effectiveQuery, mathResult, handleNavigate, chat, activeMode, handleSelectMode, toast])
+  }, [effectiveQuery, mathResult, handleNavigate, chat, activeMode, handleSelectMode, toast, intent.external])
 
   const handlePreviewAction = useCallback(async (action, item) => {
     const targetItem = item || results[index]
@@ -1045,7 +1007,8 @@ export default function CommandPalette({ bare = false }) {
   const results = useMemo(() => {
     // Dedicated view modes return empty list for generic list
     if (activeMode === 'web' || activeMode === 'youtube' || activeMode === 'images' ||
-        activeMode === 'tasks' || activeMode === 'library' || activeMode === 'github') {
+        activeMode === 'tasks' || activeMode === 'library' || activeMode === 'github' ||
+        activeMode === 'wiki') {
       return []
     }
 
@@ -1062,7 +1025,7 @@ export default function CommandPalette({ bare = false }) {
     }
 
     // Mode: 'all' (Universal Spotlight)
-    if (!q) {
+    if (!q && intent.mode === 'home') {
       // Show core navigation and recent conversations
       const recentConvs = conversations.slice(0, 5).map((c) => ({
         id: `conv:${c.id}`,
@@ -1078,25 +1041,30 @@ export default function CommandPalette({ bare = false }) {
       return [...commands.slice(0, 6), ...recentConvs]
     }
 
-    // Scored command matching
-    const matchedCommands = commands
-      .map((c) => ({ c, s: Math.max(score(c.label, q), score(`${c.group} ${c.label}`, q) - 60) }))
-      .filter((r) => r.s >= 0)
-      .sort((a, b) => b.s - a.s)
-      .map((r) => r.c)
+    // Scored command matching. A files or clipboard query should not surface
+    // navigation commands just because the letters are a subsequence.
+    const matchedCommands = intent.providers.includes('commands')
+      ? commands
+        .map((c) => ({ c, s: Math.max(score(c.label, q), score(`${c.group} ${c.label}`, q) - 60) }))
+        .filter((r) => r.s >= 0)
+        .sort((a, b) => b.s - a.s)
+        .map((r) => r.c)
+      : []
 
     // Matching memory facts
-    const matchedMemory = (memory?.facts || [])
-      .filter((f) => f.fact.toLowerCase().includes(q.toLowerCase()))
-      .slice(0, 2)
-      .map((f) => ({
-        id: `fact:${f.id}`,
-        group: 'Memory Facts',
-        icon: 'spark',
-        label: f.fact,
-        hint: 'Recalled personal knowledge',
-        run: () => handleNavigate('memory'),
-      }))
+    const matchedMemory = intent.localSearch
+      ? (memory?.facts || [])
+        .filter((f) => f.fact.toLowerCase().includes(q.toLowerCase()))
+        .slice(0, 2)
+        .map((f) => ({
+          id: `fact:${f.id}`,
+          group: 'Memory Facts',
+          icon: 'spark',
+          label: f.fact,
+          hint: 'Recalled personal knowledge',
+          run: () => handleNavigate('memory'),
+        }))
+      : []
 
     const local = (localResults.query === effectiveQuery ? localResults.items : []).map(item => ({
       id: `local:${item.group}:${item.id}`, group: item.group, icon: 'search',
@@ -1106,7 +1074,7 @@ export default function CommandPalette({ bare = false }) {
     return [...launcherCommands, ...local, ...dynamicItems, ...matchedCommands, ...matchedMemory]
   }, [
     activeMode, effectiveQuery, commands, dynamicItems, memory, localResults,
-    conversations, handleNavigate, chat, launcherCommands,
+    conversations, handleNavigate, chat, launcherCommands, intent,
   ])
 
   // Count items for keyboard navigation
@@ -1197,6 +1165,8 @@ export default function CommandPalette({ bare = false }) {
       } else if (activeMode === 'github') {
         const item = githubResults[index]
         if (item) openUrl(item.url)
+      } else if (activeMode === 'wiki') {
+        if (wikiResult) openUrl(wikiResult.url)
       } else {
         const cmd = results[index]
         if (cmd) runCommand(cmd)
@@ -1231,6 +1201,7 @@ export default function CommandPalette({ bare = false }) {
       <DamonHeader
         query={rawQuery}
         activeMode={activeMode}
+        intent={intent}
         flash={flash}
         inputRef={inputRef}
         onChange={setRawQuery}
@@ -1366,7 +1337,7 @@ export default function CommandPalette({ bare = false }) {
         {/* Answer first in universal mode, when the query was a question */}
         {(activeMode === 'all' && answerCard?.answer) ||
          (activeMode === 'all' && (searchingExternal || answerPending)
-           && looksLikeQuestion(effectiveQuery) && !answerCard) ? (
+           && intent.ask && !answerCard) ? (
           <AnswerCardView
             answer={answerCard?.answer}
             error={answerCard?.error}
@@ -1471,7 +1442,7 @@ export default function CommandPalette({ bare = false }) {
                 <Icon name="search" size={24} />
                 <p>Nothing matches “{effectiveQuery}”.</p>
                 <span className="damon-empty-hint">
-                  Try typing <code>&gt; google {effectiveQuery}</code> or <code>&gt; youtube {effectiveQuery}</code>
+                  Try <code>&gt; google {effectiveQuery}</code>, <code>&gt; youtube {effectiveQuery}</code>, or a keyword: <code>&gt; app</code> <code>&gt; file</code> <code>&gt; win</code> <code>&gt; clip</code> <code>&gt; sys</code> <code>&gt; lib</code>
                 </span>
               </div>
             )}

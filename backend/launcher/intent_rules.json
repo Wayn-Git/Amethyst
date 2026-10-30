@@ -1,0 +1,335 @@
+{
+  "version": 1,
+  "prefixes": [
+    { "mode": "question", "pattern": "^\\?\\s*" },
+    { "mode": "web", "pattern": "^>\\s*(?:g|google|web)(?:\\s+|$)" },
+    { "mode": "youtube", "pattern": "^>\\s*(?:yt|youtube)(?:\\s+|$)" },
+    { "mode": "images", "pattern": "^>\\s*(?:img|image|images)(?:\\s+|$)" },
+    { "mode": "library", "pattern": "^>\\s*(?:lib|library)(?:\\s+|$)" },
+    { "mode": "tasks", "pattern": "^>\\s*(?:task|tasks|todo)(?:\\s+|$)" },
+    { "mode": "github", "pattern": "^>\\s*(?:gh|github)(?:\\s+|$)" },
+    { "mode": "wiki", "pattern": "^>\\s*(?:wiki|wikipedia)(?:\\s+|$)" },
+    { "mode": "files", "pattern": "^>\\s*(?:file|files)(?:\\s+|$)" },
+    { "mode": "windows", "pattern": "^>\\s*(?:win|window|windows)(?:\\s+|$)" },
+    { "mode": "clipboard", "pattern": "^>\\s*(?:cb|clip|clipboard)(?:\\s+|$)" },
+    { "mode": "system", "pattern": "^>\\s*(?:sys|system)(?:\\s+|$)" },
+    { "mode": "apps", "pattern": "^>\\s*(?:app|apps)(?:\\s+|$)" },
+    { "mode": "commands", "pattern": "^>\\s*" },
+    { "mode": "web", "pattern": "^(?:g|google|web)\\s+" },
+    { "mode": "youtube", "pattern": "^(?:yt|youtube)\\s+" },
+    { "mode": "images", "pattern": "^(?:img|image|images|pic|pics|photo|photos)\\s+" },
+    { "mode": "library", "pattern": "^(?:lib|library)\\s+" },
+    { "mode": "tasks", "pattern": "^(?:task|tasks|todo)\\s+" },
+    { "mode": "github", "pattern": "^(?:gh|github)\\s+" },
+    { "mode": "wiki", "pattern": "^(?:wiki|wikipedia)\\s+" }
+  ],
+  "rules": [
+    {
+      "mode": "url",
+      "patterns": ["^https?://\\S+$", "^www\\.\\S+$"]
+    },
+    {
+      "mode": "math",
+      "patterns": [
+        "^(?=.*\\d)(?=.*[+\\-*/^%])[\\d\\s+\\-*/^%().,eE]+\\??$",
+        "^\\d+(?:\\.\\d+)?\\s*[a-zA-Z]{1,8}\\s+(?:to|in)\\s+[a-zA-Z]{1,8}$",
+        "^=\\s*[\\d\\s+\\-*/^%().,eE]+$"
+      ],
+      "min_length": 3
+    },
+    {
+      "mode": "system",
+      "patterns": [
+        "^(?:lock|lock (?:the )?(?:screen|session))$",
+        "^(?:sleep|suspend|standby)$",
+        "^(?:shut ?down|power off|turn off|reboot|restart(?: (?:the )?(?:system|computer|pc|machine))?)$",
+        "^(?:volume|mute|unmute|sound|vol)(?: (?:up|down|mute|unmute))?$",
+        "^(?:brightness)(?: (?:up|down))?$",
+        "^(?:empty trash|empty the trash)$"
+      ]
+    },
+    {
+      "mode": "clipboard",
+      "patterns": ["^(?:clipboard|clip ?history|recent clips?|copied text)$"],
+      "strip": true
+    },
+    {
+      "mode": "files",
+      "patterns": [
+        "^(?:~|/|\\./|\\.\\./)\\S*$",
+        "\\.[A-Za-z][A-Za-z0-9]{1,7}$",
+        "^(?:find|open)\\s+file\\b"
+      ]
+    },
+    {
+      "mode": "commands",
+      "patterns": [
+        "^(?:go to|goto|switch to|open)\\s+(?:settings|preferences|dashboard|home|chat|library|tasks|notes|memory|today|automations)\\b"
+      ]
+    },
+    {
+      "mode": "windows",
+      "patterns": ["^switch\\s+to\\s+\\S.*$"]
+    },
+    {
+      "mode": "apps",
+      "patterns": ["^(?:open|launch|start|run)\\s+.+"]
+    },
+    {
+      "mode": "question",
+      "patterns": [
+        "^(?:when|where|who|what|why|how|which|whose)\\b",
+        "\\b(?:is|are|was|were|did|does|do|can|could|will|would|has|have)\\b.*\\?$",
+        "\\?$"
+      ],
+      "min_length": 8
+    },
+    {
+      "mode": "youtube",
+      "patterns": ["^(?:youtube|video|videos|watch|tutorial|tutorials)\\b"]
+    },
+    {
+      "mode": "images",
+      "patterns": ["^(?:image|images|photo|photos|pic|pics|picture|pictures|wallpaper|wallpapers|logo|logos)\\b"]
+    },
+    {
+      "mode": "github",
+      "patterns": ["^(?:github|gh|repo|repos|repository|repositories)\\b"]
+    }
+  ],
+  "fallback": {
+    "short_max_words": 2,
+    "short": "local",
+    "default": "search"
+  },
+  "intents": {
+    "home": {
+      "label": "Home",
+      "icon": "search",
+      "tone": "cmd",
+      "view": "all",
+      "placeholder": "Search apps, commands, library…",
+      "providers": ["apps", "commands"],
+      "external": [],
+      "evidence": [],
+      "ask": false,
+      "localSearch": false
+    },
+    "local": {
+      "label": "Local",
+      "icon": "search",
+      "tone": "cmd",
+      "view": "all",
+      "placeholder": "Search apps, commands, library…",
+      "providers": ["apps", "commands", "library"],
+      "external": [],
+      "evidence": [],
+      "ask": false,
+      "localSearch": true
+    },
+    "search": {
+      "label": "Search",
+      "icon": "globe",
+      "tone": "web",
+      "view": "all",
+      "placeholder": "Search the web…",
+      "providers": ["apps", "commands", "library"],
+      "external": ["web"],
+      "evidence": [],
+      "ask": false,
+      "localSearch": true
+    },
+    "apps": {
+      "label": "Apps",
+      "icon": "app",
+      "tone": "cmd",
+      "view": "all",
+      "placeholder": "Launch an app…",
+      "providers": ["apps", "commands"],
+      "external": [],
+      "evidence": [],
+      "ask": false,
+      "localSearch": false
+    },
+    "commands": {
+      "label": "Commands",
+      "icon": "zap",
+      "tone": "cmd",
+      "view": "commands",
+      "placeholder": "Search commands…",
+      "providers": ["commands"],
+      "external": [],
+      "evidence": [],
+      "ask": false,
+      "localSearch": false
+    },
+    "files": {
+      "label": "Files",
+      "icon": "folder",
+      "tone": "cmd",
+      "view": "all",
+      "placeholder": "Search local files…",
+      "providers": ["files"],
+      "external": [],
+      "evidence": [],
+      "ask": false,
+      "localSearch": false
+    },
+    "windows": {
+      "label": "Windows",
+      "icon": "window",
+      "tone": "gh",
+      "view": "all",
+      "placeholder": "Switch to an open window…",
+      "providers": ["window", "apps"],
+      "external": [],
+      "evidence": [],
+      "ask": false,
+      "localSearch": false
+    },
+    "clipboard": {
+      "label": "Clipboard",
+      "icon": "clipboard",
+      "tone": "lib",
+      "view": "all",
+      "placeholder": "Search clipboard history…",
+      "providers": ["clipboard"],
+      "external": [],
+      "evidence": [],
+      "ask": false,
+      "localSearch": false
+    },
+    "system": {
+      "label": "System",
+      "icon": "system",
+      "tone": "task",
+      "view": "all",
+      "placeholder": "Lock, sleep, volume…",
+      "providers": ["system"],
+      "external": [],
+      "evidence": [],
+      "ask": false,
+      "localSearch": false
+    },
+    "library": {
+      "label": "Library",
+      "icon": "book",
+      "tone": "lib",
+      "view": "library",
+      "placeholder": "Search library…",
+      "providers": ["library"],
+      "external": [],
+      "evidence": [],
+      "ask": false,
+      "localSearch": true
+    },
+    "tasks": {
+      "label": "Tasks",
+      "icon": "check",
+      "tone": "task",
+      "view": "tasks",
+      "placeholder": "Search tasks…",
+      "providers": [],
+      "external": [],
+      "evidence": [],
+      "ask": false,
+      "localSearch": false
+    },
+    "web": {
+      "label": "Web",
+      "icon": "globe",
+      "tone": "web",
+      "view": "web",
+      "placeholder": "Search the web…",
+      "providers": [],
+      "external": ["web"],
+      "evidence": ["wiki"],
+      "ask": "question",
+      "localSearch": false
+    },
+    "youtube": {
+      "label": "YouTube",
+      "icon": "play",
+      "tone": "yt",
+      "view": "youtube",
+      "placeholder": "Search YouTube videos…",
+      "providers": [],
+      "external": ["yt"],
+      "evidence": [],
+      "ask": false,
+      "localSearch": false
+    },
+    "images": {
+      "label": "Images",
+      "icon": "image",
+      "tone": "img",
+      "view": "images",
+      "placeholder": "Search images…",
+      "providers": [],
+      "external": ["img"],
+      "evidence": [],
+      "ask": false,
+      "localSearch": false
+    },
+    "github": {
+      "label": "GitHub",
+      "icon": "code",
+      "tone": "gh",
+      "view": "github",
+      "placeholder": "Search GitHub repositories…",
+      "providers": [],
+      "external": ["gh"],
+      "evidence": [],
+      "ask": false,
+      "localSearch": false
+    },
+    "wiki": {
+      "label": "Wikipedia",
+      "icon": "book",
+      "tone": "lib",
+      "view": "wiki",
+      "placeholder": "Search Wikipedia…",
+      "providers": [],
+      "external": ["wiki"],
+      "evidence": [],
+      "ask": false,
+      "localSearch": false
+    },
+    "question": {
+      "label": "Answer",
+      "icon": "spark",
+      "tone": "web",
+      "view": "all",
+      "placeholder": "Ask a question…",
+      "providers": [],
+      "external": ["web"],
+      "evidence": ["wiki"],
+      "ask": true,
+      "localSearch": false
+    },
+    "url": {
+      "label": "Link",
+      "icon": "arrow-up-right",
+      "tone": "web",
+      "view": "all",
+      "placeholder": "Open or save a link…",
+      "providers": [],
+      "external": [],
+      "evidence": [],
+      "ask": false,
+      "localSearch": false
+    },
+    "math": {
+      "label": "Calculator",
+      "icon": "zap",
+      "tone": "cmd",
+      "view": "all",
+      "placeholder": "Type a calculation…",
+      "providers": [],
+      "external": [],
+      "evidence": [],
+      "ask": false,
+      "localSearch": false
+    }
+  }
+}

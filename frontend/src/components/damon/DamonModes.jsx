@@ -2,7 +2,7 @@ import { Button as HouseButton } from '../ui/bento/index.jsx'
 import Icon from '../Icon.jsx'
 
 export const MODES = [
-  { id: 'all', label: 'All', icon: 'search' },
+  { id: 'all', label: 'Auto', icon: 'search' },
   { id: 'commands', label: 'Commands', icon: 'zap', prefix: '>' },
   { id: 'web', label: 'Web', icon: 'globe', prefix: '> google ' },
   { id: 'youtube', label: 'YouTube', icon: 'play', prefix: '> youtube ' },

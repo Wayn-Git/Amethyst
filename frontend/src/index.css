@@ -5518,6 +5518,7 @@ html:has(.palette--bar) body {
   transition: opacity 120ms ease;
 }
 .damon-badge-tag:hover { opacity: 0.85; }
+.damon-badge-tag--auto { cursor: default; }
 .damon-badge-tag--yt { background: #fee2e2; color: #dc2626; border-color: #fca5a5; }
 .damon-badge-tag--web { background: #e0e7ff; color: #4338ca; border-color: #c7d2fe; }
 .damon-badge-tag--img { background: #f3e8ff; color: #7e22ce; border-color: #e9d5ff; }
@@ -29256,6 +29257,7 @@ html:has(.palette--bar) body {
   transition: opacity 120ms ease;
 }
 .damon-badge-tag:hover { opacity: 0.85; }
+.damon-badge-tag--auto { cursor: default; }
 .damon-badge-tag--yt { background: #fee2e2; color: #dc2626; border-color: #fca5a5; }
 .damon-badge-tag--web { background: #e0e7ff; color: #4338ca; border-color: #c7d2fe; }
 .damon-badge-tag--img { background: #f3e8ff; color: #7e22ce; border-color: #e9d5ff; }

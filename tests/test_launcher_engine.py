@@ -110,6 +110,34 @@ async def test_engine_execute_action():
     assert res == {"status": "ok", "action": "open"}
 
 
+@pytest.mark.asyncio
+async def test_engine_runs_only_requested_providers():
+    engine = LauncherEngine()
+    engine.register_provider(DummyFastProvider())
+    engine.register_provider(DummySlowProvider())
+
+    batches = []
+    async for batch in engine.query(
+        "test", session_id="s_gated", providers=["dummy_fast"]
+    ):
+        batches.append(batch)
+
+    ids = [r.id for batch in batches for r in batch]
+    assert ids == ["fast_1"]
+
+
+@pytest.mark.asyncio
+async def test_engine_empty_provider_list_runs_nothing():
+    engine = LauncherEngine()
+    engine.register_provider(DummyFastProvider())
+
+    batches = []
+    async for batch in engine.query("test", session_id="s_none", providers=[]):
+        batches.append(batch)
+
+    assert batches == []
+
+
 async def _collect(gen):
     items = []
     try:

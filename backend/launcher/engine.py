@@ -27,20 +27,33 @@ class LauncherEngine:
         return self._providers.get(provider_id)
 
     async def query(
-        self, query_text: str, session_id: str
+        self,
+        query_text: str,
+        session_id: str,
+        providers: list[str] | None = None,
     ) -> AsyncIterator[list[LauncherResult]]:
         """Stream ranked result batches for query_text.
         Cancels any prior active query session.
+        Runs only `providers` when given, so an intent never pays for every
+        source on the machine.
         """
         # Cancel previous session tasks
         self._cancel_active_tasks()
         self._current_session = session_id
 
-        # Queue to collect results across all providers
-        queue: asyncio.Queue[LauncherResult | None] = asyncio.Queue()
-        providers = list(self._providers.values())
-        if not providers:
+        if providers is None:
+            selected = list(self._providers.values())
+        else:
+            selected = [
+                self._providers[provider_id]
+                for provider_id in providers
+                if provider_id in self._providers
+            ]
+        if not selected:
             return
+
+        # Queue to collect results across selected providers
+        queue: asyncio.Queue[LauncherResult | None] = asyncio.Queue()
 
         async def _run_provider(p: BaseLauncherProvider) -> None:
             try:
@@ -56,12 +69,12 @@ class LauncherEngine:
                 await queue.put(None)  # Sentinel for this provider
 
         # Spawn provider tasks
-        tasks = [asyncio.create_task(_run_provider(p)) for p in providers]
+        tasks = [asyncio.create_task(_run_provider(p)) for p in selected]
         for t in tasks:
             self._current_tasks.add(t)
             t.add_done_callback(self._current_tasks.discard)
 
-        active_producers = len(providers)
+        active_producers = len(selected)
         batch: list[LauncherResult] = []
 
         try:

@@ -48,7 +48,12 @@ async def test_clipboard_provider_search_and_execute(tmp_path):
     assert "Bearer secret" in cb_results[0].title
     assert cb_results[0].score >= 90
 
-    # 3. Execution (copy to system clipboard)
+    # 3. Empty query lists history (intent-routed only)
+    recent_results = [r async for r in provider.search("", "s3")]
+    assert len(recent_results) == 2
+    assert recent_results[0].score == 95.0
+
+    # 4. Execution (copy to system clipboard)
     with patch("backend.launcher.providers.clipboard.set_clipboard") as mock_set:
         mock_set.return_value = {"ok": True}
         exec_res = await provider.execute("copy", {"text": "Docker compose up -d"})

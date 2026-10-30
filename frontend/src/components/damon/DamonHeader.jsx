@@ -4,6 +4,7 @@ import Icon from '../Icon.jsx'
 export default function DamonHeader({
   query,
   activeMode,
+  intent,
   flash,
   inputRef,
   onChange,
@@ -33,37 +34,59 @@ export default function DamonHeader({
     }
   }
 
-  const badge = getModeBadge()
+  // The router's badge says what Damon *thinks* the query is. An explicit
+  // mode or prefix can be dismissed; an inferred one is information, not a
+  // control, so it does not pretend to be a button.
+  const badge = intent && intent.mode !== 'home'
+    ? {
+        label: intent.label,
+        icon: intent.icon,
+        tone: intent.tone,
+        explicit: intent.explicit,
+      }
+    : getModeBadge()
 
   const defaultPlaceholder =
-    activeMode === 'youtube'
-      ? 'Search YouTube videos…'
-      : activeMode === 'web'
-      ? 'Search the web…'
-      : activeMode === 'images'
-      ? 'Search images…'
-      : activeMode === 'commands'
-      ? 'Search commands…'
-      : activeMode === 'library'
-      ? 'Search library…'
-      : activeMode === 'tasks'
-      ? 'Search tasks…'
-      : 'Search for apps and commands...'
+    intent?.placeholder || (
+      activeMode === 'youtube'
+        ? 'Search YouTube videos…'
+        : activeMode === 'web'
+        ? 'Search the web…'
+        : activeMode === 'images'
+        ? 'Search images…'
+        : activeMode === 'commands'
+        ? 'Search commands…'
+        : activeMode === 'library'
+        ? 'Search library…'
+        : activeMode === 'tasks'
+        ? 'Search tasks…'
+        : 'Search for apps and commands...'
+    )
 
   return (
     <div className="palette-input damon-header">
       <div className="damon-input-leading">
         {badge ? (
-          <HouseButton
-            type="button"
-            className={`damon-badge-tag damon-badge-tag--${badge.tone}`}
-            onClick={onClearMode}
-            title="Press Backspace or Esc to clear mode"
-          >
-            <Icon name={badge.icon} size={13} />
-            <span>{badge.label}</span>
-            <Icon name="x" size={11} />
-          </HouseButton>
+          badge.explicit ? (
+            <HouseButton
+              type="button"
+              className={`damon-badge-tag damon-badge-tag--${badge.tone}`}
+              onClick={onClearMode}
+              title="Press Backspace or Esc to clear mode"
+            >
+              <Icon name={badge.icon} size={13} />
+              <span>{badge.label}</span>
+              <Icon name="x" size={11} />
+            </HouseButton>
+          ) : (
+            <span
+              className={`damon-badge-tag damon-badge-tag--${badge.tone} damon-badge-tag--auto`}
+              title={`Detected intent: ${badge.label}`}
+            >
+              <Icon name={badge.icon} size={13} />
+              <span>{badge.label}</span>
+            </span>
+          )
         ) : (
           <Icon name="search" size={18} className="damon-search-icon" />
         )}
