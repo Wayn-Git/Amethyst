@@ -21531,12 +21531,19 @@ a.text-reveal-wrap {
 
 .codex-stat-banner {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   background: var(--raised, #18181b);
   border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
   border-radius: 12px;
   padding: 14px 0;
   margin-bottom: 24px;
+}
+
+@media (max-width: 820px) {
+  .codex-stat-banner {
+    grid-template-columns: repeat(3, 1fr);
+    row-gap: 14px;
+  }
 }
 
 .codex-stat-item {

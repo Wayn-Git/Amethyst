@@ -499,17 +499,23 @@ function getToolIcon(raw) {
 }
 
 function Profile() {
-  const { userProfile, updateUserProfile, conversations, caps, workspace, toast } = useApp()
+  const { userProfile, updateUserProfile, conversations, caps, workspace, toast, setView } = useApp()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [activityMode, setActivityMode] = useState('Daily')
   const [hoveredCell, setHoveredCell] = useState(null)
   const [activityData, setActivityData] = useState(null)
+  const [libraryData, setLibraryData] = useState(null)
 
   useEffect(() => {
     let active = true
     api.activity(365)
       .then((res) => {
         if (active) setActivityData(res)
+      })
+      .catch(() => {})
+    api.library({ limit: 1 })
+      .then((res) => {
+        if (active) setLibraryData(res)
       })
       .catch(() => {})
     return () => { active = false }
@@ -614,6 +620,21 @@ function Profile() {
     ? Math.round(((activityData.completed_runs || 0) / activityData.total_runs) * 100)
     : 100
 
+  // Real library stats from LibraryService
+  const { totalLibraryCount, libraryBreakdownText } = useMemo(() => {
+    if (!libraryData?.counts || typeof libraryData.counts !== 'object') {
+      return { totalLibraryCount: 0, libraryBreakdownText: '' }
+    }
+    const entries = Object.entries(libraryData.counts).filter(([, cnt]) => typeof cnt === 'number' && cnt > 0)
+    const total = entries.reduce((sum, [, cnt]) => sum + cnt, 0)
+    entries.sort((a, b) => b[1] - a[1])
+    const breakdown = entries
+      .slice(0, 4)
+      .map(([k, cnt]) => `${cnt} ${k}${cnt === 1 ? '' : (k === 'music' ? '' : 's')}`)
+      .join(' · ')
+    return { totalLibraryCount: total, libraryBreakdownText: breakdown }
+  }, [libraryData])
+
   return (
     <div className="codex-settings-container">
       {/* Top Action Bar */}
@@ -658,7 +679,7 @@ function Profile() {
         <div className="codex-profile-handle">{handle}</div>
       </div>
 
-      {/* 5-Metric Stat Banner (Real SQLite Counts) */}
+      {/* 6-Metric Stat Banner (Real SQLite & Library Counts) */}
       {visibility.show_stats !== false && (
         <div className="codex-stat-banner">
           <div className="codex-stat-item">
@@ -672,6 +693,15 @@ function Profile() {
           <div className="codex-stat-item">
             <span className="codex-stat-value">{activityData?.messages_count?.toLocaleString() ?? 0}</span>
             <span className="codex-stat-label">Messages</span>
+          </div>
+          <div
+            className="codex-stat-item"
+            onClick={() => setView?.('library')}
+            style={{ cursor: 'pointer' }}
+            title="Open Library"
+          >
+            <span className="codex-stat-value">{totalLibraryCount.toLocaleString()}</span>
+            <span className="codex-stat-label">Library items</span>
           </div>
           <div className="codex-stat-item">
             <span className="codex-stat-value">{successRate}%</span>
@@ -805,6 +835,22 @@ function Profile() {
             <div className="codex-insights-row">
               <span className="codex-insights-key">Connected Services</span>
               <span className="codex-insights-val">{caps?.connectors?.length || 0} connectors</span>
+            </div>
+            <div
+              className="codex-insights-row"
+              onClick={() => setView?.('library')}
+              style={{ cursor: 'pointer' }}
+              title="Open Library"
+            >
+              <span className="codex-insights-key" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                Saved in Library
+                <Icon name="arrow-up-right" size={11} style={{ opacity: 0.6 }} />
+              </span>
+              <span className="codex-insights-val">
+                {totalLibraryCount > 0
+                  ? `${totalLibraryCount.toLocaleString()} items${libraryBreakdownText ? ` (${libraryBreakdownText})` : ''}`
+                  : '0 items'}
+              </span>
             </div>
             <div className="codex-insights-row">
               <span className="codex-insights-key">Storage Engine</span>
