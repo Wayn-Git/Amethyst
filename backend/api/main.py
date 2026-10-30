@@ -7519,14 +7519,13 @@ def get_storage_stats() -> dict[str, Any]:
         pass
 
     total_bytes = 0
-    if home.exists():
-        for p in home.glob("**/*"):
-            try:
-                if p.is_file():
-                    total_bytes += p.stat().st_size
-            except Exception:
-                pass
-    if total_bytes < base_db:
+    try:
+        du_res = subprocess.run(["du", "-sb", str(home)], capture_output=True, text=True, timeout=2)
+        if du_res.returncode == 0:
+            total_bytes = int(du_res.stdout.split()[0])
+    except Exception:
+        pass
+    if not total_bytes or total_bytes < base_db:
         total_bytes = base_db + subagents_bytes
 
     other_bytes = max(0, total_bytes - chats_bytes - subagents_bytes - archived_bytes - worktrees_bytes)

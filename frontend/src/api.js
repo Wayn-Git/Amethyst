@@ -505,11 +505,11 @@ export const api = {
     const qs = q.toString()
     return j(`/conversations${qs ? '?' + qs : ''}`)
   },
-  storageStats: () => j('/api/storage/stats'),
-  worktrees: () => j('/api/worktrees'),
-  pruneWorktrees: () => j('/api/worktrees/prune', json('POST', {})),
-  configToml: () => j('/api/config/toml'),
-  diagnoseWorkspace: () => j('/api/workspace/diagnose', json('POST', {})),
+  storageStats: () => j('/storage/stats'),
+  worktrees: () => j('/worktrees'),
+  pruneWorktrees: () => j('/worktrees/prune', json('POST', {})),
+  configToml: () => j('/config/toml'),
+  diagnoseWorkspace: () => j('/workspace/diagnose', json('POST', {})),
   createConversation: (provider, model, title) =>
     j('/conversations', json('POST', { provider, model, title })),
   updateConversation: (id, patch) => j(`/conversations/${id}`, json('PATCH', patch)),

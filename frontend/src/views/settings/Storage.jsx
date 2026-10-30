@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts'
 import { Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import Icon from '../../components/Icon.jsx'
 import { api, copyText } from '../../api.js'
@@ -42,33 +43,41 @@ export default function Storage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // Calculate percentage segments
+  const chartData = useMemo(() => {
+    if (!stats) return []
+    return [
+      {
+        name: 'Storage',
+        chats: stats.chats_bytes || 0,
+        subagents: stats.subagents_bytes || 0,
+        archived: stats.archived_bytes || 0,
+        worktrees: stats.worktrees_bytes || 0,
+        other: stats.other_bytes || 0,
+      },
+    ]
+  }, [stats])
+
   const total = stats?.total_bytes || 1
-  const chatsPct = Math.max(stats?.chats_bytes ? (stats.chats_bytes / total) * 100 : 0, stats?.chats_bytes ? 4 : 0)
-  const subagentsPct = Math.max(stats?.subagents_bytes ? (stats.subagents_bytes / total) * 100 : 0, stats?.subagents_bytes ? 2 : 0)
-  const archivedPct = Math.max(stats?.archived_bytes ? (stats.archived_bytes / total) * 100 : 0, stats?.archived_bytes ? 2 : 0)
-  const worktreesPct = Math.max(stats?.worktrees_bytes ? (stats.worktrees_bytes / total) * 100 : 0, stats?.worktrees_bytes ? 2 : 0)
-  const otherPct = Math.max(100 - chatsPct - subagentsPct - archivedPct - worktreesPct, 0)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 680 }}>
+    <div className="codex-settings-container">
       {/* Header */}
       <div>
-        <h1 style={{ fontSize: '26px', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.02em', margin: '0 0 20px 0' }}>
+        <h2 style={{ fontSize: 26, fontWeight: 600, color: 'var(--text)', margin: '0 0 16px', letterSpacing: '-0.02em' }}>
           Storage
-        </h1>
-        <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', margin: '0 0 4px 0' }}>
+        </h2>
+        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
           This device
-        </h3>
-        <p style={{ fontSize: '13px', color: 'var(--text-dim)', margin: 0 }}>
+        </div>
+        <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: 0 }}>
           Manage chats and worktrees stored on this computer
         </p>
       </div>
 
-      {/* Usage Bar Card */}
-      <div className="set-box" style={{ padding: '20px 22px', borderRadius: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
+      {/* Prebuilt Recharts Usage Card */}
+      <div className="codex-card" style={{ padding: '20px 22px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text)' }}>
             {stats?.total_formatted || '0 bytes'} used by Amethyst
           </span>
           <HouseButton
@@ -76,43 +85,61 @@ export default function Storage() {
             className="set-btn-sm"
             onClick={loadStats}
             disabled={loading}
-            style={{ fontSize: '12px', padding: '4px 14px' }}
+            style={{ fontSize: '12px', padding: '3px 12px' }}
           >
             {loading ? 'Refreshing…' : 'Refresh'}
           </HouseButton>
         </div>
 
-        {/* Segmented Bar */}
-        <div className="codex-storage-bar">
-          <div
-            className="codex-storage-seg"
-            style={{ width: `${chatsPct}%`, backgroundColor: '#eab308' }}
-            title={`Chats: ${stats?.chats_formatted || '0 bytes'}`}
-          />
-          <div
-            className="codex-storage-seg"
-            style={{ width: `${subagentsPct}%`, backgroundColor: '#a855f7' }}
-            title={`Subagents: ${stats?.subagents_formatted || '0 bytes'}`}
-          />
-          <div
-            className="codex-storage-seg"
-            style={{ width: `${archivedPct}%`, backgroundColor: '#f97316' }}
-            title={`Archived chats: ${stats?.archived_formatted || '0 bytes'}`}
-          />
-          <div
-            className="codex-storage-seg"
-            style={{ width: `${worktreesPct}%`, backgroundColor: '#22c55e' }}
-            title={`Worktrees: ${stats?.worktrees_formatted || '0 bytes'}`}
-          />
-          <div
-            className="codex-storage-seg"
-            style={{ width: `${otherPct}%`, backgroundColor: '#71717a' }}
-            title={`Other: ${stats?.other_formatted || '0 bytes'}`}
-          />
+        {/* Prebuilt Recharts Horizontal Stacked Bar Chart */}
+        <div style={{ width: '100%', height: 16, margin: '12px 0 14px' }}>
+          <ResponsiveContainer width="100%" height={16}>
+            <BarChart
+              layout="vertical"
+              data={chartData}
+              margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
+            >
+              <XAxis type="number" hide domain={[0, total]} />
+              <YAxis type="category" dataKey="name" hide />
+              <Tooltip
+                cursor={false}
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null
+                  return (
+                    <div
+                      style={{
+                        background: 'var(--raised)',
+                        border: '1px solid var(--hairline-strong)',
+                        borderRadius: 8,
+                        padding: '6px 10px',
+                        fontSize: '11px',
+                        boxShadow: 'var(--shadow-popup)',
+                      }}
+                    >
+                      {payload.map((p) => (
+                        <div key={p.dataKey} style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '2px 0' }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: p.fill }} />
+                          <span style={{ textTransform: 'capitalize', color: 'var(--text-dim)' }}>{p.dataKey}:</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text)' }}>
+                            {stats?.[`${p.dataKey}_formatted`] || '0 bytes'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                }}
+              />
+              <Bar dataKey="chats" stackId="storage" fill="#eab308" radius={[8, 0, 0, 8]} />
+              <Bar dataKey="subagents" stackId="storage" fill="#a855f7" />
+              <Bar dataKey="archived" stackId="storage" fill="#f97316" />
+              <Bar dataKey="worktrees" stackId="storage" fill="#22c55e" />
+              <Bar dataKey="other" stackId="storage" fill="#71717a" radius={[0, 8, 8, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
 
         {/* Legend */}
-        <div className="codex-storage-legend" style={{ marginTop: 12 }}>
+        <div className="codex-storage-legend" style={{ marginBottom: 12 }}>
           <div className="codex-legend-item">
             <span className="codex-legend-dot" style={{ backgroundColor: '#eab308' }} />
             <span>Chats <span style={{ color: 'var(--text)', fontWeight: 500 }}>{stats?.chats_formatted || '0 bytes'}</span></span>
@@ -136,7 +163,7 @@ export default function Storage() {
         </div>
 
         {/* Directory Path with Copy */}
-        <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
           <code
             onClick={handleCopyPath}
             style={{
@@ -169,17 +196,17 @@ export default function Storage() {
       {/* Action Cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {/* Card 1: Clean up old chats */}
-        <div className="set-box" style={{ borderRadius: 16 }}>
-          <div className="set-box-row" style={{ padding: '16px 20px' }}>
-            <div className="set-row-text">
-              <span className="set-row-title">Clean up old chats</span>
-              <span className="set-row-desc">Review chats and their subagents before permanently deleting them</span>
+        <div className="codex-card">
+          <div className="codex-row" style={{ padding: '16px 20px' }}>
+            <div className="codex-row-info">
+              <span className="codex-row-title">Clean up old chats</span>
+              <span className="codex-row-desc">Review chats and their subagents before permanently deleting them</span>
             </div>
             <HouseButton
               type="button"
               className="set-btn-sm"
               onClick={() => setShowReviewChats(true)}
-              style={{ padding: '6px 16px', fontSize: '13px' }}
+              style={{ padding: '5px 16px', fontSize: '13px' }}
             >
               Review
             </HouseButton>
@@ -187,32 +214,32 @@ export default function Storage() {
         </div>
 
         {/* Card 2: Manage worktrees & Archived chats */}
-        <div className="set-box" style={{ borderRadius: 16 }}>
-          <div className="set-box-row" style={{ padding: '16px 20px', borderBottom: '1px solid var(--hairline)' }}>
-            <div className="set-row-text">
-              <span className="set-row-title">Manage worktrees</span>
-              <span className="set-row-desc">Review working copies and choose how many old worktrees to keep</span>
+        <div className="codex-card">
+          <div className="codex-row" style={{ padding: '16px 20px' }}>
+            <div className="codex-row-info">
+              <span className="codex-row-title">Manage worktrees</span>
+              <span className="codex-row-desc">Review working copies and choose how many old worktrees to keep</span>
             </div>
             <HouseButton
               type="button"
               className="set-btn-sm"
               onClick={() => setShowWorktrees(true)}
-              style={{ padding: '6px 16px', fontSize: '13px' }}
+              style={{ padding: '5px 16px', fontSize: '13px' }}
             >
               Manage
             </HouseButton>
           </div>
 
-          <div className="set-box-row" style={{ padding: '16px 20px' }}>
-            <div className="set-row-text">
-              <span className="set-row-title">Archived chats</span>
-              <span className="set-row-desc">Restore or delete individual archived chats</span>
+          <div className="codex-row" style={{ padding: '16px 20px' }}>
+            <div className="codex-row-info">
+              <span className="codex-row-title">Archived chats</span>
+              <span className="codex-row-desc">Restore or delete individual archived chats</span>
             </div>
             <HouseButton
               type="button"
               className="set-btn-sm"
               onClick={() => setShowArchivedChats(true)}
-              style={{ padding: '6px 16px', fontSize: '13px' }}
+              style={{ padding: '5px 16px', fontSize: '13px' }}
             >
               Manage
             </HouseButton>

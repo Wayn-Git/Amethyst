@@ -126,19 +126,19 @@ export default function Configuration() {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 680 }}>
+    <div className="codex-settings-container">
       {/* Title & Subtitle */}
       <div>
-        <h1 style={{ fontSize: '26px', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.02em', margin: '0 0 6px 0' }}>
+        <h2 style={{ fontSize: 26, fontWeight: 600, color: 'var(--text)', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
           Configuration
-        </h1>
-        <p style={{ fontSize: '13px', color: 'var(--text-dim)', margin: 0 }}>
+        </h2>
+        <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: 0 }}>
           Choose how Amethyst works on your tasks
         </p>
       </div>
 
       {/* Top Scope / Config.toml row */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <AnimatedSelect
           value={scope}
           onChange={(v) => setScope(v)}
@@ -170,12 +170,12 @@ export default function Configuration() {
       </div>
 
       {/* Section 1: Main Runtime Settings */}
-      <div className="set-box" style={{ borderRadius: 16 }}>
+      <div className="codex-card">
         {/* Row 1: Approval policy */}
-        <div className="set-box-row" style={{ padding: '14px 20px', borderBottom: '1px solid var(--hairline)' }}>
-          <div className="set-row-text">
-            <span className="set-row-title">Approval policy</span>
-            <span className="set-row-desc">Choose when Amethyst asks for approval</span>
+        <div className="codex-row">
+          <div className="codex-row-info">
+            <span className="codex-row-title">Approval policy</span>
+            <span className="codex-row-desc">Choose when Amethyst asks for approval</span>
           </div>
           <AnimatedSelect
             value={approvalPolicy}
@@ -189,10 +189,10 @@ export default function Configuration() {
         </div>
 
         {/* Row 2: Sandbox settings */}
-        <div className="set-box-row" style={{ padding: '14px 20px', borderBottom: '1px solid var(--hairline)' }}>
-          <div className="set-row-text">
-            <span className="set-row-title">Sandbox settings</span>
-            <span className="set-row-desc">Choose how much Amethyst can do when running commands</span>
+        <div className="codex-row">
+          <div className="codex-row-info">
+            <span className="codex-row-title">Sandbox settings</span>
+            <span className="codex-row-desc">Choose how much Amethyst can do when running commands</span>
           </div>
           <AnimatedSelect
             value={sandboxSettings}
@@ -206,10 +206,10 @@ export default function Configuration() {
         </div>
 
         {/* Row 3: Web search */}
-        <div className="set-box-row" style={{ padding: '14px 20px', borderBottom: '1px solid var(--hairline)' }}>
-          <div className="set-row-text">
-            <span className="set-row-title">Web search</span>
-            <span className="set-row-desc">Choose how Amethyst accesses the web</span>
+        <div className="codex-row">
+          <div className="codex-row-info">
+            <span className="codex-row-title">Web search</span>
+            <span className="codex-row-desc">Choose how Amethyst accesses the web</span>
           </div>
           <AnimatedSelect
             value={webSearch}
@@ -223,10 +223,10 @@ export default function Configuration() {
         </div>
 
         {/* Row 4: Output detail */}
-        <div className="set-box-row" style={{ padding: '14px 20px', borderBottom: '1px solid var(--hairline)' }}>
-          <div className="set-row-text">
-            <span className="set-row-title">Output detail</span>
-            <span className="set-row-desc">Choose how much detail Amethyst includes in responses</span>
+        <div className="codex-row">
+          <div className="codex-row-info">
+            <span className="codex-row-title">Output detail</span>
+            <span className="codex-row-desc">Choose how much detail Amethyst includes in responses</span>
           </div>
           <AnimatedSelect
             value={outputDetail}
@@ -240,10 +240,10 @@ export default function Configuration() {
         </div>
 
         {/* Row 5: Reasoning summary */}
-        <div className="set-box-row" style={{ padding: '14px 20px' }}>
-          <div className="set-row-text">
-            <span className="set-row-title">Reasoning summary</span>
-            <span className="set-row-desc">Choose how Amethyst summarizes its reasoning</span>
+        <div className="codex-row">
+          <div className="codex-row-info">
+            <span className="codex-row-title">Reasoning summary</span>
+            <span className="codex-row-desc">Choose how Amethyst summarizes its reasoning</span>
           </div>
           <AnimatedSelect
             value={reasoningSummary}
@@ -259,14 +259,14 @@ export default function Configuration() {
 
       {/* Section 2: Model Features */}
       <div>
-        <div className="set-section-label" style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', margin: '10px 0 10px 0' }}>
+        <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-dim)', marginBottom: 8, letterSpacing: '0.02em' }}>
           Model features
         </div>
-        <div className="set-box" style={{ borderRadius: 16 }}>
-          <div className="set-box-row" style={{ padding: '16px 20px' }}>
-            <div className="set-row-text">
-              <span className="set-row-title">Available reasoning efforts</span>
-              <span className="set-row-desc">Choose which reasoning effort levels appear in model controls. Availability varies by model</span>
+        <div className="codex-card">
+          <div className="codex-row">
+            <div className="codex-row-info">
+              <span className="codex-row-title">Available reasoning efforts</span>
+              <span className="codex-row-desc">Choose which reasoning effort levels appear in model controls. Availability varies by model</span>
             </div>
             <AnimatedSelect
               value={reasoningEfforts}
@@ -283,15 +283,15 @@ export default function Configuration() {
 
       {/* Section 3: Workspace Dependencies */}
       <div>
-        <div className="set-section-label" style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', margin: '10px 0 10px 0' }}>
+        <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-dim)', marginBottom: 8, letterSpacing: '0.02em' }}>
           Workspace Dependencies
         </div>
-        <div className="set-box" style={{ borderRadius: 16 }}>
+        <div className="codex-card">
           {/* Row 1: Dependencies Toggle */}
-          <div className="set-box-row" style={{ padding: '16px 20px', borderBottom: '1px solid var(--hairline)' }}>
-            <div className="set-row-text">
-              <span className="set-row-title">Codex dependencies</span>
-              <span className="set-row-desc">Allow Amethyst to install and expose bundled Node.js and Python tools</span>
+          <div className="codex-row">
+            <div className="codex-row-info">
+              <span className="codex-row-title">Codex dependencies</span>
+              <span className="codex-row-desc">Allow Amethyst to install and expose bundled Node.js and Python tools</span>
             </div>
             <Switch
               on={depsEnabled}
@@ -303,17 +303,17 @@ export default function Configuration() {
           </div>
 
           {/* Row 2: Diagnose Issues */}
-          <div className="set-box-row" style={{ padding: '16px 20px', borderBottom: '1px solid var(--hairline)' }}>
-            <div className="set-row-text">
-              <span className="set-row-title">Diagnose Issues in Codex Workspace</span>
-              <span className="set-row-desc">Checks the current bundle and records diagnostic logs</span>
+          <div className="codex-row">
+            <div className="codex-row-info">
+              <span className="codex-row-title">Diagnose Issues in Codex Workspace</span>
+              <span className="codex-row-desc">Checks the current bundle and records diagnostic logs</span>
             </div>
             <HouseButton
               type="button"
               className="set-btn-sm"
               onClick={handleDiagnose}
               disabled={diagnosing}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px' }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 14px' }}
             >
               <Icon name="search" size={13} />
               <span>{diagnosing ? 'Diagnosing…' : 'Diagnose'}</span>
@@ -321,10 +321,10 @@ export default function Configuration() {
           </div>
 
           {/* Row 3: Reset and install Workspace */}
-          <div className="set-box-row" style={{ padding: '16px 20px' }}>
-            <div className="set-row-text">
-              <span className="set-row-title">Reset and install Workspace</span>
-              <span className="set-row-desc">Downloads a fresh bundle, installs it, and reloads tools</span>
+          <div className="codex-row">
+            <div className="codex-row-info">
+              <span className="codex-row-title">Reset and install Workspace</span>
+              <span className="codex-row-desc">Downloads a fresh bundle, installs it, and reloads tools</span>
             </div>
             <HouseButton
               type="button"
@@ -337,7 +337,7 @@ export default function Configuration() {
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 6,
-                padding: '6px 14px',
+                padding: '5px 14px',
               }}
             >
               <Icon name="download" size={13} />
