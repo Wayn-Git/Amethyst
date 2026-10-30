@@ -74,10 +74,10 @@ export default function Storage() {
         </p>
       </div>
 
-      {/* Prebuilt Recharts Usage Card */}
-      <div className="codex-card" style={{ padding: '20px 22px' }}>
+      {/* Storage Breakdown Section (Unboxed, matching Codex design) */}
+      <div style={{ marginBottom: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <span style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text)' }}>
+          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
             {stats?.total_formatted || '0 bytes'} used by Amethyst
           </span>
           <HouseButton
@@ -85,15 +85,15 @@ export default function Storage() {
             className="set-btn-sm"
             onClick={loadStats}
             disabled={loading}
-            style={{ fontSize: '12px', padding: '3px 12px' }}
+            style={{ fontSize: '11.5px', padding: '2px 10px', height: 24, borderRadius: 6 }}
           >
             {loading ? 'Refreshing…' : 'Refresh'}
           </HouseButton>
         </div>
 
         {/* Prebuilt Recharts Horizontal Stacked Bar Chart */}
-        <div style={{ width: '100%', height: 16, margin: '12px 0 14px' }}>
-          <ResponsiveContainer width="100%" height={16}>
+        <div style={{ width: '100%', height: 14, margin: '12px 0 10px', background: 'var(--surface-3, #3f3f46)', borderRadius: 7, overflow: 'hidden' }}>
+          <ResponsiveContainer width="100%" height={14}>
             <BarChart
               layout="vertical"
               data={chartData}
@@ -129,17 +129,17 @@ export default function Storage() {
                   )
                 }}
               />
-              <Bar dataKey="chats" stackId="storage" fill="#eab308" radius={[8, 0, 0, 8]} />
+              <Bar dataKey="chats" stackId="storage" fill="#eab308" radius={[7, 0, 0, 7]} />
               <Bar dataKey="subagents" stackId="storage" fill="#a855f7" />
               <Bar dataKey="archived" stackId="storage" fill="#f97316" />
               <Bar dataKey="worktrees" stackId="storage" fill="#22c55e" />
-              <Bar dataKey="other" stackId="storage" fill="#71717a" radius={[0, 8, 8, 0]} />
+              <Bar dataKey="other" stackId="storage" fill="#71717a" radius={[0, 7, 7, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
         {/* Legend */}
-        <div className="codex-storage-legend" style={{ marginBottom: 12 }}>
+        <div className="codex-storage-legend" style={{ marginBottom: 10 }}>
           <div className="codex-legend-item">
             <span className="codex-legend-dot" style={{ backgroundColor: '#eab308' }} />
             <span>Chats <span style={{ color: 'var(--text)', fontWeight: 500 }}>{stats?.chats_formatted || '0 bytes'}</span></span>
@@ -162,34 +162,27 @@ export default function Storage() {
           </div>
         </div>
 
-        {/* Directory Path with Copy */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-          <code
+        {/* Directory Path (Clean and subtle, exactly matching Codex screenshot) */}
+        <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span
             onClick={handleCopyPath}
             style={{
-              fontSize: '12px',
+              fontSize: '11px',
               color: 'var(--text-dim)',
               fontFamily: 'monospace',
-              background: 'var(--surface-2)',
-              padding: '4px 10px',
-              borderRadius: 6,
               cursor: 'pointer',
               userSelect: 'all',
-              border: '1px solid var(--hairline)',
+              opacity: 0.85,
             }}
             title="Click to copy path"
           >
             {stats?.path || '~/.amethyst'}
-          </code>
-          <HouseButton
-            type="button"
-            className="icon-btn"
-            onClick={handleCopyPath}
-            title="Copy path"
-            style={{ padding: 4 }}
-          >
-            <Icon name={copied ? 'check' : 'copy'} size={13} style={{ color: copied ? 'var(--ok)' : 'var(--text-dim)' }} />
-          </HouseButton>
+          </span>
+          {copied && (
+            <span style={{ fontSize: '11px', color: 'var(--ok, #22c55e)' }}>
+              Copied!
+            </span>
+          )}
         </div>
       </div>
 
