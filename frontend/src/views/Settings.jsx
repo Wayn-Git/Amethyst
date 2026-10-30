@@ -72,32 +72,167 @@ const VENDOR_PRESETS = [
    0. PROFILE VIEW (Display name, identity, email)
    ========================================================================== */
 
-function Profile() {
-  const { userProfile, updateUserProfile, toast } = useApp()
+export function CodexAvatar({ name = 'User', shape = 'circle', photoUrl = null, size = 52, className = '', style = {} }) {
+  const initials = useMemo(() => {
+    const trimmed = (name || 'User').trim()
+    const parts = trimmed.split(/\s+/).filter(Boolean)
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase()
+    }
+    return trimmed.slice(0, 2).toUpperCase() || 'U'
+  }, [name])
+
+  const clipId = useMemo(() => `avatar-clip-${Math.random().toString(36).substring(2, 9)}`, [])
+
+  const scallopPoints = useMemo(() => {
+    return Array.from({ length: 48 }, (_, i) => {
+      const a = (i * 2 * Math.PI) / 48 - Math.PI / 2
+      const r = 44 + 6 * Math.cos(8 * a)
+      const x = 50 + r * Math.cos(a)
+      const y = 50 + r * Math.sin(a)
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    }).join(' ')
+  }, [])
+
+  const badgePoints = useMemo(() => {
+    return Array.from({ length: 32 }, (_, i) => {
+      const a = (i * 2 * Math.PI) / 32 - Math.PI / 2
+      const r = i % 2 === 0 ? 50 : 43.5
+      const x = 50 + r * Math.cos(a)
+      const y = 50 + r * Math.sin(a)
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    }).join(' ')
+  }, [])
+
+  const renderShapeElement = (fill = '#7c8ba1') => {
+    switch (shape) {
+      case 'scallop':
+        return <polygon points={scallopPoints} fill={fill} />
+      case 'squircle':
+        return <rect x="2" y="2" width="96" height="96" rx="26" ry="26" fill={fill} />
+      case 'oval':
+        return <ellipse cx="50" cy="50" rx="42" ry="49" fill={fill} />
+      case 'badge':
+        return <polygon points={badgePoints} fill={fill} />
+      case 'circle':
+      default:
+        return <circle cx="50" cy="50" r="49" fill={fill} />
+    }
+  }
+
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      width={size}
+      height={size}
+      className={`codex-avatar ${className}`}
+      style={{ display: 'inline-block', flexShrink: 0, overflow: 'visible', ...style }}
+    >
+      <defs>
+        <clipPath id={clipId}>
+          {renderShapeElement('#fff')}
+        </clipPath>
+      </defs>
+      {renderShapeElement('#7a8c9e')}
+      {photoUrl ? (
+        <image
+          href={photoUrl}
+          x="0"
+          y="0"
+          width="100"
+          height="100"
+          preserveAspectRatio="xMidYMid slice"
+          clipPath={`url(#${clipId})`}
+        />
+      ) : (
+        <text
+          x="50"
+          y="52"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill="#ffffff"
+          fontWeight="600"
+          fontSize={size > 60 ? 32 : 36}
+          fontFamily="var(--font-sans, system-ui, -apple-system, sans-serif)"
+        >
+          {initials}
+        </text>
+      )}
+    </svg>
+  )
+}
+
+function EditProfileDrawer({ open, onClose, userProfile, updateUserProfile, toast }) {
   const [name, setName] = useState(userProfile?.name || '')
   const [fullName, setFullName] = useState(userProfile?.full_name || '')
+  const [handle, setHandle] = useState(userProfile?.handle || '')
   const [email, setEmail] = useState(userProfile?.email || '')
+  const [avatarShape, setAvatarShape] = useState(userProfile?.avatar_shape || 'circle')
+  const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatar_url || null)
+  const [visibility, setVisibility] = useState({
+    show_stats: true,
+    show_activity: true,
+    show_plugins: true,
+    show_insights: true,
+    ...(userProfile?.visibility || {}),
+  })
   const [saving, setSaving] = useState(false)
+  const fileInputRef = useRef(null)
 
   useEffect(() => {
     if (userProfile) {
       setName(userProfile.name || '')
       setFullName(userProfile.full_name || '')
+      setHandle(userProfile.handle || `@${(userProfile.name || 'user').toLowerCase().replace(/\s+/g, '')}`)
       setEmail(userProfile.email || '')
+      setAvatarShape(userProfile.avatar_shape || 'circle')
+      setAvatarUrl(userProfile.avatar_url || null)
+      setVisibility({
+        show_stats: true,
+        show_activity: true,
+        show_plugins: true,
+        show_insights: true,
+        ...(userProfile.visibility || {}),
+      })
     }
-  }, [userProfile])
+  }, [userProfile, open])
+
+  if (!open) return null
+
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      toast('Please select an image under 2MB', 'bad')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      setAvatarUrl(reader.result)
+      toast('Photo updated in preview', 'ok')
+    }
+    reader.readAsDataURL(file)
+  }
 
   const handleSave = async (e) => {
     e?.preventDefault()
-    if (!name.trim()) return
+    if (!name.trim()) {
+      toast('Display name is required', 'amber')
+      return
+    }
     setSaving(true)
     try {
       await updateUserProfile({
         name: name.trim(),
-        full_name: fullName.trim(),
+        full_name: fullName.trim() || name.trim(),
+        handle: handle.trim(),
         email: email.trim(),
+        avatar_shape: avatarShape,
+        avatar_url: avatarUrl,
+        visibility,
       })
       toast('Profile updated successfully', 'ok')
+      onClose()
     } catch {
       // toast handled in store
     } finally {
@@ -105,79 +240,592 @@ function Profile() {
     }
   }
 
+  const shapes = [
+    { id: 'circle', label: 'Circle' },
+    { id: 'scallop', label: 'Scallop' },
+    { id: 'squircle', label: 'Squircle' },
+    { id: 'oval', label: 'Oval' },
+    { id: 'badge', label: 'Badge' },
+  ]
+
   return (
-    <div className="set-panel">
-      <div className="set-section-label">Identity</div>
-      <div className="set-box" style={{ padding: '20px', marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-          <div className="sb-user-avatar" style={{ width: 48, height: 48, fontSize: 18 }}>
-            {(name || 'U').charAt(0).toUpperCase()}
-          </div>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>
-              {fullName || name || 'User'}
-            </div>
-            <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
-              {email || 'user@amethyst.local'}
-            </div>
+    <>
+      <div className="codex-drawer-backdrop" onClick={onClose} />
+      <motion.div
+        className="codex-drawer-panel"
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+      >
+        {/* Drawer Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))' }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>Edit profile</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <HouseButton
+              type="button"
+              onClick={onClose}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: 13, cursor: 'pointer', padding: '4px 8px' }}
+            >
+              Cancel
+            </HouseButton>
+            <HouseButton
+              type="button"
+              onClick={handleSave}
+              disabled={saving || !name.trim()}
+              style={{
+                background: '#ffffff',
+                color: '#000000',
+                border: 'none',
+                borderRadius: 9999,
+                padding: '6px 18px',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                opacity: saving ? 0.7 : 1,
+              }}
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </HouseButton>
           </div>
         </div>
 
-        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Drawer Content */}
+        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 24, overflowY: 'auto' }}>
+          {/* Photo Section */}
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
-              Display Name (Greeting)
-            </label>
-            <HouseInput
-              type="text"
-              className="set-input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Jason"
-              style={{ width: '100%', maxWidth: 360 }}
-            />
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}>Photo</div>
+            <div className="codex-card" style={{ padding: 0 }}>
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '14px 18px',
+                  cursor: 'pointer',
+                  borderBottom: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.06))',
+                }}
+              >
+                <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>Upload photo</span>
+                <Icon name="image" size={16} style={{ color: 'var(--text-dim)' }} />
+                {/* eslint-disable-next-line amethyst-ui/no-raw-controls */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  style={{ display: 'none' }}
+                />
+              </div>
+
+              {avatarUrl && (
+                <div style={{ padding: '8px 18px', borderBottom: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.06))' }}>
+                  <HouseButton
+                    type="button"
+                    onClick={() => setAvatarUrl(null)}
+                    style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 12, padding: 0, cursor: 'pointer' }}
+                  >
+                    Remove custom photo
+                  </HouseButton>
+                </div>
+              )}
+
+              {/* 5 Shape Selector Buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px' }}>
+                {shapes.map((s) => {
+                  const active = avatarShape === s.id
+                  return (
+                    <HouseButton
+                      key={s.id}
+                      type="button"
+                      className={`codex-shape-btn${active ? ' is-active' : ''}`}
+                      onClick={() => setAvatarShape(s.id)}
+                      title={s.label}
+                    >
+                      <CodexAvatar
+                        name={fullName || name}
+                        shape={s.id}
+                        photoUrl={avatarUrl}
+                        size={48}
+                      />
+                      {active && (
+                        <div className="codex-shape-check">
+                          <Icon name="check" size={10} />
+                        </div>
+                      )}
+                    </HouseButton>
+                  )
+                })}
+              </div>
+            </div>
           </div>
 
+          {/* Account Details */}
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
-              Full Name
-            </label>
-            <HouseInput
-              type="text"
-              className="set-input"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="e.g. Jason Wayne"
-              style={{ width: '100%', maxWidth: 360 }}
-            />
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}>Account Details</div>
+            <div className="codex-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
+                  Display Name
+                </label>
+                <HouseInput
+                  type="text"
+                  className="set-input"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Rose"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
+                  Full Name
+                </label>
+                <HouseInput
+                  type="text"
+                  className="set-input"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="e.g. Rose ST"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
+                  Username Handle
+                </label>
+                <HouseInput
+                  type="text"
+                  className="set-input"
+                  value={handle}
+                  onChange={(e) => setHandle(e.target.value)}
+                  placeholder="e.g. @rosest65"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
+                  Email Address
+                </label>
+                <HouseInput
+                  type="email"
+                  className="set-input"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="user@example.com"
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </div>
           </div>
 
+          {/* What Others See */}
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-dim)', marginBottom: 6 }}>
-              Email Address
-            </label>
-            <HouseInput
-              type="email"
-              className="set-input"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="user@example.com"
-              style={{ width: '100%', maxWidth: 360 }}
-            />
-          </div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>What others see</div>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12 }}>
+              Choose which sections are visible to others when you share your profile
+            </div>
+            <div className="codex-card">
+              <div className="codex-row">
+                <span className="codex-row-title">Show activity statistics</span>
+                <Switch
+                  on={visibility.show_stats}
+                  onChange={(val) => setVisibility((v) => ({ ...v, show_stats: val }))}
+                  tone="default"
+                />
+              </div>
 
-          <div style={{ marginTop: 8 }}>
-            <HouseButton
-              type="submit"
-              className="set-btn-primary"
-              disabled={saving || !name.trim()}
-              style={{ padding: '8px 18px', fontSize: 13, borderRadius: 8 }}
-            >
-              {saving ? 'Saving...' : 'Save Profile Changes'}
-            </HouseButton>
+              <div className="codex-row">
+                <span className="codex-row-title">Show activity heatmap</span>
+                <Switch
+                  on={visibility.show_activity}
+                  onChange={(val) => setVisibility((v) => ({ ...v, show_activity: val }))}
+                  tone="default"
+                />
+              </div>
+
+              <div className="codex-row">
+                <span className="codex-row-title">Show capabilities & tools</span>
+                <Switch
+                  on={visibility.show_plugins}
+                  onChange={(val) => setVisibility((v) => ({ ...v, show_plugins: val }))}
+                  tone="default"
+                />
+              </div>
+
+              <div className="codex-row">
+                <span className="codex-row-title">Show workspace insights</span>
+                <Switch
+                  on={visibility.show_insights}
+                  onChange={(val) => setVisibility((v) => ({ ...v, show_insights: val }))}
+                  tone="default"
+                />
+              </div>
+            </div>
           </div>
-        </form>
+        </div>
+      </motion.div>
+    </>
+  )
+}
+
+function formatToolName(raw) {
+  if (!raw) return 'Tool'
+  if (raw.startsWith('__connector__')) {
+    const name = raw.replace('__connector__', '')
+    return name.split(/[-_]/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+  }
+  if (raw.includes('__mcp__')) {
+    const parts = raw.split('__mcp__')
+    return parts[0].replace(/_/g, ' ')
+  }
+  const clean = raw.replace(/^tool_call_?/, '').replace(/_/g, ' ')
+  return clean.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+}
+
+function getToolIcon(raw) {
+  const lower = (raw || '').toLowerCase()
+  if (lower.includes('shell') || lower.includes('terminal') || lower.includes('exec') || lower.includes('command')) return 'terminal'
+  if (lower.includes('git')) return 'git-branch'
+  if (lower.includes('mail') || lower.includes('gmail')) return 'envelope'
+  if (lower.includes('web') || lower.includes('fetch') || lower.includes('search') || lower.includes('url')) return 'globe'
+  if (lower.includes('todo') || lower.includes('task')) return 'tasks'
+  if (lower.includes('weather') || lower.includes('meteo')) return 'wind'
+  return 'wrench'
+}
+
+function Profile() {
+  const { userProfile, updateUserProfile, conversations, caps, workspace, toast } = useApp()
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [activityMode, setActivityMode] = useState('Daily')
+  const [hoveredCell, setHoveredCell] = useState(null)
+  const [activityData, setActivityData] = useState(null)
+
+  useEffect(() => {
+    let active = true
+    api.activity(365)
+      .then((res) => {
+        if (active) setActivityData(res)
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [])
+
+  const isPrivate = userProfile?.is_private || false
+  const visibility = userProfile?.visibility || {
+    show_stats: true,
+    show_activity: true,
+    show_plugins: true,
+    show_insights: true,
+  }
+
+  const displayName = userProfile?.full_name || userProfile?.name || 'User'
+  const handle = userProfile?.handle || `@${(userProfile?.name || 'user').toLowerCase().replace(/\s+/g, '')}`
+
+  const togglePrivacy = async () => {
+    const next = !isPrivate
+    try {
+      await updateUserProfile({ is_private: next })
+      toast(next ? 'Profile visibility set to Private' : 'Profile visibility set to Public', 'ok')
+    } catch {
+      // toast in store
+    }
+  }
+
+  const handleShare = () => {
+    const url = window.location.origin + '/#profile'
+    copyText(url)
+    toast('Profile link copied to clipboard', 'ok')
+  }
+
+  // Real daily map from SQLite
+  const dailyMap = useMemo(() => {
+    const map = {}
+    if (activityData?.daily && Array.isArray(activityData.daily)) {
+      for (const d of activityData.daily) {
+        if (d?.day) map[d.day] = d.cnt || 0
+      }
+    }
+    return map
+  }, [activityData])
+
+  // Real 52-week activity heatmap
+  const { heatmapData, activeDaysCount, totalTurnCount } = useMemo(() => {
+    const weeks = []
+    const today = new Date()
+    const startDate = new Date(today)
+    startDate.setDate(today.getDate() - (52 * 7 - 1))
+
+    let activeDays = 0
+    let totalTurns = 0
+    const curr = new Date(startDate)
+
+    for (let w = 0; w < 52; w++) {
+      const days = []
+      for (let d = 0; d < 7; d++) {
+        const yyyy = curr.getFullYear()
+        const mm = String(curr.getMonth() + 1).padStart(2, '0')
+        const dd = String(curr.getDate()).padStart(2, '0')
+        const key = `${yyyy}-${mm}-${dd}`
+        const count = dailyMap[key] || 0
+        if (count > 0) activeDays++
+        totalTurns += count
+
+        let level = 0
+        if (count >= 20) level = 4
+        else if (count >= 10) level = 3
+        else if (count >= 4) level = 2
+        else if (count >= 1) level = 1
+
+        days.push({ date: key, count, level })
+        curr.setDate(curr.getDate() + 1)
+      }
+      weeks.push(days)
+    }
+    return { heatmapData: weeks, activeDaysCount: activeDays, totalTurnCount: totalTurns }
+  }, [dailyMap])
+
+  const monthLabels = ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct']
+
+  const getCellColor = (level) => {
+    switch (level) {
+      case 4: return '#60a5fa'
+      case 3: return '#3b82f6'
+      case 2: return 'rgba(59, 130, 246, 0.6)'
+      case 1: return 'rgba(59, 130, 246, 0.3)'
+      case 0:
+      default:
+        return 'rgba(255, 255, 255, 0.05)'
+    }
+  }
+
+  // Real top executed tools from database
+  const topTools = useMemo(() => {
+    if (!activityData?.tools || !Array.isArray(activityData.tools)) return []
+    return activityData.tools.filter((t) => t?.tool_name).slice(0, 6)
+  }, [activityData])
+
+  const primaryModel = activityData?.models?.[0]
+  const successRate = activityData?.total_runs
+    ? Math.round(((activityData.completed_runs || 0) / activityData.total_runs) * 100)
+    : 100
+
+  return (
+    <div className="codex-settings-container">
+      {/* Top Action Bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }}>
+        <HouseButton
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          className="codex-channel-btn"
+        >
+          <Icon name="edit" size={13} />
+          <span>Edit</span>
+        </HouseButton>
+
+        <HouseButton
+          type="button"
+          onClick={togglePrivacy}
+          className="codex-channel-btn"
+        >
+          <Icon name={isPrivate ? 'lock' : 'globe'} size={13} />
+          <span>{isPrivate ? 'Private' : 'Public'}</span>
+        </HouseButton>
+
+        <HouseButton
+          type="button"
+          onClick={handleShare}
+          className="codex-channel-btn"
+        >
+          <Icon name="share" size={13} />
+          <span>Share</span>
+        </HouseButton>
       </div>
+
+      {/* Hero: Avatar + Name + Handle */}
+      <div className="codex-profile-header">
+        <CodexAvatar
+          name={displayName}
+          shape={userProfile?.avatar_shape || 'circle'}
+          photoUrl={userProfile?.avatar_url}
+          size={96}
+        />
+        <div className="codex-profile-name">{displayName}</div>
+        <div className="codex-profile-handle">{handle}</div>
+      </div>
+
+      {/* 5-Metric Stat Banner (Real SQLite Counts) */}
+      {visibility.show_stats !== false && (
+        <div className="codex-stat-banner">
+          <div className="codex-stat-item">
+            <span className="codex-stat-value">{activityData?.total_runs ?? 0}</span>
+            <span className="codex-stat-label">Agent runs</span>
+          </div>
+          <div className="codex-stat-item">
+            <span className="codex-stat-value">{conversations?.length ?? 0}</span>
+            <span className="codex-stat-label">Conversations</span>
+          </div>
+          <div className="codex-stat-item">
+            <span className="codex-stat-value">{activityData?.messages_count?.toLocaleString() ?? 0}</span>
+            <span className="codex-stat-label">Messages</span>
+          </div>
+          <div className="codex-stat-item">
+            <span className="codex-stat-value">{successRate}%</span>
+            <span className="codex-stat-label">Turn success</span>
+          </div>
+          <div className="codex-stat-item">
+            <span className="codex-stat-value">{activeDaysCount}</span>
+            <span className="codex-stat-label">Active days</span>
+          </div>
+        </div>
+      )}
+
+      {/* Real Activity Heatmap */}
+      {visibility.show_activity !== false && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Activity timeline</span>
+              <span style={{ fontSize: 12, color: 'var(--text-dim)', marginLeft: 8 }}>
+                {hoveredCell
+                  ? `${hoveredCell.date}: ${hoveredCell.count} run${hoveredCell.count === 1 ? '' : 's'}`
+                  : `${totalTurnCount} agent runs over past 52 weeks`}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11.5 }}>
+              {['Daily', 'Weekly', 'Total'].map((tab) => (
+                <HouseButton
+                  key={tab}
+                  type="button"
+                  onClick={() => setActivityMode(tab)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                    color: activityMode === tab ? 'var(--text)' : 'var(--text-dim)',
+                    fontWeight: activityMode === tab ? 600 : 400,
+                  }}
+                >
+                  {tab}
+                </HouseButton>
+              ))}
+            </div>
+          </div>
+
+          <div className="codex-card" style={{ padding: '16px 20px' }}>
+            <div className="codex-heatmap-container">
+              <div className="codex-heatmap-grid">
+                {heatmapData.map((week, wIdx) =>
+                  week.map((cell, dIdx) => (
+                    <div
+                      key={`${wIdx}-${dIdx}`}
+                      className="codex-heatmap-cell"
+                      style={{ background: getCellColor(cell.level) }}
+                      onMouseEnter={() => setHoveredCell(cell)}
+                      onMouseLeave={() => setHoveredCell(null)}
+                      title={`${cell.date}: ${cell.count} agent run${cell.count === 1 ? '' : 's'}`}
+                    />
+                  ))
+                )}
+              </div>
+              <div className="codex-heatmap-months">
+                {monthLabels.map((m) => (
+                  <span key={m}>{m}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Real Top Capabilities & Tools */}
+      {visibility.show_plugins !== false && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Top capabilities & tools</span>
+            <span style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>
+              {caps?.skills?.length || 0} skills · {caps?.connectors?.length || 0} connectors
+            </span>
+          </div>
+
+          {topTools.length > 0 ? (
+            <div className="codex-tool-grid">
+              {topTools.map((t) => (
+                <div key={t.tool_name} className="codex-tool-item">
+                  <div className="codex-tool-icon-box">
+                    <Icon name={getToolIcon(t.tool_name)} size={16} />
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {formatToolName(t.tool_name)}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>
+                      {t.cnt.toLocaleString()} executions
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="codex-card" style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)', fontSize: 13 }}>
+              No tool executions recorded yet. Agent capabilities are ready to use.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Real Workspace & Runtime Insights */}
+      {visibility.show_insights !== false && (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}>
+            Workspace & runtime insights
+          </div>
+          <div className="codex-card" style={{ padding: '8px 20px' }}>
+            <div className="codex-insights-row">
+              <span className="codex-insights-key">Active Workspace</span>
+              <span className="codex-insights-val" title={workspace || 'Default'}>
+                {workspace ? workspace.replace(/^\/home\/[^/]+/, '~') : 'Default Workspace'}
+              </span>
+            </div>
+            <div className="codex-insights-row">
+              <span className="codex-insights-key">Primary Model</span>
+              <span className="codex-insights-val">
+                {primaryModel ? `${primaryModel.name || primaryModel.model} (${primaryModel.percentage}%)` : 'Configured Provider'}
+              </span>
+            </div>
+            <div className="codex-insights-row">
+              <span className="codex-insights-key">Installed Skills</span>
+              <span className="codex-insights-val">{caps?.skills?.length || 0} active</span>
+            </div>
+            <div className="codex-insights-row">
+              <span className="codex-insights-key">Connected Services</span>
+              <span className="codex-insights-val">{caps?.connectors?.length || 0} connectors</span>
+            </div>
+            <div className="codex-insights-row">
+              <span className="codex-insights-key">Storage Engine</span>
+              <span className="codex-insights-val">SQLite 3 · Local Encrypted</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Slide-out Edit Profile Drawer */}
+      <AnimatePresence>
+        {drawerOpen && (
+          <EditProfileDrawer
+            open={drawerOpen}
+            onClose={() => setDrawerOpen(false)}
+            userProfile={userProfile}
+            updateUserProfile={updateUserProfile}
+            toast={toast}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -809,13 +1457,28 @@ function General() {
    ========================================================================== */
 
 function Notifications() {
-  const { notifyOnDone, setNotifyOnDone, toast } = useApp()
+  const { notifyOnDone, setNotifyOnDone, setView, toast } = useApp()
   const [briefingHour, setBriefingHour] = useState(8)
   const [briefingEnabled, setBriefingEnabled] = useState(true)
-  const [turnCompletion, setTurnCompletion] = useState('unfocused')
-  const [permissionAlerts, setPermissionAlerts] = useState(true)
-  const [questionAlerts, setQuestionAlerts] = useState(true)
-  const [soundSetting, setSoundSetting] = useState('default')
+
+  // Channels state for each notification category
+  const [channels, setChannels] = useState(() => {
+    try {
+      const cached = safeStorage.getItem('amethyst_notification_channels')
+      if (cached) return JSON.parse(cached)
+    } catch {}
+    return {
+      agent_runs: 'desktop',
+      tasks: 'all',
+      permissions: 'all',
+      questions: 'desktop',
+      library: 'desktop',
+      responses: 'desktop',
+      briefing: 'desktop',
+      health: 'desktop',
+      usage: 'all',
+    }
+  })
 
   useEffect(() => {
     api.settings()
@@ -828,167 +1491,168 @@ function Notifications() {
       .catch(() => {})
   }, [])
 
-  const handleNotificationToggle = async () => {
-    if (typeof Notification === 'undefined') {
-      toast('Notifications not supported in this browser environment', 'bad')
-      return
-    }
-    if (Notification.permission !== 'granted') {
-      const perm = await Notification.requestPermission()
-      if (perm !== 'granted') {
-        toast('Notification permission was denied in browser', 'amber')
-        return
+  const channelOptions = [
+    { value: 'desktop', label: 'Desktop' },
+    { value: 'sound', label: 'Sound' },
+    { value: 'push', label: 'Companion Push' },
+    { value: 'all', label: 'Desktop, Sound' },
+    { value: 'off', label: 'Off' },
+  ]
+
+  const updateChannel = (category, val) => {
+    const next = { ...channels, [category]: val }
+    setChannels(next)
+    try {
+      safeStorage.setItem('amethyst_notification_channels', JSON.stringify(next))
+    } catch {}
+
+    if (category === 'agent_runs') {
+      if (val === 'off') {
+        setNotifyOnDone(false)
+      } else {
+        setNotifyOnDone(true)
       }
     }
-    const { value, blocked } = await setNotifyOnDone(!notifyOnDone)
-    if (blocked) {
-      toast('Your browser blocked desktop notifications', 'amber')
-    } else {
-      toast(value ? 'Desktop notifications enabled' : 'Desktop notifications disabled', 'ok')
+
+    if (category === 'briefing') {
+      const enabled = val !== 'off'
+      setBriefingEnabled(enabled)
+      api.updateSettings({ journal: { briefing_hour: briefingHour, briefing_enabled: enabled } }).catch(() => {})
+    }
+
+    toast(`Channel set to ${channelOptions.find((o) => o.value === val)?.label || val}`, 'ok')
+  }
+
+  const handleConfigureBriefing = async () => {
+    const hourStr = window.prompt('Set morning briefing hour (0-23):', String(briefingHour))
+    if (hourStr != null) {
+      const h = parseInt(hourStr, 10)
+      if (!isNaN(h) && h >= 0 && h <= 23) {
+        setBriefingHour(h)
+        try {
+          await api.updateSettings({ journal: { briefing_hour: h, briefing_enabled: briefingEnabled } })
+          toast(`Daily briefing scheduled for ${String(h).padStart(2, '0')}:00`, 'ok')
+        } catch (e) {
+          toast(e.message, 'bad')
+        }
+      }
     }
   }
 
-  const handleBriefingHourChange = async (h) => {
-    setBriefingHour(h)
-    try {
-      await api.updateSettings({ journal: { briefing_hour: h, briefing_enabled: briefingEnabled } })
-    } catch (err) {
-      toast(err.message, 'bad')
-    }
-  }
-
-  const handleBriefingToggle = async () => {
-    const next = !briefingEnabled
-    setBriefingEnabled(next)
-    try {
-      await api.updateSettings({ journal: { briefing_hour: briefingHour, briefing_enabled: next } })
-      toast(next ? `Daily briefing enabled for ${String(briefingHour).padStart(2, '0')}:00` : 'Daily briefing disabled', 'ok')
-    } catch (err) {
-      toast(err.message, 'bad')
-    }
-  }
-
-  const turnOptions = [
-    { value: 'unfocused', label: 'Only when unfocused' },
-    { value: 'always', label: 'Always alert' },
-    { value: 'never', label: 'Never' },
+  const notificationItems = [
+    {
+      id: 'agent_runs',
+      title: 'Agent runs',
+      desc: 'Get notified about Amethyst tasks and completed turns.',
+    },
+    {
+      id: 'tasks',
+      title: 'Tasks',
+      desc: "Get notified when tasks you've created have updates.",
+      linkText: 'Manage tasks',
+      onLinkClick: () => forSettings(setView, 'activity'),
+    },
+    {
+      id: 'permissions',
+      title: 'Permissions',
+      desc: 'Get notified when filesystem, shell, or network actions need your confirmation.',
+    },
+    {
+      id: 'questions',
+      title: 'Questions & input',
+      desc: 'Get notified when input is needed to continue.',
+    },
+    {
+      id: 'library',
+      title: 'Library',
+      desc: 'Get notified about shared files, index completions, and attachments in your Library.',
+    },
+    {
+      id: 'responses',
+      title: 'Responses',
+      desc: 'Get notified when Amethyst responds to requests that take time, like research or code generation.',
+    },
+    {
+      id: 'briefing',
+      title: 'Morning briefing',
+      desc: 'Receive a concise morning summary of open tasks, git activity, and agenda.',
+      linkText: `Configure time (${String(briefingHour).padStart(2, '0')}:00)`,
+      onLinkClick: handleConfigureBriefing,
+    },
+    {
+      id: 'health',
+      title: 'Health',
+      desc: 'Get notified when local system or container health data is ready.',
+    },
+    {
+      id: 'usage',
+      title: 'Usage',
+      desc: "We'll notify you when limits reset for features like image creation or 5-hour provider windows.",
+    },
   ]
-
-  const soundOptions = [
-    { value: 'default', label: 'Default chime' },
-    { value: 'soft', label: 'Soft bell' },
-    { value: 'mute', label: 'Mute' },
-  ]
-
-  const briefingHours = Array.from({ length: 24 }, (_, i) => ({
-    value: i,
-    label: `${String(i).padStart(2, '0')}:00`,
-  }))
 
   return (
-    <div className="set-panel" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div className="codex-settings-container">
       <div>
-        <div className="set-section-label">Alerts & Notifications</div>
-        <div className="set-box" style={{ borderRadius: 16 }}>
-          <div className="set-box-row">
-            <div className="set-row-text">
-              <span className="set-row-title">Turn completion notifications</span>
-              <span className="set-row-desc">Set when Amethyst alerts you that an agent turn is finished.</span>
-            </div>
-            <AnimatedSelect
-              value={turnCompletion}
-              onChange={(v) => { setTurnCompletion(v); toast(`Turn alerts set to ${v}`, 'ok') }}
-              options={turnOptions}
-              minWidth={170}
-            />
-          </div>
+        <h2 style={{ fontSize: 26, fontWeight: 600, color: 'var(--text)', margin: '0 0 20px', letterSpacing: '-0.02em' }}>
+          Notifications
+        </h2>
 
-          <div className="set-box-row">
-            <div className="set-row-text">
-              <span className="set-row-title">Enable permission notifications</span>
-              <span className="set-row-desc">Show alerts when filesystem or shell permissions are requested.</span>
-            </div>
-            <Switch on={permissionAlerts} onChange={(val) => setPermissionAlerts(val)} tone="default" />
-          </div>
-
-          <div className="set-box-row">
-            <div className="set-row-text">
-              <span className="set-row-title">Enable question notifications</span>
-              <span className="set-row-desc">Show alerts when input is needed to continue.</span>
-            </div>
-            <Switch on={questionAlerts} onChange={(val) => setQuestionAlerts(val)} tone="default" />
-          </div>
-
-          <div className="set-box-row">
-            <div className="set-row-text">
-              <span className="set-row-title">Desktop system notifications</span>
-              <span className="set-row-desc">Native OS notifications when Amethyst is backgrounded.</span>
-            </div>
-            <Switch on={notifyOnDone} onChange={handleNotificationToggle} tone="default" />
-          </div>
-
-          <div className="set-box-row">
-            <div className="set-row-text">
-              <span className="set-row-title">Notification sound</span>
-              <span className="set-row-desc">Sound for task completion, permission requests, and questions.</span>
-            </div>
-            <AnimatedSelect
-              value={soundSetting}
-              onChange={(v) => { setSoundSetting(v); toast(`Sound set to ${v}`, 'ok') }}
-              options={soundOptions}
-              minWidth={140}
-            />
-          </div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-dim)', marginBottom: 8, letterSpacing: '0.02em' }}>
+          Amethyst
         </div>
-      </div>
 
-      <div>
-        <div className="set-section-label">Briefing & Routine</div>
-        <div className="set-box" style={{ borderRadius: 16 }}>
-          <div className="set-box-row">
-            <div className="set-row-left">
-              <div className="set-row-icon-box">
-                <Icon name="clock" size={16} />
+        <div className="codex-card">
+          {notificationItems.map((item) => (
+            <div key={item.id} className="codex-row">
+              <div className="codex-row-info">
+                <span className="codex-row-title">{item.title}</span>
+                <span className="codex-row-desc">{item.desc}</span>
+                {item.linkText && (
+                  <HouseButton
+                    type="button"
+                    className="codex-row-link"
+                    onClick={item.onLinkClick}
+                  >
+                    {item.linkText}
+                  </HouseButton>
+                )}
               </div>
-              <div className="set-row-text">
-                <span className="set-row-title">Morning briefing</span>
-                <span className="set-row-desc">Written from your calendar, tasks, and notes at the configured hour.</span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+
               <AnimatedSelect
-                value={briefingHour}
-                onChange={handleBriefingHourChange}
-                options={briefingHours}
-                placeholder="Hour…"
-                minWidth={95}
+                value={channels[item.id] || 'desktop'}
+                onChange={(val) => updateChannel(item.id, val)}
+                options={channelOptions}
+                minWidth={130}
               />
-              <Switch on={briefingEnabled} onChange={handleBriefingToggle} tone="default" />
             </div>
-          </div>
+          ))}
         </div>
       </div>
 
+      {/* Interactive Toast Tester */}
       <div>
-        <div className="set-section-label">Notification Preview</div>
-        <div className="set-box" style={{ borderRadius: 16, padding: '16px' }}>
-          <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 12 }}>
-            Interactive preview of BoardUI Notification toasts:
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-dim)', marginBottom: 8 }}>
+          Notification Preview
+        </div>
+        <div className="codex-card" style={{ padding: '16px 20px' }}>
+          <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 12 }}>
+            Interactive preview of BoardUI Notification alerts:
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification("information")} style={{ borderRadius: 12 }}>
+            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification('information')} style={{ borderRadius: 10 }}>
               Information
             </HouseButton>
-            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification("success")} style={{ borderRadius: 12 }}>
+            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification('success')} style={{ borderRadius: 10 }}>
               Success
             </HouseButton>
-            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification("error")} style={{ borderRadius: 12 }}>
+            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification('error')} style={{ borderRadius: 10 }}>
               Error
             </HouseButton>
-            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification("avatar")} style={{ borderRadius: 12 }}>
+            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification('avatar')} style={{ borderRadius: 10 }}>
               With avatar
             </HouseButton>
-            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification("actions")} style={{ borderRadius: 12 }}>
+            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification('actions')} style={{ borderRadius: 10 }}>
               With buttons
             </HouseButton>
           </div>
@@ -5174,7 +5838,7 @@ export default function Settings() {
         </div>
 
         <div className="set-panel-frame">
-          {section !== 'usage' && section !== 'activity' && (
+          {section !== 'usage' && section !== 'activity' && section !== 'profile' && section !== 'notifications' && (
             <h1 className="set-panel-title">
               {SECTIONS.find((s) => s.id === section)?.label}
             </h1>
