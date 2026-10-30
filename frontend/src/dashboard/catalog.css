@@ -43,3 +43,10 @@
 .catalog-options[hidden] { display: none; }
 .catalog-added { display: flex; align-items: center; gap: var(--tile-space-1); color: var(--tile-light-muted); }
 .today-catalog-row:has(.catalog-thumbnail[aria-expanded='true']) { outline: 2px solid var(--tile-action); outline-offset: 2px; }
+
+.catalog-live-preview { min-width: 0; container: tile / inline-size; }
+.today-catalog .catalog-live-preview .home-widget { margin: 0; width: 100%; box-shadow: none; }
+.today-catalog .catalog-live-preview .widget-content { overflow: visible; }
+
+.today-catalog .catalog-live-preview .clock-settings,
+.today-catalog .catalog-live-preview .world-clock > button { display: none; }

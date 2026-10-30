@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { request } from '../api.js'
 import Button from '../../components/ui/AppButton.jsx'
 import { Input } from '../../components/ui/input.tsx'
+import './clock.css'
 
 function useClock() {
   const [now, setNow] = useState(() => new Date())
@@ -24,8 +25,8 @@ function WorldClocks({ now, zones, remove, busy }) {
   return <ul className="world-clocks" aria-label="World clocks">{zones.map((value, index) => {
     const valid = typeof value === 'string' && canonicalZone(value)
     return <li className="world-clock" key={`${value}-${index}`}>
-      <span className="world-clock-place">{String(value).replaceAll('_', ' ')}</span>
-      {valid ? <div className="world-clock-reading"><time dateTime={now.toISOString()}>{now.toLocaleTimeString([], { timeZone: valid, hour: '2-digit', minute: '2-digit' })}</time><span>{now.toLocaleDateString([], { timeZone: valid, month: 'short', day: 'numeric' })}</span></div> : <span>Timezone unavailable</span>}
+      <span className="world-clock-place"><strong>{String(value).split('/').at(-1).replaceAll('_', ' ')}</strong><small>{String(value).replaceAll('_', ' ')}</small></span>
+      {valid ? <div className="world-clock-reading"><time dateTime={now.toISOString()}>{now.toLocaleTimeString([], { timeZone: valid, hour: '2-digit', minute: '2-digit' })}</time><span>{now.toLocaleDateString([], { timeZone: valid, month: 'short', day: 'numeric' })}</span><small className="world-clock-offset">{new Intl.DateTimeFormat([], { timeZone: valid, timeZoneName: 'shortOffset' }).formatToParts(now).find(part => part.type === 'timeZoneName')?.value}</small></div> : <span>Timezone unavailable</span>}
       {remove && <Button size="small" disabled={busy} aria-label={`Remove ${value}`} onClick={() => remove(index)}>Remove</Button>}
     </li>
   })}</ul>
@@ -33,7 +34,7 @@ function WorldClocks({ now, zones, remove, busy }) {
 
 function ClockReading({ now, zones, size, remove, busy }) {
   const shown = remove ? zones : zones.slice(0, size === 's' ? 0 : size === 'm' ? 2 : 4)
-  return <div className="clock-reading"><ClockFace now={now} />
+  return <div className="clock-reading" data-clock-size={size}><ClockFace now={now} />
     {shown.length > 0 && <WorldClocks now={now} zones={shown} remove={remove} busy={busy} />}
     {!remove && zones.length > shown.length && <p className="clock-saved-count">{size === 's' ? `${zones.length} world clocks` : `${zones.length - shown.length} more world clocks`}</p>}
   </div>
@@ -60,6 +61,7 @@ export function ClockFace({ now }) {
       <text className="clock-dial-date" x="100" y="144">{now.getDate()}</text>
       <line className="clock-hand clock-hour-hand" x1="100" y1="105" x2="100" y2="55" transform={`rotate(${(now.getHours() % 12) * 30 + now.getMinutes() / 2} 100 100)`} />
       <line className="clock-hand clock-minute-hand" x1="100" y1="108" x2="100" y2="30" transform={`rotate(${now.getMinutes() * 6} 100 100)`} />
+      <line className="clock-second-hand" x1="100" y1="116" x2="100" y2="24" transform={`rotate(${now.getSeconds() * 6} 100 100)`} />
       <circle className="clock-pin" cx="100" cy="100" r="4" />
     </svg>
     <span className="clock-date">{now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</span>

@@ -500,3 +500,5 @@ Shared card/detail composition keeps editors mounted across resizing, preserves 
 - 2026-10-29 — Android companion APK built and copied to Downloads; camera permission added for QR pairing. 40 frontend tests, Android assemble/lint, APK signature and alignment checks pass; hardware validation remains open.
 
 - 2026-10-30 — Companion 1.0.1: fixed Android secure-storage startup deadlock, bundled-font boot recovery, Amethyst Android artwork, and Settings updates from the paired desktop with APK verification. Android 15 launch and data-preserving upgrade verified; physical Vivo validation remains open.
+
+- 2026-10-30 — `glance.clock`: reworked S/M/L dial and world-time layouts, live size previews in the gallery, seconds and UTC offsets; installed Kokonut bento grid with theme tokens/shared controls and no demo data, usage in `dashboard-bento-usage.md`; targeted clock/gallery/grid browser tests and focused lint pass; Done remains checked. Screenshot references were absent, so pixel matching is unverified.

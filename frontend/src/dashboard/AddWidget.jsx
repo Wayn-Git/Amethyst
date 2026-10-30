@@ -3,6 +3,7 @@ import { useDashboard } from './context.js'
 import { SYSTEM_WIDGETS, WIDGET_ICONS, widgetTone, preferredWidgetSize } from './layout.js'
 import { Button, Input, Select, Segmented, Chip, IconBadge } from '../components/ui/bento/index.jsx'
 import Icon from '../components/Icon.jsx'
+import WidgetFrame from './WidgetFrame.jsx'
 
 const GROUPS = [['glance', 'Glance', 'clock'], ['needs-you', 'Needs you', 'mail'], ['communication', 'Communication', 'chat'], ['agent', 'Agent', 'sparkle'], ['library', 'Library', 'bookmark'], ['tasks', 'Tasks', 'tasks'], ['developer', 'Developer', 'branch'], ['student', 'Student', 'book'], ['feed', 'Feed', 'globe'], ['life', 'Life', 'sun'], ['system', 'System', 'settings'], ['proactive', 'Proactive', 'bell'], ['dashboard', 'Home', 'grid']]
 const categoryOf = manifest => GROUPS.some(([group]) => group === manifest.group) ? manifest.group : 'system'
@@ -23,6 +24,7 @@ function CatalogCard({ manifest: m, added, addWidget, removeWidget, openWidget, 
     <div className="today-catalog-copy"><h4>{m.title}</h4><p title={m.description || `View ${m.title.toLowerCase()}.`}>{m.description || `View ${m.title.toLowerCase()}.`}</p></div>
     {added && <span className="catalog-added"><Icon name="check-simple" size={14} />On Home</span>}
     <div id={id} hidden={!selected} className="catalog-options">
+    {m.id === 'glance.clock' && selected && <div className="catalog-live-preview bento-foundation widget-home" aria-label={`${m.title} ${size.toUpperCase()} preview`}><WidgetFrame manifest={m} size={size} preview /></div>}
     <div className="catalog-connectors">{connectors(m).map(source => <Chip key={source}><span>{sourceNames[source] || source}</span>{connections?.data?.items?.find(item => item.id === source)?.status === 'connected' ? <span>Connected</span> : <Button size="small" variant="ghost" onClick={() => connectSource(source)} aria-label={`Connect ${sourceNames[source] || source} for ${m.title}`}>Connect</Button>}</Chip>)}</div>
     <div className="catalog-card-actions"><Segmented aria-label={`Size for ${m.title}`} value={size} onValueChange={setSize} options={m.sizes.map(value => ({ value, label: value.toUpperCase() }))} />{system ? <Button size="small" onClick={() => openWidget(m.id)}>Open</Button> : added ? <div className="catalog-membership"><span><Icon name="check-simple" size={14} />On Home</span><Button size="small" variant="ghost" onClick={() => removeWidget(m.id)}>Remove</Button></div> : <Button size="small" variant="primary" onClick={() => addWidget(m.id, size)}><Icon name="plus" size={14} />Add</Button>}</div>
     </div>

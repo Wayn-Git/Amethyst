@@ -1,0 +1,51 @@
+/* The clock keeps one live instrument across the card and gallery variants. */
+.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading[data-clock-size] {
+  display: grid;
+  align-items: center;
+  gap: var(--tile-space-4);
+  min-width: 0;
+}
+.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading[data-clock-size] .glance-clock-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--tile-space-2);
+  padding: 0;
+  min-width: 0;
+}
+.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading[data-clock-size] .clock-dial { width: 128px; }
+.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading[data-clock-size='s'] .clock-dial { width: 120px; }
+.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading[data-clock-size='l'] .clock-dial { width: 160px; }
+.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading[data-clock-size] .home-clock { justify-content: center; font-variant-numeric: tabular-nums; }
+.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading[data-clock-size] .clock-zone { display: block; }
+.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-second-hand { stroke: var(--tile-calendar); stroke-width: 1.5; stroke-linecap: round; }
+.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading[data-clock-size] .world-clocks {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--tile-space-2);
+  min-width: 0;
+}
+.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading[data-clock-size] .world-clock {
+  display: flex;
+  align-items: center;
+  gap: var(--tile-space-3);
+  min-width: 0;
+  padding: var(--tile-space-3);
+  background: var(--ui-raised);
+  border-radius: var(--tile-control-radius);
+  border: 1px solid var(--ui-border);
+}
+.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .world-clock-place strong { display: block; font: var(--tile-title); }
+.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .world-clock-place small,
+.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .world-clock-offset { display: block; color: var(--tile-muted); font: var(--tile-label); }
+.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .world-clock-reading time { font: var(--tile-title); white-space: nowrap; }
+.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-settings[hidden] { display: none; }
+@container tile (width >= 390px) {
+  .bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading[data-clock-size='m']:has(.world-clocks),
+  .bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading[data-clock-size='l']:has(.world-clocks) { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); }
+  .bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-saved-count { grid-column: 1 / -1; }
+}
+@container tile (width >= 640px) {
+  .bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading[data-clock-size='l'] .world-clocks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
