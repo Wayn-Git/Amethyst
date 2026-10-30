@@ -1,0 +1,23 @@
+{
+  "labels": {
+    "unknownTime": "\u2014:\u2014",
+    "noTimezone": "No timezone set",
+    "noDate": "Date unavailable",
+    "unknownOffset": "\u2014",
+    "noSavedZones": "No saved zones",
+    "savedZonesHint": "Only saved time zones supplied at runtime appear here."
+  },
+  "palette": {
+    "shell": {
+      "light": "#F6F5F2",
+      "dark": "#202124"
+    },
+    "hero": {
+      "light": "#1745D8",
+      "dark": "#8CAEFF"
+    },
+    "cobalt": "#1846D5",
+    "onCobalt": "#FFFFFF",
+    "onCobaltSecondary": "#E0E8FF"
+  }
+}

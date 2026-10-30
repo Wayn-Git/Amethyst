@@ -1,10 +1,40 @@
 {
   "widgetId": "glance.air",
-  "size": "s",
+  "prompt": "Design an expressive macOS Air Quality widget using all attached images as visual references. Generate one coherent composition with Small (160x160), Medium (340x160), and Large (340x340) layouts for light and dark themes. Use the provided ideas as composition options: segmented spectrum, vertical pollutant pills, bordered trend, dark purity ring, or teal dot-matrix. Select one family and adapt it consistently to all sizes. Small: live AQI value, category, location and one simple visual; no pollutant list. Medium: small content plus exactly one block using available live pollutants. Large: medium content plus a four-pollutant breakdown and health note only if derivable from provided readings. The provider supplies current US/EU AQI, PM2.5, PM10, carbon monoxide, nitrogen dioxide, ozone and time; it does not supply history/trend. Never invent missing readings or health claims. Keep text at least 11px except the hero, use 24px outer corners, 16px small/20px other padding, 8px spacing grid and 12px group gaps, accessible contrast, and no clipping. No gallery or selector.",
+  "generatedAt": "2026-11-02T15:31:35+00:00",
+  "generationStatus": "generated",
+  "imageStatus": "available",
   "theme": "light",
-  "designSpec": "A single shadow-free 170px card emphasizes the AQI above compact particulate readings and update metadata. Neutral theme tokens and status-driven branches support loading and unavailable states; Retry is omitted because no actions are authorized.",
-  "generatedAt": "2026-11-01T12:33:06Z",
-  "endpoint": "https://widgets.gan.dev/api/author-widget",
-  "promptFile": "widget-prompts/glance.air-s.md",
-  "brokenRules": []
+  "designSpec": "One segmented-spectrum composition supports the configured small, medium, and large dimensions without a gallery or selector; 24px corners, specified padding, and theme-aware surfaces unify all variants. Medium adds only PM2.5, while Large adds PM10, CO, NO\u2082, and O\u2083 in a compact grid. No actual readings were supplied, so values remain unavailable, no spectrum band is selected, and no history or health claim is shown.",
+  "stages": [
+    "Reading reference image",
+    "Planning the widget",
+    "Planning complete. Gathering supporting context",
+    "Searching for real image URLs",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Checking the preview",
+    "Reviewing the widget data",
+    "Polishing the details",
+    "Keeping the widget compact",
+    "Widget ready"
+  ],
+  "contentHashes": {
+    "template.jsx": "5ef8865aad53bcd30cc91ca53f3212901082c5cada6f5d45d50449831d667dbc",
+    "data.json": "bc0bf6d4d5734b0b6acd3435d5c7f8766db3cae4439b9da7f333157068e9f2e8",
+    "reference.jpg": "ce6682218da84fb4f7f7d4070a4b3b292500bc6f8450f96f844884f1904a6927"
+  },
+  "imageFile": "reference.jpg",
+  "sizes": [
+    "s",
+    "m",
+    "l"
+  ],
+  "source": "live backend/dashboard provider"
 }

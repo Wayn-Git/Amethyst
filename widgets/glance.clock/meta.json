@@ -1,0 +1,40 @@
+{
+  "widgetId": "glance.clock",
+  "prompt": "Design an expressive macOS Clock widget using all attached images as visual references. Generate one coherent composition with Small (160x160), Medium (340x160), and Large (340x340) layouts for light and dark themes. Use the provided ideas as composition options: complication dial, daylight arc chrono, neon ring, cobalt world-time rows, or dual-zone inset cards. Select one family and adapt it consistently to all sizes. Small: live local time or dial, local timezone label and one date detail; no world rows. Medium: small content plus either three saved world zones or one inset metric block. Large: medium content plus up to five saved zones with live local times and day offsets. Use only the saved world zones and timezone settings supplied at runtime; do not invent cities, zones or times. Keep text at least 11px except the hero, use 24px outer corners, 16px small/20px other padding, 8px spacing grid and 12px group gaps, with accessible light/dark contrast. No repeated rows, clipping, gallery or selector.",
+  "generatedAt": "2026-11-02T15:29:02+00:00",
+  "generationStatus": "generated",
+  "imageStatus": "available",
+  "theme": "light",
+  "designSpec": "One cobalt world-time composition adapts through widgetSize (small, medium, large) to the three requested dimensions, using 24px corners and theme-aware colors without a gallery or selector. Small shows local information only; Medium adds up to three unique saved zones, and Large adds up to five with day offsets. The host supplies and refreshes preformatted local fields and savedZones entries (timezone, compactLabel, timeLabel, dayOffsetLabel), preserving runtime clock settings; absent data stays explicitly unavailable rather than inventing times or places.",
+  "stages": [
+    "Reading reference image",
+    "Planning the widget",
+    "Planning complete. Gathering supporting context",
+    "Searching for real image URLs",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Checking the preview",
+    "Reviewing the widget data",
+    "Polishing the details",
+    "Keeping the widget compact",
+    "Widget ready"
+  ],
+  "contentHashes": {
+    "template.jsx": "72907d9d792a62f2479f6084cf2885dc1204b8440a413b1be44926b1b7295eb6",
+    "data.json": "a99f4e281e5200dabdd0bdfc37dcb66bdfa1deff96c7c47c1d41c7253b239556",
+    "reference.jpg": "ce6682218da84fb4f7f7d4070a4b3b292500bc6f8450f96f844884f1904a6927"
+  },
+  "imageFile": "reference.jpg",
+  "sizes": [
+    "s",
+    "m",
+    "l"
+  ],
+  "source": "live backend/dashboard provider"
+}

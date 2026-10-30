@@ -1,86 +1,71 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { WidgetRenderer } from '@tugan/widgets'
+import LocationSettings from './LocationSettings.jsx'
+import design from '../../../../widgets/glance.sun/design.json'
 import template from '../../../../widgets/glance.sun/template.txt?raw'
+import { variationNumber } from '../widgetVariations.js'
+import { useClock } from './clock/helpers.js'
+import './sun/sun.css'
 
-const DEFAULT_LABELS = {
-  title: 'Sun',
-  sunrise: 'Sunrise',
-  sunset: 'Sunset',
-  dayLength: 'Daylight',
-  loading: 'Loading',
-  refreshing: 'Refreshing',
-  locationUnset: 'Location unset in settings',
-  unavailable: 'Solar times unavailable',
-  notAvailable: 'Not available',
-  updatedPrefix: 'Updated ',
-  offlineUpdatedPrefix: 'Offline, updated ',
-}
-
-function formatWallTime(isoString) {
-  if (typeof isoString !== 'string') return undefined
-  const match = isoString.match(/T([0-9]{2}):([0-9]{2})/)
-  if (!match) return undefined
-  let hours = Number.parseInt(match[1], 10)
-  const minutes = match[2]
-  const ampm = hours >= 12 ? 'PM' : 'AM'
-  hours = hours % 12
-  if (hours === 0) hours = 12
-  return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`
-}
-
-function calculateDayLength(sunriseIso, sunsetIso) {
-  if (typeof sunriseIso !== 'string' || typeof sunsetIso !== 'string') return undefined
-  const matchRise = sunriseIso.match(/T([0-9]{2}):([0-9]{2})/)
-  const matchSet = sunsetIso.match(/T([0-9]{2}):([0-9]{2})/)
-  if (!matchRise || !matchSet) return undefined
-  const riseMinutes = Number.parseInt(matchRise[1], 10) * 60 + Number.parseInt(matchRise[2], 10)
-  const setMinutes = Number.parseInt(matchSet[1], 10) * 60 + Number.parseInt(matchSet[2], 10)
-  let diff = setMinutes - riseMinutes
-  if (diff < 0) diff += 24 * 60
-  const hours = Math.floor(diff / 60)
-  const mins = diff % 60
-  return `${hours}h ${mins}m`
-}
-
-function adaptSun(data) {
-  if (!data) {
-    return {
-      status: 'loading',
-      labels: DEFAULT_LABELS,
-    }
+function zonedTimestamp(value, timezone) {
+  if (typeof value !== 'string' || !timezone) return null
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/)
+  if (!match) {
+    const timestamp = Date.parse(value)
+    return Number.isFinite(timestamp) ? timestamp : null
   }
 
-  if (data.set_location) {
-    return {
-      status: 'empty',
-      labels: DEFAULT_LABELS,
+  const [, year, month, day, hour, minute, second = '0'] = match
+  const wallTime = Date.UTC(+year, +month - 1, +day, +hour, +minute, +second)
+  let timestamp = wallTime
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+    })
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const parts = Object.fromEntries(formatter.formatToParts(new Date(timestamp)).map(part => [part.type, part.value]))
+      const represented = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second)
+      timestamp += wallTime - represented
     }
+    return timestamp
+  } catch {
+    return null
   }
+}
 
-  const sunrise = formatWallTime(data.sunrise)
-  const sunset = formatWallTime(data.sunset)
-  const dayLength = calculateDayLength(data.sunrise, data.sunset)
-  const tz = data.timezone ? data.timezone.replace('_', ' ') : undefined
+function themeColors(theme) {
+  return Object.fromEntries(
+    Object.entries(design.colors).map(([key, value]) => [key, value[theme] || value.light]),
+  )
+}
 
+function adaptSun(data, layout, theme, now) {
+  let sunrise = zonedTimestamp(data?.sunrise, data?.timezone)
+  const sunset = zonedTimestamp(data?.sunset, data?.timezone)
+  const nextSunrise = zonedTimestamp(data?.next_sunrise, data?.timezone)
+  if (layout === 'small' && sunset !== null && sunset < now.getTime() && nextSunrise !== null && nextSunrise > now.getTime()) {
+    sunrise = nextSunrise
+  }
   return {
-    status: data.refreshing ? 'refreshing' : 'ready',
-    message: data.message || '',
-    lastUpdated: sunrise ? sunrise.split(' ')[0] : undefined,
+    layout,
     sunrise,
     sunset,
-    dayLength,
-    timezone: tz,
-    labels: DEFAULT_LABELS,
+    timezone: typeof data?.timezone === 'string' ? data.timezone : '',
+    labels: design.labels,
+    colors: themeColors(theme),
   }
 }
 
-export default function Sun({ data, onAction }) {
+export default function Sun({ data, onAction, size = 's', full = false, design }) {
+  const now = useClock()
   const [theme, setTheme] = useState(() =>
-    typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+    typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light',
   )
 
   useEffect(() => {
-    if (typeof document === 'undefined') return
+    if (typeof document === 'undefined') return undefined
     const observer = new MutationObserver(() => {
       setTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light')
     })
@@ -88,16 +73,13 @@ export default function Sun({ data, onAction }) {
     return () => observer.disconnect()
   }, [])
 
-  const widgetData = useMemo(() => adaptSun(data), [data])
+  const layout = full || size === 'l' ? 'large' : size === 'm' ? 'medium' : 'small'
+  const widgetData = useMemo(() => adaptSun(data, layout, theme, now), [data, layout, theme, now])
 
   return (
-    <div className="glance-sun-root">
-      <WidgetRenderer
-        template={template}
-        data={widgetData}
-        theme={theme}
-        onAction={onAction}
-      />
+    <div className="glance-sun-root" data-variation={variationNumber(design)}>
+      <WidgetRenderer template={template} data={widgetData} theme={theme} onAction={onAction} />
+      {full && <LocationSettings active />}
     </div>
   )
 }

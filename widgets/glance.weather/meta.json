@@ -1,11 +1,16 @@
 {
   "widgetId": "glance.weather",
-  "size": "m",
-  "designSpec": "A single 356 × 170 card pairs a prominent temperature with location and conditions above four aligned hourly forecasts. Neutral theme tokens and no shadows keep it quiet; status branches use supplied data, and Retry is omitted because no actions are permitted.",
-  "theme": "light",
+  "prompt": "Design an expressive macOS Weather widget using all attached images as visual references. Generate one coherent composition with Small (160x160), Medium (340x160), and Large (340x340) layouts for light and dark themes. Use the provided ideas as composition options: storm canvas with hourly strip, navy split with five forecasts, cobalt stacked ranges, inset humidity/wind cards, or teal dot-matrix. Select one family and adapt it consistently to all sizes. Small: live location, icon, current temperature as a 44px+ hero, condition, and exactly one detail; no forecast rows. Medium: small content plus exactly one forecast block. Large: medium content plus one useful forecast block. Use only supplied live data fields (location, current readings, 12 hourly readings, seven daily readings); never invent city, values, forecast entries or artwork. Keep every label legible, at least 11px except the hero, and unclipped. Use 24px outer corners, 16px small/20px other padding, 8px spacing grid, 12px group gaps, accessible light/dark contrast, and theme-compatible colors. Preserve the chosen composition; no gallery or selector.",
+  "generatedAt": "2026-11-02T15:29:00+00:00",
+  "generationStatus": "generated",
+  "imageStatus": "available",
+  "theme": "dark",
+  "designSpec": "One navy-split composition supports Small, Medium, and Large through the layout data field, with paired light/dark colors and no gallery or selector. All sizes use 24px corners, a 48px temperature hero, and humidity as the sole current-weather detail; Medium adds five supplied hourly readings, while Large adds five supplied daily readings. Since no live weather data was provided, unavailable states replace readings without inventing values, locations, or artwork.",
   "stages": [
+    "Reading reference image",
     "Planning the widget",
-    "Planning complete. No web or image search needed",
+    "Planning complete. Gathering supporting context",
+    "Searching for real image URLs",
     "Generating the widget interface",
     "Needing more time",
     "Shaping the layout",
@@ -13,9 +18,23 @@
     "Fitting the data into the widget",
     "Balancing the content",
     "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Checking the preview",
+    "Reviewing the widget data",
+    "Polishing the details",
+    "Keeping the widget compact",
     "Widget ready"
   ],
-  "generatedAt": "2026-11-01T12:39:35.645Z",
-  "promptFile": "widget-prompts/glance.weather-m.md",
-  "brokenRules": []
+  "contentHashes": {
+    "template.jsx": "fc36d2f1760bdbe8fa030832e45f09c8c2ff57f4259962efdedfafd4441a14a6",
+    "data.json": "38f19a31f4417b984b94a3c4432c094d5ad10c8f945458c3db990448ca2342e7",
+    "reference.jpg": "ce6682218da84fb4f7f7d4070a4b3b292500bc6f8450f96f844884f1904a6927"
+  },
+  "imageFile": "reference.jpg",
+  "sizes": [
+    "s",
+    "m",
+    "l"
+  ],
+  "source": "live backend/dashboard provider"
 }

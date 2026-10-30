@@ -1,226 +1,120 @@
-import { RadioGroup } from '@base-ui/react/radio-group'
-import { Radio } from '@base-ui/react/radio'
-import { MusicNotes } from '@phosphor-icons/react'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { WidgetRenderer } from '@tugan/widgets'
 import { StateView } from '../primitives.jsx'
-import { cached, remember, request } from '../api.js'
-import { getBase } from '../../api.js'
-import { Button, Select } from '../../components/ui/bento/index.jsx'
-import { useDashboard } from '../context.js'
-import { DEFAULT_MUSIC_DESIGN, getMusicDesign, MUSIC_DESIGNS } from './music/designs.js'
-import NowPlayingCard from './music/NowPlayingCard.jsx'
+import { request } from '../api.js'
+import { Button } from '../../components/ui/bento/index.jsx'
+import design from '../../../../widgets/glance.music/design.json'
+import template from '../../../../widgets/glance.music/template.txt?raw'
+import { variationNumber } from '../widgetVariations.js'
 import './music/music.css'
 
-function DesignPicker({ design, changeDesign }) {
-  return (
-    <fieldset className="music-picker">
-      <legend>Now Playing style</legend>
-      <RadioGroup
-        className="music-picker-grid"
-        value={design}
-        onValueChange={value => changeDesign?.('glance.music', value)}
-      >
-        {MUSIC_DESIGNS.map(d => (
-          <Radio.Root className="music-picker-option" key={d.id} value={d.id}>
-            <strong>{d.name}</strong>
-            <small>{d.caption}</small>
-          </Radio.Root>
-        ))}
-      </RadioGroup>
-    </fieldset>
-  )
+function resolve(value, theme) {
+  if (!value || typeof value !== 'object') return value
+  return value[theme] || value.light || null
 }
 
-export default function Music({
-  data,
-  refresh,
-  full = false,
-  size = 'm',
-  design = DEFAULT_MUSIC_DESIGN,
-  onOpen,
-}) {
-  const { changeDesign } = useDashboard() || {}
-  const activeDesign = getMusicDesign(design)
+function adaptMusic(data, layout, theme) {
+  const track = Boolean(data?.title)
+  const action = name => data?.controls?.[name] && data.player_id
+    ? {
+        type: `glance.music.${name}`,
+        payload: { player: data.player_id, track_id: data.track_id || '' },
+      }
+    : null
+  const state = data?.status === 'Playing' ? 'playing' : data?.status === 'Paused' ? 'paused' : 'stopped'
+  const artist = Array.isArray(data?.artists) ? data.artists.filter(value => typeof value === 'string').join(', ') : ''
+  const metadata = typeof data?.album === 'string' && data.album.trim()
+    ? [{ label: 'Album', value: data.album }]
+    : []
+
+  return {
+    layout,
+    surfaces: Object.fromEntries(
+      Object.entries(design.surfaces).map(([key, value]) => [key, resolve(value, theme)]),
+    ),
+    progressAccent: resolve(design.progressAccent, theme),
+    labels: design.labels,
+    stateLabels: design.stateLabels,
+    playback: {
+      hasTrack: track,
+      title: track ? data.title : '',
+      artist,
+      state,
+      elapsedSeconds: Number.isFinite(data?.position) && data.position >= 0 ? data.position : null,
+      durationSeconds: Number.isFinite(data?.duration) && data.duration > 0 ? data.duration : null,
+      previousAction: action('previous'),
+      playAction: action('play'),
+      pauseAction: action('pause'),
+      nextAction: action('next'),
+      metadata,
+    },
+  }
+}
+
+export default function Music({ data, refresh, full = false, size = 'm', design }) {
+  const [theme, setTheme] = useState(() =>
+    typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+  )
   const [draft, setDraft] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [selectedPlayer, setSelectedPlayer] = useState(() => cached('music-player') || '')
-  const [failedArtwork, setFailedArtwork] = useState('')
 
-  const players = data?.players || []
-  const session = selectedPlayer ? players.find(player => player.player_id === selectedPlayer) : data
-  const item = selectedPlayer
-    ? session && { title: session.title || session.active_player, artists: session.artists }
-    : data?.items?.[0]
-  const playing = session?.status === 'Playing'
-  const artwork = session?.artwork_url?.startsWith('/api/')
-    ? getBase().replace(/\/api$/, '') + session.artwork_url
-    : session?.artwork_url
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined
+    const observer = new MutationObserver(() => {
+      setTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light')
+    })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] })
+    return () => observer.disconnect()
+  }, [])
 
-  function selectPlayer(value) {
-    setSelectedPlayer(value)
-    remember('music-player', value)
-    setError('')
-    setDraft(null)
-  }
-
-  async function propose(action) {
+  async function handleAction(action) {
+    const match = typeof action?.type === 'string' && action.type.match(/^glance\.music\.(play|pause|previous|next)$/)
+    if (!match || !action.payload) return
     setBusy(true)
     setError('')
     try {
-      const payload = {
-        player: session?.player_id,
-        track_id: session?.track_id || '',
-      }
-      const response = await request(`/widgets/glance.music/actions/${action}`, 'POST', payload)
-      setDraft({ ...response, playerName: session?.active_player || 'Player' })
-    } catch (err) {
-      setError(err.message)
+      const result = await request(`/widgets/glance.music/actions/${match[1]}`, 'POST', action.payload)
+      setDraft({ ...result, action: match[1], playerName: data?.active_player || 'Player' })
+    } catch (cause) {
+      setError(cause.message || 'Playback action could not be prepared.')
     } finally {
       setBusy(false)
     }
   }
 
   async function decide(approved) {
+    if (!draft?.draft_id || busy) return
     setBusy(true)
     setError('')
     try {
       const result = await request(`/widgets/glance.music/drafts/${draft.draft_id}`, 'POST', { approved })
       setDraft(null)
-      if (approved && result.state !== 'applied') {
-        setError('Permission denied. Playback was not changed.')
-      }
+      if (approved && result.state !== 'applied') setError('Permission denied. Playback was not changed.')
       if (refresh) await refresh()
-    } catch (err) {
-      setError(err.message)
+    } catch (cause) {
+      setError(cause.message || 'Playback approval failed.')
     } finally {
       setBusy(false)
     }
   }
 
-  const playerPicker = (players.length > 1 || selectedPlayer) && (
-    <label className="music-player-picker" hidden={!full}>
-      Player
-      <Select
-        aria-label="Media player"
-        disabled={busy || !!draft}
-        value={selectedPlayer}
-        onChange={event => selectPlayer(event.target.value)}
-      >
-        <option value="">Automatic · active player</option>
-        {selectedPlayer && !session && (
-          <option value={selectedPlayer}>Selected player unavailable</option>
-        )}
-        {players.map(player => (
-          <option key={player.player_id} value={player.player_id}>
-            {player.active_player} · {player.status}
-          </option>
-        ))}
-      </Select>
-    </label>
-  )
-
-  // Drawer / Full settings view
-  if (full) {
-    return (
-      <div className="music-widget music-widget--settings" data-music-size={size} data-music-design={activeDesign.id}>
-        <DesignPicker design={activeDesign.id} changeDesign={changeDesign} />
-        {playerPicker}
-        {error && <StateView role="alert">{error}</StateView>}
-        {draft ? (
-          <section className="music-review" aria-label="Review playback change">
-            <p>{draft.action} on {draft.playerName}?</p>
-            <div className="music-controls music-review-actions">
-              <Button size="small" loading={busy} onClick={() => decide(true)}>Approve playback</Button>
-              <Button size="small" disabled={busy} onClick={() => decide(false)}>Cancel</Button>
-            </div>
-          </section>
-        ) : item ? (
-          <div className="music-card" style={{ cursor: 'default' }}>
-            <NowPlayingCard
-              size={size}
-              design={activeDesign.id}
-              item={item}
-              session={session}
-              artwork={failedArtwork === artwork ? null : artwork}
-              playing={playing}
-              busy={busy}
-              propose={propose}
-              onArtworkError={setFailedArtwork}
-            />
-          </div>
-        ) : (
-          <StateView>
-            {selectedPlayer
-              ? 'This player is no longer available. Choose another player above.'
-              : 'Open a desktop music player to start listening.'}
-          </StateView>
-        )}
-      </div>
-    )
-  }
-
-  // Dashboard / Inline view
-  if (!item && !session?.active_player) {
-    return (
-      <div className="music-widget" data-music-size={size} data-music-design={activeDesign.id}>
-        {playerPicker}
-        <Button
-          type="button"
-          variant="plain"
-          className="music-card"
-          onClick={onOpen}
-          aria-label="Now Playing, Open a desktop music player to start listening"
-        >
-          <div className="music-empty-state">
-            <MusicNotes size={size === 'l' ? 44 : 28} weight="regular" className="music-empty-icon" aria-hidden="true" />
-            <p>
-              {selectedPlayer
-                ? 'This player is no longer available. Choose another player above.'
-                : 'Open a desktop music player to start listening.'}
-            </p>
-          </div>
-        </Button>
-      </div>
-    )
-  }
-
-  const trackDescription = item?.title
-    ? `${item.title}${item.artists?.length ? ` by ${item.artists.join(', ')}` : ''}`
-    : 'No track'
+  const layout = full || size === 'l' ? 'large' : size === 's' ? 'small' : 'medium'
+  const widgetData = useMemo(() => adaptMusic(data, layout, theme), [data, layout, theme])
 
   return (
-    <div className="music-widget" data-music-size={size} data-music-design={activeDesign.id}>
-      {playerPicker}
+    <div className="music-widget" data-music-size={size} data-variation={variationNumber(design)}>
+      <WidgetRenderer template={template} data={widgetData} theme={theme} onAction={handleAction} />
       {error && <StateView role="alert">{error}</StateView>}
-      <Button
-        type="button"
-        variant="plain"
-        className="music-card"
-        onClick={onOpen}
-        aria-label={`Now Playing, ${trackDescription}, ${playing ? 'playing' : 'paused'}`}
-      >
-        <NowPlayingCard
-          size={size}
-          design={activeDesign.id}
-          item={item}
-          session={session}
-          artwork={failedArtwork === artwork ? null : artwork}
-          playing={playing}
-          busy={busy}
-          propose={propose}
-          onArtworkError={setFailedArtwork}
-        />
-        {draft && (
-          <section className="music-review music-review-overlay" aria-label="Review playback change" onClick={e => e.stopPropagation()}>
-            <p>{draft.action} on {draft.playerName}?</p>
-            <div className="music-controls music-review-actions">
-              <Button size="small" loading={busy} onClick={() => decide(true)}>Approve playback</Button>
-              <Button size="small" disabled={busy} onClick={() => decide(false)}>Cancel</Button>
-            </div>
-          </section>
-        )}
-      </Button>
+      {draft && (
+        <section className="music-review" aria-label="Review playback change">
+          <p>{draft.action} on {draft.playerName}?</p>
+          <div className="music-review-actions">
+            <Button type="button" variant="primary" disabled={busy} onClick={() => decide(true)}>Approve playback</Button>
+            <Button type="button" disabled={busy} onClick={() => decide(false)}>Cancel</Button>
+          </div>
+        </section>
+      )}
     </div>
   )
 }

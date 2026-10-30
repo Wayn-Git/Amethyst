@@ -1,0 +1,36 @@
+{
+  "labels": {
+    "nextSunrise": "Next sunrise",
+    "nextSunset": "Next sunset",
+    "nextEvent": "Next sun event",
+    "sunrise": "Sunrise",
+    "sunset": "Sunset",
+    "daylight": "Daylight",
+    "unavailable": "\u2014",
+    "awaiting": "Awaiting data",
+    "nextUnavailable": "Next time unavailable",
+    "localTime": "Local time"
+  },
+  "colors": {
+    "canvas": {
+      "light": "#F5EBDD",
+      "dark": "#28211E"
+    },
+    "ink": {
+      "light": "#442A22",
+      "dark": "#F8EBDD"
+    },
+    "secondary": {
+      "light": "#775748",
+      "dark": "#D1AF9A"
+    },
+    "sun": {
+      "light": "#B95837",
+      "dark": "#EEA078"
+    },
+    "horizon": {
+      "light": "#C5A18C",
+      "dark": "#87634F"
+    }
+  }
+}

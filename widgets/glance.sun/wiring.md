@@ -1,32 +1,17 @@
 # Wiring: `glance.sun`
 
-## 1. Fields
+`Sun.jsx` maps live solar times from `backend/dashboard/weather.py` into the
+generated horizon composition. The provider requests two days so the Small
+widget can show tomorrow's sunrise after today's sunset. The template computes
+daylight length only from same-day sunrise/sunset values.
 
-| Field | Backend source | Type | Fallback if missing/null |
-|---|---|---|---|
-| `status` | Computed from response presence / error / stale | string | `"loading"` |
-| `message` | Backend `data.message` or empty string | string | `""` |
-| `lastUpdated` | Formatted from current sync time or sunrise date | string | `"Not available"` |
-| `sunrise` | `data.sunrise` (`backend/dashboard/weather.py:59`) formatted as `HH:MM AM/PM` | string | `"Not available"` |
-| `sunset` | `data.sunset` (`backend/dashboard/weather.py:60`) formatted as `HH:MM AM/PM` | string | `"Not available"` |
-| `dayLength` | Difference between `sunset` and `sunrise` wall times | string | `"Not available"` |
-| `timezone` | `data.timezone` (`backend/dashboard/weather.py:62`) | string | `"Not available"` |
-| `labels.*` | UI string dictionary (labels, loading, prefixes) | object | Standard labels |
+| Template field | Live source | Missing value |
+|---|---|---|
+| `sunrise` | Today's sunrise in the provider timezone | unavailable |
+| `sunset` | Today's sunset in the provider timezone | unavailable |
+| `next_sunrise` | Following day's sunrise | unavailable |
+| `timezone` | Open-Meteo timezone | empty; event times stay unavailable |
 
-## 2. Actions
-
-| Action Type | Backend Handler | Gate Required | Result / Next State |
-|---|---|---|---|
-| *(none)* | Display only widget | No | N/A |
-
-## 3. Status Mapping
-
-| Real condition | `data.status` |
-|---|---|
-| Initial load before data arrives | `loading` |
-| `data.sunrise` and `data.sunset` present | `ready` |
-| Background re-fetch in progress (`data.refreshing === true`) | `refreshing` |
-| `data.set_location === true` (no saved location in settings) | `empty` |
-| Request failed or service unreachable | `error` |
-| Client offline with cached data | `offline` |
-| Payload age > refresh interval (900s) | `stale` |
+Local wall times are converted to timestamps using the supplied IANA timezone.
+No sunrise, sunset, UV, or daylight values are fabricated. Location setup is
+provided by the shared settings drawer.

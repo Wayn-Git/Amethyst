@@ -16,6 +16,7 @@ TOOL = "GOOGLE_MAPS_GET_ROUTE"
 
 class TravelSettings(StrictModel):
     home: str = Field(default="", max_length=500)
+    direction: str = Field(default="minimal", max_length=20)
     enabled: bool = True
 
 
@@ -64,11 +65,19 @@ async def provide(widget_id):
         return {"items": [{"id": "unavailable", "title": "not available"}]}
     return {
         "timezone": str(zone),
+        "direction": settings.direction,
+        "home": settings.home.strip(),
+        "origin": settings.home.strip(),
+        "destination": event.get("location") or event["title"],
+        "event_title": event["title"],
+        "start": event["start"],
+        "duration_seconds": seconds,
         "items": [
             {
                 "id": event["id"],
                 "title": event["title"],
                 "start": event["start"],
+                "location": event.get("location"),
                 "detail": f"{math.ceil(seconds / 60)} minutes driving from home",
             }
         ],

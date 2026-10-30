@@ -1,72 +1,60 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { WidgetRenderer } from '@tugan/widgets'
+import design from '../../../../widgets/glance.air/design.json'
+import LocationSettings from './LocationSettings.jsx'
 import template from '../../../../widgets/glance.air/template.txt?raw'
+import { variationNumber } from '../widgetVariations.js'
+import './air/air.css'
 
-const DEFAULT_LABELS = {
-  title: 'Air quality',
-  pm25Label: 'PM2.5',
-  pm10Label: 'PM10',
-  aqiLabel: 'European AQI',
-  loading: 'Loading',
-  refreshing: 'Refreshing',
-  locationUnset: 'Location unset in settings',
-  unavailable: 'Air quality unavailable',
-  notAvailable: 'Not available',
-  updatedPrefix: 'Updated ',
-  offlinePrefix: 'Offline, updated ',
-  refreshingPrefix: 'Refreshing · Updated ',
+function palette(value, theme) {
+  if (!value || typeof value !== 'object') return value
+  return value[theme] || value.light || null
 }
 
-function aqiCategory(aqi) {
-  if (typeof aqi !== 'number' || Number.isNaN(aqi)) return 'Not available'
-  if (aqi <= 20) return 'Good'
-  if (aqi <= 40) return 'Fair'
-  if (aqi <= 60) return 'Moderate'
-  if (aqi <= 80) return 'Poor'
-  return 'Very Poor'
-}
-
-function adaptAirQuality(data) {
-  if (!data) {
+function adaptAirQuality(data, layout, theme) {
+  const bands = design.bands.map(band => ({ ...band, color: palette(band.color, theme) }))
+  const pollutants = design.pollutants.map(item => {
+    const value = {
+      pm10: data?.pm10,
+      co: data?.carbon_monoxide,
+      no2: data?.nitrogen_dioxide,
+      o3: data?.ozone,
+    }[item.id]
     return {
-      status: 'loading',
-      labels: DEFAULT_LABELS,
+      id: item.id,
+      label: item.label,
+      value: Number.isFinite(value) ? Number(value.toFixed(1)) : null,
+      unit: Number.isFinite(value) ? 'μg/m³' : null,
     }
-  }
-
-  if (data.set_location) {
-    return {
-      status: 'empty',
-      labels: DEFAULT_LABELS,
-    }
-  }
-
-  const timeMatch = typeof data.time === 'string' && data.time.match(/T([0-9]{2}:[0-9]{2})/)
-  const time = timeMatch ? timeMatch[1] : (data.time || undefined)
-
-  const aqiNum = typeof data.european_aqi === 'number' ? data.european_aqi : null
-  const pm25Num = typeof data.pm2_5 === 'number' ? data.pm2_5 : null
-  const pm10Num = typeof data.pm10 === 'number' ? data.pm10 : null
+  })
+  const pm25 = Number.isFinite(data?.pm2_5) ? Number(data.pm2_5.toFixed(1)) : null
 
   return {
-    status: data.refreshing ? 'refreshing' : 'ready',
-    message: data.message || '',
-    lastUpdated: time,
-    aqi: aqiNum !== null ? String(aqiNum) : undefined,
-    category: aqiNum !== null ? aqiCategory(aqiNum) : undefined,
-    pm2_5: pm25Num !== null ? `${pm25Num} µg/m³` : undefined,
-    pm10: pm10Num !== null ? `${pm10Num} µg/m³` : undefined,
-    labels: DEFAULT_LABELS,
+    layout,
+    layouts: design.layouts,
+    labels: design.labels,
+    surfaces: Object.fromEntries(
+      Object.entries(design.surfaces).map(([key, value]) => [key, palette(value, theme)]),
+    ),
+    bands,
+    current: {
+      location: data?.location_name || null,
+      usAqi: Number.isFinite(data?.us_aqi) ? data.us_aqi : null,
+      euAqi: Number.isFinite(data?.european_aqi) ? data.european_aqi : null,
+      observationTime: typeof data?.time === 'string' ? data.time : null,
+      pm25: { value: pm25, unit: pm25 === null ? null : 'μg/m³' },
+    },
+    pollutants,
   }
 }
 
-export default function AirQuality({ data, onAction }) {
+export default function AirQuality({ data, size = 's', full = false, onAction, design }) {
   const [theme, setTheme] = useState(() =>
-    typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+    typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light',
   )
 
   useEffect(() => {
-    if (typeof document === 'undefined') return
+    if (typeof document === 'undefined') return undefined
     const observer = new MutationObserver(() => {
       setTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light')
     })
@@ -74,16 +62,13 @@ export default function AirQuality({ data, onAction }) {
     return () => observer.disconnect()
   }, [])
 
-  const widgetData = useMemo(() => adaptAirQuality(data), [data])
+  const layout = full || size === 'l' ? 'large' : size === 'm' ? 'medium' : 'small'
+  const widgetData = useMemo(() => adaptAirQuality(data, layout, theme), [data, layout, theme])
 
   return (
-    <div className="glance-air-root">
-      <WidgetRenderer
-        template={template}
-        data={widgetData}
-        theme={theme}
-        onAction={onAction}
-      />
+    <div className="glance-air-root" data-variation={variationNumber(design)}>
+      <WidgetRenderer template={template} data={widgetData} theme={theme} onAction={onAction} />
+      {full && <LocationSettings active />}
     </div>
   )
 }

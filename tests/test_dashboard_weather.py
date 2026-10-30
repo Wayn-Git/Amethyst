@@ -110,13 +110,19 @@ async def test_sun_uses_explicit_location_and_projects_daily(db, monkeypatch):
 
     async def fake(url, params, widget_id):
         assert params["daily"] == "sunrise,sunset"
+        assert params["forecast_days"] == 2
         assert params["latitude"] == 12
-        return {"daily": {"sunrise": [None], "sunset": [None]}, "timezone": "UTC"}
+        return {
+            "daily": {"sunrise": ["2026-10-31T06:00", "2026-11-01T06:01"],
+                      "sunset": ["2026-10-31T18:00", "2026-11-01T17:59"]},
+            "timezone": "UTC",
+        }
 
     monkeypatch.setattr(weather, "fetch", fake)
     assert await weather.provide("glance.sun") == {
-        "sunrise": None,
-        "sunset": None,
+        "sunrise": "2026-10-31T06:00",
+        "sunset": "2026-10-31T18:00",
+        "next_sunrise": "2026-11-01T06:01",
         "timezone": "UTC",
     }
 

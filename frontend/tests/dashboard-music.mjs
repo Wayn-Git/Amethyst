@@ -149,18 +149,26 @@ try {
     }, synced_at: new Date().toISOString() }
 
     const context = { now: new Date(), layout: { widgets: [] }, removeWidget: () => {}, setEditing: () => {}, openWidget: () => {}, manifests: [manifest] }
-    const sizes = [
-      { id: 's', size: 's', design: 'media-md-01' },
-      { id: 'm', size: 'm', design: 'media-md-01' },
-      { id: 'l', size: 'l', design: 'media-md-01' },
-      { id: 'pill', size: 'm', design: 'media-md-02' },
+    const emptyData = { state: 'ready', payload: { items: [], active_player: null }, synced_at: new Date().toISOString() }
+    const errorData = { state: 'ready', payload: { error: 'Connection failed' }, synced_at: new Date().toISOString() }
+
+    const cards = [
+      { id: 's', size: 's', design: 'media-md-01', data },
+      { id: 'm', size: 'm', design: 'media-md-01', data },
+      { id: 'l', size: 'l', design: 'media-md-01', data },
+      { id: 'pill', size: 'm', design: 'media-md-02', data },
+      { id: 'vinyl', size: 'm', design: 'media-md-03', data },
+      { id: 'editorial', size: 'm', design: 'media-md-04', data },
+      { id: 'immersive', size: 'l', design: 'media-md-05', data },
+      { id: 'empty', size: 'm', design: 'media-md-01', data: emptyData },
+      { id: 'error', size: 'm', design: 'media-md-01', data: errorData },
     ]
 
     createRoot(document.getElementById('proof')).render(
       h(DashboardContext.Provider, { value: context },
         h('main', { className: 'bento-foundation widget-home' },
-          sizes.map(s => h('div', { key: s.id, className: `slot-test-${s.id}`, style: { margin: 20 } },
-            h(WidgetPresentation, { manifest, data, size: s.size, tile: true, refresh: () => {}, design: s.design })
+          cards.map(s => h('div', { key: s.id, className: `slot-test-${s.id}`, style: { margin: 20 } },
+            h(WidgetPresentation, { manifest, data: s.data, size: s.size, tile: true, refresh: () => {}, design: s.design })
           ))
         )
       )
@@ -209,7 +217,43 @@ try {
   assert.equal(await pillCard.locator('.music-ctrl-btn--circle').count(), 1)
   assert.equal(await pillCard.locator('.music-progress-bar').count(), 1)
 
-  console.log('PASS desktop music: local player metadata, capability-disabled controls, approval/rejection, paused resume, error, idle, small/medium/large strict dimensions, favorite toggle, 15s seek, and dynamic island pill')
+  // Vinyl variation assertions: Vinyl Groove disc, concentric grooves, RPM chip
+  const vinylCard = page.locator('.slot-test-vinyl [data-widget="glance.music"]')
+  assert.equal(await vinylCard.locator('.music-body--vinyl').count(), 1)
+  assert.equal(await vinylCard.locator('.music-vinyl-disc').count(), 1)
+  assert.equal(await vinylCard.locator('.music-vinyl-grooves').count(), 1)
+  assert.equal(await vinylCard.locator('.music-vinyl-rpm-chip').count(), 1)
+
+  // Editorial variation assertions: Swiss typography, micro-label, editorial title, divider
+  const editorialCard = page.locator('.slot-test-editorial [data-widget="glance.music"]')
+  assert.equal(await editorialCard.locator('.music-body--editorial').count(), 1)
+  assert.equal(await editorialCard.locator('.music-editorial-label').count(), 1)
+  assert.equal(await editorialCard.locator('.music-title--editorial').count(), 1)
+  assert.equal(await editorialCard.locator('.music-editorial-divider').count(), 1)
+
+  // Immersive Cover variation assertions: Full-bleed artwork, center title, 5 controls, bookmark & heart
+  const immersiveCard = page.locator('.slot-test-immersive [data-widget="glance.music"]')
+  assert.equal(await immersiveCard.locator('.music-body--immersive').count(), 1)
+  assert.equal(await immersiveCard.locator('.music-immersive-bg').count(), 1)
+  assert.equal(await immersiveCard.locator('.music-immersive-top').count(), 1)
+  assert.equal(await immersiveCard.locator('.music-title--immersive-center').textContent(), 'Starboy')
+  assert.equal(await immersiveCard.locator('.music-controls--immersive-l .music-ctrl-btn').count(), 5)
+
+  // Empty state card assertions: label top-left, empty prompt, quiet icon
+  const emptyCard = page.locator('.slot-test-empty [data-widget="glance.music"]')
+  assert.equal(await emptyCard.locator('.music-card--empty').count(), 1)
+  assert.equal(await emptyCard.locator('.music-card-label').textContent(), 'Now Playing')
+  assert.equal(await emptyCard.locator('.music-empty-desc').textContent(), 'Open a desktop music player to start listening.')
+
+  // Error state card assertions: label top-left, hero —, error description role alert, Retry button
+  const errorCard = page.locator('.slot-test-error [data-widget="glance.music"]')
+  assert.equal(await errorCard.locator('.music-card--error').count(), 1)
+  assert.equal(await errorCard.locator('.music-card-label').textContent(), 'Now Playing')
+  assert.equal(await errorCard.locator('.music-state-hero').textContent(), '—')
+  assert.equal(await errorCard.locator('.music-state-desc[role="alert"]').textContent(), 'Connection failed')
+  assert.equal(await errorCard.locator('.music-retry-btn').textContent(), 'Retry')
+
+  console.log('PASS desktop music: local player metadata, capability-disabled controls, approval/rejection, paused resume, error, idle, small/medium/large strict dimensions, favorite toggle, 15s seek, dynamic island, vinyl groove, editorial, and card empty/error states')
 } finally {
   await browser.close()
 }

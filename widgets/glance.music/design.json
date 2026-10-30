@@ -1,0 +1,30 @@
+{
+  "surfaces": {
+    "outer": {
+      "light": "#FAF8F5",
+      "dark": "#242323"
+    },
+    "inset": {
+      "light": "#EEECE8",
+      "dark": "#302E2D"
+    }
+  },
+  "progressAccent": {
+    "light": "#865342",
+    "dark": "#D6A18C"
+  },
+  "labels": {
+    "nothingPlaying": "Nothing playing",
+    "titleUnavailable": "Title unavailable",
+    "previous": "Previous track",
+    "play": "Play",
+    "pause": "Pause",
+    "next": "Next track",
+    "progress": "Playback progress"
+  },
+  "stateLabels": {
+    "playing": "Playing",
+    "paused": "Paused",
+    "stopped": "Stopped"
+  }
+}

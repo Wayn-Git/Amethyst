@@ -20,35 +20,26 @@
   box-sizing: border-box;
 }
 
-/* Strict card dimensions per INSTRUCTIONS.md: 170x170 (S), 356x170 (M), 356x356 (L) */
+/* Responsive slot dimensions */
+.home-layout-grid .today-widget-slot[data-slot-id='glance.clock'],
+.bento-foundation .home-widget[data-widget='glance.clock'] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .home-layout-grid .today-widget-slot[data-slot-id='glance.clock'][data-size='s'],
 .bento-foundation .home-widget[data-widget='glance.clock'][data-size='s'] {
-  width: 170px;
-  height: 170px;
-  min-width: 170px;
-  max-width: 170px;
   min-height: 170px;
-  max-height: 170px;
 }
 
 .home-layout-grid .today-widget-slot[data-slot-id='glance.clock'][data-size='m'],
 .bento-foundation .home-widget[data-widget='glance.clock'][data-size='m'] {
-  width: 356px;
-  height: 170px;
-  min-width: 356px;
-  max-width: 356px;
   min-height: 170px;
-  max-height: 170px;
 }
 
 .home-layout-grid .today-widget-slot[data-slot-id='glance.clock'][data-size='l'],
 .bento-foundation .home-widget[data-widget='glance.clock'][data-size='l'] {
-  width: 356px;
-  height: 356px;
-  min-width: 356px;
-  max-width: 356px;
   min-height: 356px;
-  max-height: 356px;
 }
 
 .home-layout-grid .today-slot-body > .home-widget.widget-adoption[data-widget='glance.clock'],
@@ -68,9 +59,9 @@
   gap: 0;
   box-sizing: border-box;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.07) !important;
-  border-radius: 24px !important;
-  background: var(--clock-surface) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
   color: var(--clock-fg) !important;
   box-shadow: none !important;
   transform: none;
@@ -80,7 +71,7 @@
 .bento-foundation .home-widget.widget-adoption[data-widget='glance.clock']:has(.clock-card:hover) {
   transform: none;
   box-shadow: none;
-  background: #202022 !important;
+  background: transparent !important;
 }
 
 /* Chrome: title, badges, GMT chip, footer link removed. Overflow menu top-right hover-only. */
@@ -108,8 +99,8 @@
   display: flex;
   align-items: center;
   gap: 0;
-  opacity: 0;
-  pointer-events: none;
+  opacity: 1;
+  pointer-events: auto;
   transition: opacity 150ms ease;
 }
 .bento-foundation .home-widget.widget-adoption[data-widget='glance.clock']:is(:hover, :focus-within) .widget-actions,
@@ -167,9 +158,9 @@
   min-width: 0;
   min-height: 0;
   box-sizing: border-box;
-  padding: 16px;
+  padding: 0;
   border: 0;
-  border-radius: 24px;
+  border-radius: 0;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -194,11 +185,11 @@
 
 .clock-card,
 .clock-widget {
-  --clock-surface: #1c1c1e;
-  --clock-fg: #ffffff;
-  --clock-muted: #8e8e93;
-  --clock-hairline: rgba(255, 255, 255, 0.08);
-  --clock-accent: #ff9f0a;
+  --clock-surface: var(--tile-bg);
+  --clock-fg: var(--tile-fg);
+  --clock-muted: var(--tile-muted);
+  --clock-hairline: var(--ui-border);
+  --clock-accent: var(--tile-accent);
 }
 
 .clock-widget {
@@ -209,10 +200,16 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  padding: 16px;
+  border: 0;
+  border-radius: 24px;
+  background: var(--clock-surface);
   box-sizing: border-box;
   font-family: 'Inter', -apple-system, sans-serif;
   color: var(--clock-fg);
 }
+.clock-widget[data-clock-size='m'],
+.clock-widget[data-clock-size='l'] { padding: 20px; }
 .clock-layout {
   flex: 1;
   min-width: 0;
@@ -544,6 +541,9 @@
   height: auto;
   display: grid;
   gap: 20px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .clock-picker {
   min-width: 0;
@@ -574,9 +574,9 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--ui-raised);
   color: inherit;
   font: inherit;
   text-align: left;
@@ -584,23 +584,23 @@
   transition: background-color 150ms ease, border-color 150ms ease;
 }
 .clock-picker-option[data-checked] {
-  border-color: var(--w-accent, #ff9f0a);
-  background: rgba(255, 159, 10, 0.12);
+  border-color: var(--clock-accent);
+  background: color-mix(in srgb, var(--clock-accent) 14%, var(--clock-surface));
 }
 .clock-picker-option:focus-visible {
-  outline: 2px solid var(--w-accent, #ff9f0a);
+  outline: 2px solid var(--clock-accent);
   outline-offset: 2px;
 }
 .clock-picker-mark {
   width: 16px;
   height: 16px;
-  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border: 1.5px solid var(--clock-muted);
   border-radius: 50%;
   background: transparent;
 }
 .clock-picker-option[data-checked] .clock-picker-mark {
-  border-color: var(--w-accent, #ff9f0a);
-  box-shadow: inset 0 0 0 3px #1c1c1e, inset 0 0 0 8px var(--w-accent, #ff9f0a);
+  border-color: var(--clock-accent);
+  box-shadow: inset 0 0 0 3px var(--clock-surface), inset 0 0 0 8px var(--clock-accent);
 }
 .clock-picker-index {
   color: var(--clock-muted);
@@ -672,15 +672,8 @@
   color: var(--widget-urgent, var(--tile-urgent-bright));
   font: 400 12px/16px 'Inter', -apple-system, sans-serif;
 }
-.clock-widget--settings :is(button, input) {
-  min-height: 44px;
-}
-
-@media (hover: none) {
-  .bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .widget-actions {
-    display: none !important;
-  }
-}
+.clock-widget--settings :is(button, input) { min-height: 44px; }
+.clock-widget--settings .clock-add button { height: 44px !important; min-height: 44px !important; }
 
 @media (prefers-reduced-motion: reduce) {
   .clock-second-hand {

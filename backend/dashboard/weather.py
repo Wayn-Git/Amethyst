@@ -46,19 +46,41 @@ async def provide(widget_id):
     if widget_id == "glance.air":
         raw = await fetch(
             "https://air-quality-api.open-meteo.com/v1/air-quality",
-            {**params, "current": "european_aqi,pm2_5,pm10"},
+            {**params, "current": "us_aqi,european_aqi,pm2_5,pm10,carbon_monoxide,nitrogen_dioxide,ozone"},
             widget_id,
         )
-        return {key: raw["current"].get(key) for key in ("european_aqi", "pm2_5", "pm10", "time")}
+        keys = (
+            "us_aqi",
+            "european_aqi",
+            "pm2_5",
+            "pm10",
+            "carbon_monoxide",
+            "nitrogen_dioxide",
+            "ozone",
+            "time",
+        )
+        result = {
+            key: raw["current"].get(key)
+            for key in keys
+            if key in raw["current"] or key in ("european_aqi", "pm2_5", "pm10", "time")
+        }
+        if "timezone" in raw:
+            result["timezone"] = raw["timezone"]
+        if isinstance(location, dict) and location.get("name"):
+            result["location_name"] = location["name"]
+        return result
     if widget_id == "glance.sun":
         raw = await fetch(
             "https://api.open-meteo.com/v1/forecast",
-            {**params, "daily": "sunrise,sunset", "forecast_days": 1},
+            {**params, "daily": "sunrise,sunset", "forecast_days": 2},
             widget_id,
         )
+        sunrise = raw["daily"].get("sunrise", [])
+        sunset = raw["daily"].get("sunset", [])
         return {
-            "sunrise": raw["daily"]["sunrise"][0],
-            "sunset": raw["daily"]["sunset"][0],
+            "sunrise": sunrise[0] if sunrise else None,
+            "sunset": sunset[0] if sunset else None,
+            "next_sunrise": sunrise[1] if len(sunrise) > 1 else None,
             "timezone": raw["timezone"],
         }
     params.update(
@@ -91,7 +113,7 @@ async def provide(widget_id):
             strict=True,
         )
     ]
-    return {
+    res = {
         "temperature": raw["current"]["temperature_2m"],
         "humidity": raw["current"].get("relative_humidity_2m"),
         "feels_like": raw["current"].get("apparent_temperature"),
@@ -104,3 +126,6 @@ async def provide(widget_id):
         "rain_alert": any(h["rain"] is not None and h["rain"] >= 50 for h in hours),
         "timezone": raw["timezone"],
     }
+    if isinstance(location, dict) and location.get("name"):
+        res["location_name"] = location["name"]
+    return res

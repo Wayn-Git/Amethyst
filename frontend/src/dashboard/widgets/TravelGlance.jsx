@@ -1,91 +1,57 @@
-import { useMemo, useState, useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { WidgetRenderer } from '@tugan/widgets'
 import { request } from '../api.js'
 import { Button, Input } from '../../components/ui/bento/index.jsx'
 import { deviceLocation } from '../location.js'
-import Icon from '../../components/Icon.jsx'
+import design from '../../../../widgets/glance.travel/design.json'
 import template from '../../../../widgets/glance.travel/template.txt?raw'
+import { variationNumber } from '../widgetVariations.js'
+import './travel/travel.css'
 
-const DEFAULT_LABELS = {
-  title: 'Travel time',
-  nextEvent: 'Next event',
-  origin: 'From',
-  loading: 'Loading',
-  refreshing: 'Refreshing',
-  noEvent: 'No upcoming events with a location',
-  setLocation: 'Set trip origin in settings',
-  notConnected: 'Connect Calendar & Maps in settings',
-  unavailable: 'Travel estimate unavailable',
-  notAvailable: 'Not available',
-}
-
-function adaptTravel(data) {
-  if (!data) {
-    return {
-      status: 'loading',
-      labels: DEFAULT_LABELS,
-    }
-  }
-
-  if (data.set_location) {
-    return {
-      status: 'empty',
-      message: 'Choose where your trip starts in settings.',
-      labels: DEFAULT_LABELS,
-    }
-  }
-
-  const items = Array.isArray(data.items) ? data.items : []
-  const event = items[0]
-  if (!event || event.id === 'setup' || event.id === 'unavailable') {
-    return {
-      status: 'empty',
-      message: data.message || 'No upcoming event with a location.',
-      labels: DEFAULT_LABELS,
-    }
-  }
-
-  const detail = event.detail || ''
-  const durationMatch = detail.match(/^([0-9]+\s*min(?:ute)?s?|[0-9]+\s*h(?:our)?s?(?:\s*[0-9]+\s*min)?)/i)
-  const duration = durationMatch ? durationMatch[1] : (detail.split('(')[0]?.trim() || undefined)
-  const route = detail.includes('(') ? detail.slice(detail.indexOf('(') + 1).replace(/\)$/, '') : detail
-
-  let eventTime
-  if (event.start) {
-    const startMs = new Date(event.start).getTime()
-    if (!Number.isNaN(startMs)) {
-      const diffMin = Math.round((startMs - Date.now()) / 60000)
-      if (diffMin <= 0) {
-        eventTime = 'Started'
-      } else if (diffMin < 60) {
-        eventTime = `in ${diffMin} min`
-      } else {
-        const hrs = Math.floor(diffMin / 60)
-        const mins = diffMin % 60
-        eventTime = `in ${hrs}h ${mins}m`
-      }
-    }
-  }
-
-  return {
-    status: data.refreshing ? 'refreshing' : 'ready',
-    message: data.message || '',
-    lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    duration,
-    eventTitle: event.title,
-    eventTime,
-    route,
-    origin: 'Home',
-    labels: DEFAULT_LABELS,
-  }
-}
-
-export default function TravelGlance({ data, onAction, refresh, full = false }) {
-  const [theme, setTheme] = useState(() =>
-    typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+function themePalette(theme) {
+  return Object.fromEntries(
+    Object.entries(design.palette).map(([key, value]) => [key, value[theme] || value.light]),
   )
+}
 
-  // Drawer origin settings state
+function eventTime(value, timezone) {
+  if (typeof value !== 'string' || !value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: 'numeric', minute: '2-digit', timeZone: timezone || undefined,
+    }).format(date)
+  } catch {
+    return ''
+  }
+}
+
+function adaptTravel(data, layout, theme) {
+  const event = Array.isArray(data?.items) ? data.items[0] : null
+  const unavailable = event?.id === 'unavailable'
+  const hasDuration = Number.isFinite(data?.duration_seconds) && data.duration_seconds >= 0
+  return {
+    layout,
+    durationMinutes: hasDuration ? Math.ceil(data.duration_seconds / 60) : null,
+    eventName: typeof data?.event_title === 'string' ? data.event_title : '',
+    destination: typeof data?.destination === 'string' ? data.destination : event?.location || '',
+    eventStartTime: eventTime(data?.start || event?.start, data?.timezone),
+    homeOrigin: typeof data?.home === 'string' ? data.home : '',
+    labels: {
+      ...design.labels,
+      waiting: data?.set_location
+        ? 'Set a trip origin in settings.'
+        : data?.message || (unavailable ? 'Travel estimate unavailable.' : design.labels.waiting),
+    },
+    palette: themePalette(theme),
+  }
+}
+
+export default function TravelGlance({ data, size = 'm', full = false, refresh, design }) {
+  const [theme, setTheme] = useState(() =>
+    typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+  )
   const [home, setHome] = useState('')
   const [busy, setBusy] = useState(false)
   const [settingsError, setSettingsError] = useState('')
@@ -93,7 +59,7 @@ export default function TravelGlance({ data, onAction, refresh, full = false }) 
   const live = useRef(false)
 
   useEffect(() => {
-    if (typeof document === 'undefined') return
+    if (typeof document === 'undefined') return undefined
     const observer = new MutationObserver(() => {
       setTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light')
     })
@@ -102,71 +68,75 @@ export default function TravelGlance({ data, onAction, refresh, full = false }) 
   }, [])
 
   useEffect(() => {
-    let active = true
     live.current = true
     request('/widgets/glance.travel/settings')
-      .then(value => { if (active) setHome(value?.home || '') })
+      .then(value => { if (live.current && value?.home) setHome(value.home) })
       .catch(() => {})
-    return () => { active = false; live.current = false }
+    return () => { live.current = false }
   }, [])
 
   async function locate() {
-    setBusy(true); setSettingsError(''); setNotice('')
+    setBusy(true)
+    setSettingsError('')
+    setNotice('')
     try {
       const value = await deviceLocation()
-      if (live.current) { setHome(`${value.latitude}, ${value.longitude}`); setNotice('Current location filled. Save to use it as trip origin.') }
-    } catch (err) { if (live.current) setSettingsError(err.message) }
-    finally { if (live.current) setBusy(false) }
+      if (live.current) {
+        setHome(`${value.latitude}, ${value.longitude}`)
+        setNotice('Current location filled. Save to use it as trip origin.')
+      }
+    } catch (error) {
+      if (live.current) setSettingsError(error.message)
+    } finally {
+      if (live.current) setBusy(false)
+    }
   }
 
   async function saveOrigin(event) {
     event.preventDefault()
-    setBusy(true); setSettingsError('')
+    setBusy(true)
+    setSettingsError('')
     try {
-      await request('/widgets/glance.travel/settings', 'PUT', { home: home.trim(), enabled: true })
+      await request('/widgets/glance.travel/settings', 'PUT', {
+        home: home.trim(),
+        direction: 'minimal',
+        enabled: true,
+      })
       setNotice('Trip origin saved.')
       await refresh?.()
-    } catch (e) { setSettingsError(e.message) }
-    finally { setBusy(false) }
+    } catch (error) {
+      setSettingsError(error.message)
+    } finally {
+      setBusy(false)
+    }
   }
 
-  const widgetData = useMemo(() => adaptTravel(data), [data])
+  const layout = full || size === 'l' ? 'large' : size === 's' ? 'small' : 'medium'
+  const widgetData = useMemo(() => adaptTravel(data, layout, theme), [data, layout, theme])
 
   return (
-    <div className="glance-travel-root">
-      <WidgetRenderer
-        template={template}
-        data={widgetData}
-        theme={theme}
-        onAction={onAction}
-      />
+    <div className="glance-travel-root" data-variation={variationNumber(design)}>
+      <WidgetRenderer template={template} data={widgetData} theme={theme} />
       {full && (
-        <div style={{ marginTop: '16px' }} className="adoption-stack">
-          <form onSubmit={saveOrigin}>
-            <label style={{ display: 'block', marginBottom: '8px' }}>
-              Home trip origin
-              <Input
-                name="home"
-                required
-                maxLength={500}
-                placeholder="Address or coordinates"
-                value={home}
-                onChange={e => setHome(e.target.value)}
-                disabled={busy}
-              />
-            </label>
-            <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-              <Button disabled={busy} onClick={locate} type="button">
-                <Icon name="target" size={16} /> Use current location
-              </Button>
-              <Button variant="primary" type="submit" loading={busy} disabled={!home.trim()}>
-                Save origin
-              </Button>
-            </div>
-          </form>
-          {notice && <p role="status" style={{ fontSize: '13px', color: 'var(--w-text-2)' }}>{notice}</p>}
-          {settingsError && <p role="alert" style={{ fontSize: '13px', color: 'var(--w-negative)' }}>{settingsError}</p>}
-        </div>
+        <form className="adoption-stack" onSubmit={saveOrigin}>
+          <label htmlFor="travel-origin">Home trip origin</label>
+          <Input
+            id="travel-origin"
+            name="home"
+            required
+            maxLength={500}
+            placeholder="Address or coordinates"
+            value={home}
+            onChange={event => setHome(event.target.value)}
+            disabled={busy}
+          />
+          <div>
+            <Button type="button" disabled={busy} onClick={locate}>Use current location</Button>
+            <Button type="submit" disabled={busy || !home.trim()}>{busy ? 'Saving…' : 'Save origin'}</Button>
+          </div>
+          {notice && <p role="status">{notice}</p>}
+          {settingsError && <p role="alert">{settingsError}</p>}
+        </form>
       )}
     </div>
   )

@@ -189,6 +189,11 @@ def get_playback_status(player: str | None = None) -> dict[str, Any]:
         "status": "Stopped",
         "controls": {},
         "players": [],
+        "duration": None,
+        "position": 0,
+        "volume": None,
+        "shuffle": None,
+        "loop_status": None,
     }
     if not supported:
         return idle
@@ -223,6 +228,14 @@ def get_playback_status(player: str | None = None) -> dict[str, Any]:
             ):
                 continue
             controllable = values.get("CanControl", False) is True
+            length_us = metadata.get("mpris:length")
+            duration_sec = int(length_us // 1_000_000) if isinstance(length_us, (int, float)) and length_us > 0 else None
+            pos_us = values.get("Position")
+            position_sec = int(pos_us // 1_000_000) if isinstance(pos_us, (int, float)) and pos_us >= 0 else 0
+            volume_val = values.get("Volume")
+            volume_pct = int(round(volume_val * 100)) if isinstance(volume_val, (int, float)) else None
+            shuffle_val = values.get("Shuffle") if isinstance(values.get("Shuffle"), bool) else None
+            loop_val = values.get("LoopStatus") if isinstance(values.get("LoopStatus"), str) else None
             sessions.append(
                 {
                     "supported": True,
@@ -234,6 +247,11 @@ def get_playback_status(player: str | None = None) -> dict[str, Any]:
                     "album": metadata.get("xesam:album", ""),
                     "artwork_url": artwork_url(metadata.get("mpris:artUrl")),
                     "track_id": metadata.get("mpris:trackid", ""),
+                    "duration": duration_sec,
+                    "position": position_sec,
+                    "volume": volume_pct,
+                    "shuffle": shuffle_val,
+                    "loop_status": loop_val,
                     "controls": {
                         action: controllable and values.get(prop, False) is True
                         for action, prop in (

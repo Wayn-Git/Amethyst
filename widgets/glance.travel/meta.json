@@ -1,20 +1,42 @@
 {
   "widgetId": "glance.travel",
-  "size": "m",
-  "designSpec": "One shadow-free 356 × 170 card pairs a quiet status header with a prominent driving duration and compact event details. Neutral theme tokens support the status-driven views; Retry is omitted because the widget is display-only.",
+  "prompt": "Design an expressive macOS Travel Time widget using all attached images as visual references. Generate one coherent composition with Small (160x160), Medium (340x160), and Large (340x340) layouts for light and dark themes. Use the provided ideas as composition options: split-flap map, route nodes, mode stepper, dark street scrim, or cobalt stack. Select one family and adapt it consistently to all sizes. Small: live travel duration, event name, and one simple detail. Medium: small content plus the real destination and event start time. Large: medium content plus only additional route information supplied at runtime. Current provider supplies one Google Maps driving duration for the next located calendar event, home and destination; it does not supply map tiles, traffic, leave-by time, or other travel modes. Never invent route details or estimates. Keep text at least 11px except the hero, use 24px outer corners, 16px small/20px other padding, 8px spacing grid and 12px group gaps, accessible contrast, and no clipping. No gallery or selector.",
+  "generatedAt": "2026-11-02T15:31:56+00:00",
+  "generationStatus": "generated",
+  "imageStatus": "available",
   "theme": "light",
+  "designSpec": "The cobalt-stack family uses oversized duration typography, 24px outer corners, and theme-aware white or charcoal supporting surfaces. Runtime layout selects Small (160\u00d7160), Medium (340\u00d7160), or Large (340\u00d7340), displaying only that variant with no selector. Missing inputs remain explicitly unavailable; Large adds the home origin only when supplied, without invented maps, traffic, or route estimates.",
   "stages": [
+    "Reading reference image",
     "Planning the widget",
-    "Planning complete. No web or image search needed",
+    "Planning complete. Gathering supporting context",
+    "Searching for real image URLs",
     "Generating the widget interface",
     "Needing more time",
     "Shaping the layout",
     "Choosing the right structure",
     "Fitting the data into the widget",
     "Balancing the content",
+    "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Checking the preview",
+    "Reviewing the widget data",
+    "Polishing the details",
+    "Keeping the widget compact",
+    "Preparing the final widget",
+    "Generating the widget interface",
     "Widget ready"
   ],
-  "generatedAt": "2026-11-01T12:42:03.538Z",
-  "promptFile": "widget-prompts/glance.travel-m.md",
-  "brokenRules": []
+  "contentHashes": {
+    "template.jsx": "7adfd740c1ae5bbad243c6f2c1aef4fbf03062786e0d37aaa30736fb50b685e0",
+    "data.json": "e52fa2c5b9b6ce435ce55574e33474bfd079fedbe65a4df97f9d5da4d9f0e64c",
+    "reference.jpg": "ce6682218da84fb4f7f7d4070a4b3b292500bc6f8450f96f844884f1904a6927"
+  },
+  "imageFile": "reference.jpg",
+  "sizes": [
+    "s",
+    "m",
+    "l"
+  ],
+  "source": "live backend/dashboard provider"
 }

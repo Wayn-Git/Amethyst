@@ -3,6 +3,13 @@ import assert from 'node:assert/strict'
 import { chromium } from 'playwright-core'
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { widgetVariations } from '../src/dashboard/widgetVariations.js'
+
+for (const id of ['glance.clock', 'glance.weather', 'glance.music', 'glance.next-event', 'glance.air', 'glance.sun', 'glance.travel']) {
+  const variations = widgetVariations(id)
+  assert.equal(variations.length, id === 'glance.clock' ? 9 : 5, `${id} exposes its design variations`)
+  assert(variations.every(item => new RegExp(`^[a-z]+-sm-[0-9]{2}$`).test(item.id)), `${id} variation ids are size-independent`)
+}
 
 const cache = join(process.env.HOME, '.cache/ms-playwright')
 const executablePath = process.env.CHROMIUM_PATH || readdirSync(cache).filter(n => n.startsWith('chromium-')).sort().reverse().map(n => join(cache, n, 'chrome-linux64/chrome')).find(existsSync)
@@ -41,7 +48,7 @@ try {
     const { default: Drawer } = await import('/src/dashboard/Drawer.jsx')
     const { default: AddWidget } = await import('/src/dashboard/AddWidget.jsx')
     await import('/src/index.css'); await import('/src/styles/ui-system.css'); await import('/src/dashboard/home.css'); await import('/src/dashboard/widget-patterns.css'); await import('/src/dashboard/home-bento.css'); await import('/src/dashboard/catalog.css')
-    const h = React.createElement, noop = () => {}, manifest = { id: 'glance.clock', title: 'Clock', sizes: ['s', 'm', 'l'], source: { type: 'local' }, refresh: { mode: 'manual' }, empty: 'No clocks' }
+    const h = React.createElement, noop = () => {}, manifest = { id: 'glance.clock', title: 'Clock', group: 'glance', sizes: ['s', 'm', 'l'], source: { type: 'local' }, refresh: { mode: 'manual' }, empty: 'No clocks' }
     const root = createRoot(document.getElementById('proof'))
     window.clockState = { size: 's', design: 'clock-sm-01', open: false }
     window.renderClock = patch => {
@@ -51,11 +58,12 @@ try {
       root.render(
         h('main', { className: 'today-dashboard bento-foundation widget-home' }, h(DashboardContext.Provider, { value: { now: new Date('2026-10-28T23:59:59+05:30'), layout: { widgets: [{ id: manifest.id }] }, removeWidget: noop, setEditing: noop, changeDesign: (_id, val) => window.renderClock({ design: val }) } },
           h(BentoGrid, { className: 'home-layout-grid' }, h(WidgetSlot, { id: manifest.id, title: 'Clock', size, sizes: manifest.sizes, grip: noop }, h(WidgetFrame, { manifest, tile: true, size, design }))),
-          open && h(Drawer, { title: 'Clock', onClose: () => window.renderClock({ open: false }) }, h('div', { className: 'widget-home' }, h(WidgetFrame, { manifest, full: true, design }))))
+          open && h(Drawer, { title: 'Clock', onClose: () => window.renderClock({ open: false }) }, h('div', { className: 'widget-home' }, h(WidgetFrame, { manifest, full: true, size, design }))))
         )
       )
     }
-    window.renderCatalog = () => root.render(h('main', { className: 'bento-foundation widget-home' }, h(DashboardContext.Provider, { value: { manifests: [{ ...manifest, group: 'glance' }], now: new Date(), layout: { widgets: [] }, addWidget: noop, removeWidget: noop, setEditing: noop } }, h(AddWidget))))
+    window.catalogAdds = []
+    window.renderCatalog = () => root.render(h('main', { className: 'bento-foundation widget-home' }, h(DashboardContext.Provider, { value: { manifests: [{ ...manifest, group: 'glance' }], now: new Date(), layout: { widgets: [] }, addWidget: (...args) => window.catalogAdds.push(args), removeWidget: noop, setEditing: noop } }, h(AddWidget))))
     window.renderClock()
   })
   const card = page.locator('[data-slot-id="glance.clock"]')
@@ -70,6 +78,10 @@ try {
   assert.equal(await card.locator('.clock-date').count(), 0, 'small has no date')
   const cardButton = card.locator('.clock-card')
   assert.match(await cardButton.getAttribute('aria-label'), /Clock, Kolkata, 11:59 PM/, 'card has accessible label')
+  assert.equal(await card.locator('.home-widget').evaluate(el => getComputedStyle(el).borderTopWidth), '0px', 'dashboard frame has no second border')
+  assert.equal(await card.locator('.clock-widget').evaluate(el => getComputedStyle(el).borderRadius), '24px', 'clock keeps its single designed surface')
+  const options = card.getByRole('button', { name: 'Options and settings for Clock' })
+  assert(await options.isVisible(), 'clock settings stay accessible without hover')
 
   // Minute rollover test
   await page.clock.runFor(2000)
@@ -101,10 +113,14 @@ try {
   assert.equal(await card.locator('.clock-large-rule').count(), 1, 'large has divider hairline')
 
   // Click target and settings drawer verification
-  await cardButton.click()
+  await options.click()
+  await page.getByRole('menuitem', { name: 'Widget settings' }).click()
   const dialog = page.getByRole('dialog')
   await dialog.locator('.clock-world-settings').waitFor()
-  assert.equal(await dialog.locator('.clock-picker-option').count(), 9, 'dialog shows all 9 clock face variations in settings')
+  assert.equal(await dialog.locator('.widget-variation-option').count(), 9, 'settings show all 9 clock face variations')
+  assert.equal(await dialog.locator('.widget-variation-preview-frame[data-size="l"]').count(), 9, 'large slot previews all nine faces at large size')
+  await dialog.getByRole('radio', { name: 'Small', exact: true }).click()
+  assert.equal(await dialog.locator('.widget-variation-preview-frame[data-size="s"]').count(), 9, 'small tab resizes every face preview')
   const input = dialog.getByRole('textbox', { name: 'World clock timezone', exact: true })
   assert(await input.evaluate(node => node.getBoundingClientRect().height >= 44), 'timezone input touch target')
   assert(await dialog.getByRole('button', { name: 'Add clock', exact: true }).evaluate(node => node.getBoundingClientRect().height >= 44), 'add clock touch target')
@@ -116,12 +132,23 @@ try {
   assert.equal(writes.length, 0)
 
   // Face variation selection in drawer
-  await dialog.getByRole('radio', { name: /Roman/ }).click()
+  await dialog.locator('.widget-variation-option[data-design="clock-sm-04"] button').click()
   await page.waitForFunction(() => window.clockState.design === 'clock-sm-04')
+  assert.equal((await page.evaluate(() => window.clockState.size)), 'l', 'changing a large clock face keeps its slot size')
+  await dialog.getByRole('radio', { name: 'Medium', exact: true }).click()
+  await page.evaluate(() => window.renderClock({ size: 'm' }))
+  await dialog.locator('.widget-variation-option[data-design="clock-sm-02"] button').click()
+  await page.waitForFunction(() => window.clockState.design === 'clock-sm-02')
+  assert.equal((await page.evaluate(() => window.clockState.size)), 'm', 'medium face selection stays medium')
+  await dialog.getByRole('radio', { name: 'Small', exact: true }).click()
+  await page.evaluate(() => window.renderClock({ size: 's' }))
+  await dialog.locator('.widget-variation-option[data-design="clock-sm-06"] button').click()
+  await page.waitForFunction(() => window.clockState.design === 'clock-sm-06')
+  assert.equal((await page.evaluate(() => window.clockState.size)), 's', 'small face selection stays small')
 
   await input.fill('US/Pacific')
   await dialog.getByRole('button', { name: 'Add clock', exact: true }).click()
-  await dialog.getByRole('alert').filter({ hasText: 'already shown' }).waitFor()
+  await dialog.getByRole('alert').filter({ hasText: 'already saved' }).waitFor()
   assert.equal(writes.length, 0, 'timezone aliases cannot create duplicate clocks')
 
   // Save error handling
@@ -147,7 +174,7 @@ try {
   // 4 clocks limit
   await input.fill('Asia/Tokyo')
   await dialog.getByRole('button', { name: 'Add clock', exact: true }).click()
-  await dialog.getByText('4 of 4 world clocks', { exact: true }).waitFor()
+  await dialog.getByText('4 of 4 world clocks saved', { exact: true }).waitFor()
   assert.equal(await input.count(), 0)
 
   // Remove clock
@@ -181,16 +208,19 @@ try {
   const previousWrites = writes.length
   await page.evaluate(() => window.renderCatalog())
   await page.getByRole('button', { name: 'Choose Clock', exact: true }).click()
-  const preview = page.getByLabel('Clock S preview', { exact: true })
-  await preview.locator('.clock-time').waitFor()
-  assert.equal(await preview.locator('.clock-world').count(), 0)
-  for (const size of ['M', 'L', 'S']) {
-    await page.getByRole('radio', { name: size, exact: true }).click()
-    const live = page.getByLabel(`Clock ${size} preview`, { exact: true })
-    await live.locator(`[data-clock-size='${size.toLowerCase()}']`).waitFor()
+  const catalog = page.locator('.catalog-design-options')
+  assert.equal(await catalog.locator('.catalog-design-option').count(), 9, 'catalog exposes each clock face as a live preview')
+  for (const [label, size, width, height] of [['Small', 's', 160, 160], ['Medium', 'm', 340, 160], ['Large', 'l', 340, 340]]) {
+    await page.getByRole('radio', { name: label, exact: true }).click()
+    assert.equal(await catalog.locator(`.catalog-design-option[data-preview-size='${size}'] .catalog-live-preview`).count(), 9, `${label} tab renders every face at its matching size`)
+    const frame = catalog.locator('.catalog-design-option[data-design="clock-sm-01"] .catalog-live-preview')
+    assert.deepEqual(await frame.evaluate(node => { const rect = node.getBoundingClientRect(); return [rect.width, rect.height] }), [width, height], `${label} preview frame matches form factor`)
+    const live = catalog.locator('.catalog-design-option[data-design="clock-sm-01"]')
     assert.equal(await live.locator('input:visible').count(), 0, 'previews do not expose settings')
-    assert(await live.evaluate(node => node.scrollWidth <= node.clientWidth + 1), `${size} gallery preview fits`)
+    assert(await frame.evaluate(node => node.scrollWidth <= node.clientWidth + 1), `${label} gallery preview fits`)
   }
+  await catalog.locator('.catalog-design-option[data-design="clock-sm-05"]').getByRole('button', { name: 'Add this design' }).click()
+  assert.deepEqual(await page.evaluate(() => window.catalogAdds), [['glance.clock', 'l', 'clock-sm-05']], 'adding a preview preserves its chosen size and design')
   assert.equal(writes.length, previousWrites, 'browsing variants does not write settings')
   assert.deepEqual(errors, [])
   console.log('PASS clock: small/medium/large native layouts; digital and analog; timezone validation; settings; reduced motion; nine themes')

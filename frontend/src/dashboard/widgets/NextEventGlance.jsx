@@ -1,117 +1,53 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { WidgetRenderer } from '@tugan/widgets'
+import design from '../../../../widgets/glance.next-event/design.json'
 import template from '../../../../widgets/glance.next-event/template.txt?raw'
+import { variationNumber } from '../widgetVariations.js'
+import './next-event/next-event.css'
 
-const DEFAULT_LABELS = {
-  title: 'Next event',
-  loading: 'Loading',
-  refreshing: 'Refreshing',
-  noEvents: 'No upcoming events',
-  notConnected: 'Connect Calendar in settings',
-  unavailable: 'Calendar unavailable',
-  notAvailable: 'Not available',
-}
-
-function adaptNextEvent(data, now) {
-  if (!data) {
-    const payload = {
-      status: 'loading',
-      labels: DEFAULT_LABELS,
-    }
-    payload.data = payload
-    return payload
-  }
-
-  const items = Array.isArray(data.items) ? data.items : []
-  const event = items[0]
-
-  if (!event) {
-    const payload = {
-      status: 'empty',
-      labels: DEFAULT_LABELS,
-    }
-    payload.data = payload
-    return payload
-  }
-
-  const zone = data.timezone ? { timeZone: data.timezone } : {}
-  const start = new Date(event.start || NaN)
-  const end = new Date(event.end || NaN)
-  const validStart = Number.isFinite(start.getTime())
-  const validEnd = Number.isFinite(end.getTime())
-  const diffMinutes = validStart ? Math.ceil((start.getTime() - now) / 60000) : 0
-  const ended = validEnd && end.getTime() <= now
-
-  let countdown
-  if (ended) {
-    countdown = 'Ended'
-  } else if (event.all_day) {
-    countdown = 'All day'
-  } else if (!validStart) {
-    countdown = 'Start time unavailable'
-  } else if (diffMinutes <= 0) {
-    countdown = 'Now'
-  } else if (diffMinutes < 60) {
-    countdown = `in ${diffMinutes}m`
-  } else if (diffMinutes < 1440) {
-    const hrs = Math.floor(diffMinutes / 60)
-    const mins = diffMinutes % 60
-    countdown = mins > 0 ? `in ${hrs}h ${mins}m` : `in ${hrs}h`
-  } else {
-    const days = Math.round(diffMinutes / 1440)
-    countdown = `in ${days}d`
-  }
-
-  let eventTime
-  if (event.all_day) {
-    eventTime = 'All day'
-  } else if (validStart) {
-    const startTimeStr = start.toLocaleTimeString([], { ...zone, hour: 'numeric', minute: '2-digit' })
-    if (validEnd) {
-      const endTimeStr = end.toLocaleTimeString([], { ...zone, hour: 'numeric', minute: '2-digit' })
-      eventTime = `${startTimeStr} – ${endTimeStr}`
-    } else {
-      eventTime = startTimeStr
-    }
-  }
-
-  let dateLabel = 'Today'
-  if (validStart) {
-    const startDateStr = start.toLocaleDateString([], { ...zone, year: 'numeric', month: 'numeric', day: 'numeric' })
-    const nowDateStr = new Date(now).toLocaleDateString([], { ...zone, year: 'numeric', month: 'numeric', day: 'numeric' })
-    if (startDateStr !== nowDateStr) {
-      dateLabel = start.toLocaleDateString([], { ...zone, weekday: 'short', month: 'short', day: 'numeric' })
-    }
-  }
-
-  const payload = {
-    status: data.refreshing ? 'refreshing' : 'ready',
-    message: data.message || '',
-    lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    countdown,
-    eventTitle: event.title || 'Untitled event',
-    eventTime,
-    location: event.location || 'No location',
-    date: dateLabel,
-    labels: DEFAULT_LABELS,
-  }
-  payload.data = payload
-  return payload
-}
-
-export default function NextEventGlance({ data, onAction }) {
-  const [theme, setTheme] = useState(() =>
-    typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+function themePalette(theme) {
+  return Object.fromEntries(
+    Object.entries(design.palette).map(([key, value]) => [key, typeof value === 'object' ? value[theme] || value.light : value]),
   )
-  const [now, setNow] = useState(() => Date.now())
+}
+
+function adaptNextEvent(data, layout, theme) {
+  const events = Array.isArray(data?.events) ? data.events : []
+  const live = Array.isArray(data?.items) ? data.items[0] : null
+  const event = live && typeof live.start === 'string' ? live : null
+  const timezone = typeof data?.timezone === 'string' ? data.timezone : ''
+
+  return {
+    layout,
+    colorMode: theme,
+    layouts: design.layouts,
+    palette: themePalette(theme),
+    labels: design.labels,
+    calendar: {
+      liveEvent: event ? {
+        title: event.title || '',
+        start: event.start,
+        end: event.end || '',
+        timeZone: timezone,
+        location: event.location || '',
+        meetingUrl: '',
+      } : { title: '', start: '', end: '', timeZone: timezone, location: '', meetingUrl: '' },
+      upcomingEvents: events.filter(item => item && item.id !== event?.id && typeof item.start === 'string').map(item => ({
+        title: item.title || '',
+        start: item.start,
+        timeZone: timezone,
+      })),
+    },
+  }
+}
+
+export default function NextEventGlance({ data, onAction, size = 's', full = false, design }) {
+  const [theme, setTheme] = useState(() =>
+    typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+  )
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 10000)
-    return () => clearInterval(timer)
-  }, [])
-
-  useEffect(() => {
-    if (typeof document === 'undefined') return
+    if (typeof document === 'undefined') return undefined
     const observer = new MutationObserver(() => {
       setTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light')
     })
@@ -119,16 +55,12 @@ export default function NextEventGlance({ data, onAction }) {
     return () => observer.disconnect()
   }, [])
 
-  const widgetData = useMemo(() => adaptNextEvent(data, now), [data, now])
+  const layout = full || size === 'l' ? 'large' : size === 'm' ? 'medium' : 'small'
+  const widgetData = useMemo(() => adaptNextEvent(data, layout, theme), [data, layout, theme])
 
   return (
-    <div className="glance-next-event-root">
-      <WidgetRenderer
-        template={template}
-        data={widgetData}
-        theme={theme}
-        onAction={onAction}
-      />
+    <div className="glance-next-event-root" data-variation={variationNumber(design)}>
+      <WidgetRenderer template={template} data={widgetData} theme={theme} onAction={onAction} />
     </div>
   )
 }

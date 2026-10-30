@@ -1,0 +1,121 @@
+{
+  "layouts": {
+    "small": {
+      "width": 160,
+      "height": 160,
+      "padding": 4,
+      "headerHeight": 128
+    },
+    "medium": {
+      "width": 340,
+      "height": 160,
+      "padding": 5,
+      "headerHeight": 120
+    },
+    "large": {
+      "width": 340,
+      "height": 340,
+      "padding": 5,
+      "headerHeight": 120
+    }
+  },
+  "labels": {
+    "aqiSystem": "US AQI",
+    "locationUnavailable": "Location unavailable",
+    "unavailable": "Unavailable",
+    "emptyValue": "\u2014",
+    "pm25": "PM2.5"
+  },
+  "surfaces": {
+    "canvas": {
+      "light": "#FBFAF7",
+      "dark": "#202224"
+    },
+    "inset": {
+      "light": "#EEEDE9",
+      "dark": "#2D3033"
+    }
+  },
+  "bands": [
+    {
+      "id": "good",
+      "maximum": 50,
+      "category": "Good",
+      "color": {
+        "light": "#579C78",
+        "dark": "#79B895"
+      }
+    },
+    {
+      "id": "moderate",
+      "maximum": 100,
+      "category": "Moderate",
+      "color": {
+        "light": "#D3B54B",
+        "dark": "#D6BD67"
+      }
+    },
+    {
+      "id": "sensitive",
+      "maximum": 150,
+      "category": "Unhealthy for sensitive groups",
+      "color": {
+        "light": "#D58D50",
+        "dark": "#DAA16D"
+      }
+    },
+    {
+      "id": "unhealthy",
+      "maximum": 200,
+      "category": "Unhealthy",
+      "color": {
+        "light": "#C66C69",
+        "dark": "#D88C88"
+      }
+    },
+    {
+      "id": "very-unhealthy",
+      "maximum": 300,
+      "category": "Very unhealthy",
+      "color": {
+        "light": "#9475AB",
+        "dark": "#B498C5"
+      }
+    },
+    {
+      "id": "hazardous",
+      "maximum": 500,
+      "category": "Hazardous",
+      "color": {
+        "light": "#97526B",
+        "dark": "#BB8398"
+      }
+    }
+  ],
+  "pollutants": [
+    {
+      "id": "pm10",
+      "label": "PM10",
+      "value": null,
+      "unit": null
+    },
+    {
+      "id": "co",
+      "label": "CO",
+      "value": null,
+      "unit": null
+    },
+    {
+      "id": "no2",
+      "label": "NO\u2082",
+      "value": null,
+      "unit": null
+    },
+    {
+      "id": "o3",
+      "label": "O\u2083",
+      "value": null,
+      "unit": null
+    }
+  ]
+}

@@ -1,22 +1,41 @@
 {
-  "status": "ready",
-  "message": "",
-  "lastUpdated": "06:00",
-  "sunrise": "06:24 AM",
-  "sunset": "05:42 PM",
-  "dayLength": "11h 18m",
-  "timezone": "Asia/Kolkata",
+  "layout": "large",
+  "sunrise": null,
+  "sunset": null,
+  "timezone": null,
   "labels": {
-    "title": "Sun",
+    "nextSunrise": "Next sunrise",
+    "nextSunset": "Next sunset",
+    "nextEvent": "Next sun event",
     "sunrise": "Sunrise",
     "sunset": "Sunset",
-    "dayLength": "Daylight",
-    "loading": "Loading",
-    "refreshing": "Refreshing",
-    "locationUnset": "Location unset",
-    "unavailable": "Solar times unavailable",
-    "notAvailable": "Not available",
-    "updatedPrefix": "Updated ",
-    "offlineUpdatedPrefix": "Offline, updated "
-  }
+    "daylight": "Daylight",
+    "unavailable": "\u2014",
+    "awaiting": "Awaiting data",
+    "nextUnavailable": "Next time unavailable",
+    "localTime": "Local time"
+  },
+  "colors": {
+    "canvas": {
+      "light": "#F5EBDD",
+      "dark": "#28211E"
+    },
+    "ink": {
+      "light": "#442A22",
+      "dark": "#F8EBDD"
+    },
+    "secondary": {
+      "light": "#775748",
+      "dark": "#D1AF9A"
+    },
+    "sun": {
+      "light": "#B95837",
+      "dark": "#EEA078"
+    },
+    "horizon": {
+      "light": "#C5A18C",
+      "dark": "#87634F"
+    }
+  },
+  "next_sunrise": null
 }
