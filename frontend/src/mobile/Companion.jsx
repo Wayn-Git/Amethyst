@@ -12,6 +12,7 @@ import ConfirmDialogHost from '../components/ui/ConfirmDialog.jsx'
 import { identity, replica, sync } from '../lib/sync/client.js'
 import { captures, saveCapture, flushCaptures } from './captures.js'
 import { putRecord, records } from './storage.js'
+import Updates from './Updates.jsx'
 import './companion.css'
 
 const tabs = [ ['today', 'Today', 'sun'], ['library', 'Library', 'book'],
@@ -125,6 +126,7 @@ export default function Companion({ onUnpair }) {
     </header>
     <div className="companion-status" role="status">{notice}{lastSync && <small>Last saved sync: {new Date(lastSync).toLocaleString()}</small>}</div>
     {settings && <section className="companion-card"><h2>Device settings</h2><p>Paired as {identity()?.name}. Permissions are managed on your desktop. The most recent 100 library items are cached on this device.</p><button type="button" onClick={refresh}>Refresh now</button><button type="button" onClick={unpair}>Unpair and remove cached data</button></section>}
+    {settings && <Updates />}
     <main className="companion-content">
       {tab === 'today' && <Home layoutMode="mobile" />}
       {tab === 'library' && <>

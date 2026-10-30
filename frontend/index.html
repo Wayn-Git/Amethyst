@@ -27,16 +27,15 @@
          as a broken href, and the same-origin build has no second host to
          connect to at all. -->
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Plus+Jakarta+Sans:ital,wght@0,400..800;1,400..800&family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap"
-    rel="stylesheet" />
+  <style>
+    [data-startup] { font-family: system-ui, sans-serif; padding: 32px; background: var(--bg, Canvas); color: var(--text, CanvasText); min-height: 100vh; box-sizing: border-box; }
+    [data-startup] button { font: inherit; padding: 12px 20px; }
+  </style>
 </head>
 
 <body>
-  <div id="root"></div>
-  <script type="module" src="/src/main.jsx"></script>
+  <div id="root"><section data-startup="loading" role="status"><h1>Amethyst</h1><p>Opening your companion…</p></section></div>
+  <script type="module" src="/src/bootstrap.js"></script>
 </body>
 
 </html>

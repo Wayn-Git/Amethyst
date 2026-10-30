@@ -917,6 +917,8 @@ from backend.remote import router as remote_router
 app.include_router(remote_router)
 from backend.remote.captures import router as mobile_router, lane as mobile_capture_lane
 app.include_router(mobile_router)
+from backend.remote.updates import router as mobile_updates_router
+app.include_router(mobile_updates_router)
 
 from backend.converter import router as converter_router
 app.include_router(converter_router)
@@ -7160,6 +7162,12 @@ class UserProfileUpdate(BaseModel):
     name: str | None = None
     full_name: str | None = None
     email: str | None = None
+    handle: str | None = None
+    avatar_shape: str | None = None
+    avatar_url: str | None = None
+    is_private: bool | None = None
+    visibility: dict[str, bool] | None = None
+    showcase: dict[str, Any] | None = None
 
 
 def _user_profile_path() -> Path:
@@ -7175,6 +7183,17 @@ async def get_user_profile() -> dict[str, Any]:
         try:
             saved = json.loads(p_path.read_text(encoding="utf-8"))
             if saved and isinstance(saved, dict) and saved.get("name"):
+                saved.setdefault("handle", f"@{str(saved.get('name', 'user')).lower()}42")
+                saved.setdefault("avatar_shape", "circle")
+                saved.setdefault("avatar_url", None)
+                saved.setdefault("is_private", False)
+                saved.setdefault("visibility", {
+                    "show_stats": True,
+                    "show_activity": True,
+                    "show_plugins": True,
+                    "show_insights": True,
+                })
+                saved.setdefault("showcase", None)
                 return saved
         except Exception:
             pass
@@ -7189,6 +7208,17 @@ async def get_user_profile() -> dict[str, Any]:
         "name": name,
         "full_name": full_name,
         "email": email,
+        "handle": f"@{name.lower()}42",
+        "avatar_shape": "circle",
+        "avatar_url": None,
+        "is_private": False,
+        "visibility": {
+            "show_stats": True,
+            "show_activity": True,
+            "show_plugins": True,
+            "show_insights": True,
+        },
+        "showcase": None,
     }
     try:
         from backend.config import write_atomic
@@ -7212,6 +7242,23 @@ async def update_user_profile(body: UserProfileUpdate) -> dict[str, Any]:
         current["full_name"] = body.full_name.strip()
     if body.email is not None and body.email.strip():
         current["email"] = body.email.strip()
+    if body.handle is not None:
+        h = body.handle.strip()
+        if h and not h.startswith("@"):
+            h = f"@{h}"
+        current["handle"] = h
+    if body.avatar_shape is not None:
+        current["avatar_shape"] = body.avatar_shape
+    if body.avatar_url is not None:
+        current["avatar_url"] = body.avatar_url
+    if body.is_private is not None:
+        current["is_private"] = bool(body.is_private)
+    if body.visibility is not None:
+        vis = current.get("visibility") or {}
+        vis.update(body.visibility)
+        current["visibility"] = vis
+    if body.showcase is not None:
+        current["showcase"] = body.showcase
 
     try:
         from backend.config import write_atomic

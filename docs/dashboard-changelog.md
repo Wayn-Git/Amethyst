@@ -498,3 +498,5 @@ Shared card/detail composition keeps editors mounted across resizing, preserves 
 - 2026-10-29 — Astra companion foundation: separate mobile Home layout and device-scoped caches; native shell, encrypted capture queue and explicit remote permission gates. 155 targeted backend tests, 35 sync tests and 5 mobile tests pass; native device validation and broader mobile features remain open (docs/plans/astra-mobile-implementation.md).
 
 - 2026-10-29 — Android companion APK built and copied to Downloads; camera permission added for QR pairing. 40 frontend tests, Android assemble/lint, APK signature and alignment checks pass; hardware validation remains open.
+
+- 2026-10-30 — Companion 1.0.1: fixed Android secure-storage startup deadlock, bundled-font boot recovery, Amethyst Android artwork, and Settings updates from the paired desktop with APK verification. Android 15 launch and data-preserving upgrade verified; physical Vivo validation remains open.

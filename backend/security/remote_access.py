@@ -12,6 +12,7 @@ from backend.sync import devices
 
 def capability(path: str, method: str) -> str | None:
     rules = (
+        ("GET", r"/api/mobile/update(?:/apk)?", "paired"),
         ("GET", r"/api/remote/capabilities", "paired"),
         ("POST", r"/api/remote/actions/[^/]+/decision", "paired"),
         ("GET", r"/api/remote/status", "paired"),

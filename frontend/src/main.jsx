@@ -22,6 +22,7 @@ import './styles/converter.css'
 import './components/nexus-ui/questions.css'
 import './styles/ui-system.css'
 import App from './App.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 import { initializeCredentials, isNativeMobile } from './lib/credentials.js'
 import { initializeNative } from './mobile/native.js'
 import CommandPalette from './components/CommandPalette.jsx'
@@ -62,19 +63,15 @@ createRoot(document.getElementById('root')).render(
     {/* Outside AppProvider: the store reads useNavigate/useLocation to make
         the URL the source of truth for which view is open. */}
     {isDevWidgets ? <Suspense fallback={null}><DevWidgets /></Suspense> : isDevUI ? <Suspense fallback={null}><DevUI /></Suspense> : <BrowserRouter>
-      <AppProvider>
+      <ErrorBoundary><AppProvider>
         {SPOTLIGHT ? <CommandPalette bare /> : <App />}
-      </AppProvider>
+      </AppProvider></ErrorBoundary>
     </BrowserRouter>}
   </StrictMode>,
 )
 
 }
-mount().catch(() => {
-  const root = document.getElementById('root')
-  root.textContent = 'Secure storage could not be opened. Unlock your device and restart Amethyst.'
-  root.setAttribute('role', 'alert')
-})
+export const appReady = mount()
 
 /* Tell the desktop shell the interface is mounted and safe to show.
 

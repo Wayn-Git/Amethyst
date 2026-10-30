@@ -13,7 +13,14 @@ export async function nativeVault() {
     await SecureStorage.setKeyPrefix('amethyst_')
     await SecureStorage.setSynchronize(false)
     await SecureStorage.setDefaultKeychainAccess(KeychainAccess.whenUnlockedThisDeviceOnly)
-    secureStore = SecureStorage
+    // Capacitor proxies synthesize any property, including `then`. Returning
+    // the proxy from an async function makes Promise assimilation invoke a
+    // nonexistent native then() method and leaves startup pending forever.
+    secureStore = {
+      get: (...args) => SecureStorage.get(...args),
+      set: (...args) => SecureStorage.set(...args),
+      remove: (...args) => SecureStorage.remove(...args),
+    }
   }
   return secureStore
 }
