@@ -1,0 +1,80 @@
+{
+  "direction": "editorial",
+  "widgetSize": "medium",
+  "darkAppearance": false,
+  "labels": {
+    "galleryTitle": "",
+    "gallerySubtitle": "5 directions · 3 sizes · 2 appearances",
+    "darkAppearance": "Dark appearance",
+    "direction": "Design direction",
+    "sizeLabel": "Reminder widget size",
+    "reminders": "Reminders",
+    "myReminders": "My reminders",
+    "completePrefix": "Complete: ",
+    "reopenPrefix": "Reopen: ",
+    "thenPrefix": "Then · ",
+    "nothingElse": "Nothing else coming up.",
+    "scheduleEyebrow": "",
+    "nextOnSchedule": "Next on your schedule",
+    "onYourSchedule": "On your schedule",
+    "next": "Next",
+    "completeSuffix": " complete",
+    "needsAttention": "Needs attention",
+    "prioritySuffix": " high-priority reminders open",
+    "openSuffix": " open",
+    "tomorrowPrefix": "Tomorrow · ",
+    "laterPrefix": "Later · ",
+    "nextImportant": "NEXT IMPORTANT",
+    "allComplete": "EVERYTHING CHECKED",
+    "alsoOnYourList": "Also on your list",
+    "sampleNote": ""
+  },
+  "directions": [
+    {
+      "value": "minimal",
+      "label": "Minimal",
+      "description": "Quiet typography and a clean checklist"
+    },
+    {
+      "value": "timeline",
+      "label": "Timeline",
+      "description": "Time anchors and a fine vertical guide"
+    },
+    {
+      "value": "priority",
+      "label": "Priority-focused",
+      "description": "Important reminders lead the reading order"
+    },
+    {
+      "value": "grouped",
+      "label": "Grouped",
+      "description": "Today, tomorrow and later"
+    },
+    {
+      "value": "editorial",
+      "label": "Editorial",
+      "description": "A featured reminder with supporting items"
+    }
+  ],
+  "sizes": [
+    {
+      "value": "small",
+      "label": "Small"
+    },
+    {
+      "value": "medium",
+      "label": "Medium"
+    },
+    {
+      "value": "large",
+      "label": "Large"
+    }
+  ],
+  "mediumGroupedIds": [
+    "agenda",
+    "launch",
+    "prescription",
+    "plants",
+    "library"
+  ]
+}

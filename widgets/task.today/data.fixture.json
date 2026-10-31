@@ -1,0 +1,205 @@
+{
+  "direction": "minimal",
+  "widgetSize": "small",
+  "darkPreview": false,
+  "labels": {
+    "title": "Upcoming tasks",
+    "subtitle": "Five directions \u00b7 fifteen purpose-built layouts",
+    "direction": "Design direction",
+    "size": "Widget size",
+    "dark": "Dark",
+    "darkAppearance": "Use dark appearance",
+    "upNext": "UP NEXT",
+    "upcoming": "Upcoming",
+    "yourList": "Your list",
+    "workPersonal": "Work & personal",
+    "horizon": "On the horizon",
+    "steadyProgress": "Steady progress",
+    "completed": "Completed",
+    "remainingSuffix": " remaining",
+    "completedSuffix": " completed",
+    "prioritySuffix": " priority",
+    "of": " of ",
+    "markComplete": "Mark complete",
+    "dateNumber": "17",
+    "weekday": "Wednesday",
+    "monthYear": "June 2026",
+    "monthShort": "JUNE",
+    "editorialHeading": "Make space for what\u2019s next.",
+    "sampleDate": "Sample schedule \u00b7 Jun 17, 2026",
+    "localNote": "Checks stay in this preview.",
+    "reset": "Reset checks",
+    "allDone": "A clear list.",
+    "allDoneNote": "Every task is checked. Reset checks to explore again."
+  },
+  "directions": [
+    {
+      "value": "minimal",
+      "label": "01 \u00b7 Minimal",
+      "description": "Quiet hierarchy. One clear next step, with details kept close."
+    },
+    {
+      "value": "list",
+      "label": "02 \u00b7 List-focused",
+      "description": "A compact checklist with aligned deadlines and explicit priorities."
+    },
+    {
+      "value": "timeline",
+      "label": "03 \u00b7 Timeline",
+      "description": "Time leads the composition; deadline columns organize the day."
+    },
+    {
+      "value": "progress",
+      "label": "04 \u00b7 Progress-focused",
+      "description": "Completion takes the lead, with the remaining work immediately below."
+    },
+    {
+      "value": "editorial",
+      "label": "05 \u00b7 Editorial",
+      "description": "Expressive system typography, a strong date, and deliberate reading order."
+    }
+  ],
+  "sizes": [
+    {
+      "label": "Small",
+      "value": "small"
+    },
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "groups": [
+    {
+      "id": "overdue",
+      "label": "Overdue",
+      "date": "Yesterday \u00b7 Jun 16",
+      "tone": "danger"
+    },
+    {
+      "id": "today",
+      "label": "Today",
+      "date": "Wed \u00b7 Jun 17",
+      "tone": "secondary"
+    },
+    {
+      "id": "upcoming",
+      "label": "Upcoming",
+      "date": "Jun 18\u201319",
+      "tone": "secondary"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "launch",
+      "slot": 0,
+      "title": "Review launch brief",
+      "group": "today",
+      "day": "Today",
+      "due": "Today, 10:30 AM",
+      "shortDue": "10:30 AM",
+      "time": "10:30",
+      "meridiem": "AM",
+      "priority": "High",
+      "tone": "danger",
+      "done": false,
+      "initialDone": false
+    },
+    {
+      "id": "proposal",
+      "slot": 1,
+      "title": "Send revised proposal",
+      "group": "overdue",
+      "day": "Yesterday",
+      "due": "Overdue \u00b7 Yesterday, 4 PM",
+      "shortDue": "4 PM",
+      "time": "4:00",
+      "meridiem": "PM",
+      "priority": "High",
+      "tone": "danger",
+      "done": false,
+      "initialDone": false
+    },
+    {
+      "id": "dentist",
+      "slot": 2,
+      "title": "Book dentist appointment",
+      "group": "today",
+      "day": "Today",
+      "due": "Today, 2 PM",
+      "shortDue": "2 PM",
+      "time": "2:00",
+      "meridiem": "PM",
+      "priority": "Normal",
+      "tone": "secondary",
+      "done": false,
+      "initialDone": false
+    },
+    {
+      "id": "expenses",
+      "slot": 3,
+      "title": "Submit expense report",
+      "group": "today",
+      "day": "Today",
+      "due": "Today, 5 PM",
+      "shortDue": "5 PM",
+      "time": "5:00",
+      "meridiem": "PM",
+      "priority": "Normal",
+      "tone": "secondary",
+      "done": true,
+      "initialDone": true
+    },
+    {
+      "id": "sprint",
+      "slot": 4,
+      "title": "Plan next sprint",
+      "group": "upcoming",
+      "day": "Tomorrow",
+      "due": "Tomorrow, 9 AM",
+      "shortDue": "9 AM",
+      "time": "9:00",
+      "meridiem": "AM",
+      "priority": "Medium",
+      "tone": "warning",
+      "done": false,
+      "initialDone": false
+    },
+    {
+      "id": "library",
+      "slot": 5,
+      "title": "Renew library books",
+      "group": "upcoming",
+      "day": "Fri, Jun 19",
+      "due": "Fri, Jun 19, noon",
+      "shortDue": "Noon",
+      "time": "12:00",
+      "meridiem": "PM",
+      "priority": "Normal",
+      "tone": "secondary",
+      "done": false,
+      "initialDone": false
+    },
+    {
+      "id": "notes",
+      "slot": 6,
+      "title": "Organize project notes",
+      "group": "upcoming",
+      "day": "Fri, Jun 19",
+      "due": "Fri, Jun 19, 4 PM",
+      "shortDue": "4 PM",
+      "time": "4:00",
+      "meridiem": "PM",
+      "priority": "Normal",
+      "tone": "secondary",
+      "done": true,
+      "initialDone": true
+    }
+  ],
+  "status": "ready",
+  "appearance": "light"
+}

@@ -1,0 +1,98 @@
+{
+  "appearance": "light",
+  "sizeChoice": "medium",
+  "variation": "first",
+  "motion": true,
+  "nextId": "late-morning",
+  "recommendedId": "noon",
+  "selectedId": "noon",
+  "colors": {
+    "accent": {
+      "light": "#42657B",
+      "dark": "#A6C5D8"
+    },
+    "selection": {
+      "light": "#EFF4F7",
+      "dark": "#25333D"
+    }
+  },
+  "labels": {
+    "familyTitle": "Free time",
+    "sampleNote": "",
+    "darkAppearance": "Switch to dark appearance",
+    "lightAppearance": "Switch to light appearance",
+    "sizeLabel": "Widget size",
+    "variationLabel": "Layout variation",
+    "nextFree": "Next free",
+    "startsIn": "In 13 min",
+    "nextOpenBlock": "Next open block",
+    "minutesClear": "min clear",
+    "smallFocusNote": "Room for one focused task.",
+    "availableToday": "Available today",
+    "threeWindows": "3 upcoming slots",
+    "bestForFocus": "Best for focus",
+    "bestUpcoming": "Best upcoming slot",
+    "noonHeadline": "Make room at noon.",
+    "minutesUninterrupted": "min uninterrupted",
+    "alsoOpen": "Also open",
+    "dayTimeline": "Today, with breathing room.",
+    "remainingTotal": "4 h free ahead",
+    "recommendationLine": "Best for focus · 12:00–13:30 · 90 min",
+    "freeTime": "Free time",
+    "earlierFree": "Earlier free time",
+    "editorialEyebrow": "A little space for deeper work",
+    "editorialHeadline": "Your clearest window is at noon.",
+    "editorialReason": "",
+    "dayAtGlance": "The day at a glance",
+    "recommended": "Recommended · longest upcoming block",
+    "earlierToday": "Earlier today",
+    "selectedPrefix": "Selected · ",
+    "motionLabel": "Gentle selection motion"
+  },
+  "sizes": [
+    {
+      "value": "small",
+      "label": "Small"
+    },
+    {
+      "value": "medium",
+      "label": "Medium"
+    },
+    {
+      "value": "large",
+      "label": "Large"
+    }
+  ],
+  "variations": {
+    "small": [
+      {
+        "value": "first",
+        "label": "Minimal"
+      },
+      {
+        "value": "second",
+        "label": "Focus"
+      }
+    ],
+    "medium": [
+      {
+        "value": "first",
+        "label": "Agenda"
+      },
+      {
+        "value": "second",
+        "label": "Spotlight"
+      }
+    ],
+    "large": [
+      {
+        "value": "first",
+        "label": "Day timeline"
+      },
+      {
+        "value": "second",
+        "label": "Editorial"
+      }
+    ]
+  }
+}

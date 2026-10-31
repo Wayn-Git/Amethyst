@@ -1,0 +1,1085 @@
+<Show when={status === "loading"}>
+  <Card
+    size="full"
+    width={widgetSize === "small" ? 170 : 356}
+    height={widgetSize === "large" ? 356 : 170}
+    theme={darkAppearance ? "dark" : "light"}
+    padding={4}
+    gap={2}
+    justify="center"
+  >
+    <Row gap={2} align="center">
+      <LoadingBlock width={28} height={28} radius="full" />
+      <LoadingBlock width={120} height={16} radius="xs" />
+    </Row>
+    <LoadingBlock width="100%" height={32} radius="md" />
+  </Card>
+</Show>
+
+<Show when={status === "error"}>
+  <Card
+    size="full"
+    width={widgetSize === "small" ? 170 : 356}
+    height={widgetSize === "large" ? 356 : 170}
+    theme={darkAppearance ? "dark" : "light"}
+    padding={4}
+    gap={2}
+    justify="center"
+    align="center"
+  >
+    <Icon name="alert-circle" size="lg" color="secondary" />
+    <Text value={message || "Focus timer unavailable"} size="sm" weight="semibold" align="center" />
+    <Caption value="Check system timer status" size="sm" align="center" />
+  </Card>
+</Show>
+
+<Show when={status !== "loading" && status !== "error"}>
+    <Show when={running}>
+      <RunInterval
+        interval={250}
+        $onTickAction="{ updateState: { seconds: max(0, ceil((deadline - now()) / 1000)), running: deadline > now() } }"
+      />
+    </Show>
+    <Scope
+      values={{
+        current: directions.find((item) => item.id === direction),
+        duration:
+          phase === "focus"
+            ? focusSeconds
+            : sessionNumber === 4
+              ? longBreakSeconds
+              : breakSeconds,
+        accent: darkAppearance
+          ? palettes[direction].dark
+          : palettes[direction].light,
+        modeLabel: phase === "focus" ? labels.focus : labels.break,
+        nextDuration:
+          phase === "focus"
+            ? sessionNumber === 4
+              ? longBreakSeconds
+              : breakSeconds
+            : focusSeconds,
+      }}
+    >
+      <Scope
+        values={{
+          elapsed: duration - seconds,
+          progress: (duration - seconds) / duration,
+          timeLabel:
+            String(floor(seconds / 60)).padStart(2, "0") +
+            ":" +
+            String(seconds % 60).padStart(2, "0"),
+          elapsedLabel:
+            String(floor((duration - seconds) / 60)) +
+            ":" +
+            String((duration - seconds) % 60).padStart(2, "0"),
+          sessionLabel:
+            labels.session +
+            " " +
+            String(sessionNumber) +
+            " " +
+            labels.of +
+            " 4",
+          completedTotal:
+            completed + (phase === "focus" && seconds === 0 ? 1 : 0),
+          dailySeconds:
+            dailyFocusBefore + (phase === "focus" ? duration - seconds : 0),
+          ringSize:
+            widgetSize === "small" ? 132 : widgetSize === "medium" ? 208 : 192,
+        }}
+      >
+        <Row justify="center" width="100%">
+          <Card
+            key={direction + widgetSize}
+            size="full"
+            width={
+              widgetSize === "small" ? 170 : 356
+            }
+            height={
+              widgetSize === "large" ? 356 : 170
+            }
+            padding={0}
+            gap={0}
+            theme={darkAppearance ? "dark" : "light"}
+          >
+            <Box
+              padding={widgetSize === "small" ? 2 : widgetSize === "medium" ? 3 : 4}
+              gap={widgetSize === "small" ? 2 : widgetSize === "medium" ? 2 : 3}
+              minHeight={widgetSize === "small" ? 170 : 0}
+            >
+              <Show when={direction === "minimal"}>
+                <Show when={widgetSize === "small"}>
+                  <Col gap={2} align="center">
+                    <Caption
+                      value={modeLabel + " · " + String(sessionNumber) + "/4"}
+                    />
+                    <Title
+                      value={timeLabel}
+                      size="3xl"
+                      weight="medium"
+                      tabularNums
+                    />
+                    <Button
+                      iconStart={
+                        seconds === 0 ? "check" : running ? "pause" : "play"
+                      }
+                      ariaLabel={running ? labels.pause : labels.resume}
+                      uniform
+                      pill
+                      size="2xl"
+                      color="primary"
+                      variant="soft"
+                      disabled={seconds === 0}
+                      onClickAction={{
+                        updateState: {
+                          running: !running,
+                          deadline: running ? deadline : now() + seconds * 1000,
+                          seconds: running
+                            ? max(0, ceil((deadline - now()) / 1000))
+                            : seconds,
+                        },
+                      }}
+                    />
+                    <Box width="100%" padding={{ top: 1 }}>
+                      <Progress
+                        value={elapsed}
+                        max={duration}
+                        showValue={false}
+                        size="sm"
+                      />
+                    </Box>
+                  </Col>
+                  <Show.Else>
+                    <Row justify="between" gap={2}>
+                      <Text value={modeLabel} size="sm" weight="medium" />
+                      <Caption value={sessionLabel} />
+                    </Row>
+                    <Row
+                      justify={widgetSize === "large" ? "between" : "center"}
+                      align="center"
+                      wrap="wrap"
+                      gap={4}
+                    >
+                      <Col
+                        gap={1}
+                        align={widgetSize === "large" ? "start" : "center"}
+                      >
+                        <Title
+                          value={timeLabel}
+                          size="4xl"
+                          weight="medium"
+                          tabularNums
+                        />
+                        <Caption
+                          value={
+                            seconds === 0
+                              ? labels.complete
+                              : running
+                                ? labels.inProgress
+                                : labels.paused
+                          }
+                        />
+                      </Col>
+                      <Show when={widgetSize === "large"}>
+                        <Col gap={3}>
+                          <Col gap={0}>
+                            <Text
+                              value={String(completedTotal)}
+                              size="xl"
+                              weight="medium"
+                              tabularNums
+                            />
+                            <Caption value={labels.completed} />
+                          </Col>
+                          <Col gap={0}>
+                            <Text
+                              value={
+                                String(floor(dailySeconds / 60)) +
+                                labels.minuteUnit
+                              }
+                              size="xl"
+                              weight="medium"
+                              tabularNums
+                            />
+                            <Caption value={labels.dailyFocus} />
+                          </Col>
+                        </Col>
+                      </Show>
+                    </Row>
+                    <Progress
+                      value={elapsed}
+                      max={duration}
+                      showValue={false}
+                      size="sm"
+                    />
+                    <Row justify="between" gap={2} wrap="wrap">
+                      <Caption
+                        value={String(duration / 60) + labels.plannedSuffix}
+                      />
+                      <Caption
+                        value={elapsedLabel + labels.elapsedSuffix}
+                        tabularNums
+                      />
+                    </Row>
+                  </Show.Else>
+                </Show>
+              </Show>
+              <Show when={direction === "circular"}>
+                <Row justify="between" gap={2}>
+                  <Caption
+                    value={widgetSize === "small" ? modeLabel : sessionLabel}
+                  />
+                  <Caption
+                    value={
+                      widgetSize === "small"
+                        ? String(sessionNumber) + "/4"
+                        : seconds === 0
+                          ? labels.complete
+                          : running
+                            ? labels.inProgress
+                            : labels.paused
+                    }
+                  />
+                </Row>
+                <Row justify="center" align="center" gap={4} wrap="wrap">
+                  <Box
+                    width={ringSize}
+                    height={ringSize}
+                    align="center"
+                    gap={0}
+                  >
+                    <Svg
+                      viewBox="0 0 208 208"
+                      width={ringSize}
+                      height={ringSize}
+                      title={
+                        labels.ringDescription +
+                        String(round(progress * 100)) +
+                        "%"
+                      }
+                      paths={[
+                        {
+                          d: ringCircle,
+                          fill: "none",
+                          stroke: darkAppearance ? "#343638" : "#e8e9eb",
+                          strokeWidth: 5,
+                        },
+                        {
+                          d:
+                            progress === 0
+                              ? "M104 16"
+                              : progress >= 1
+                                ? ringCircle
+                                : "M104 16 A88 88 0 " +
+                                  (progress > 0.5 ? "1" : "0") +
+                                  " 1 " +
+                                  ringPoints[round(progress * 60)],
+                          fill: "none",
+                          stroke: accent,
+                          strokeWidth: 5,
+                        },
+                      ]}
+                    />
+                    <Col
+                      width={ringSize}
+                      height={ringSize}
+                      margin={{ top: -ringSize }}
+                      align="center"
+                      justify="center"
+                      gap={widgetSize === "small" ? 1 : 2}
+                    >
+                      <Show when={widgetSize !== "small"}>
+                        <Caption value={modeLabel} />
+                      </Show>
+                      <Title
+                        value={timeLabel}
+                        size={widgetSize === "small" ? "2xl" : "3xl"}
+                        weight="medium"
+                        tabularNums
+                      />
+                      <Show when={widgetSize === "small"}>
+                        <Button
+                          iconStart={
+                            seconds === 0 ? "check" : running ? "pause" : "play"
+                          }
+                          ariaLabel={running ? labels.pause : labels.resume}
+                          uniform
+                          pill
+                          size="2xl"
+                          variant="ghost"
+                          disabled={seconds === 0}
+                          onClickAction={{
+                            updateState: {
+                              running: !running,
+                              deadline: running
+                                ? deadline
+                                : now() + seconds * 1000,
+                              seconds: running
+                                ? max(0, ceil((deadline - now()) / 1000))
+                                : seconds,
+                            },
+                          }}
+                        />
+                        <Show.Else>
+                          <Caption value={labels.remaining} />
+                        </Show.Else>
+                      </Show>
+                    </Col>
+                  </Box>
+                  <Show when={widgetSize === "large"}>
+                    <Col gap={4} minWidth={88}>
+                      <Col gap={0}>
+                        <Text
+                          value={String(completedTotal)}
+                          size="xl"
+                          weight="semibold"
+                          tabularNums
+                        />
+                        <Caption value={labels.completed} />
+                      </Col>
+                      <Col gap={0}>
+                        <Text
+                          value={
+                            String(floor(dailySeconds / 60)) + labels.minuteUnit
+                          }
+                          size="xl"
+                          weight="semibold"
+                          tabularNums
+                        />
+                        <Caption value={labels.dailyFocus} />
+                      </Col>
+                      <Col gap={0}>
+                        <Text
+                          value={elapsedLabel}
+                          size="sm"
+                          weight="medium"
+                          tabularNums
+                        />
+                        <Caption value={labels.elapsed} />
+                      </Col>
+                    </Col>
+                  </Show>
+                </Row>
+                <Show when={widgetSize === "medium"}>
+                  <Row justify="between" gap={3}>
+                    <Col gap={0}>
+                      <Text
+                        value={String(duration / 60) + labels.minuteUnit}
+                        size="sm"
+                        weight="medium"
+                      />
+                      <Caption value={labels.duration} />
+                    </Col>
+                    <Col gap={0} align="end">
+                      <Text
+                        value={elapsedLabel}
+                        size="sm"
+                        weight="medium"
+                        tabularNums
+                      />
+                      <Caption value={labels.elapsed} />
+                    </Col>
+                  </Row>
+                </Show>
+                <Show when={widgetSize === "large"}>
+                  <Caption
+                    value={String(duration / 60) + labels.plannedSuffix}
+                  />
+                </Show>
+              </Show>
+              <Show when={direction === "digital"}>
+                <Row justify="between" gap={2}>
+                  <Text
+                    value={modeLabel.toUpperCase()}
+                    size="xs"
+                    weight="semibold"
+                    color="secondary"
+                  />
+                  <Caption
+                    value={String(sessionNumber).padStart(2, "0") + " / 04"}
+                    tabularNums
+                  />
+                </Row>
+                <Row align="center" justify="between" gap={2}>
+                  <Title
+                    value={timeLabel}
+                    size={widgetSize === "small" ? "2xl" : "4xl"}
+                    weight="bold"
+                    tabularNums
+                  />
+                  <Show when={widgetSize === "small"}>
+                    <Button
+                      iconStart={
+                        seconds === 0 ? "check" : running ? "pause" : "play"
+                      }
+                      ariaLabel={running ? labels.pause : labels.resume}
+                      uniform
+                      size="2xl"
+                      color="primary"
+                      disabled={seconds === 0}
+                      onClickAction={{
+                        updateState: {
+                          running: !running,
+                          deadline: running ? deadline : now() + seconds * 1000,
+                          seconds: running
+                            ? max(0, ceil((deadline - now()) / 1000))
+                            : seconds,
+                        },
+                      }}
+                    />
+                  </Show>
+                </Row>
+                <Grid columns={widgetSize === "small" ? 12 : 24} gap={1}>
+                  <Each
+                    of={range(widgetSize === "small" ? 12 : 24)}
+                    item="segment"
+                  >
+                    <Box
+                      key={segment}
+                      height={widgetSize === "small" ? 16 : 24}
+                      radius="2xs"
+                      background={
+                        segment <
+                        floor(progress * (widgetSize === "small" ? 12 : 24))
+                          ? accent
+                          : "surface-tertiary"
+                      }
+                    />
+                  </Each>
+                </Grid>
+                <Show when={widgetSize === "small"}>
+                  <Caption
+                    value={
+                      seconds === 0
+                        ? labels.complete
+                        : running
+                          ? labels.inProgress
+                          : labels.paused
+                    }
+                  />
+                  <Show.Else>
+                    <Row justify="between" gap={2} wrap="wrap">
+                      <Caption
+                        value={String(duration / 60) + labels.plannedSuffix}
+                      />
+                      <Caption
+                        value={elapsedLabel + labels.elapsedSuffix}
+                        tabularNums
+                      />
+                    </Row>
+                    <Show when={widgetSize === "large"}>
+                      <Divider />
+                      <Grid columns={4} gap={2}>
+                        <Each of={cycles} item="cycle">
+                          <Col key={cycle.number} gap={2} padding={{ y: 1 }}>
+                            <Text
+                              value={String(cycle.number).padStart(2, "0")}
+                              size="sm"
+                              weight={
+                                cycle.number === sessionNumber
+                                  ? "bold"
+                                  : "normal"
+                              }
+                              color={
+                                cycle.number === sessionNumber
+                                  ? "primary"
+                                  : "secondary"
+                              }
+                              tabularNums
+                            />
+                            <Box
+                              height={3}
+                              background={
+                                cycle.number < sessionNumber ||
+                                (cycle.number === sessionNumber &&
+                                  (phase === "break" || seconds === 0))
+                                  ? accent
+                                  : cycle.number === sessionNumber
+                                    ? "primary"
+                                    : "surface-tertiary"
+                              }
+                              radius="none"
+                            />
+                            <Text value={cycle.focusLabel} size="xs" />
+                            <Caption value={cycle.breakLabel} size="sm" />
+                          </Col>
+                        </Each>
+                      </Grid>
+                      <Row
+                        justify="between"
+                        align="baseline"
+                        gap={3}
+                        wrap="wrap"
+                      >
+                        <Text
+                          value={
+                            String(completedTotal) + labels.completedSuffix
+                          }
+                          size="sm"
+                        />
+                        <Text
+                          value={
+                            String(floor(dailySeconds / 60)) +
+                            labels.dailySuffix
+                          }
+                          size="sm"
+                          weight="medium"
+                          tabularNums
+                        />
+                      </Row>
+                    </Show>
+                  </Show.Else>
+                </Show>
+              </Show>
+              <Show when={direction === "sessions"}>
+                <Show when={widgetSize === "large"}>
+                  <Col gap={1}>
+                    <Text
+                      value={labels.sessionOverview}
+                      size="sm"
+                      weight="semibold"
+                    />
+                    <Caption value={labels.cycleSchedule} />
+                  </Col>
+                  <Col gap={3}>
+                    <Each of={cycles} item="cycle">
+                      <Row key={cycle.number} gap={3} align="start">
+                        <Box
+                          size={26}
+                          radius="full"
+                          background={
+                            cycle.number === sessionNumber
+                              ? accent
+                              : "surface-secondary"
+                          }
+                          align="center"
+                          justify="center"
+                        >
+                          <Show when={cycle.number < sessionNumber}>
+                            <Icon name="check" size="sm" color="secondary" />
+                            <Show.Else>
+                              <Text
+                                value={String(cycle.number)}
+                                size="xs"
+                                weight="medium"
+                                color={
+                                  cycle.number === sessionNumber
+                                    ? darkAppearance
+                                      ? "#13241b"
+                                      : "#ffffff"
+                                    : "secondary"
+                                }
+                              />
+                            </Show.Else>
+                          </Show>
+                        </Box>
+                        <Col flex={1} minWidth={0} gap={1}>
+                          <Row justify="between" gap={2}>
+                            <Text
+                              value={
+                                cycle.number === sessionNumber
+                                  ? modeLabel +
+                                    " · " +
+                                    labels.session +
+                                    " " +
+                                    String(cycle.number)
+                                  : labels.session + " " + String(cycle.number)
+                              }
+                              size="sm"
+                              weight={
+                                cycle.number === sessionNumber
+                                  ? "semibold"
+                                  : "normal"
+                              }
+                              color={
+                                cycle.number === sessionNumber
+                                  ? "primary"
+                                  : "secondary"
+                              }
+                            />
+                            <Caption
+                              value={
+                                cycle.number < sessionNumber
+                                  ? labels.done
+                                  : cycle.number === sessionNumber
+                                    ? seconds === 0
+                                      ? labels.complete
+                                      : running
+                                        ? labels.inProgress
+                                        : labels.paused
+                                    : labels.upcoming
+                              }
+                            />
+                          </Row>
+                          <Show when={cycle.number === sessionNumber}>
+                            <Title
+                              value={timeLabel}
+                              size="4xl"
+                              weight="medium"
+                              tabularNums
+                            />
+                            <Progress
+                              value={elapsed}
+                              max={duration}
+                              showValue={false}
+                              size="sm"
+                            />
+                            <Caption
+                              value={
+                                String(duration / 60) +
+                                labels.plannedSuffix +
+                                " · " +
+                                elapsedLabel +
+                                labels.elapsedSuffix
+                              }
+                            />
+                            <Show.Else>
+                              <Caption
+                                value={
+                                  cycle.focusLabel + " · " + cycle.breakLabel
+                                }
+                              />
+                            </Show.Else>
+                          </Show>
+                        </Col>
+                      </Row>
+                    </Each>
+                  </Col>
+                  <Divider />
+                  <Row gap={4} justify="between">
+                    <Col gap={0}>
+                      <Text
+                        value={String(completedTotal)}
+                        size="xl"
+                        weight="medium"
+                        tabularNums
+                      />
+                      <Caption value={labels.completed} />
+                    </Col>
+                    <Col gap={0} align="end">
+                      <Text
+                        value={
+                          String(floor(dailySeconds / 60)) + labels.minuteUnit
+                        }
+                        size="xl"
+                        weight="medium"
+                        tabularNums
+                      />
+                      <Caption value={labels.dailyFocus} />
+                    </Col>
+                  </Row>
+                  <Show.Else>
+                    <Row justify="between" gap={2}>
+                      <Caption value={sessionLabel} />
+                      <Icon
+                        name={phase === "focus" ? "target" : "coffee"}
+                        size="sm"
+                        color="secondary"
+                      />
+                    </Row>
+                    <Show when={widgetSize === "medium"}>
+                      <Row gap={3}>
+                        <Text
+                          value={labels.focus}
+                          size="sm"
+                          weight={phase === "focus" ? "semibold" : "normal"}
+                          color={phase === "focus" ? "primary" : "tertiary"}
+                        />
+                        <Text
+                          value={labels.break}
+                          size="sm"
+                          weight={phase === "break" ? "semibold" : "normal"}
+                          color={phase === "break" ? "primary" : "tertiary"}
+                        />
+                      </Row>
+                    </Show>
+                    <Title
+                      value={timeLabel}
+                      size={widgetSize === "small" ? "3xl" : "4xl"}
+                      weight="medium"
+                      tabularNums
+                    />
+                    <Row gap={2} align="center">
+                      <Each of={cycles} item="cycle">
+                        <Box
+                          key={cycle.number}
+                          flex={1}
+                          height={widgetSize === "small" ? 5 : 24}
+                          radius={widgetSize === "small" ? "full" : "xs"}
+                          background={
+                            cycle.number < sessionNumber ||
+                            (cycle.number === sessionNumber &&
+                              (phase === "break" || seconds === 0))
+                              ? accent
+                              : "surface-tertiary"
+                          }
+                          align="center"
+                          justify="center"
+                        >
+                          <Show when={widgetSize === "medium"}>
+                            <Icon
+                              name={
+                                cycle.number < sessionNumber ||
+                                (cycle.number === sessionNumber &&
+                                  (phase === "break" || seconds === 0))
+                                  ? "check"
+                                  : cycle.number === sessionNumber
+                                    ? "empty-circle"
+                                    : "minus"
+                              }
+                              size="xs"
+                              color={
+                                cycle.number < sessionNumber
+                                  ? darkAppearance
+                                    ? "#13241b"
+                                    : "#ffffff"
+                                  : "secondary"
+                              }
+                            />
+                          </Show>
+                        </Box>
+                      </Each>
+                    </Row>
+                    <Show when={widgetSize === "small"}>
+                      <Row justify="between" gap={2}>
+                        <Caption value={modeLabel} />
+                        <Button
+                          iconStart={
+                            seconds === 0 ? "check" : running ? "pause" : "play"
+                          }
+                          ariaLabel={running ? labels.pause : labels.resume}
+                          uniform
+                          size="2xl"
+                          variant="soft"
+                          disabled={seconds === 0}
+                          onClickAction={{
+                            updateState: {
+                              running: !running,
+                              deadline: running
+                                ? deadline
+                                : now() + seconds * 1000,
+                              seconds: running
+                                ? max(0, ceil((deadline - now()) / 1000))
+                                : seconds,
+                            },
+                          }}
+                        />
+                      </Row>
+                      <Show.Else>
+                        <Row justify="between" gap={2} wrap="wrap">
+                          <Caption
+                            value={String(duration / 60) + labels.plannedSuffix}
+                          />
+                          <Caption
+                            value={elapsedLabel + labels.elapsedSuffix}
+                            tabularNums
+                          />
+                        </Row>
+                      </Show.Else>
+                    </Show>
+                  </Show.Else>
+                </Show>
+              </Show>
+              <Show when={direction === "editorial"}>
+                <Show when={widgetSize === "small"}>
+                  <Caption
+                    value={
+                      modeLabel + " / " + String(sessionNumber).padStart(2, "0")
+                    }
+                  />
+                  <Title
+                    value={timeLabel}
+                    size="3xl"
+                    weight="normal"
+                    tabularNums
+                  />
+                  <Box height={2} width="100%" background="surface-tertiary">
+                    <Box
+                      height={2}
+                      width={String(progress * 100) + "%"}
+                      background={accent}
+                    />
+                  </Box>
+                  <Row justify="between" gap={2}>
+                    <Caption value={labels.oneThing} />
+                    <Button
+                      iconStart={
+                        seconds === 0 ? "check" : running ? "pause" : "play"
+                      }
+                      ariaLabel={running ? labels.pause : labels.resume}
+                      uniform
+                      size="2xl"
+                      variant="ghost"
+                      disabled={seconds === 0}
+                      onClickAction={{
+                        updateState: {
+                          running: !running,
+                          deadline: running ? deadline : now() + seconds * 1000,
+                          seconds: running
+                            ? max(0, ceil((deadline - now()) / 1000))
+                            : seconds,
+                        },
+                      }}
+                    />
+                  </Row>
+                  <Show.Else>
+                    <Row justify="between" align="start" gap={4}>
+                      <Text
+                        value={
+                          widgetSize === "large"
+                            ? labels.editorialHeading
+                            : labels.editorialShortHeading
+                        }
+                        size={widgetSize === "large" ? "xl" : "md"}
+                        preserveWhitespace
+                      />
+                      <Caption
+                        value={String(sessionNumber).padStart(2, "0") + " / 04"}
+                        tabularNums
+                      />
+                    </Row>
+                    <Col gap={0}>
+                      <Caption value={modeLabel} />
+                      <Row align="baseline" gap={3} wrap="wrap">
+                        <Title
+                          value={timeLabel}
+                          size="4xl"
+                          weight="normal"
+                          tabularNums
+                        />
+                        <Caption value={labels.remaining} />
+                      </Row>
+                    </Col>
+                    <Box height={2} width="100%" background="surface-tertiary">
+                      <Box
+                        height={2}
+                        width={String(progress * 100) + "%"}
+                        background={accent}
+                      />
+                    </Box>
+                    <Row justify="between" gap={2} wrap="wrap">
+                      <Caption
+                        value={String(duration / 60) + labels.plannedSuffix}
+                      />
+                      <Caption
+                        value={elapsedLabel + labels.elapsedSuffix}
+                        tabularNums
+                      />
+                    </Row>
+                    <Show when={widgetSize === "large"}>
+                      <Row gap={3} wrap="wrap">
+                        <Text
+                          value={
+                            String(completedTotal) + labels.completedSuffix
+                          }
+                          size="sm"
+                        />
+                        <Text
+                          value={labels.separator}
+                          size="sm"
+                          color="tertiary"
+                        />
+                        <Text
+                          value={
+                            String(floor(dailySeconds / 60)) +
+                            labels.dailySuffix
+                          }
+                          size="sm"
+                          tabularNums
+                        />
+                      </Row>
+                    </Show>
+                  </Show.Else>
+                </Show>
+              </Show>
+              <Show
+                when={
+                  widgetSize === "large" &&
+                  (direction === "minimal" ||
+                    direction === "circular" ||
+                    direction === "editorial")
+                }
+              >
+                <Col gap={2}>
+                  <Caption value={labels.cycleTimeline} />
+                  <Row gap={2} align="start">
+                    <Each of={cycles} item="cycle">
+                      <Col key={cycle.number} flex={1} gap={2}>
+                        <Row gap={1}>
+                          <Show when={direction === "circular"}>
+                            <Icon
+                              name={
+                                cycle.number < sessionNumber ||
+                                (cycle.number === sessionNumber &&
+                                  (phase === "break" || seconds === 0))
+                                  ? "check-circle"
+                                  : cycle.number === sessionNumber
+                                    ? "empty-circle"
+                                    : "minus"
+                              }
+                              size="sm"
+                              color={
+                                cycle.number < sessionNumber
+                                  ? accent
+                                  : "secondary"
+                              }
+                            />
+                          </Show>
+                          <Caption
+                            value={String(cycle.number).padStart(2, "0")}
+                            weight={
+                              cycle.number === sessionNumber
+                                ? "semibold"
+                                : "normal"
+                            }
+                            color={
+                              cycle.number === sessionNumber
+                                ? "primary"
+                                : "secondary"
+                            }
+                            tabularNums
+                          />
+                        </Row>
+                        <Box
+                          height={direction === "editorial" ? 2 : 4}
+                          radius={direction === "editorial" ? "none" : "full"}
+                          background={
+                            cycle.number < sessionNumber ||
+                            (cycle.number === sessionNumber &&
+                              (phase === "break" || seconds === 0))
+                              ? accent
+                              : cycle.number === sessionNumber
+                                ? "primary"
+                                : "surface-tertiary"
+                          }
+                        />
+                        <Caption value={cycle.shortSchedule} size="sm" />
+                      </Col>
+                    </Each>
+                  </Row>
+                  <Caption value={labels.timelineLegend} size="sm" />
+                </Col>
+              </Show>
+              <Show when={widgetSize !== "small"}>
+                <Row gap={2}>
+                  <Button
+                    label={seconds < duration ? labels.resume : labels.start}
+                    iconStart="play"
+                    size="2xl"
+                    color="primary"
+                    disabled={running || seconds === 0}
+                    onClickAction={{
+                      updateState: {
+                        running: true,
+                        deadline: now() + seconds * 1000,
+                      },
+                    }}
+                  />
+                  <Button
+                    iconStart="pause"
+                    ariaLabel={labels.pause}
+                    uniform
+                    size="2xl"
+                    variant="soft"
+                    disabled={!running}
+                    onClickAction={{
+                      updateState: {
+                        running: false,
+                        seconds: max(0, ceil((deadline - now()) / 1000)),
+                      },
+                    }}
+                  />
+                  <Button
+                    iconStart="reload"
+                    ariaLabel={labels.reset}
+                    uniform
+                    size="2xl"
+                    variant="ghost"
+                    disabled={seconds === 0}
+                    onClickAction={{
+                      updateState: {
+                        running: false,
+                        seconds: duration,
+                        deadline: 0,
+                      },
+                    }}
+                  />
+                  <Spacer />
+                  <Icon
+                    name={seconds === 0 ? "check-circle" : "empty-circle"}
+                    size="sm"
+                    color={seconds === 0 ? accent : "tertiary"}
+                  />
+                </Row>
+                <Show when={widgetSize === "medium"}>
+                  <Caption
+                    value={
+                      seconds === 0
+                        ? labels.complete
+                        : String(completedTotal) +
+                          labels.completedSuffix +
+                          " · " +
+                          modeLabel
+                    }
+                  />
+                </Show>
+              </Show>
+              <Show when={widgetSize === "large" || seconds === 0}>
+                <Box
+                  padding={widgetSize === "small" ? 2 : 3}
+                  background="surface-secondary"
+                  radius={direction === "digital" ? "sm" : "md"}
+                  gap={2}
+                >
+                  <Col gap={0}>
+                    <Caption value={labels.upNext} />
+                    <Text
+                      value={
+                        String(nextDuration / 60) +
+                        labels.minuteUnit +
+                        " " +
+                        (phase === "focus"
+                          ? labels.break.toLowerCase()
+                          : labels.focus.toLowerCase())
+                      }
+                      size="sm"
+                      weight="medium"
+                    />
+                  </Col>
+                  <Show when={seconds === 0}>
+                    <Button
+                      label={
+                        phase === "focus"
+                          ? labels.beginBreak
+                          : labels.beginFocus
+                      }
+                      size="2xl"
+                      block
+                      onClickAction={{
+                        updateState: {
+                          phase: phase === "focus" ? "break" : "focus",
+                          seconds: nextDuration,
+                          running: false,
+                          deadline: 0,
+                          completed: completed + (phase === "focus" ? 1 : 0),
+                          dailyFocusBefore:
+                            dailyFocusBefore +
+                            (phase === "focus" ? duration : 0),
+                          sessionNumber:
+                            phase === "break"
+                              ? sessionNumber === 4
+                                ? 1
+                                : sessionNumber + 1
+                              : sessionNumber,
+                        },
+                      }}
+                    />
+                  </Show>
+                </Box>
+              </Show>
+            </Box>
+          </Card>
+        </Row>
+      </Scope>
+    </Scope>
+</Show>

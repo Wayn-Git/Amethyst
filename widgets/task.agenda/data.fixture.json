@@ -1,0 +1,571 @@
+{
+  "appearance": "light",
+  "sizeChoice": "medium",
+  "mediumLayout": "agenda",
+  "largeLayout": "split",
+  "selectedDay": "wed",
+  "todayId": "wed",
+  "nowMinute": 620,
+  "nextId": "wed-review",
+  "calendarRed": {
+    "light": "#b8433e",
+    "dark": "#f18b82"
+  },
+  "categoryColors": {
+    "work": {
+      "light": "#577ba9",
+      "dark": "#8dadd5"
+    },
+    "personal": {
+      "light": "#70876d",
+      "dark": "#a3bb9d"
+    },
+    "focus": {
+      "light": "#9275a7",
+      "dark": "#bca0cf"
+    }
+  },
+  "categorySurfaces": {
+    "work": {
+      "light": "#edf2f8",
+      "dark": "#253243"
+    },
+    "personal": {
+      "light": "#eff3ec",
+      "dark": "#2b372c"
+    },
+    "focus": {
+      "light": "#f2edf6",
+      "dark": "#352b3e"
+    }
+  },
+  "labels": {
+    "collection": "Calendar studies",
+    "collectionNote": "Six layouts \u00b7 three Medium, three Large",
+    "size": "Size",
+    "layout": "Layout",
+    "darkAction": "Switch to dark appearance",
+    "lightAction": "Switch to light appearance",
+    "snapshot": "Sample calendar \u00b7 frozen at 10:20 PDT, Wed 16 Sep 2026.",
+    "monthYear": "SEPTEMBER 2026",
+    "monthTitle": "September 2026",
+    "agendaSubtitle": "A little space between the important things.",
+    "nowShort": "10:20 NOW",
+    "nowTime": "10:20",
+    "nowDay": "NOW \u00b7 WED \u00b7 PDT",
+    "now": "NOW",
+    "timezone": "PDT",
+    "nextIn": "Next \u00b7 in 10 min",
+    "next": "Next",
+    "inTenMinutes": "in 10 minutes",
+    "overlapShort": "Overlaps design review \u00b7 15 min",
+    "selected": "Selected day",
+    "allDay": "All day",
+    "stripLegend": "14\u201320 Sep \u00b7 timed events per day",
+    "weekTitle": "September 14\u201320",
+    "weekCountLegend": "Each day: timed events / all-day events",
+    "weekOverview": "THIS WEEK",
+    "later": "LATER IN THE DAY",
+    "gridLegend": "Event counts \u00b7 AM before noon, PM from noon",
+    "septemberShort": "SEP"
+  },
+  "layoutDescriptions": {
+    "timeline": "A time-scaled morning, with overlapping meetings side by side.",
+    "split": "The whole week, with one day in focus.",
+    "grid": "A quiet weekly grid, followed by the selected day."
+  },
+  "sizes": [
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "mediumOptions": [
+    {
+      "label": "Chronological agenda",
+      "value": "agenda"
+    },
+    {
+      "label": "Seven-day strip",
+      "value": "strip"
+    },
+    {
+      "label": "Minimal next up",
+      "value": "minimal"
+    }
+  ],
+  "largeOptions": [
+    {
+      "label": "Split week + agenda",
+      "value": "split"
+    },
+    {
+      "label": "Vertical timeline",
+      "value": "timeline"
+    },
+    {
+      "label": "Weekly calendar grid",
+      "value": "grid"
+    }
+  ],
+  "bands": [
+    {
+      "id": "all",
+      "label": "All day",
+      "start": 0,
+      "end": 1440
+    },
+    {
+      "id": "am",
+      "label": "AM",
+      "start": 0,
+      "end": 720
+    },
+    {
+      "id": "pm",
+      "label": "PM",
+      "start": 720,
+      "end": 1440
+    }
+  ],
+  "week": [
+    {
+      "id": "mon",
+      "short": "Mon",
+      "name": "Monday",
+      "number": "14",
+      "label": "Monday, 14 Sep",
+      "isToday": false,
+      "preview": "Plan the week",
+      "timelineStart": 540,
+      "timelineLabel": "Morning window \u00b7 09:00\u201311:00 \u00b7 time-scaled",
+      "overlapNote": "",
+      "allDay": [
+        {
+          "title": "Brand sprint \u00b7 day 1",
+          "category": "work"
+        }
+      ],
+      "events": [
+        {
+          "id": "mon-plan",
+          "title": "Team planning",
+          "time": "09:00",
+          "endTime": "09:45",
+          "start": 540,
+          "duration": 45,
+          "location": "Studio 2",
+          "icon": "map-pin",
+          "category": "work",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "mon-roadmap",
+          "title": "Roadmap review",
+          "time": "10:00",
+          "endTime": "11:00",
+          "start": 600,
+          "duration": 60,
+          "location": "Video call",
+          "icon": "video",
+          "category": "work",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "mon-focus",
+          "title": "Focus block",
+          "time": "14:00",
+          "endTime": "15:30",
+          "start": 840,
+          "duration": 90,
+          "location": "Desk",
+          "icon": "desktop",
+          "category": "focus",
+          "lane": 0,
+          "overlap": false
+        }
+      ]
+    },
+    {
+      "id": "tue",
+      "short": "Tue",
+      "name": "Tuesday",
+      "number": "15",
+      "label": "Tuesday, 15 Sep",
+      "isToday": false,
+      "preview": "Research & making",
+      "timelineStart": 540,
+      "timelineLabel": "Morning window \u00b7 09:00\u201311:00 \u00b7 time-scaled",
+      "overlapNote": "",
+      "allDay": [
+        {
+          "title": "Brand sprint \u00b7 day 2",
+          "category": "work"
+        }
+      ],
+      "events": [
+        {
+          "id": "tue-research",
+          "title": "Research debrief",
+          "time": "09:00",
+          "endTime": "09:45",
+          "start": 540,
+          "duration": 45,
+          "location": "Video call",
+          "icon": "video",
+          "category": "work",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "tue-prototype",
+          "title": "Prototype lab",
+          "time": "10:00",
+          "endTime": "11:00",
+          "start": 600,
+          "duration": 60,
+          "location": "Studio 1",
+          "icon": "map-pin",
+          "category": "focus",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "tue-dentist",
+          "title": "Dentist",
+          "time": "15:00",
+          "endTime": "15:45",
+          "start": 900,
+          "duration": 45,
+          "location": "Demo Dental",
+          "icon": "map-pin",
+          "category": "personal",
+          "lane": 0,
+          "overlap": false
+        }
+      ]
+    },
+    {
+      "id": "wed",
+      "short": "Wed",
+      "name": "Wednesday",
+      "number": "16",
+      "label": "Wednesday, 16 Sep",
+      "isToday": true,
+      "preview": "Reviews & focus",
+      "timelineStart": 600,
+      "timelineLabel": "Morning window \u00b7 10:00\u201312:00 \u00b7 time-scaled",
+      "overlapNote": "11:00\u201311:15 \u00b7 Design review and Partner sync overlap.",
+      "allDay": [
+        {
+          "title": "Brand sprint \u00b7 day 3",
+          "category": "work"
+        }
+      ],
+      "events": [
+        {
+          "id": "wed-review",
+          "title": "Design review",
+          "time": "10:30",
+          "endTime": "11:15",
+          "start": 630,
+          "duration": 45,
+          "location": "Studio 2",
+          "icon": "map-pin",
+          "category": "work",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "wed-partner",
+          "title": "Partner sync",
+          "time": "11:00",
+          "endTime": "11:30",
+          "start": 660,
+          "duration": 30,
+          "location": "Video call",
+          "icon": "video",
+          "category": "work",
+          "lane": 1,
+          "overlap": true
+        },
+        {
+          "id": "wed-lunch",
+          "title": "Lunch with Sam",
+          "time": "12:30",
+          "endTime": "13:15",
+          "start": 750,
+          "duration": 45,
+          "location": "Courtyard",
+          "icon": "map-pin",
+          "category": "personal",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "wed-focus",
+          "title": "Focus block",
+          "time": "14:00",
+          "endTime": "15:30",
+          "start": 840,
+          "duration": 90,
+          "location": "Desk",
+          "icon": "desktop",
+          "category": "focus",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "wed-launch",
+          "title": "Launch check-in",
+          "time": "16:00",
+          "endTime": "16:30",
+          "start": 960,
+          "duration": 30,
+          "location": "Video call",
+          "icon": "video",
+          "category": "work",
+          "lane": 0,
+          "overlap": false
+        }
+      ]
+    },
+    {
+      "id": "thu",
+      "short": "Thu",
+      "name": "Thursday",
+      "number": "17",
+      "label": "Thursday, 17 Sep",
+      "isToday": false,
+      "preview": "Refine the details",
+      "timelineStart": 570,
+      "timelineLabel": "Morning window \u00b7 09:30\u201311:30 \u00b7 time-scaled",
+      "overlapNote": "",
+      "allDay": [
+        {
+          "title": "Brand sprint \u00b7 day 4",
+          "category": "work"
+        }
+      ],
+      "events": [
+        {
+          "id": "thu-sprint",
+          "title": "Sprint check-in",
+          "time": "09:30",
+          "endTime": "10:00",
+          "start": 570,
+          "duration": 30,
+          "location": "Video call",
+          "icon": "video",
+          "category": "work",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "thu-content",
+          "title": "Content review",
+          "time": "10:30",
+          "endTime": "11:15",
+          "start": 630,
+          "duration": 45,
+          "location": "Studio 2",
+          "icon": "map-pin",
+          "category": "work",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "thu-focus",
+          "title": "Focus block",
+          "time": "14:00",
+          "endTime": "15:30",
+          "start": 840,
+          "duration": 90,
+          "location": "Desk",
+          "icon": "desktop",
+          "category": "focus",
+          "lane": 0,
+          "overlap": false
+        }
+      ]
+    },
+    {
+      "id": "fri",
+      "short": "Fri",
+      "name": "Friday",
+      "number": "18",
+      "label": "Friday, 18 Sep",
+      "isToday": false,
+      "preview": "Wrap & release",
+      "timelineStart": 540,
+      "timelineLabel": "Morning window \u00b7 09:00\u201311:00 \u00b7 time-scaled",
+      "overlapNote": "",
+      "allDay": [
+        {
+          "title": "Brand sprint \u00b7 day 5",
+          "category": "work"
+        }
+      ],
+      "events": [
+        {
+          "id": "fri-retro",
+          "title": "Team retro",
+          "time": "09:00",
+          "endTime": "09:45",
+          "start": 540,
+          "duration": 45,
+          "location": "Studio 1",
+          "icon": "map-pin",
+          "category": "work",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "fri-release",
+          "title": "Release review",
+          "time": "10:00",
+          "endTime": "10:45",
+          "start": 600,
+          "duration": 45,
+          "location": "Video call",
+          "icon": "video",
+          "category": "work",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "fri-wrap",
+          "title": "Weekly wrap",
+          "time": "15:00",
+          "endTime": "15:30",
+          "start": 900,
+          "duration": 30,
+          "location": "Desk",
+          "icon": "desktop",
+          "category": "focus",
+          "lane": 0,
+          "overlap": false
+        }
+      ]
+    },
+    {
+      "id": "sat",
+      "short": "Sat",
+      "name": "Saturday",
+      "number": "19",
+      "label": "Saturday, 19 Sep",
+      "isToday": false,
+      "preview": "Out of office",
+      "timelineStart": 540,
+      "timelineLabel": "Morning window \u00b7 09:00\u201311:00 \u00b7 time-scaled",
+      "overlapNote": "",
+      "allDay": [],
+      "events": [
+        {
+          "id": "sat-coffee",
+          "title": "Coffee with Alex",
+          "time": "09:00",
+          "endTime": "09:45",
+          "start": 540,
+          "duration": 45,
+          "location": "Corner caf\u00e9",
+          "icon": "map-pin",
+          "category": "personal",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "sat-gallery",
+          "title": "Gallery visit",
+          "time": "10:00",
+          "endTime": "11:00",
+          "start": 600,
+          "duration": 60,
+          "location": "Demo Gallery",
+          "icon": "map-pin",
+          "category": "personal",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "sat-walk",
+          "title": "Long walk",
+          "time": "14:00",
+          "endTime": "15:30",
+          "start": 840,
+          "duration": 90,
+          "location": "Riverside park",
+          "icon": "map-pin",
+          "category": "personal",
+          "lane": 0,
+          "overlap": false
+        }
+      ]
+    },
+    {
+      "id": "sun",
+      "short": "Sun",
+      "name": "Sunday",
+      "number": "20",
+      "label": "Sunday, 20 Sep",
+      "isToday": false,
+      "preview": "Slow Sunday",
+      "timelineStart": 540,
+      "timelineLabel": "Morning window \u00b7 09:00\u201311:00 \u00b7 time-scaled",
+      "overlapNote": "",
+      "allDay": [
+        {
+          "title": "Personal day",
+          "category": "personal"
+        }
+      ],
+      "events": [
+        {
+          "id": "sun-market",
+          "title": "Market run",
+          "time": "09:00",
+          "endTime": "09:45",
+          "start": 540,
+          "duration": 45,
+          "location": "Sunday market",
+          "icon": "map-pin",
+          "category": "personal",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "sun-brunch",
+          "title": "Brunch",
+          "time": "10:00",
+          "endTime": "11:00",
+          "start": 600,
+          "duration": 60,
+          "location": "Home",
+          "icon": "home",
+          "category": "personal",
+          "lane": 0,
+          "overlap": false
+        },
+        {
+          "id": "sun-planning",
+          "title": "Week planning",
+          "time": "17:00",
+          "endTime": "17:30",
+          "start": 1020,
+          "duration": 30,
+          "location": "Desk",
+          "icon": "desktop",
+          "category": "focus",
+          "lane": 0,
+          "overlap": false
+        }
+      ]
+    }
+  ]
+}

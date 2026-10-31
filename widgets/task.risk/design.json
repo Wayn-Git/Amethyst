@@ -1,0 +1,117 @@
+{
+  "darkMode": false,
+  "sizeChoice": "small",
+  "direction": "minimal",
+  "sizes": [
+    {
+      "label": "Small",
+      "value": "small"
+    },
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "directions": {
+    "small": [
+      {
+        "label": "Minimal",
+        "value": "minimal"
+      },
+      {
+        "label": "Timeline",
+        "value": "timeline"
+      }
+    ],
+    "medium": [
+      {
+        "label": "Priority",
+        "value": "priority"
+      },
+      {
+        "label": "Work vs. time",
+        "value": "capacity"
+      }
+    ],
+    "large": [
+      {
+        "label": "Severity digest",
+        "value": "digest"
+      },
+      {
+        "label": "Editorial",
+        "value": "editorial"
+      }
+    ]
+  },
+  "labels": {
+    "galleryTitle": "Deadline risk",
+    "gallerySubtitle": "",
+    "darkMode": "Dark",
+    "sizeLabel": "Widget size",
+    "directionLabel": "Design direction",
+    "highestRisk": "HIGHEST RISK",
+    "hoursLeft": "h remaining",
+    "hoursScheduled": "h scheduled",
+    "deadlineWindow": "NEXT 32 HOURS",
+    "dueTomorrow": "Due tomorrow.",
+    "riskSuffix": " risk",
+    "hoursWorkOnly": "h of work. Only ",
+    "hoursBeforeDue": "h scheduled before the deadline.",
+    "priorityEyebrow": "ATTENTION, IN ORDER",
+    "priorityTitle": "Start with the blockers.",
+    "priorityIntro": "Four deadlines ranked by capacity gaps and unresolved dependencies.",
+    "capacityEyebrow": "THE TIME BUDGET",
+    "capacityTitle": "More work than room.",
+    "capacityNote": "Available time means scheduled working hours before each deadline. Each pair of bars uses the same scale.",
+    "workLeft": "Work remaining",
+    "available": "Available time",
+    "hourUnit": "h",
+    "hoursShort": "h capacity shortfall",
+    "hoursBuffer": "h buffer, if the blocker clears",
+    "digestEyebrow": "RELEASE OUTLOOK",
+    "urgentDeadlines": " deadlines need action.",
+    "watchSummary": " more on watch · ",
+    "hoursWorkLeft": "h of work remaining",
+    "deadlineNoun": "deadline",
+    "dot": " · ",
+    "percentComplete": "% complete",
+    "digestNote": "Critical tasks exceed scheduled capacity. High and Watch tasks still depend on unresolved approvals or handoffs.",
+    "projectName": "",
+    "editorialTitle": "",
+    "editorialIntro": "The review is halfway done, but its remaining work needs more time than the plan currently allows.",
+    "reviewProgress": "Review progress",
+    "percent": "%",
+    "due": "Due",
+    "scheduledCapacity": "Scheduled capacity",
+    "contributingFactors": "What is putting it at risk",
+    "restOfRelease": "The rest of the release",
+    "deadlinesTotal": " deadlines overall · ",
+    "editorialSummary": "Overall: 2 Critical, 2 High and 2 Watch. Security and launch assets both exceed their scheduled working time.",
+    "snapshot": ""
+  },
+  "groups": [
+    {
+      "id": "critical",
+      "label": "Critical",
+      "tone": "danger",
+      "icon": "alert-circle"
+    },
+    {
+      "id": "high",
+      "label": "High",
+      "tone": "warning",
+      "icon": "alert-triangle"
+    },
+    {
+      "id": "watch",
+      "label": "Watch",
+      "tone": "secondary",
+      "icon": "eye"
+    }
+  ]
+}

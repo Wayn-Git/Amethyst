@@ -1,0 +1,8 @@
+{
+  "widgetId": "task.today",
+  "sizes": ["s", "m", "l"],
+  "designSpec": "Upcoming Tasks widget supporting 5 directions (Minimal, List-focused, Timeline, Progress-focused, Editorial) across 3 purpose-built sizes (Small 170x170, Medium 356x170, Large 356x356). Features interactive checkboxes, priority chips, due times, progress gauges, and grouped lists. Single-card rendering with double-boundary elimination.",
+  "directions": ["minimal", "list", "timeline", "progress", "editorial"],
+  "defaultDirection": "minimal",
+  "generatedAt": "2026-11-01T14:20:00.000Z"
+}

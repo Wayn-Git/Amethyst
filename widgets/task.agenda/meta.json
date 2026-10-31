@@ -1,0 +1,16 @@
+{
+  "widgetId": "task.agenda",
+  "sizes": ["m", "l"],
+  "designSpec": "Chronological agenda, 7-day strip, and minimal next up for Medium (356x170). Split week + agenda, vertical timeline, and weekly calendar grid for Large (356x356). Wired to live Google Calendar weekly schedule.",
+  "theme": "light",
+  "stages": [
+    "Planning the widget",
+    "Generating the widget interface",
+    "Shaping the layout",
+    "Balancing the content",
+    "Widget ready"
+  ],
+  "generatedAt": "2026-11-01T14:15:00.000Z",
+  "promptFile": "docs/widget-playground/Widgets/done/Agenda and Week View widget*",
+  "brokenRules": []
+}

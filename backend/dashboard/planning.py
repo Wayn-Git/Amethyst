@@ -84,7 +84,7 @@ def tasks(zone):
     rows = [
         dict(row)
         for row in get_connection().execute(
-            "SELECT id,title,due_at,scheduled_at,my_day_date,duration_estimate_minutes "
+            "SELECT id,title,due_at,scheduled_at,my_day_date,duration_estimate_minutes,priority "
             "FROM tasks WHERE status IN ('todo','in_progress') ORDER BY due_at,id"
         )
     ]
@@ -171,6 +171,10 @@ async def provide(widget_id):
                     "id": row["id"],
                     "title": row["title"],
                     "risk": risk,
+                    "due": due.isoformat(),
+                    "known_minutes": known,
+                    "capacity_minutes": capacity,
+                    "unknown": unknown,
                     "detail": (
                         f"{risk}: {known:g} estimated task minutes due by "
                         f"{due.isoformat()} / {capacity:g} free minutes"
@@ -209,6 +213,8 @@ async def provide(widget_id):
                             "title": row["title"],
                             "start": start.isoformat(),
                             "end": (start + duration).isoformat(),
+                        "duration_minutes": minutes,
+                        "priority": row["priority"],
                             "detail": "Proposed only",
                         }
                     )
@@ -220,7 +226,24 @@ async def provide(widget_id):
                 )
     return {
         "items": items,
+        "events": [
+            {
+                "id": event["id"],
+                "title": event["title"],
+                "start": event["begin"].isoformat(),
+                "end": event["finish"].isoformat(),
+            }
+            for event in events
+        ],
         "timezone": str(now.tzinfo),
+        "today": now.date().isoformat(),
+        "capacity_minutes": sum((end - start).total_seconds() / 60 for start, end in slots),
+        "today_capacity_minutes": sum(
+            (end - start).total_seconds() / 60
+            for start, end in slots
+            if start.date() == now.date()
+        ),
+        "planned_minutes": sum(item.get("duration_minutes", 0) for item in items),
         "message": (
             "Calendar read-only. Free slots and proposals cover the current week; "
             "conflicts cover deadline days."

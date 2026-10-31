@@ -1,0 +1,83 @@
+{
+  "appearance": "light",
+  "sizeChoice": "small",
+  "variantBySize": {
+    "small": "minimal",
+    "medium": "priority",
+    "large": "grouped"
+  },
+  "sizes": [
+    {
+      "label": "Small",
+      "value": "small"
+    },
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "directions": {
+    "small": [
+      {
+        "label": "Minimal",
+        "value": "minimal"
+      },
+      {
+        "label": "Editorial",
+        "value": "editorial"
+      }
+    ],
+    "medium": [
+      {
+        "label": "Priority",
+        "value": "priority"
+      },
+      {
+        "label": "Timeline",
+        "value": "timeline"
+      }
+    ],
+    "large": [
+      {
+        "label": "Grouped",
+        "value": "grouped"
+      },
+      {
+        "label": "Spotlight + split",
+        "value": "split"
+      }
+    ]
+  },
+  "labels": {
+    "studies": "",
+    "sampleNote": "",
+    "dark": "Dark",
+    "light": "Light",
+    "switchDark": "Switch preview to dark appearance",
+    "switchLight": "Switch preview to light appearance",
+    "sizeLabel": "Widget size",
+    "directionLabel": "Layout direction",
+    "backlog": "Backlog",
+    "waiting": "waiting",
+    "waitingSuffix": " waiting",
+    "urgentSuffix": " urgent",
+    "blockedSuffix": " blocked",
+    "nextUp": "Next up",
+    "recommendedFirst": "Recommended first",
+    "daySuffix": "d",
+    "daysWaitingSuffix": "d waiting",
+    "showingPrefix": "Showing ",
+    "of": " of ",
+    "waitingLongest": "Waiting longest",
+    "timelineNote": "Oldest first, not highest priority. Both urgent tasks are newer.",
+    "groupedAttention": "",
+    "ageNote": "Age measures time in backlog, independently of priority.",
+    "emptyTitle": "Nothing waiting",
+    "emptyDescription": "Tasks added to the backlog will appear here."
+  },
+  "recommendedId": "safari"
+}

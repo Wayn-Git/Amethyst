@@ -1,0 +1,41 @@
+{
+  "widgetId": "task.deadlines",
+  "prompt": "Design a premium Apple-inspired **Deadline Countdown widget** for a desktop dashboard. Generate multiple distinct Small, Medium and Large variations.\n\nExplore these design directions:\n- Minimal: nearest deadline with a countdown.\n- Timeline: arrange upcoming deadlines chronologically.\n- Priority-focused: emphasize deadlines that need attention first.\n- Grouped: separate deadlines by today, this week and later.\n- Editorial: feature one major deadline with supporting tasks.\n\n**Small**\n\nShow the nearest deadline, its title and remaining time. Make the countdown immediately readable.\n\n**Medium**\n\nShow 3–4 upcoming deadlines with title, date, remaining time and project context.\n\n**Large**\n\nShow 6–8 deadlines grouped by urgency. Include countdowns, completion progress, project context and a compact upcoming-deadlines summary.\n\n**Visual direction**\n\nUse Apple-level typography, restrained urgency colours, subtle dividers and varied corner radii. Explore countdown numerals, timelines and structured lists. Support light and dark appearances. Use subtle countdown transitions where appropriate.\n\nMake every variation compositionally different. Use believable deadline data. Avoid generic cards, excessive pills, gradients and unnecessary charts.",
+  "generatedAt": "2026-11-01T18:07:26+00:00",
+  "generationStatus": "generated",
+  "imageStatus": "available",
+  "theme": "light",
+  "designSpec": "Six switchable studies pair centered and asymmetric Small countdowns, Medium timeline and priority layouts, and Large grouped and editorial compositions. Tabular numerals, quiet completion tracks, subtle dividers, and restrained amber urgency adapt to light and dark appearances at widths of 320–440px. A clearly labeled, pausable demo clock keeps the synthetic deadlines and countdowns consistent.",
+  "stages": [
+    "Reading reference image",
+    "Planning the widget",
+    "Planning complete. Gathering supporting context",
+    "Searching for real image URLs",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Checking the preview",
+    "Reviewing the widget data",
+    "Polishing the details",
+    "Keeping the widget compact",
+    "Preparing the final widget",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Widget ready"
+  ],
+  "contentHashes": {
+    "template.jsx": "893b53c0ba2939f4c2ab98b7ef08e20ffbc694e96ff7167a6895f014fd191332",
+    "data.json": "8c9c702ddd0ed9398a455957075f1ecf0001d613cc404689f5b0c38c2d3c23a6",
+    "reference.jpg": "ec2bb79200fd9b43a2f7bcbef3f2525f4aba2b6da7bea5d9d46a8c198f69c422"
+  },
+  "imageFile": "reference.jpg"
+}

@@ -1,0 +1,228 @@
+{
+  "appearance": "light",
+  "sizeChoice": "small",
+  "variantBySize": {
+    "small": "minimal",
+    "medium": "priority",
+    "large": "grouped"
+  },
+  "sizes": [
+    {
+      "label": "Small",
+      "value": "small"
+    },
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "directions": {
+    "small": [
+      {
+        "label": "Minimal",
+        "value": "minimal"
+      },
+      {
+        "label": "Editorial",
+        "value": "editorial"
+      }
+    ],
+    "medium": [
+      {
+        "label": "Priority",
+        "value": "priority"
+      },
+      {
+        "label": "Timeline",
+        "value": "timeline"
+      }
+    ],
+    "large": [
+      {
+        "label": "Grouped",
+        "value": "grouped"
+      },
+      {
+        "label": "Spotlight + split",
+        "value": "split"
+      }
+    ]
+  },
+  "labels": {
+    "studies": "Backlog studies",
+    "sampleNote": "6 layouts · sample data",
+    "dark": "Dark",
+    "light": "Light",
+    "switchDark": "Switch preview to dark appearance",
+    "switchLight": "Switch preview to light appearance",
+    "sizeLabel": "Widget size",
+    "directionLabel": "Layout direction",
+    "backlog": "Backlog",
+    "waiting": "waiting",
+    "waitingSuffix": " waiting",
+    "urgentSuffix": " urgent",
+    "blockedSuffix": " blocked",
+    "nextUp": "Next up",
+    "recommendedFirst": "Recommended first",
+    "daySuffix": "d",
+    "daysWaitingSuffix": "d waiting",
+    "showingPrefix": "Showing ",
+    "of": " of ",
+    "waitingLongest": "Waiting longest",
+    "timelineNote": "Oldest first, not highest priority. Both urgent tasks are newer.",
+    "groupedAttention": "Start with the Website release blocker.",
+    "ageNote": "Age measures time in backlog, independently of priority.",
+    "emptyTitle": "Nothing waiting",
+    "emptyDescription": "Tasks added to the backlog will appear here."
+  },
+  "recommendedId": "safari",
+  "recommendationReason": "Unblocks the web release. Ready to pick up.",
+  "projects": [
+    {
+      "id": "website",
+      "name": "Website"
+    },
+    {
+      "id": "platform",
+      "name": "Platform"
+    },
+    {
+      "id": "mobile",
+      "name": "Mobile App"
+    }
+  ],
+  "mediumTaskIds": [
+    "safari",
+    "webhooks",
+    "focus",
+    "offline",
+    "onboarding",
+    "exports"
+  ],
+  "mediumSections": [
+    {
+      "id": "attention",
+      "title": "Needs attention",
+      "attention": true,
+      "ids": [
+        "safari",
+        "webhooks"
+      ]
+    },
+    {
+      "id": "other",
+      "title": "Everything else",
+      "attention": false,
+      "ids": [
+        "focus",
+        "offline",
+        "onboarding",
+        "exports"
+      ]
+    }
+  ],
+  "splitSections": [
+    {
+      "id": "attention",
+      "title": "Needs attention",
+      "priorities": [
+        "Urgent",
+        "High"
+      ]
+    },
+    {
+      "id": "other",
+      "title": "Everything else",
+      "priorities": [
+        "Normal",
+        "Low"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "safari",
+      "title": "Resolve Safari sign-in loop",
+      "project": "Website",
+      "priority": "Urgent",
+      "age": 3,
+      "status": "Ready"
+    },
+    {
+      "id": "webhooks",
+      "title": "Retry failed webhook deliveries",
+      "project": "Platform",
+      "priority": "Urgent",
+      "age": 8,
+      "status": "Ready"
+    },
+    {
+      "id": "focus",
+      "title": "Fix checkout keyboard focus",
+      "project": "Website",
+      "priority": "High",
+      "age": 18,
+      "status": "Ready"
+    },
+    {
+      "id": "offline",
+      "title": "Sync drafts after reconnecting",
+      "project": "Mobile App",
+      "priority": "High",
+      "age": 12,
+      "status": "Blocked"
+    },
+    {
+      "id": "onboarding",
+      "title": "Review onboarding copy",
+      "project": "Mobile App",
+      "priority": "Normal",
+      "age": 5,
+      "status": "Ready"
+    },
+    {
+      "id": "exports",
+      "title": "Document export limits",
+      "project": "Platform",
+      "priority": "Normal",
+      "age": 24,
+      "status": "Ready"
+    },
+    {
+      "id": "illustrations",
+      "title": "Compress landing illustrations",
+      "project": "Website",
+      "priority": "Low",
+      "age": 9,
+      "status": "Ready"
+    },
+    {
+      "id": "empty-states",
+      "title": "Polish empty-state microcopy",
+      "project": "Mobile App",
+      "priority": "Low",
+      "age": 16,
+      "status": "Ready"
+    },
+    {
+      "id": "events",
+      "title": "Retire legacy event schema",
+      "project": "Platform",
+      "priority": "Normal",
+      "age": 31,
+      "status": "Blocked"
+    },
+    {
+      "id": "shortcuts",
+      "title": "QA settings shortcuts",
+      "project": "Mobile App",
+      "priority": "Normal",
+      "age": 2,
+      "status": "Ready"
+    }
+  ]
+}

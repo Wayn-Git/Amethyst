@@ -1,0 +1,10 @@
+.task-generated-content { display: grid; align-content: start; gap: var(--tile-space-2); min-width: 0; width: 100%; }
+.task-generated-content > .widget-root { min-width: 0; width: 100%; --widget-font-sans: var(--ui-font); --widget-radius: var(--tile-control-radius); }
+.task-generated-content > .widget-root :is([role='radiogroup'], [role='switch'], select) { display: none !important; }
+.task-generated-content > .widget-root button[aria-label*='appearance' i] { display: none !important; }
+.task-widget-compose, .task-widget-settings { min-width: 0; }
+.task-widget-compose > summary, .task-widget-settings > summary { display: inline-flex; align-items: center; min-height: 36px; padding-inline: var(--tile-space-3); border: 1px solid var(--ui-border); border-radius: var(--tile-control-radius); color: var(--tile-fg); cursor: pointer; font: var(--tile-label); }
+.task-widget-compose form, .task-widget-settings form { display: grid; gap: var(--tile-space-2); margin-block: var(--tile-space-2); padding: var(--tile-space-3); border: 1px solid var(--ui-border); border-radius: var(--tile-control-radius); background: var(--ui-raised); }
+.task-widget-compose label, .task-widget-settings label { display: grid; gap: var(--tile-space-1); min-width: 0; color: var(--tile-muted); font: var(--tile-label); }
+.task-widget-compose :is(input,button), .task-widget-settings :is(input,button) { min-width: 0; min-height: 40px; }
+.home-layout-grid .task-generated-content > .widget-root { max-width: none; }

@@ -1,10 +1,19 @@
 import { WidgetRow, WidgetChip, StateView } from '../primitives.jsx'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { request } from '../api.js'
 import { api } from '../../api.js'
 import { Checkbox, Ring, Stat } from '../../components/ui/bento/index.jsx'
 import Button from '../../components/ui/AppButton.jsx'
 import { Input } from '../../components/ui/input.tsx'
+import { WidgetRenderer } from '@tugan/widgets'
+import backlogTemplate from '../../../../widgets/task.backlog/template.txt?raw'
+import backlogDesign from '../../../../widgets/task.backlog/design.json'
+import deadlinesTemplate from '../../../../widgets/task.deadlines/template.txt?raw'
+import deadlinesDesign from '../../../../widgets/task.deadlines/design.json'
+import remindersTemplate from '../../../../widgets/task.reminders/template.txt?raw'
+import remindersDesign from '../../../../widgets/task.reminders/design.json'
+import LocalReview from './LocalReview.jsx'
+import './task-generated.css'
 
 function localInput(value) {
   if (!value) return ''
@@ -21,7 +30,156 @@ function countdown(due, now) {
   return seconds <= 0 ? `${duration} overdue` : `${duration} remaining`
 }
 
-export default function Items({ data, summaryData = data, widgetId }) {
+function GeneratedBacklog({ data, refresh, size = 'm', full = false }) {
+  const effectiveSize = full ? 'l' : size
+  const [theme, setTheme] = useState(() => document.documentElement.getAttribute('data-theme-mode') === 'dark' ? 'dark' : 'light')
+  useEffect(() => {
+    const observer = new MutationObserver(() => setTheme(document.documentElement.getAttribute('data-theme-mode') === 'dark' ? 'dark' : 'light'))
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme-mode'] })
+    return () => observer.disconnect()
+  }, [])
+  const widgetData = useMemo(() => {
+    if (!data || data.state === 'loading') return null
+    const tasks = (data.items || []).map(item => ({
+      id: String(item.id), title: item.title, project: item.project || 'Not available',
+      age: Number.isFinite(item.idle_days) ? item.idle_days : 'Not available',
+      priority: item.important ? 'Urgent' : item.priority || 'Normal',
+      status: item.status === 'in_progress' ? 'In progress' : 'Open',
+    })).sort((a, b) => (b.priority === 'Urgent') - (a.priority === 'Urgent') || (b.age || 0) - (a.age || 0))
+    const urgent = tasks.filter(task => task.priority === 'Urgent')
+    const regular = tasks.filter(task => task.priority !== 'Urgent')
+    const sections = [
+      { id: 'urgent', title: 'Important', attention: urgent.length > 0, ids: urgent.map(task => task.id) },
+      { id: 'regular', title: 'Other tasks', attention: false, ids: regular.map(task => task.id) },
+    ].filter(section => section.ids.length)
+    return {
+      ...backlogDesign,
+      appearance: theme,
+      sizeChoice: effectiveSize === 'l' ? 'large' : effectiveSize === 's' ? 'small' : 'medium',
+      variantBySize: { small: 'minimal', medium: 'priority', large: 'grouped' },
+      recommendedId: tasks[0]?.id || '',
+      recommendationReason: tasks[0] ? 'Important tasks come first; age breaks ties.' : '',
+      projects: [...new Set(tasks.map(task => task.project))].map(project => ({ id: project, name: project })),
+      mediumTaskIds: tasks.slice(0, 3).map(task => task.id),
+      mediumSections: sections.map(section => ({ ...section, ids: section.ids.filter(id => tasks.slice(0, 3).some(task => task.id === id)) })).filter(section => section.ids.length),
+      splitSections: sections.map(section => ({ id: section.id, title: section.title, priorities: section.ids })),
+      labels: { ...backlogDesign.labels, studies: 'Backlog', sampleNote: '', timelineNote: '', groupedAttention: '' },
+      status: data.stale ? 'stale' : tasks.length ? 'ready' : 'empty',
+      tasks,
+    }
+  }, [data, effectiveSize, theme])
+  if (!widgetData) return <div className="task-state-card" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--w-card, #1c1c1e)', border: '1px solid var(--w-border, rgba(255,255,255,0.08))', borderRadius: 'var(--w-radius, 24px)', padding: '16px', boxSizing: 'border-box' }}><StateView>Loading backlog…</StateView></div>
+  if (data?.state === 'error' || data?.error) return <div className="task-state-card" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--w-card, #1c1c1e)', border: '1px solid var(--w-border, rgba(255,255,255,0.08))', borderRadius: 'var(--w-radius, 24px)', padding: '16px', boxSizing: 'border-box' }}><StateView role="alert">{data.error || 'Backlog could not be loaded. Retry from the widget menu.'}</StateView></div>
+  if (data?.state === 'not-connected') return <div className="task-state-card" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--w-card, #1c1c1e)', border: '1px solid var(--w-border, rgba(255,255,255,0.08))', borderRadius: 'var(--w-radius, 24px)', padding: '16px', boxSizing: 'border-box' }}><StateView>Connect the task source to view your backlog.</StateView></div>
+  return <LocalReview widgetId="task.backlog" refresh={refresh}>{propose => <div className="task-generated-content">
+    {full && <details className="task-widget-compose"><summary>Add to backlog</summary><form onSubmit={event => {
+      event.preventDefault()
+      const form = new FormData(event.currentTarget)
+      propose('add', { title: form.get('title'), due_at: null })
+    }}><label>Task title<Input name="title" required maxLength={500} /></label><Button type="submit">Review task</Button></form></details>}
+    <WidgetRenderer template={backlogTemplate} data={widgetData} theme={theme} />
+    {full && <details className="task-widget-settings"><summary>Manage backlog tasks</summary>{(data.items || []).filter(item => item.editable).map(item => <div className="task-widget-row-actions" key={item.id}><span>{item.title}</span><Button type="button" onClick={() => propose('complete', { id: item.id })}>Complete</Button><Button type="button" onClick={() => propose('edit', { id: item.id, title: item.title, due_at: item.due_at, important: !item.important })}>{item.important ? 'Remove importance' : 'Mark important'}</Button><Button type="button" onClick={() => propose('delete', { id: item.id })}>Remove</Button></div>)}</details>}
+  </div>}</LocalReview>
+}
+
+function GeneratedDatedItems({ data, refresh, size = 'm', full = false, widgetId }) {
+  const effectiveSize = full ? 'l' : size
+  const [theme, setTheme] = useState(() => document.documentElement.getAttribute('data-theme-mode') === 'dark' ? 'dark' : 'light')
+  const [clockMs, setClockMs] = useState(Date.now)
+  useEffect(() => {
+    const observer = new MutationObserver(() => setTheme(document.documentElement.getAttribute('data-theme-mode') === 'dark' ? 'dark' : 'light'))
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme-mode'] })
+    return () => observer.disconnect()
+  }, [])
+  useEffect(() => {
+    const timer = setInterval(() => setClockMs(Date.now()), 60000)
+    return () => clearInterval(timer)
+  }, [])
+  const widgetData = useMemo(() => {
+    if (!data || data.state === 'loading') return null
+    const localDate = value => {
+      const date = new Date(value)
+      return Number.isFinite(date.getTime()) ? date : null
+    }
+    if (widgetId === 'task.deadlines') {
+      const deadlines = (data.items || []).map(item => {
+        const dueMs = item.due_at ? new Date(item.due_at).getTime() : NaN
+        return {
+          id: String(item.id), title: item.title, project: 'Not available',
+          dateLabel: Number.isFinite(dueMs) ? new Date(dueMs).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'Not available',
+          compactDate: Number.isFinite(dueMs) ? new Date(dueMs).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Not available',
+          offsetMinutes: Number.isFinite(dueMs) ? Math.round((dueMs - clockMs) / 60000) : null,
+          remaining: Number.isFinite(dueMs) ? countdown(item.due_at, clockMs) : 'Not available',
+          progress: null, note: 'Completion progress is not available for deadlines.',
+        }
+      })
+      return {
+        ...deadlinesDesign, sizeChoice: effectiveSize === 'l' ? 'large' : 'medium', variation: 'first',
+        deadlines, clockRunning: true, elapsedMinutes: 0, demoStartMs: clockMs,
+        dayMinutes: new Date(clockMs).getHours() * 60 + new Date(clockMs).getMinutes(),
+        weekMinutes: new Date(clockMs).getDay() * 1440 + new Date(clockMs).getHours() * 60 + new Date(clockMs).getMinutes(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        labels: { ...deadlinesDesign.labels, collection: '', sampleNote: '', clockPrefix: 'Updated ', clockNote: 'Countdown uses the current device time.', pauseClock: 'Pause countdown', resumeClock: 'Resume countdown', resetClock: 'Restart countdown' },
+      }
+    }
+    const now = new Date(clockMs)
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const timePart = value => {
+      const d = new Date(value)
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    }
+    const reminders = (data.items || []).map(item => {
+      const due = localDate(item.due_at)
+      const todayDate = new Date(today)
+      const dueDate = due && new Date(due.getFullYear(), due.getMonth(), due.getDate())
+      const dayDelta = dueDate ? Math.round((dueDate - todayDate) / 86400000) : null
+      return {
+        id: String(item.id), title: item.title, day: dayDelta === 0 ? 'today' : dayDelta === 1 ? 'tomorrow' : 'later',
+        time: due ? timePart(due) : 'Not available',
+        dueLabel: due ? due.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'Not available',
+        category: 'Not available', priority: 'Not available', repeat: 'Not available', done: false,
+      }
+    })
+    return {
+      ...remindersDesign, direction: 'editorial', widgetSize: effectiveSize === 'l' ? 'large' : 'medium',
+      darkAppearance: theme === 'dark', items: reminders,
+      labels: { ...remindersDesign.labels, galleryTitle: 'Reminders', gallerySubtitle: '', sampleNote: '', scheduleEyebrow: '', prioritySuffix: ' reminders open' },
+    }
+  }, [data, effectiveSize, widgetId, clockMs, theme])
+  if (!widgetData) return <div className="task-state-card" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--w-card, #1c1c1e)', border: '1px solid var(--w-border, rgba(255,255,255,0.08))', borderRadius: 'var(--w-radius, 24px)', padding: '16px', boxSizing: 'border-box' }}><StateView>Loading {widgetId === 'task.deadlines' ? 'deadlines' : 'reminders'}…</StateView></div>
+  if (data?.state === 'error' || data?.error) return <div className="task-state-card" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--w-card, #1c1c1e)', border: '1px solid var(--w-border, rgba(255,255,255,0.08))', borderRadius: 'var(--w-radius, 24px)', padding: '16px', boxSizing: 'border-box' }}><StateView role="alert">{data.error || 'Could not load items. Retry from the widget menu.'}</StateView></div>
+  if (data?.state === 'not-connected') return <div className="task-state-card" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--w-card, #1c1c1e)', border: '1px solid var(--w-border, rgba(255,255,255,0.08))', borderRadius: 'var(--w-radius, 24px)', padding: '16px', boxSizing: 'border-box' }}><StateView>Connect the task source to view these items.</StateView></div>
+  if (widgetId === 'task.reminders' && !(data.items || []).length) return <div className="task-state-card" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--w-card, #1c1c1e)', border: '1px solid var(--w-border, rgba(255,255,255,0.08))', borderRadius: 'var(--w-radius, 24px)', padding: '16px', boxSizing: 'border-box' }}><StateView>No reminders are saved yet. Add one to start your list.</StateView></div>
+  const template = widgetId === 'task.deadlines' ? deadlinesTemplate : remindersTemplate
+  return <LocalReview widgetId={widgetId} refresh={refresh}>{propose => <div className="task-generated-content">
+    {full && widgetId === 'task.reminders' && <details className="task-widget-compose"><summary>Add reminder</summary><form onSubmit={event => {
+      event.preventDefault()
+      const form = new FormData(event.currentTarget)
+      const due = new Date(form.get('due_at'))
+      if (!Number.isFinite(due.getTime())) return
+      propose('add', { title: form.get('title'), due_at: due.toISOString() })
+    }}><label>Reminder title<Input name="title" required maxLength={500} /></label><label>Due<Input name="due_at" type="datetime-local" required /></label><Button type="submit">Review reminder</Button></form></details>}
+    <WidgetRenderer template={template} data={widgetData} theme={theme} onAction={action => {
+      if (widgetId === 'task.deadlines' && action?.type === 'task.deadlines.complete') {
+        const item = data?.items?.find(row => String(row.id) === String(action.payload?.id))
+        if (item?.editable) propose('complete', { id: item.id })
+      }
+      if (widgetId === 'task.reminders' && action?.type === 'task.reminders.complete') {
+        const item = data?.items?.find(row => String(row.id) === String(action.payload?.id))
+        if (item?.editable) propose('complete', { id: item.id })
+      }
+    }} />
+    {full && widgetId === 'task.deadlines' && <details className="task-widget-settings"><summary>Manage deadlines</summary>{(data.items || []).filter(item => item.editable).map(item => <div className="task-widget-row-actions" key={item.id}><span>{item.title} · {item.due_at ? new Date(item.due_at).toLocaleString() : 'Not available'}</span><Button type="button" onClick={() => propose('complete', { id: item.id })}>Complete</Button></div>)}</details>}
+  </div>}</LocalReview>
+}
+
+export default function Items(props) {
+  if (props.widgetId === 'task.backlog') return <GeneratedBacklog {...props} />
+  if (props.widgetId === 'task.deadlines' || props.widgetId === 'task.reminders') return <GeneratedDatedItems {...props} />
+  return <LegacyItems {...props} />
+}
+
+function LegacyItems({ data, summaryData = data, widgetId }) {
   const [now, setNow] = useState(Date.now)
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(timer) }, [])
   const [title, setTitle] = useState('')

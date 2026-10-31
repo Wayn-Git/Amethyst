@@ -1,168 +1,235 @@
-import { Button } from '../../components/ui/bento/index.jsx'
-import { WidgetCard, CardHeader, WidgetChip } from '../primitives.jsx'
-import { useCallback, useEffect, useState } from 'react'
-import Icon from '../../components/Icon.jsx'
+import { useMemo, useState, useEffect } from 'react'
+import { WidgetRenderer } from '@tugan/widgets'
+import { request } from '../api.js'
+import template from '../../../../widgets/task.focus/template.txt?raw'
+import fixture from '../../../../widgets/task.focus/data.fixture.json'
+import './focus/focus.css'
 
-const PRESETS = [
-  { label: '25m', seconds: 1500 },
-  { label: '50m', seconds: 3000 },
-  { label: '15m', seconds: 900 },
+const DIRECTIONS = [
+  { value: 'minimal', label: 'Minimal', study: '01' },
+  { value: 'circular', label: 'Circular', study: '02' },
+  { value: 'digital', label: 'Digital', study: '03' },
+  { value: 'sessions', label: 'Session-based', study: '04' },
+  { value: 'editorial', label: 'Editorial', study: '05' },
 ]
 
-export function formatTimer(seconds) {
-  const m = Math.floor(Math.max(0, seconds) / 60)
-  const s = Math.max(0, seconds) % 60
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+function adaptFocus(data, size, direction = 'minimal', theme = 'light', nowMs = Date.now()) {
+  const isError = data?.state === 'error' || Boolean(data?.error)
+  const isLoading = !data || data.state === 'loading'
+  const widgetSize = size === 's' ? 'small' : size === 'l' ? 'large' : 'medium'
+  const darkAppearance = theme === 'dark'
+
+  if (isLoading) {
+    return {
+      ...fixture,
+      status: 'loading',
+      widgetSize,
+      direction,
+      darkAppearance,
+    }
+  }
+
+  if (isError) {
+    return {
+      ...fixture,
+      status: 'error',
+      message: data.error || 'Focus timer unavailable',
+      widgetSize,
+      direction,
+      darkAppearance,
+    }
+  }
+
+  const focusMinutes = Number(data?.focus_minutes ?? 25)
+  const breakMinutes = Number(data?.break_minutes ?? 5)
+  const focusSeconds = focusMinutes * 60
+  const breakSeconds = breakMinutes * 60
+  const longBreakSeconds = 15 * 60
+
+  const items = Array.isArray(data?.items) ? data.items : []
+  const active = items.find(row => !row.ended_at)
+
+  let phase = active?.mode || 'focus'
+  let duration = active?.duration_s ?? (phase === 'focus' ? focusSeconds : breakSeconds)
+  let deadline = 0
+  let seconds = phase === 'focus' ? focusSeconds : breakSeconds
+  let running = false
+
+  if (active) {
+    const startedMs = new Date(active.started_at).getTime()
+    deadline = startedMs + duration * 1000
+    const rem = Math.max(0, Math.ceil((deadline - nowMs) / 1000))
+    if (rem > 0) {
+      running = true
+      seconds = rem
+    } else {
+      running = false
+      seconds = 0
+    }
+  }
+
+  // Calculate completed sessions and daily focus seconds from today
+  const today = new Date().toDateString()
+  let completed = 0
+  let dailyFocusBefore = 0
+
+  for (const item of items) {
+    if (item.started_at && new Date(item.started_at).toDateString() === today) {
+      if (item.completed) {
+        completed += 1
+      }
+      if (item.mode === 'focus') {
+        dailyFocusBefore += Number(item.duration_s || 0)
+      }
+    }
+  }
+
+  const sessionNumber = (completed % 4) + 1
+
+  return {
+    ...fixture,
+    status: 'ready',
+    widgetSize,
+    direction,
+    darkAppearance,
+    running,
+    deadline,
+    seconds,
+    focusSeconds,
+    breakSeconds,
+    longBreakSeconds,
+    phase,
+    sessionNumber,
+    completed,
+    dailyFocusBefore,
+  }
 }
 
-export default function FocusTimer({ onComplete }) {
-  const [preset, setPreset] = useState(1500)
-  const [secondsRemaining, setSecondsRemaining] = useState(1500)
-  const [isActive, setIsActive] = useState(false)
-
-  // Restore state from localStorage on mount
-  useEffect(() => {
+export default function FocusTimer({
+  data,
+  refresh,
+  size = 'm',
+  full = false,
+}) {
+  const [direction, setDirection] = useState(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem('amethyst.focus_timer') || 'null')
-      if (saved) {
-        if (saved.isActive && saved.endTime) {
-          const left = Math.round((saved.endTime - Date.now()) / 1000)
-          if (left > 0) {
-            setSecondsRemaining(left)
-            setIsActive(true)
-            if (saved.preset) setPreset(saved.preset)
-            return
-          }
-        } else if (typeof saved.secondsRemaining === 'number') {
-          setSecondsRemaining(saved.secondsRemaining)
-          if (saved.preset) setPreset(saved.preset)
-        }
-      }
+      return localStorage.getItem('amethyst:focus-direction') || 'minimal'
     } catch {
-      // Ignore storage parse errors
+      return 'minimal'
     }
+  })
+
+  const [theme, setTheme] = useState(() => {
+    return typeof document !== 'undefined' &&
+      document.documentElement.getAttribute('data-theme-mode') === 'dark'
+      ? 'dark'
+      : 'light'
+  })
+
+  const [nowMs, setNowMs] = useState(Date.now)
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 1000)
+    return () => clearInterval(timer)
   }, [])
 
-  // Save active timer state
   useEffect(() => {
-    try {
-      if (isActive) {
-        const endTime = Date.now() + secondsRemaining * 1000
-        localStorage.setItem('amethyst.focus_timer', JSON.stringify({ isActive: true, endTime, preset }))
-      } else {
-        localStorage.setItem('amethyst.focus_timer', JSON.stringify({ isActive: false, secondsRemaining, preset }))
-      }
-    } catch {
-      // Ignore storage write errors
-    }
-  }, [isActive, secondsRemaining, preset])
+    const observer = new MutationObserver(() => {
+      const dark = document.documentElement.getAttribute('data-theme-mode') === 'dark'
+      setTheme(dark ? 'dark' : 'light')
+    })
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme-mode'],
+    })
+    return () => observer.disconnect()
+  }, [])
 
-  // Timer tick
-  useEffect(() => {
-    if (!isActive) return
-    const interval = setInterval(() => {
-      setSecondsRemaining(current => {
-        if (current <= 1) {
-          setIsActive(false)
-          clearInterval(interval)
+  function handleDirectionSelect(newDirection) {
+    setDirection(newDirection)
+    try {
+      localStorage.setItem('amethyst:focus-direction', newDirection)
+    } catch {
+      // Local storage unavailable
+    }
+  }
+
+  async function handleAction(action) {
+    if (!action) return
+    const update = action.updateState
+    if (update) {
+      if (update.running !== undefined) {
+        if (update.running) {
           try {
-            window.dispatchEvent(new CustomEvent('amethyst-focus-complete'))
-            if (onComplete) onComplete()
-          } catch {
-            // Ignore callback error
+            const draft = await request('/widgets/task.focus/actions/start', 'POST', {
+              mode: update.phase || 'focus',
+            })
+            if (draft?.draft_id) {
+              await request(`/widgets/task.focus/drafts/${draft.draft_id}`, 'POST', { approved: true })
+            }
+            await refresh?.()
+          } catch (err) {
+            console.error('Failed to start focus session:', err)
           }
-          return 0
+        } else {
+          try {
+            const draft = await request('/widgets/task.focus/actions/stop', 'POST', {})
+            if (draft?.draft_id) {
+              await request(`/widgets/task.focus/drafts/${draft.draft_id}`, 'POST', { approved: true })
+            }
+            await refresh?.()
+          } catch (err) {
+            console.error('Failed to stop focus session:', err)
+          }
         }
-        return current - 1
-      })
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [isActive, onComplete])
-
-  const toggle = useCallback(() => {
-    if (secondsRemaining <= 0) {
-      setSecondsRemaining(preset)
-      setIsActive(true)
-    } else {
-      setIsActive(active => !active)
+      }
     }
-  }, [secondsRemaining, preset])
+  }
 
-  const reset = useCallback(() => {
-    setIsActive(false)
-    setSecondsRemaining(preset)
-  }, [preset])
-
-  const addTime = useCallback((extraSeconds = 300) => {
-    setSecondsRemaining(s => s + extraSeconds)
-  }, [])
-
-  const selectPreset = useCallback((p) => {
-    setPreset(p.seconds)
-    setSecondsRemaining(p.seconds)
-    setIsActive(false)
-  }, [])
+  const effectiveSize = full ? 'l' : size
+  const widgetData = useMemo(
+    () => adaptFocus(data, effectiveSize, direction, theme, nowMs),
+    [data, effectiveSize, direction, theme, nowMs]
+  )
 
   return (
-    <WidgetCard className={`bento-timer-card${isActive ? ' is-running' : ''}`} aria-label="Focus timer">
-      <CardHeader className="bento-card-header">
-        <div className="bento-timer-title-wrap">
-          <span className="bento-pulse-dot" aria-hidden="true" />
-          <WidgetChip className="bento-badge">Focus Timer</WidgetChip>
-        </div>
-        <div className="bento-timer-presets" role="radiogroup" aria-label="Timer presets">
-          {PRESETS.map(p => (
-            <Button
-              key={p.label}
-              type="button"
-              className={`bento-preset-btn${preset === p.seconds ? ' is-active' : ''}`}
-              onClick={() => selectPreset(p)}
-              disabled={isActive}
+    <div className="task-focus-root">
+      <WidgetRenderer
+        template={template}
+        data={widgetData}
+        theme={theme}
+        onAction={handleAction}
+      />
+      {full && (
+        <div style={{ marginTop: '20px' }} className="adoption-stack">
+          <div style={{ marginBottom: '16px' }}>
+            <span
+              style={{
+                display: 'block',
+                fontSize: '13px',
+                fontWeight: 600,
+                marginBottom: '8px',
+                color: 'var(--w-text)',
+              }}
             >
-              {p.label}
-            </Button>
-          ))}
+              Design direction
+            </span>
+            <div className="focus-directions-row">
+              {DIRECTIONS.map(dir => (
+                /* oxlint-disable-next-line amethyst-ui/no-raw-controls */
+                <button
+                  key={dir.value}
+                  type="button"
+                  className={`focus-direction-btn ${direction === dir.value ? 'is-active' : ''}`}
+                  onClick={() => handleDirectionSelect(dir.value)}
+                >
+                  {dir.label} ({dir.study})
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-      </CardHeader>
-
-      <div className="bento-timer-body">
-        <time className="bento-timer-digits" dateTime={`PT${secondsRemaining}S`}>
-          {formatTimer(secondsRemaining)}
-        </time>
-
-        <div className="bento-timer-controls">
-          <Button
-            type="button"
-            className="bento-timer-play-btn"
-            onClick={toggle}
-            aria-label={isActive ? 'Pause timer' : 'Start timer'}
-          >
-            <Icon name={isActive ? 'pause' : 'play'} size={22} />
-            <span>{isActive ? 'Pause' : 'Start'}</span>
-          </Button>
-
-          <Button
-            type="button"
-            className="bento-timer-secondary-btn"
-            onClick={() => addTime(300)}
-            title="Add 5 minutes"
-            aria-label="Add 5 minutes"
-          >
-            +5m
-          </Button>
-
-          <Button
-            type="button"
-            className="bento-timer-secondary-btn"
-            onClick={reset}
-            title="Reset timer"
-            aria-label="Reset timer"
-          >
-            <Icon name="refresh" size={16} />
-          </Button>
-        </div>
-      </div>
-    </WidgetCard>
+      )}
+    </div>
   )
 }

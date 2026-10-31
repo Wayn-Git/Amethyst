@@ -1,0 +1,154 @@
+{
+  "appearance": "light",
+  "appearances": [
+    {
+      "label": "Light",
+      "value": "light"
+    },
+    {
+      "label": "Dark",
+      "value": "dark"
+    }
+  ],
+  "labels": {
+    "title": "Habit tracker",
+    "intro": "Six quiet layouts for everyday momentum.",
+    "sampleDate": "",
+    "appearance": "Widget appearance",
+    "smallMinimal": "01 · Small / Minimal",
+    "smallEditorial": "02 · Small / Editorial",
+    "mediumMinimal": "03 · Medium / Checklist",
+    "mediumGrouped": "04 · Medium / Grouped",
+    "largeCalendar": "05 · Large / Calendar",
+    "largeStreaks": "06 · Large / Streaks",
+    "today": "Today",
+    "habitsComplete": "habits complete",
+    "streakSuffix": "d streak",
+    "currentStreakSuffix": "-day current streak",
+    "needsAttention": "Make time today",
+    "doneToday": "Done for today",
+    "completed": "Completed",
+    "missed": "Missed",
+    "markDone": "Mark done",
+    "dailyEssentials": "Daily essentials",
+    "checklistDescription": "Four habits to keep close.",
+    "todayProgress": "Today's progress",
+    "habit": "Habit",
+    "currentStreak": "Streak",
+    "dailyRhythm": "A rhythm for your day",
+    "doneSuffix": " complete today",
+    "weekInView": "Small steps, all week",
+    "weekPeriod": "Last week · Oct 12–18",
+    "historyScope": "Last week's marks · current streaks as of today",
+    "currentShort": "d current",
+    "completionSeparator": " complete · ",
+    "missedSuffix": " missed",
+    "completeSuffix": " complete",
+    "lastWeekSummary": "Last week · ",
+    "missedHabitDays": " missed habit-days",
+    "longestCurrent": "Your longest current streak",
+    "daysInARow": "days in a row",
+    "daysSuffix": " days",
+    "bestStreak": "Best streak",
+    "streakHistoryScope": "History: Oct 12–18, Mon → Sun · check = done, dash = missed",
+    "lastWeekCompletion": "Last week",
+    "missedHabitDaysLabel": "Missed habit-days",
+    "localNote": "Checks update all six layouts locally. Last week's history stays fixed. Unchecked habits keep their streak through yesterday while today is still open."
+  },
+  "completeSurface": {
+    "light": "#eaf2ec",
+    "dark": "#21372a"
+  },
+  "marks": {
+    "light": {
+      "done": [
+        {
+          "d": "M5 12l4 4L19 6",
+          "fill": "none",
+          "stroke": "#3e7051",
+          "strokeWidth": 2.4
+        }
+      ],
+      "missed": [
+        {
+          "d": "M7 12h10",
+          "fill": "none",
+          "stroke": "#717780",
+          "strokeWidth": 2
+        }
+      ]
+    },
+    "dark": {
+      "done": [
+        {
+          "d": "M5 12l4 4L19 6",
+          "fill": "none",
+          "stroke": "#a4cfb2",
+          "strokeWidth": 2.4
+        }
+      ],
+      "missed": [
+        {
+          "d": "M7 12h10",
+          "fill": "none",
+          "stroke": "#a0a6ae",
+          "strokeWidth": 2
+        }
+      ]
+    }
+  },
+  "days": [
+    {
+      "index": 0,
+      "short": "M",
+      "label": ""
+    },
+    {
+      "index": 1,
+      "short": "T",
+      "label": ""
+    },
+    {
+      "index": 2,
+      "short": "W",
+      "label": ""
+    },
+    {
+      "index": 3,
+      "short": "T",
+      "label": ""
+    },
+    {
+      "index": 4,
+      "short": "F",
+      "label": ""
+    },
+    {
+      "index": 5,
+      "short": "S",
+      "label": ""
+    },
+    {
+      "index": 6,
+      "short": "S",
+      "label": ""
+    }
+  ],
+  "periods": [
+    {
+      "id": "morning",
+      "label": "Morning",
+      "icon": "sunrise"
+    },
+    {
+      "id": "afternoon",
+      "label": "Afternoon",
+      "icon": "sun"
+    },
+    {
+      "id": "evening",
+      "label": "Evening",
+      "icon": "moon"
+    }
+  ]
+}

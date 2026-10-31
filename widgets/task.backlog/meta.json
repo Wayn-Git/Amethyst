@@ -1,0 +1,40 @@
+{
+  "widgetId": "task.backlog",
+  "prompt": "Design a premium Apple-inspired **Backlog widget** for a desktop dashboard. Generate multiple distinct Small, Medium and Large variations.\n\nExplore these design directions:\n- Minimal: backlog count with the next task to tackle.\n- Priority-focused: separate urgent tasks from everything else.\n- Grouped: organize tasks by project or category.\n- Timeline: show how long tasks have been waiting.\n- Editorial: highlight one recommended task with supporting items.\n\n**Small**\n\nShow the backlog count, one priority task and a compact priority indicator.\n\n**Medium**\n\nShow 4–6 tasks with title, project, priority and age. Include a compact backlog summary.\n\n**Large**\n\nShow 8–12 tasks grouped by project or priority. Include task age, status, priority and a clear indication of what deserves attention first.\n\n**Visual direction**\n\nUse Apple-level typography, restrained colours, subtle dividers and varied corner radii. Explore compact lists, grouped sections and split layouts. Support light and dark appearances. Use colour sparingly to distinguish priority and age.\n\nMake every variation compositionally different. Use believable backlog data. Avoid generic cards, excessive pills, gradients and unnecessary charts.",
+  "generatedAt": "2026-11-01T18:07:27+00:00",
+  "generationStatus": "generated",
+  "imageStatus": "available",
+  "theme": "light",
+  "designSpec": "Six selectable compositions pair Minimal and Editorial Small widgets, Priority and Timeline Medium widgets, and Grouped and Spotlight/Split Large widgets. Restrained typography, quiet separators and sparse priority/age accents adapt to light and dark previews; the split layout stacks at narrow widths, while all counts derive from one synthetic backlog.",
+  "stages": [
+    "Reading reference image",
+    "Planning the widget",
+    "Planning complete. Gathering supporting context",
+    "Searching for real image URLs",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Checking the preview",
+    "Reviewing the widget data",
+    "Polishing the details",
+    "Keeping the widget compact",
+    "Preparing the final widget",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Widget ready"
+  ],
+  "contentHashes": {
+    "template.jsx": "cbb8664d389369cfb9af80920ac07b5e299978c1e3c4947f6a7a1784b7b6b00f",
+    "data.json": "a852e200d5e3dade5939bca04dd92213f7500e59116e37c07b2bae7c1d2f400a",
+    "reference.jpg": "ec2bb79200fd9b43a2f7bcbef3f2525f4aba2b6da7bea5d9d46a8c198f69c422"
+  },
+  "imageFile": "reference.jpg"
+}

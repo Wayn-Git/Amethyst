@@ -1,0 +1,90 @@
+{
+  "variation": "large-timeline",
+  "appearance": "light",
+  "variations": [
+    {
+      "value": "small-minimal",
+      "label": "Small · Minimal"
+    },
+    {
+      "value": "small-daily",
+      "label": "Small · Today"
+    },
+    {
+      "value": "medium-comparison",
+      "label": "Medium · Comparison"
+    },
+    {
+      "value": "medium-editorial",
+      "label": "Medium · Editorial"
+    },
+    {
+      "value": "large-timeline",
+      "label": "Large · Shared timeline"
+    },
+    {
+      "value": "large-daily",
+      "label": "Large · Daily agenda"
+    }
+  ],
+  "appearances": [
+    {
+      "value": "light",
+      "label": "Light"
+    },
+    {
+      "value": "dark",
+      "label": "Dark"
+    }
+  ],
+  "palette": {
+    "overlap": {
+      "light": "#98501F",
+      "dark": "#E6AE7D"
+    },
+    "event": {
+      "light": "#A5A9B0",
+      "dark": "#737984"
+    }
+  },
+  "axis": {
+    "duration": 480,
+    "ticks": [
+      "10:00",
+      "12:00",
+      "14:00",
+      "16:00",
+      "18:00"
+    ]
+  },
+  "labels": {
+    "demo": "",
+    "variation": "Variation",
+    "appearance": "Appearance",
+    "calendarConflicts": "Calendar conflicts",
+    "conflictsToday": "conflicts today",
+    "conflictsSuffix": " conflicts",
+    "nextOverlap": "Next overlap",
+    "nextClash": "Next clash",
+    "next": "Next",
+    "overlapSuffix": " min overlap",
+    "minutesOverlapSuffix": " min overlapping",
+    "totalOverlapSuffix": " minutes of overlapping time",
+    "reviewAll": "Review all 5 conflicts",
+    "openDay": "Open day",
+    "today": "Today",
+    "comparisonTitle": "Two places at once",
+    "threeOfFive": "Showing 3 of 5 conflicts",
+    "highestImpact": "Highest-impact clash · 14:15–15:00",
+    "editorialTitle": "",
+    "editorialReason": "",
+    "suggestionTitle": "Suggested resolution",
+    "suggestion": "",
+    "suggestionCaveat": "",
+    "otherClashes": "Earlier clashes",
+    "timelineTitle": "Today's overlaps",
+    "timelineLegend": "Amber marks overlap · all tracks share the axis",
+    "timelineFootnote": "",
+    "dailyFootnote": ""
+  }
+}

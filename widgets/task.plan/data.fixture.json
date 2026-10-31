@@ -1,0 +1,225 @@
+{
+  "collectionTitle": "Daily plan studies",
+  "collectionNote": "15 layouts · five directions, three sizes",
+  "direction": "minimal",
+  "sizeChoice": "medium",
+  "appearance": "light",
+  "directions": [
+    {
+      "value": "minimal",
+      "label": "Minimal — next, then later"
+    },
+    {
+      "value": "timeline",
+      "label": "Timeline — follow the day"
+    },
+    {
+      "value": "focus",
+      "label": "Focus-first — protect deep work"
+    },
+    {
+      "value": "balanced",
+      "label": "Balanced — work around meetings"
+    },
+    {
+      "value": "editorial",
+      "label": "Editorial — a clear daily narrative"
+    }
+  ],
+  "sizes": [
+    {
+      "value": "small",
+      "label": "Small"
+    },
+    {
+      "value": "medium",
+      "label": "Medium"
+    },
+    {
+      "value": "large",
+      "label": "Large"
+    }
+  ],
+  "appearances": [
+    {
+      "value": "light",
+      "label": "Light"
+    },
+    {
+      "value": "dark",
+      "label": "Dark"
+    }
+  ],
+  "dateLabel": "Tuesday, 21 October",
+  "dayRange": "09:00–18:00",
+  "dayMinutes": 540,
+  "labels": {
+    "direction": "Design direction",
+    "size": "Widget size",
+    "appearance": "Preview appearance",
+    "dailyPlan": "Daily plan",
+    "nextRecommended": "Next recommended",
+    "next": "Next",
+    "nextPrefix": "Next · ",
+    "minutes": "minutes",
+    "minutesOfFocus": "minutes of focus",
+    "startsAt": "Starts at ",
+    "prioritySuffix": " priority",
+    "nextFocusBlock": "Your next focus block",
+    "calendar": "Calendar",
+    "beginHere": "Begin here: outline the brief.",
+    "protectedFocus": "Protected focus",
+    "twoBlocks": "across two blocks",
+    "aroundFocus": "Around your focus blocks",
+    "yourWork": "Your work",
+    "breaks": "Time to step away",
+    "workload": "Estimated workload",
+    "freeTime": "Remaining free time"
+  },
+  "smallMeetingNote": "Next meeting · Design review at 10:30",
+  "smallBreakNote": "10:15 · Screen break · 15 min",
+  "smallBalancedHeading": "Before your 10:30 design review",
+  "smallBufferNote": "A 15-minute break before the meeting.",
+  "smallEditorialHeading": "Start with the brief.",
+  "smallEditorialNote": "Outline first. Polish after.",
+  "mediumTimelineHeading": "Your work, in order.",
+  "mediumBalancedHeading": "A plan with breathing room.",
+  "mediumEditorialHeading": "Four things. A clear order.",
+  "mediumScopeNote": "Four work items shown. Large includes all meetings and breaks.",
+  "largeTimelineHeading": "The shape of your day.",
+  "timelineGuidance": "Start with the brief. Follow the time rail through work, meetings and breaks.",
+  "largeBalancedHeading": "Keep the gaps useful.",
+  "balancedGuidance": "Begin the brief at 09:00. Two fixed meetings anchor the day; your work fits around them.",
+  "largeEditorialHeading": "Rest of your day",
+  "editorialGuidance": "Protect the morning for deeper work. Leave the afternoon for replies, decisions and a clean handoff.",
+  "editorialNextAction": "First: draft the project brief at 09:00.",
+  "freeWindows": "Open windows: 14:00–15:00 and 16:30–18:00.",
+  "accountingNote": "09:00–18:00 · workload excludes 1h of meetings and 1h of breaks.",
+  "demoNote": "Illustrative plan, viewed at 09:00. Switch direction, size or appearance to explore every layout.",
+  "daySections": [
+    {
+      "id": "morning",
+      "title": "Morning",
+      "range": "09:00–12:30"
+    },
+    {
+      "id": "afternoon",
+      "title": "Afternoon",
+      "range": "12:30–18:00"
+    }
+  ],
+  "schedule": [
+    {
+      "id": "brief",
+      "title": "Draft project brief",
+      "start": "09:00",
+      "end": "10:15",
+      "minutes": 75,
+      "kind": "focus",
+      "kindLabel": "Focus block",
+      "priority": "High",
+      "work": true,
+      "section": "morning",
+      "icon": "write",
+      "note": "Outline the problem, goals and success criteria."
+    },
+    {
+      "id": "screen-break",
+      "title": "Screen break",
+      "start": "10:15",
+      "end": "10:30",
+      "minutes": 15,
+      "kind": "break",
+      "kindLabel": "Break",
+      "priority": "",
+      "work": false,
+      "section": "morning",
+      "icon": "coffee",
+      "note": "Step away before the review."
+    },
+    {
+      "id": "design-review",
+      "title": "Design review",
+      "start": "10:30",
+      "end": "11:00",
+      "minutes": 30,
+      "kind": "event",
+      "kindLabel": "Calendar event",
+      "priority": "",
+      "work": false,
+      "section": "morning",
+      "icon": "users",
+      "note": "Review the key flow and resolve open questions."
+    },
+    {
+      "id": "prototype",
+      "title": "Prototype key flow",
+      "start": "11:00",
+      "end": "12:30",
+      "minutes": 90,
+      "kind": "focus",
+      "kindLabel": "Focus block",
+      "priority": "High",
+      "work": true,
+      "section": "morning",
+      "icon": "layers",
+      "note": "Turn review decisions into a clickable prototype."
+    },
+    {
+      "id": "lunch",
+      "title": "Lunch break",
+      "start": "12:30",
+      "end": "13:15",
+      "minutes": 45,
+      "kind": "break",
+      "kindLabel": "Break",
+      "priority": "",
+      "work": false,
+      "section": "afternoon",
+      "icon": "utensils",
+      "note": "Keep lunch away from the desk."
+    },
+    {
+      "id": "inbox",
+      "title": "Inbox cleanup",
+      "start": "13:15",
+      "end": "14:00",
+      "minutes": 45,
+      "kind": "task",
+      "kindLabel": "Task",
+      "priority": "Low",
+      "work": true,
+      "section": "afternoon",
+      "icon": "inbox",
+      "note": "Reply, delegate and archive in one pass."
+    },
+    {
+      "id": "team-sync",
+      "title": "Team sync",
+      "start": "15:00",
+      "end": "15:30",
+      "minutes": 30,
+      "kind": "event",
+      "kindLabel": "Calendar event",
+      "priority": "",
+      "work": false,
+      "section": "afternoon",
+      "icon": "users",
+      "note": "Share decisions and identify blockers."
+    },
+    {
+      "id": "handoff",
+      "title": "Prepare handoff",
+      "start": "15:30",
+      "end": "16:30",
+      "minutes": 60,
+      "kind": "task",
+      "kindLabel": "Task",
+      "priority": "Medium",
+      "work": true,
+      "section": "afternoon",
+      "icon": "document",
+      "note": "Package the prototype, decisions and next steps."
+    }
+  ]
+}

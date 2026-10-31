@@ -1,0 +1,38 @@
+{
+  "widgetId": "task.plan",
+  "prompt": "Design a premium Apple-inspired **Daily Plan widget** for a desktop dashboard. Generate multiple distinct Small, Medium and Large variations.\n\nExplore these design directions:\n- Minimal: next recommended task and remaining schedule.\n- Timeline: arrange tasks and events across the day.\n- Focus-first: prioritize deep-work blocks.\n- Balanced: distribute tasks around existing calendar events.\n- Editorial: present a clear plan for the rest of the day.\n\n**Small**\n\nShow the next recommended task, its estimated duration and scheduled start time.\n\n**Medium**\n\nShow 3–4 planned tasks with scheduled times, duration and priority. Include the next recommended action.\n\n**Large**\n\nShow a complete daily schedule with 5–8 tasks, calendar events, focus blocks and breaks. Include estimated workload and remaining free time.\n\n**Visual direction**\n\nUse Apple-level typography, subtle timeline accents, clear time labels and varied corner radii. Explore vertical schedules, split layouts and focused task lists. Support light and dark appearances. Use gentle transitions between schedule blocks.\n\nMake every variation compositionally different. Use believable daily plans. Avoid generic cards, excessive pills, gradients and unnecessary charts.",
+  "generatedAt": "2026-11-01T18:10:08+00:00",
+  "generationStatus": "generated",
+  "imageStatus": "available",
+  "theme": "light",
+  "designSpec": "An interactive collection presents 15 distinct compositions through five design directions and three sizes, with working light and dark previews. Time-led, task-led, focus, split-calendar and editorial layouts use restrained system typography, quiet surfaces and gentle preview transitions. Large variants reconcile eight scheduled items with 4h 30m of workload and 2h 30m of free time.",
+  "stages": [
+    "Reading reference image",
+    "Planning the widget",
+    "Planning complete. Gathering supporting context",
+    "Searching for real image URLs",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Checking the preview",
+    "Reviewing the widget data",
+    "Polishing the details",
+    "Keeping the widget compact",
+    "Preparing the final widget",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Widget ready"
+  ],
+  "contentHashes": {
+    "template.jsx": "835cd92057392fec29aa738886b07c66814b78b3a283606a5212284509bcdd66",
+    "data.json": "31a6bec9bcfa2f8997b8404dfe0e8306d94b08a48ad315df27a4dc02092d9cce",
+    "reference.jpg": "ec2bb79200fd9b43a2f7bcbef3f2525f4aba2b6da7bea5d9d46a8c198f69c422"
+  },
+  "imageFile": "reference.jpg"
+}

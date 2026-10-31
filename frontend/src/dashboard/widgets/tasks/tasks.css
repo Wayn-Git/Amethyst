@@ -1,0 +1,229 @@
+/* task.today - Upcoming Tasks Widget */
+
+/* Slot and wrapper isolation: prevent double padding and enforce exact grid bounds */
+.home-layout-grid .today-widget-slot[data-slot-id='task.today'] {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  box-sizing: border-box;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='task.today']:hover {
+  box-shadow: none !important;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='task.today'] > .today-slot-body {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  box-sizing: border-box;
+  overflow: visible !important;
+}
+
+/* Responsive slot dimensions: Small 170x170, Medium 356x170, Large 356x356 */
+.home-layout-grid .today-widget-slot[data-slot-id='task.today'],
+.bento-foundation .home-widget[data-widget='task.today'] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='task.today'][data-size='s'],
+.bento-foundation .home-widget[data-widget='task.today'][data-size='s'] {
+  min-height: 170px;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='task.today'][data-size='m'],
+.bento-foundation .home-widget[data-widget='task.today'][data-size='m'] {
+  min-height: 170px;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='task.today'][data-size='l'],
+.bento-foundation .home-widget[data-widget='task.today'][data-size='l'] {
+  min-height: 356px;
+}
+
+.home-layout-grid .today-slot-body > .home-widget.widget-adoption[data-widget='task.today'],
+.bento-foundation .home-widget.widget-adoption[data-widget='task.today'] {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 !important;
+  gap: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Chrome: title, badges, and footer removed on the board. Actions visible on hover */
+.bento-foundation .home-widget.widget-adoption[data-widget='task.today']:not([data-view='detail']) > .widget-header {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  display: flex;
+  width: auto;
+  padding: 0;
+  margin: 0;
+  gap: 0;
+  background: transparent;
+  border: 0;
+  pointer-events: none;
+}
+
+.bento-foundation .home-widget.widget-adoption[data-widget='task.today']:not([data-view='detail']) .widget-title,
+.bento-foundation .home-widget.widget-adoption[data-widget='task.today']:not([data-view='detail']) .widget-source,
+.bento-foundation .home-widget.widget-adoption[data-widget='task.today']:not([data-view='detail']) .widget-freshness,
+.bento-foundation .home-widget.widget-adoption[data-widget='task.today']:not([data-view='detail']) .widget-chip,
+.bento-foundation .home-widget.widget-adoption[data-widget='task.today']:not([data-view='detail']) .widget-icon,
+.bento-foundation .home-widget.widget-adoption[data-widget='task.today']:not([data-view='detail']) .widget-heading-icon {
+  display: none !important;
+}
+
+.bento-foundation .home-widget.widget-adoption[data-widget='task.today']:not([data-view='detail']) .widget-actions {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+.bento-foundation .home-widget.widget-adoption[data-widget='task.today']:not([data-view='detail']):is(:hover, :focus-within) .widget-actions,
+.bento-foundation .home-widget.widget-adoption[data-widget='task.today']:not([data-view='detail']) .widget-menu[open] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.bento-foundation .home-widget.widget-adoption[data-widget='task.today']:not([data-view='detail']) > .widget-footer {
+  display: none !important;
+}
+
+.bento-foundation .home-widget.widget-adoption[data-widget='task.today']:not([data-view='detail']) > .widget-content {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0 !important;
+  padding: 0;
+  overflow: hidden;
+}
+
+.bento-foundation .home-widget.widget-adoption[data-widget='task.today'] .widget-workbench.today-drawer.is-inline,
+.bento-foundation .home-widget.widget-adoption[data-widget='task.today'] .widget-workbench.today-drawer.is-inline > .today-drawer-body {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  display: flex;
+  flex: 1 1 auto;
+}
+
+.tasks-widget-root {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.tasks-widget-root .widget-root {
+  width: 100%;
+  height: 100%;
+}
+
+.tasks-widget-root .wg-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  border-radius: 24px !important;
+  box-sizing: border-box;
+}
+
+/* Detail View (Drawer) */
+.tasks-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 20px 24px;
+  color: var(--w-text, #ffffff);
+  height: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.tasks-detail-top {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tasks-detail-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--w-text, #ffffff);
+  margin: 0;
+}
+
+.tasks-detail-subtitle {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--w-text-2, #8e8e93);
+  margin: 0;
+}
+
+.tasks-inline-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tasks-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+}
+
+.tasks-detail-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--w-inset, #111113);
+  border: 1px solid var(--w-hairline, rgba(255, 255, 255, 0.08));
+  border-radius: var(--w-radius-inner, 8px);
+}
+
+.tasks-detail-item-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--w-text, #ffffff);
+  flex: 1;
+}
+
+.tasks-detail-item-due {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--w-text-2, #8e8e93);
+}
+
+/* Reduced motion overrides */
+@media (prefers-reduced-motion: reduce) {
+  .bento-foundation .home-widget.widget-adoption[data-widget='task.today'] {
+    transition: none !important;
+  }
+}

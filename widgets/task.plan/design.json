@@ -1,0 +1,110 @@
+{
+  "collectionTitle": "",
+  "collectionNote": "15 layouts · five directions, three sizes",
+  "direction": "minimal",
+  "sizeChoice": "medium",
+  "appearance": "light",
+  "directions": [
+    {
+      "value": "minimal",
+      "label": "Minimal — next, then later"
+    },
+    {
+      "value": "timeline",
+      "label": "Timeline — follow the day"
+    },
+    {
+      "value": "focus",
+      "label": "Focus-first — protect deep work"
+    },
+    {
+      "value": "balanced",
+      "label": "Balanced — work around meetings"
+    },
+    {
+      "value": "editorial",
+      "label": "Editorial — a clear daily narrative"
+    }
+  ],
+  "sizes": [
+    {
+      "value": "small",
+      "label": "Small"
+    },
+    {
+      "value": "medium",
+      "label": "Medium"
+    },
+    {
+      "value": "large",
+      "label": "Large"
+    }
+  ],
+  "appearances": [
+    {
+      "value": "light",
+      "label": "Light"
+    },
+    {
+      "value": "dark",
+      "label": "Dark"
+    }
+  ],
+  "dateLabel": "",
+  "dayRange": "09:00–18:00",
+  "dayMinutes": 540,
+  "labels": {
+    "direction": "Design direction",
+    "size": "Widget size",
+    "appearance": "Preview appearance",
+    "dailyPlan": "Daily plan",
+    "nextRecommended": "Next recommended",
+    "next": "Next",
+    "nextPrefix": "Next · ",
+    "minutes": "minutes",
+    "minutesOfFocus": "minutes of focus",
+    "startsAt": "Starts at ",
+    "prioritySuffix": " priority",
+    "nextFocusBlock": "Your next focus block",
+    "calendar": "Calendar",
+    "beginHere": "Begin here: outline the brief.",
+    "protectedFocus": "Protected focus",
+    "twoBlocks": "across two blocks",
+    "aroundFocus": "Around your focus blocks",
+    "yourWork": "Your work",
+    "breaks": "Time to step away",
+    "workload": "Estimated workload",
+    "freeTime": "Remaining free time"
+  },
+  "smallMeetingNote": "Next meeting · Design review at 10:30",
+  "smallBreakNote": "10:15 · Screen break · 15 min",
+  "smallBalancedHeading": "Before your 10:30 design review",
+  "smallBufferNote": "A 15-minute break before the meeting.",
+  "smallEditorialHeading": "Start with the brief.",
+  "smallEditorialNote": "Outline first. Polish after.",
+  "mediumTimelineHeading": "Your work, in order.",
+  "mediumBalancedHeading": "A plan with breathing room.",
+  "mediumEditorialHeading": "Four things. A clear order.",
+  "mediumScopeNote": "Four work items shown. Large includes all meetings and breaks.",
+  "largeTimelineHeading": "The shape of your day.",
+  "timelineGuidance": "Start with the brief. Follow the time rail through work, meetings and breaks.",
+  "largeBalancedHeading": "Keep the gaps useful.",
+  "balancedGuidance": "Begin the brief at 09:00. Two fixed meetings anchor the day; your work fits around them.",
+  "largeEditorialHeading": "Rest of your day",
+  "editorialGuidance": "Protect the morning for deeper work. Leave the afternoon for replies, decisions and a clean handoff.",
+  "editorialNextAction": "First: draft the project brief at 09:00.",
+  "accountingNote": "09:00–18:00 · workload excludes 1h of meetings and 1h of breaks.",
+  "demoNote": "",
+  "daySections": [
+    {
+      "id": "morning",
+      "title": "Morning",
+      "range": "09:00–12:30"
+    },
+    {
+      "id": "afternoon",
+      "title": "Afternoon",
+      "range": "12:30–18:00"
+    }
+  ]
+}

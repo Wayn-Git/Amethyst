@@ -49,7 +49,11 @@ def provide():
     return {
         "today": today.isoformat(),
         "items": [
-            {**dict(row), **progress(row, history(row["id"]), today)}
+            {
+                **dict(row),
+                **progress(row, history(row["id"]), today),
+                "history_days": sorted(set(history(row["id"]))),
+            }
             for row in get_connection().execute("SELECT * FROM dashboard_habits ORDER BY id")
         ],
     }

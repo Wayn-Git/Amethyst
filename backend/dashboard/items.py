@@ -31,6 +31,7 @@ class ItemInput(StrictModel):
     title: str | None = Field(default=None, min_length=1, max_length=500)
     due_at: datetime | None = None
     text: str | None = Field(default=None, min_length=1, max_length=20000)
+    important: bool | None = None
 
     @field_validator("title")
     @classmethod
@@ -65,8 +66,9 @@ def task_rows():
     return [
         dict(r)
         for r in get_connection().execute(
-            "SELECT id,title,due_at,scheduled_at,my_day_date,status,updated_at,external_source "
-            "FROM tasks "
+            "SELECT t.id,t.title,t.due_at,t.scheduled_at,t.my_day_date,t.status,t.updated_at,"
+            "t.external_source,t.priority,t.important,l.name AS project "
+            "FROM tasks t LEFT JOIN task_lists l ON l.id=t.list_id "
             "WHERE status IN ('todo','in_progress')"
         )
     ]
@@ -78,6 +80,18 @@ def today_item(row, now):
         and parsed(row[key]).astimezone(now.tzinfo).date() == now.date()
         for key in ("scheduled_at", "due_at")
     )
+
+
+def completed_today_count(now):
+    row = (
+        get_connection()
+        .execute(
+            "SELECT COUNT(*) as count FROM tasks WHERE status='done' AND (my_day_date=? OR DATE(updated_at)=?)",
+            (now.date().isoformat(), now.date().isoformat()),
+        )
+        .fetchone()
+    )
+    return row["count"] if row else 0
 
 
 def display(row, now, source):
@@ -92,6 +106,8 @@ def display(row, now, source):
         "updated_at": row.get("updated_at"),
         "idle_days": max(0, (now - parsed(row["updated_at"], UTC)).days),
         "editable": not row.get("external_source"),
+        "priority": row.get("priority"),
+        "important": bool(row.get("important", 0)),
     }
 
 
@@ -110,21 +126,25 @@ def provide(widget_id):
             if until.astimezone(now.tzinfo).date() != now.date():
                 continue
             title = f"Item {row['item_id']}"
+            priority = "Normal"
             table = TABLES.get(row["widget_id"])
             if table:
                 item = (
                     get_connection()
-                    .execute(f"SELECT title,status FROM {table} WHERE id=?", (row["item_id"],))
+                    .execute(f"SELECT * FROM {table} WHERE id=?", (row["item_id"],))
                     .fetchone()
                 )
                 if item is None or item["status"] in ("done", "cancelled"):
                     continue
-                title = item["title"]
+                item_dict = dict(item)
+                title = item_dict.get("title") or title
+                priority = item_dict.get("priority") or "Normal"
             items.append(
                 {
                     "id": row["item_id"],
                     "source": row["widget_id"],
                     "title": title,
+                    "priority": priority,
                     "until": until.isoformat(),
                     "return_state": "ready" if until <= now else "scheduled",
                 }
@@ -152,7 +172,15 @@ def provide(widget_id):
     rows = [r for r in task_rows() if today_item(r, now) == (widget_id == "task.today")]
     if widget_id == "task.backlog":
         rows.sort(key=lambda r: (parsed(r["updated_at"], UTC), r["id"]))
-    return {"items": [display(r, now, "tasks") for r in rows]}
+    payload = {"items": [display(r, now, "tasks") for r in rows]}
+    if widget_id == "task.backlog":
+        payload["items"] = [
+            {**item, "project": row.get("project"), "status": row["status"]}
+            for item, row in zip(payload["items"], rows)
+        ]
+    if widget_id == "task.today":
+        payload["completed_count"] = completed_today_count(now)
+    return payload
 
 
 def draft(widget_id, action, body):
@@ -167,6 +195,8 @@ def draft(widget_id, action, body):
         raise HTTPException(422, "Note text is required; due date is not supported")
     if not capture and body.text is not None:
         raise HTTPException(422, "Text is only supported for note capture")
+    if body.important is not None and widget_id != "task.backlog":
+        raise HTTPException(422, "Importance is only editable from the backlog")
     if (
         not capture
         and TABLES[widget_id] != "tasks"
@@ -420,18 +450,25 @@ def apply(conn, widget_id, action, body):
         conn.execute(f"INSERT INTO {table}(title,due_at) VALUES(?,?)", (body["title"], due_text))
     elif action == "add":
         conn.execute(
-            "INSERT INTO tasks(title,due_at,my_day_date) VALUES(?,?,?)",
+            "INSERT INTO tasks(title,due_at,my_day_date,important) VALUES(?,?,?,?)",
             (
                 body["title"],
                 due_text,
                 local_now().date().isoformat() if widget_id == "task.today" else None,
+                int(bool(body.get("important", False))),
             ),
         )
     elif action == "edit":
-        conn.execute(
-            f"UPDATE {table} SET title=?,due_at=?,updated_at=? WHERE id=?",
-            (body["title"], due_text, stamp(), body["id"]),
-        )
+        if table == "tasks" and body.get("important") is not None:
+            conn.execute(
+                "UPDATE tasks SET title=?,due_at=?,important=?,updated_at=? WHERE id=?",
+                (body["title"], due_text, int(body["important"]), stamp(), body["id"]),
+            )
+        else:
+            conn.execute(
+                f"UPDATE {table} SET title=?,due_at=?,updated_at=? WHERE id=?",
+                (body["title"], due_text, stamp(), body["id"]),
+            )
     elif action == "complete":
         conn.execute(
             f"UPDATE {table} SET status='done',completed_at=?,updated_at=? WHERE id=?",

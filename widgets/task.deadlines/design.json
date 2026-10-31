@@ -1,0 +1,100 @@
+{
+  "sizeChoice": "small",
+  "variation": "first",
+  "darkAppearance": false,
+  "clockRunning": true,
+  "elapsedMinutes": 0,
+  "labels": {
+    "collection": "",
+    "title": "Deadline countdowns",
+    "darkAppearance": "Dark appearance",
+    "sizeSelector": "Widget size",
+    "directionSelector": "Design direction",
+    "sampleNote": "",
+    "timeRemaining": "Time remaining",
+    "attentionFirst": "Needs attention",
+    "hoursMinutes": "HOURS : MINUTES",
+    "comingUp": "Coming up",
+    "nextFour": "Next 4 deadlines",
+    "yourDeadlines": "Your deadlines",
+    "todaySuffix": " today",
+    "weekSuffix": " this week",
+    "laterSuffix": " later",
+    "todayOverdue": "Today & overdue",
+    "upNext": "UP NEXT",
+    "progressNote": "Bars show task completion, not time elapsed.",
+    "majorMilestone": "THE MAJOR MILESTONE",
+    "launchPreparation": "Launch preparation",
+    "beforeMilestone": "Before the milestone",
+    "sevenDeadlines": "7 deadlines",
+    "totalSuffix": " deadlines",
+    "nextPrefix": "Next: ",
+    "clockPrefix": "",
+    "clockNote": "",
+    "pauseClock": "",
+    "resumeClock": "",
+    "resetClock": "",
+    "dueNow": "Due now",
+    "overdue": "Overdue"
+  },
+  "sizeOptions": [
+    {
+      "label": "Small",
+      "value": "small"
+    },
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "directions": {
+    "small": [
+      {
+        "label": "Minimal",
+        "value": "first"
+      },
+      {
+        "label": "Priority",
+        "value": "second"
+      }
+    ],
+    "medium": [
+      {
+        "label": "Timeline",
+        "value": "first"
+      },
+      {
+        "label": "Priority",
+        "value": "second"
+      }
+    ],
+    "large": [
+      {
+        "label": "Grouped",
+        "value": "first"
+      },
+      {
+        "label": "Editorial",
+        "value": "second"
+      }
+    ]
+  },
+  "groupDefinitions": [
+    {
+      "id": "today",
+      "label": "Today"
+    },
+    {
+      "id": "week",
+      "label": "This week"
+    },
+    {
+      "id": "later",
+      "label": "Later"
+    }
+  ]
+}

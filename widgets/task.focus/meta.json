@@ -1,0 +1,20 @@
+{
+  "widgetId": "task.focus",
+  "sizes": ["s", "m", "l"],
+  "designSpec": "Five focus directions (Minimal, Circular, Digital, Session-based, Editorial) across Small (170x170), Medium (356x170), and Large (356x356). Real persistent focus sessions from backend/dashboard/focus.py backed by SQLite dashboard_focus table with active timer detection, live countdown, start/stop/configure actions, daily focus minute totals, and multi-session cycle tracking.",
+  "theme": "light",
+  "stages": [
+    "Planning the widget",
+    "Planning complete. No web or image search needed",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Widget ready"
+  ],
+  "generatedAt": "2026-11-01T15:00:00.000Z",
+  "promptFile": "docs/widget-playground/Widgets/todo/focus timer ",
+  "brokenRules": []
+}

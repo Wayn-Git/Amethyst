@@ -1,0 +1,38 @@
+{
+  "widgetId": "task.conflicts",
+  "prompt": "Design a premium Apple-inspired **Calendar Conflicts widget** for a desktop dashboard. Generate multiple distinct Small, Medium and Large variations.\n\nExplore these design directions:\n- Minimal: conflict count with the next overlapping events.\n- Timeline: show overlapping events on a shared time axis.\n- Comparison: display conflicting event details side by side.\n- Daily view: focus on clashes happening today.\n- Editorial: highlight the most disruptive conflict with a suggested resolution.\n\n**Small**\n\nShow the number of conflicts and the next conflicting event pair with its time.\n\n**Medium**\n\nShow 2–3 conflicts with event titles, times, overlap duration and calendar source. Make the most urgent clash recognizable.\n\n**Large**\n\nShow 4–6 conflicts with a visual timeline, event details, participants and overlap duration. Include a compact summary of total conflicts.\n\n**Visual direction**\n\nUse Apple-level typography, subtle warning colours, precise time labels and clean dividers. Explore horizontal timelines and split comparisons. Support light and dark appearances. Use restrained motion to reveal overlaps or changes when helpful.\n\nMake every variation compositionally different. Use believable calendar data. Avoid generic cards, excessive pills, gradients and unnecessary charts.",
+  "generatedAt": "2026-11-01T18:07:12+00:00",
+  "generationStatus": "generated",
+  "imageStatus": "available",
+  "theme": "light",
+  "designSpec": "Six independently selectable studies provide two compositionally distinct variations per size: minimal and date-led Small, split-comparison and editorial Medium, and shared-timeline and agenda Large. Quiet surfaces, precise typography and restrained amber highlights adapt to light and dark appearances; timeline segments use the same proportional time scale, and proposed resolutions never imply calendar changes.",
+  "stages": [
+    "Reading reference image",
+    "Planning the widget",
+    "Planning complete. Gathering supporting context",
+    "Searching for real image URLs",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Checking the preview",
+    "Reviewing the widget data",
+    "Polishing the details",
+    "Keeping the widget compact",
+    "Preparing the final widget",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Widget ready"
+  ],
+  "contentHashes": {
+    "template.jsx": "d00ef221a2f2cfce51ce964e0d57c0a110d467388959cbcb414fcecab9e13b33",
+    "data.json": "d73885cc1235ce5d314bc043e074ae2708434239f6088ce32deea226182abbce",
+    "reference.jpg": "ec2bb79200fd9b43a2f7bcbef3f2525f4aba2b6da7bea5d9d46a8c198f69c422"
+  },
+  "imageFile": "reference.jpg"
+}

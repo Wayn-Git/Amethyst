@@ -109,6 +109,27 @@ def test_backlog_idle_sort_and_today_exclusion(client):
     assert items[0]["idle_days"] == 5
 
 
+def test_backlog_importance_is_approval_gated(client):
+    task_id = TaskRepository().create("Backlog task")
+    url = "/api/widgets/task.backlog/actions/edit"
+    before = client.post(url, json={"id": task_id, "title": "Backlog task", "important": True})
+    assert before.status_code == 200
+    draft_id = before.json()["draft_id"]
+    assert provide("task.backlog")["items"][0]["important"] is False
+    assert client.post(
+        f"/api/widgets/task.backlog/drafts/{draft_id}", json={"approved": False}
+    ).json()["state"] == "denied"
+    assert provide("task.backlog")["items"][0]["important"] is False
+
+    draft_id = client.post(url, json={
+        "id": task_id, "title": "Backlog task", "important": True,
+    }).json()["draft_id"]
+    assert client.post(
+        f"/api/widgets/task.backlog/drafts/{draft_id}", json={"approved": True}
+    ).json()["state"] == "applied"
+    assert provide("task.backlog")["items"][0]["important"] is True
+
+
 @pytest.mark.parametrize("widget", ["task.deadlines", "task.reminders"])
 def test_dated_item_crud_and_countdown_order(client, widget):
     assert (

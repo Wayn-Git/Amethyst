@@ -1,32 +1,69 @@
-import { Button, Input, Select } from '../../components/ui/bento/index.jsx'
-import { useState } from 'react'
-import { WidgetRow } from '../primitives.jsx'
+import { useEffect, useMemo, useState } from 'react'
+import { WidgetRenderer } from '@tugan/widgets'
+import template from '../../../../widgets/task.kanban/template.txt?raw'
+import design from '../../../../widgets/task.kanban/design.json'
 import LocalReview from './LocalReview.jsx'
+import './task-generated.css'
+import { Input } from '../../components/ui/input.tsx'
+import Button from '../../components/ui/AppButton.jsx'
 
-function Columns({ board, propose }) {
-  const [columns, setColumns] = useState(board.columns)
-  function change(index, key, value) { setColumns(columns.map((col, i) => i === index ? { ...col, [key]: value } : col)) }
-  function move(index, delta) { const next = [...columns]; [next[index], next[index + delta]] = [next[index + delta], next[index]]; setColumns(next) }
-  return <form onSubmit={e => { e.preventDefault(); propose('configure', { project_id: board.id, columns }) }}>
-    {columns.map((col, i) => <div key={col.id}>
-      <label>Column {i + 1} name<Input required maxLength="100" value={col.title} onChange={e => change(i, 'title', e.target.value)} /></label>
-      <label>Column {i + 1} task status<Select aria-label={`Column ${i + 1} task status`} value={col.status} onChange={e => change(i, 'status', e.target.value)}><option value="todo">To do</option><option value="in_progress">Doing</option><option value="done">Done</option></Select></label>
-      <Button type="button" disabled={i === 0} aria-label={`Move ${col.title} earlier`} onClick={() => move(i, -1)}>Earlier</Button>
-      <Button type="button" disabled={i === columns.length - 1} aria-label={`Move ${col.title} later`} onClick={() => move(i, 1)}>Later</Button>
-      <Button type="button" aria-label={`Remove ${col.title} column`} onClick={() => setColumns(columns.filter((_, index) => index !== i))}>Remove column</Button>
-    </div>)}
-    <Button type="button" disabled={columns.length >= 12} onClick={() => setColumns([...columns, { id: crypto.randomUUID(), title: 'New column', status: 'todo' }])}>Add column</Button><Button type="submit">Save columns</Button>
-  </form>
-}
-
-export default function Kanban({ data, widgetId, refresh }) {
-  return <LocalReview widgetId={widgetId} refresh={refresh}>{propose => <>
-    <form onSubmit={e => { e.preventDefault(); propose('project', { title: new FormData(e.currentTarget).get('title') }) }}><label>Project name<Input name="title" required maxLength="500" /></label><Button type="submit">Create project</Button></form>
-    {(data?.items || []).map(board => <section key={board.id} aria-label={`Project ${board.title}`}>
-      <h3>{board.title}</h3>
-      <details><summary>Edit columns</summary><Columns key={JSON.stringify(board.columns)} board={board} propose={propose} /></details>
-      <form onSubmit={e => { e.preventDefault(); const form = new FormData(e.currentTarget); propose('move', { project_id: board.id, id: Number(form.get('task')), column_id: form.get('column') }) }}><label>Existing task<Select aria-label="Existing task" name="task" required defaultValue=""><option value="" disabled>Select task</option>{(data?.tasks || []).filter(task => task.list_id !== board.id).map(task => <option key={task.id} value={task.id}>{task.title}</option>)}</Select></label><label>Destination column<Select aria-label="Destination column" name="column">{board.columns.map(col => <option key={col.id} value={col.id}>{col.title}</option>)}</Select></label><Button type="submit">Add existing task</Button></form>
-      {board.columns.map(col => <section key={col.id} aria-label={`${board.title}: ${col.title}`}><h4>{col.title}</h4><ul>{board.cards.filter(card => card.column_id === col.id).map(card => <WidgetRow key={card.id}><strong>{card.title}</strong>{card.editable ? <label>Move {card.title}<Select aria-label={`Move ${card.title}`} value={col.id} onChange={e => propose('move', { project_id: board.id, id: card.id, column_id: e.target.value })}>{board.columns.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</Select></label> : <p>Edit in connected source.</p>}</WidgetRow>)}</ul></section>)}
-    </section>)}
-  </>}</LocalReview>
+export default function Kanban({ data, size = 'm', full = false, refresh, widgetId }) {
+  const [theme, setTheme] = useState(() => document.documentElement.getAttribute('data-theme-mode') === 'dark' ? 'dark' : 'light')
+  useEffect(() => {
+    const observer = new MutationObserver(() => setTheme(document.documentElement.getAttribute('data-theme-mode') === 'dark' ? 'dark' : 'light'))
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme-mode'] })
+    return () => observer.disconnect()
+  }, [])
+  const value = useMemo(() => {
+    const projects = (data?.items || []).map(board => {
+      const stages = board.columns.map((column, index) => ({
+        id: column.id, label: column.title, short: column.title,
+        icon: column.status === 'done' ? 'check' : 'empty-circle',
+        color: column.status === 'done' ? 'success' : 'secondary',
+        next: board.columns[index + 1]?.id || column.id,
+        actionLabel: index === board.columns.length - 1 ? 'No next stage' : `Move to ${board.columns[index + 1].title}`,
+      }))
+      return {
+        id: String(board.id), name: board.title,
+        tasks: board.cards.map((card, index) => ({
+          id: String(card.id), title: card.title, stage: card.column_id,
+          initialStage: card.column_id, owner: 'Not available', due: 'Not available',
+          priority: 'Not available', rank: index, tone: 'secondary', editable: Boolean(card.editable),
+        })),
+        stages,
+      }
+    })
+    const selected = projects[0]
+    return {
+      ...design, darkMode: theme === 'dark',
+      sizeChoice: full || size === 'l' ? 'large' : size === 's' ? 'small' : 'medium',
+      projectChoice: selected?.id || '', moves: 0,
+      projects, stages: selected?.stages || [],
+      ui: { ...design.ui, subtitle: '', snapshot: '', localNote: '', projectLabel: 'Project', allDoneNote: 'All tasks in this project are complete.', nextMove: 'Next task', progressEyebrow: 'Project progress' },
+      sizeOptions: design.sizeOptions || [],
+    }
+  }, [data, size, full, theme])
+  if (!data || data.state === 'loading') return <div className="task-generated-content">Loading projects…</div>
+  if (data.state === 'error' || data.error) return <div className="task-generated-content" role="alert">{data.error || 'Projects could not be loaded.'}</div>
+  return <LocalReview widgetId={widgetId} refresh={refresh}>{propose => <div className="task-generated-content">
+    <details className="task-widget-compose"><summary>New project</summary><form onSubmit={event => {
+      event.preventDefault()
+      const form = new FormData(event.currentTarget)
+      propose('project', { title: form.get('title') })
+    }}><label>Project name<Input name="title" required maxLength={500} /></label><Button type="submit">Review project</Button></form></details>
+    {!value.projects.length ? <p>No local projects yet. Create one to organise tasks.</p> : <>
+    <WidgetRenderer template={template} data={value} theme={theme} onAction={action => {
+    if (action?.type !== 'task.kanban.move') return
+    const { project_id, id, column_id } = action.payload || {}
+    const card = data?.items?.find(board => String(board.id) === String(project_id))?.cards?.find(item => String(item.id) === String(id))
+    if (card?.editable && column_id) propose('move', { project_id: Number(project_id), id: Number(id), column_id })
+    }} />
+    {(data.items || []).map(board => <details key={`columns-${board.id}`} className="task-widget-settings"><summary>Configure {board.title}</summary><form onSubmit={event => {
+      event.preventDefault()
+      const form = new FormData(event.currentTarget)
+      const columns = board.columns.map(column => ({ ...column, title: form.get(`column-${column.id}`) }))
+      propose('configure', { project_id: Number(board.id), columns })
+    }}>{board.columns.map(column => <label key={column.id}>{column.status.replace('_', ' ')}<Input name={`column-${column.id}`} defaultValue={column.title} required maxLength={100} /></label>)}<Button type="submit">Review columns</Button></form></details>)}
+    </>}
+  </div>}</LocalReview>
 }

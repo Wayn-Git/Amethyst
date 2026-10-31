@@ -94,9 +94,35 @@ async def next_event():
     else:
         payload = cached["payload"]
     now = datetime.now(ZoneInfo(payload["timezone"]))
-    upcoming = [item for item in payload["items"] if datetime.fromisoformat(item["start"]) >= now]
+    all_items = payload.get("items", [])
+    upcoming = []
+    all_day = []
+    for item in all_items:
+        try:
+            start_str = item.get("start")
+            end_str = item.get("end") or start_str
+            if not start_str:
+                continue
+            start_dt = datetime.fromisoformat(start_str)
+            end_dt = datetime.fromisoformat(end_str)
+            if start_dt.tzinfo is None:
+                start_dt = start_dt.replace(tzinfo=ZoneInfo(payload["timezone"]))
+            if end_dt.tzinfo is None:
+                end_dt = end_dt.replace(tzinfo=ZoneInfo(payload["timezone"]))
+            if item.get("all_day"):
+                if start_dt.date() <= now.date() <= end_dt.date():
+                    all_day.append(item)
+            elif end_dt >= now:
+                upcoming.append(item)
+        except Exception:
+            continue
+    first_item = [item for item in upcoming if not item.get("all_day")][:1] or upcoming[:1]
     return {
-        "items": upcoming[:1],
+        "items": first_item,
+        "events": upcoming,
+        "all_day_events": all_day,
         "timezone": payload["timezone"],
+        "week_start": payload.get("week_start"),
+        "today": payload.get("today"),
         "limited": payload.get("limited", False),
     }

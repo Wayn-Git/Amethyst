@@ -1,0 +1,99 @@
+{
+  "previewSize": "medium",
+  "layout": "minimal",
+  "darkMode": false,
+  "labels": {
+    "title": "Goals",
+    "collectionNote": "",
+    "sizeLabel": "Widget size",
+    "layoutLabel": "Layout",
+    "light": "Light",
+    "dark": "Dark",
+    "switchLight": "Switch to light appearance",
+    "switchDark": "Switch to dark appearance",
+    "sampleNote": "",
+    "overall": "Overall progress",
+    "averageNote": "Equal-weight average",
+    "activeGoal": "Active goal",
+    "targetPrefix": "Target ",
+    "nextPrefix": "Next · ",
+    "milestonePrefix": "Next milestone · ",
+    "focusNote": ""
+  },
+  "sizes": [
+    {
+      "label": "Small",
+      "value": "small"
+    },
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "layouts": [
+    {
+      "label": "Minimal",
+      "value": "minimal"
+    },
+    {
+      "label": "Progress-focused",
+      "value": "progress"
+    },
+    {
+      "label": "Timeline",
+      "value": "timeline"
+    },
+    {
+      "label": "Grouped",
+      "value": "grouped"
+    },
+    {
+      "label": "Editorial",
+      "value": "editorial"
+    }
+  ],
+  "layoutTitles": {
+    "minimal": "Active goals",
+    "progress": "Making progress",
+    "timeline": "Next milestones",
+    "grouped": "Goals by area",
+    "editorial": "One goal in focus"
+  },
+  "colors": {
+    "light": {
+      "accent": "#3478D4",
+      "track": "#E8EBF0"
+    },
+    "dark": {
+      "accent": "#82AAFF",
+      "track": "#383B42"
+    }
+  },
+  "ringTrack": "M50 8 A42 42 0 1 1 50 92 A42 42 0 1 1 50 8",
+  "categories": [
+    {
+      "id": "health",
+      "label": "Health",
+      "icon": "heart-pulse"
+    },
+    {
+      "id": "learning",
+      "label": "Learning",
+      "icon": "book-open"
+    },
+    {
+      "id": "creative",
+      "label": "Creative",
+      "icon": "palette"
+    },
+    {
+      "id": "money",
+      "label": "Money",
+      "icon": "wallet"
+    }
+  ]
+}

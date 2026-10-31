@@ -1,0 +1,64 @@
+<Scope values={{ entries: habits.map((habit, index) => ({ id: habit.id, title: habit.title, shortName: habit.shortName, period: habit.period, done: habit.done, week: habit.week, current: habit.streakBefore + Number(habit.done), currentLabel: habit.currentLabel, best: max(habit.bestBefore, habit.streakBefore + Number(habit.done)), completed: sum(habit.week), index: index })) }}>
+  <Scope values={{ leader: sortBy(entries, 'current', 'desc')[0], featured: entries[0], todayCount: size(entries.filter(habit => habit.done)), calendarHabits: entries.slice(0, 5), weeklyCount: sum(entries, 'completed'), weeklyTotal: size(entries) * size(days) }}>
+    <Basic theme={appearance} align="center" gap={3}>
+      <Box width="100%" maxWidth={400} gap={3}>
+        <Show when={sizeChoice === 'medium'}>
+          <Grid columns="repeat(2, minmax(0, 1fr))" gap={3}>
+            <Card size="full" theme={appearance} padding={4} gap={2}>
+              <Caption value={labels.today} />
+              <Row align="baseline" gap={2}>
+                <Transition><Title key={String(todayCount)} value={String(todayCount)} size="3xl" tabularNums /></Transition>
+                <Text value={'/ ' + String(size(entries))} size="xl" color="secondary" tabularNums />
+              </Row>
+              <Text value={labels.habitsComplete} size="sm" color="secondary" />
+              <Row gap={2} wrap="wrap">
+                <Icon name="flame" color="success" size="sm" />
+                <Caption value={leader.shortName + ' · ' + leader.currentLabel + ' streak'} />
+              </Row>
+            </Card>
+            <Card size="full" theme={appearance} padding={4} gap={2}>
+              <Caption value={featured.done ? labels.doneToday : labels.needsAttention} />
+              <Title value={featured.title} size="md" />
+              <Text value={featured.currentLabel + ' current streak'} size="sm" color="secondary" />
+              <Spacer minSize={1} />
+              <Checkbox name="featuredHabit" $onChangeAction='{ type: "task.habits.checkin", payload: { id: featured.id } }' label={featured.done ? labels.completed : labels.markDone} shape="circle" />
+            </Card>
+          </Grid>
+        </Show>
+        <Show when={sizeChoice === 'large'}>
+          <Card size="full" theme={appearance} padding={4} gap={3}>
+            <Col gap={1}>
+              <Title value={labels.weekInView} size="sm" />
+              <Text value={labels.weekPeriod} size="sm" color="secondary" />
+              <Caption value={labels.historyScope + (size(entries) > size(calendarHabits) ? ' Showing ' + String(size(calendarHabits)) + ' of ' + String(size(entries)) + ' habits.' : '')} />
+              <Caption value={leader.title + ' · ' + leader.currentLabel + ' current · ' + String(leader.best) + (leader.period === 'weekly' ? 'w' : 'd') + ' best'} />
+            </Col>
+            <Grid columns={7} gap={1}>
+              <Each of={days} item="day"><Caption key={day.index} value={day.short} textAlign="center" size="sm" /></Each>
+            </Grid>
+            <Each of={calendarHabits} item="habit">
+              <Col key={habit.id} gap={1}>
+                <Row gap={2} align="baseline">
+                  <Col flex={1} minWidth={0}><Text value={habit.title} size="sm" weight="medium" /></Col>
+                  <Caption value={habit.currentLabel + ' current'} tabularNums />
+                </Row>
+                <Grid columns={7} gap={1}>
+                  <Each of={days} item="day">
+                    <Box key={day.index} height={20} radius="xs" background={habit.week[day.index] === 1 ? completeSurface : 'surface-secondary'} align="center" justify="center">
+                      <Show when={habit.week[day.index] === 1}><Svg size={12} title={day.label + ': Check-in saved'} paths={marks[appearance].done} /></Show>
+                    </Box>
+                  </Each>
+                </Grid>
+              </Col>
+            </Each>
+            <Divider />
+            <Row gap={3} align="baseline" wrap="wrap">
+              <Text value={String(weeklyCount)} weight="semibold" size="lg" tabularNums />
+              <Text value={'check-ins saved in the last 7 days · ' + String(weeklyTotal / 7) + ' habits'} size="sm" />
+            </Row>
+          </Card>
+        </Show>
+      </Box>
+    </Basic>
+  </Scope>
+</Scope>

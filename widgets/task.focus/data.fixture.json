@@ -1,0 +1,211 @@
+{
+  "title": "Focus, five ways",
+  "subtitle": "5 directions \u00b7 3 purpose-built sizes",
+  "direction": "minimal",
+  "widgetSize": "medium",
+  "darkAppearance": false,
+  "running": false,
+  "deadline": 0,
+  "seconds": 1122,
+  "focusSeconds": 1500,
+  "breakSeconds": 300,
+  "longBreakSeconds": 900,
+  "phase": "focus",
+  "sessionNumber": 2,
+  "completed": 1,
+  "dailyFocusBefore": 1500,
+  "labels": {
+    "dark": "Dark",
+    "direction": "Design direction",
+    "size": "Widget size",
+    "focus": "Focus",
+    "break": "Break",
+    "session": "Session",
+    "of": "of",
+    "start": "Start",
+    "resume": "Resume",
+    "pause": "Pause timer",
+    "reset": "Reset current session",
+    "complete": "Session complete",
+    "inProgress": "Running",
+    "paused": "Paused",
+    "remaining": "remaining",
+    "completed": "Completed today",
+    "dailyFocus": "Daily focus",
+    "minuteUnit": " min",
+    "plannedSuffix": " min planned",
+    "elapsedSuffix": " elapsed",
+    "elapsed": "Elapsed",
+    "duration": "Duration",
+    "completedSuffix": " completed",
+    "dailySuffix": " min focused today",
+    "sessionOverview": "Your focus sequence",
+    "cycleSchedule": "25 min focus \u00b7 short breaks \u00b7 long break after 4",
+    "done": "Done",
+    "upcoming": "Upcoming",
+    "oneThing": "One thing.",
+    "editorialHeading": "The quiet part\nof the day.",
+    "editorialShortHeading": "One thing\nat a time.",
+    "separator": "\u00b7",
+    "cycleTimeline": "Focus / break cycles",
+    "timelineLegend": "Minutes: focus / break \u00b7 current cycle in bold",
+    "upNext": "Up next",
+    "beginBreak": "Continue to break",
+    "beginFocus": "Continue to focus",
+    "ringDescription": "Elapsed session progress: ",
+    "localNote": "Sample session starts paused. Controls run a local timer; switching designs preserves it."
+  },
+  "sizes": [
+    {
+      "label": "Small",
+      "value": "small"
+    },
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "directions": [
+    {
+      "id": "minimal",
+      "label": "01 \u00b7 Minimal",
+      "description": "A quiet center of gravity: balanced numerals, a fine progress line and only the essentials."
+    },
+    {
+      "id": "circular",
+      "label": "02 \u00b7 Circular",
+      "description": "Time held inside a warm, precise ring. The large layout pairs the dial with a compact daily overview."
+    },
+    {
+      "id": "digital",
+      "label": "03 \u00b7 Digital",
+      "description": "A left-aligned numerical instrument with a segmented elapsed-time rail and structured cycle columns."
+    },
+    {
+      "id": "sessions",
+      "label": "04 \u00b7 Session-based",
+      "description": "The sequence leads: completed markers become an expanded session agenda, with the active timer embedded in place."
+    },
+    {
+      "id": "editorial",
+      "label": "05 \u00b7 Editorial",
+      "description": "Light typography, asymmetric composition and hairline progress make room for an unhurried rhythm."
+    }
+  ],
+  "palettes": {
+    "minimal": {
+      "light": "#53665b",
+      "dark": "#a8b8ae"
+    },
+    "circular": {
+      "light": "#b86b2e",
+      "dark": "#e6a469"
+    },
+    "digital": {
+      "light": "#52739d",
+      "dark": "#92b3df"
+    },
+    "sessions": {
+      "light": "#54745f",
+      "dark": "#a3c4ad"
+    },
+    "editorial": {
+      "light": "#77716b",
+      "dark": "#beb6ad"
+    }
+  },
+  "cycles": [
+    {
+      "number": 1,
+      "focusLabel": "25m focus",
+      "breakLabel": "5m break",
+      "shortSchedule": "25 / 5"
+    },
+    {
+      "number": 2,
+      "focusLabel": "25m focus",
+      "breakLabel": "5m break",
+      "shortSchedule": "25 / 5"
+    },
+    {
+      "number": 3,
+      "focusLabel": "25m focus",
+      "breakLabel": "5m break",
+      "shortSchedule": "25 / 5"
+    },
+    {
+      "number": 4,
+      "focusLabel": "25m focus",
+      "breakLabel": "15m break",
+      "shortSchedule": "25 / 15"
+    }
+  ],
+  "ringCircle": "M104 16 A88 88 0 1 1 104 192 A88 88 0 1 1 104 16",
+  "ringPoints": [
+    "104 16",
+    "113.20 16.48",
+    "122.30 17.92",
+    "131.19 20.31",
+    "139.79 23.61",
+    "148 27.79",
+    "155.73 32.81",
+    "162.88 38.60",
+    "169.40 45.12",
+    "175.19 52.27",
+    "180.21 60",
+    "184.39 68.21",
+    "187.69 76.81",
+    "190.08 85.70",
+    "191.52 94.80",
+    "192 104",
+    "191.52 113.20",
+    "190.08 122.30",
+    "187.69 131.19",
+    "184.39 139.79",
+    "180.21 148",
+    "175.19 155.73",
+    "169.40 162.88",
+    "162.88 169.40",
+    "155.73 175.19",
+    "148 180.21",
+    "139.79 184.39",
+    "131.19 187.69",
+    "122.30 190.08",
+    "113.20 191.52",
+    "104 192",
+    "94.80 191.52",
+    "85.70 190.08",
+    "76.81 187.69",
+    "68.21 184.39",
+    "60 180.21",
+    "52.27 175.19",
+    "45.12 169.40",
+    "38.60 162.88",
+    "32.81 155.73",
+    "27.79 148",
+    "23.61 139.79",
+    "20.31 131.19",
+    "17.92 122.30",
+    "16.48 113.20",
+    "16 104",
+    "16.48 94.80",
+    "17.92 85.70",
+    "20.31 76.81",
+    "23.61 68.21",
+    "27.79 60",
+    "32.81 52.27",
+    "38.60 45.12",
+    "45.12 38.60",
+    "52.27 32.81",
+    "60 27.79",
+    "68.21 23.61",
+    "76.81 20.31",
+    "85.70 17.92",
+    "94.80 16.48",
+    "104 16"
+  ]
+}
