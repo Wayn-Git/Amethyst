@@ -122,7 +122,7 @@ export default function Home({ layoutMode = "default" }) {
         const { id } = start
         if (start.kind === 'resize') {
           const item = start.original.widgets.find(w => w.id === id), manifest = manifests.find(m => m.id === id)
-          const patch = resizeWidget(item, manifest?.sizes || ['m'], event.clientX - start.x, event.clientY - start.y, grid.current.clientWidth, parseFloat(getComputedStyle(grid.current.querySelector('.bento-grid')).gridAutoRows) || 152)
+          const patch = resizeWidget(item, manifest?.sizes || ['m'], event.clientX - start.x, event.clientY - start.y, grid.current.clientWidth, parseFloat(getComputedStyle(grid.current.querySelector('.bento-grid')).gridAutoRows) || 170)
           if (layoutRef.current.widgets.find(w => w.id === id)?.size === patch.size) return
           const next = { widgets: start.original.widgets.map(w => w.id === id ? patch : w) }; layoutRef.current = next; setLayout(next); return
         }
@@ -138,7 +138,7 @@ export default function Home({ layoutMode = "default" }) {
           if (start.target) persist({ ...start.original, widgets: moveWidget(start.original.widgets, id, start.target) })
         } else {
           const item = start.original.widgets.find(w => w.id === id), manifest = manifests.find(m => m.id === id)
-          const row = parseFloat(getComputedStyle(grid.current.querySelector('.bento-grid')).gridAutoRows) || 152
+          const row = parseFloat(getComputedStyle(grid.current.querySelector('.bento-grid')).gridAutoRows) || 170
           resize(id, resizeWidget(item, manifest?.sizes || ['m'], event.clientX - start.x, event.clientY - start.y, grid.current.clientWidth, row))
         }
         gesture.current = null

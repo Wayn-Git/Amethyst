@@ -8,7 +8,7 @@ export function moveWidget(widgets, id, targetId) {
   next.splice(to, 0, item)
   return next
 }
-export function resizeWidget(item, sizes, dx, dy, width, rowHeight = 152) {
+export function resizeWidget(item, sizes, dx, dy, width, rowHeight = 170) {
   const index = sizes.indexOf(item.size)
   const steps = Math.round((Math.abs(dx) >= Math.abs(dy) ? dx / Math.max(width / 4, 1) : dy / rowHeight))
   return { ...item, size: sizes[Math.max(0, Math.min(sizes.length - 1, index + steps))] || item.size }

@@ -8,17 +8,13 @@
    ========================================================================== */
 
 .widget-home {
-  --home-action: #16171a;
-  --home-ink: #16171a;
-  --home-muted: #5f6168;
-  --home-card: #ffffff;
-  --home-canvas: #e9e9ea;
-  --home-radius: 18px;
-  --widget-solar: linear-gradient(145deg, #ffbe98 0%, #ff7a59 42%, #df3d2d 100%);
-  --widget-sky: linear-gradient(145deg, #dff3ff 0%, #9fd9ff 55%, #58b5f4 100%);
-  --widget-emerald: radial-gradient(115% 125% at 50% 0%, #d9f77a 0%, #89dc63 42%, #2f9b5c 100%);
-  --widget-vinyl: linear-gradient(145deg, #ffd8e8 0%, #ff8fbd 55%, #e64c8c 100%);
-  --home-heading-font: 'Space Grotesk', var(--font-display, -apple-system, BlinkMacSystemFont, sans-serif);
+  --home-action: var(--w-accent, var(--accent));
+  --home-ink: var(--w-text, var(--text));
+  --home-muted: var(--w-text-2, var(--text-dim));
+  --home-card: var(--w-card, var(--raised, var(--canvas)));
+  --home-canvas: var(--w-stage, var(--canvas-deep));
+  --home-radius: var(--w-radius, 24px);
+  --home-heading-font: 'Inter', var(--font-display, -apple-system, BlinkMacSystemFont, sans-serif);
   --home-body-font: 'Inter', var(--font-body, -apple-system, BlinkMacSystemFont, sans-serif);
   --home-mono-font: 'JetBrains Mono', var(--font-mono, monospace);
   padding: 18px 26px 36px;
@@ -26,48 +22,24 @@
   margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
-  color: var(--text);
-  background: #e9e9ea;
+  color: var(--w-text, var(--text));
+  background: var(--w-stage, var(--tile-canvas, var(--canvas-deep)));
   font-family: var(--home-body-font);
   overflow-y: auto;
   height: 100%;
 }
 
-/* Light Mode Enforced Canvas (Exact match to Image 4) */
-:root:not([data-theme-mode='dark']):not(.dark) .widget-home,
-:root[data-theme='paper'] .widget-home,
-:root[data-theme='sand'] .widget-home {
-  background: #e9e9ea !important;
-  --canvas: #ffffff !important;
-  --canvas-deep: #e9e9ea !important;
-  --surface: #f4f4f5 !important;
-  --surface-2: #ececee !important;
-  --surface-3: #e0e0e2 !important;
-  --hairline: rgba(18, 18, 20, 0.08) !important;
-  --hairline-strong: rgba(18, 18, 20, 0.16) !important;
-  --text: #16171a !important;
-  --text-dim: #55575d !important;
-  --text-faint: #8a8c92 !important;
-}
-
-/* Dark Mode Overrides */
-:root[data-theme-mode='dark'] .widget-home,
-.dark .widget-home,
-:root[data-theme='graphite'] .widget-home,
-:root[data-theme='ink'] .widget-home,
-:root[data-theme='nocturne'] .widget-home,
-:root[data-theme='nvidia'] .widget-home {
-  background: #090a0d !important;
-  --canvas: #121316 !important;
-  --canvas-deep: #090a0d !important;
-  --surface: #18191e !important;
-  --surface-2: #222329 !important;
-  --surface-3: #2c2d35 !important;
-  --hairline: rgba(255, 255, 255, 0.08) !important;
-  --hairline-strong: rgba(255, 255, 255, 0.16) !important;
-  --text: #f9fafb !important;
-  --text-dim: #9ca3af !important;
-  --text-faint: #6b7280 !important;
+.widget-home {
+  --canvas: var(--w-card, var(--raised, var(--canvas)));
+  --canvas-deep: var(--w-stage, var(--canvas-deep));
+  --surface: var(--w-inset, var(--surface));
+  --surface-2: var(--w-card-hover, var(--surface-2));
+  --surface-3: var(--w-inset, var(--surface-3));
+  --hairline: var(--w-border, var(--hairline));
+  --hairline-strong: var(--hairline-strong);
+  --text: var(--w-text, var(--text));
+  --text-dim: var(--w-text-2, var(--text-dim));
+  --text-faint: var(--text-faint);
 }
 
 .widget-home h1 {

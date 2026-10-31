@@ -27,8 +27,7 @@ export function worldLimit(face, size) {
   return size === 'l' ? 4 : 2
 }
 
-export function showSeconds(face, size, reducedMotion) {
-  if (reducedMotion) return false
+export function showSeconds(face, size) {
   if (face.number === 2) return size !== 's'
   return face.number >= 4 && face.number <= 6
 }

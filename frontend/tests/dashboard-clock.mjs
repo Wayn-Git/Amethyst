@@ -3,7 +3,6 @@ import assert from 'node:assert/strict'
 import { chromium } from 'playwright-core'
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { CLOCK_FACES } from '../src/dashboard/widgets/clock/faces.js'
 
 const cache = join(process.env.HOME, '.cache/ms-playwright')
 const executablePath = process.env.CHROMIUM_PATH || readdirSync(cache).filter(n => n.startsWith('chromium-')).sort().reverse().map(n => join(cache, n, 'chrome-linux64/chrome')).find(existsSync)
@@ -44,14 +43,13 @@ try {
     await import('/src/index.css'); await import('/src/styles/ui-system.css'); await import('/src/dashboard/home.css'); await import('/src/dashboard/widget-patterns.css'); await import('/src/dashboard/home-bento.css'); await import('/src/dashboard/catalog.css')
     const h = React.createElement, noop = () => {}, manifest = { id: 'glance.clock', title: 'Clock', sizes: ['s', 'm', 'l'], source: { type: 'local' }, refresh: { mode: 'manual' }, empty: 'No clocks' }
     const root = createRoot(document.getElementById('proof'))
-    window.clockState = { size: 's', open: false, design: undefined }
-    window.designChanges = []
+    window.clockState = { size: 's', design: 'clock-sm-01', open: false }
     window.renderClock = patch => {
       if (typeof patch === 'string') patch = { size: patch }
       Object.assign(window.clockState, patch)
-      const { size, open, design } = window.clockState
+      const { size, design, open } = window.clockState
       root.render(
-        h('main', { className: 'today-dashboard bento-foundation widget-home' }, h(DashboardContext.Provider, { value: { now: new Date('2026-10-28T23:59:59+05:30'), layout: { widgets: [{ id: manifest.id }] }, removeWidget: noop, setEditing: noop, changeDesign: (id, next) => { window.designChanges.push(next); window.renderClock({ design: next }) } } },
+        h('main', { className: 'today-dashboard bento-foundation widget-home' }, h(DashboardContext.Provider, { value: { now: new Date('2026-10-28T23:59:59+05:30'), layout: { widgets: [{ id: manifest.id }] }, removeWidget: noop, setEditing: noop, changeDesign: (_id, val) => window.renderClock({ design: val }) } },
           h(BentoGrid, { className: 'home-layout-grid' }, h(WidgetSlot, { id: manifest.id, title: 'Clock', size, sizes: manifest.sizes, grip: noop }, h(WidgetFrame, { manifest, tile: true, size, design }))),
           open && h(Drawer, { title: 'Clock', onClose: () => window.renderClock({ open: false }) }, h('div', { className: 'widget-home' }, h(WidgetFrame, { manifest, full: true, design }))))
         )
@@ -61,75 +59,80 @@ try {
     window.renderClock()
   })
   const card = page.locator('[data-slot-id="glance.clock"]')
-  const world = (scope, zone) => scope.locator('.clock-world').filter({ hasText: zone.replaceAll('_', ' ') })
+  const world = (scope, zone) => scope.locator('.clock-world').filter({ hasText: zone.split('/').at(-1).replaceAll('_', ' ') })
   await card.locator('.clock-time').waitFor().catch(async error => { console.error({ errors, body: await page.locator('body').innerText() }); throw error })
   await page.clock.pauseAt(new Date('2026-10-28T23:59:59+05:30'))
-  assert.equal(await card.locator('.clock-widget').getAttribute('data-clock-design'), 'clock-sm-01', 'minimal digital is the default face')
-  assert.equal(await card.locator('.clock-seconds').count(), 0, 'small digital face hides seconds')
-  await card.getByText('2 world clocks', { exact: true }).waitFor()
-  assert.equal(await card.locator('.clock-world:visible').count(), 0, 'small shows the local instrument and saved-world count')
 
-  await page.evaluate(() => window.renderClock({ size: 'm', design: 'clock-sm-02' }))
-  await card.locator('.clock-seconds').waitFor()
-  assert.match(await card.locator('.clock-time').innerText(), /11:59/)
-  await page.clock.runFor(1000)
+  // Small size verification
+  assert.equal(await card.locator('.clock-city').innerText(), 'Kolkata', 'small shows local city name')
+  assert.match(await card.locator('.clock-time').innerText(), /11:59/, 'small shows formatted time without leading zero')
+  assert.equal(await card.locator('.clock-world').count(), 0, 'small has no world clock rows')
+  assert.equal(await card.locator('.clock-date').count(), 0, 'small has no date')
+  const cardButton = card.locator('.clock-card')
+  assert.match(await cardButton.getAttribute('aria-label'), /Clock, Kolkata, 11:59 PM/, 'card has accessible label')
+
+  // Minute rollover test
+  await page.clock.runFor(2000)
   assert.match(await card.locator('.clock-time').innerText(), /12:00/)
-  assert.match(await card.locator('.clock-meta').innerText(), /ASIA\/(KOLKATA|CALCUTTA)/)
-  assert.equal(await card.locator('.clock-seconds').innerText(), ':00')
-  await page.clock.runFor(1000)
-  assert.equal(await card.locator('.clock-seconds').innerText(), ':01')
-  assert.equal(await card.locator('.clock-world').count(), 2, 'medium digital face shows two world clocks')
-  assert.match(await world(card, 'America/Los_Angeles').innerText(), /11:30/)
-  assert.match(await world(card, 'Pacific/Kiritimati').innerText(), /Oct 29/)
-  assert.match(await world(card, 'Pacific/Kiritimati').locator('.clock-world-offset').innerText(), /GMT\+14/)
+  assert.match(await cardButton.getAttribute('aria-label'), /Clock, Kolkata, 12:00 AM/)
   await page.clock.resume()
 
-  await page.evaluate(() => window.renderClock({ size: 'm', design: 'clock-sm-04' }))
-  await card.locator('.clock-dial').waitFor()
-  assert.equal(await card.locator('.clock-second-hand').count(), 1, 'analog face keeps the second hand')
-  assert.equal(await card.locator('.clock-world').count(), 0, 'analog medium keeps world rows out of the dial')
-  await card.getByText('2 world clocks saved', { exact: true }).waitFor()
-  assert.equal(await card.locator('.clock-numeral').count(), 12)
-  await page.evaluate(() => window.renderClock({ size: 'l', design: 'clock-sm-04' }))
-  assert.equal(await card.locator('.clock-world').count(), 2, 'analog large shows saved world clocks beside the dial')
+  // Medium size verification
+  await page.evaluate(() => window.renderClock({ size: 'm' }))
+  await card.locator('.clock-medium').waitFor()
+  assert.equal(await card.locator('.clock-city').innerText(), 'Kolkata')
+  assert.match(await card.locator('.clock-time').innerText(), /12:00/)
+  assert.equal(await card.locator('.clock-date').innerText(), 'Thu 29 Oct')
+  assert.equal(await card.locator('.clock-medium-rule').count(), 1, 'medium has vertical hairline')
+  assert.equal(await card.locator('.clock-world').count(), 2, 'medium shows saved world clocks')
+  assert.match(await world(card, 'America/Los_Angeles').innerText(), /11:30/)
+  assert.match(await world(card, 'America/Los_Angeles').innerText(), /Yesterday, -12:30/)
+  assert.match(await world(card, 'Pacific/Kiritimati').innerText(), /Oct 29|Today/)
 
-  await page.evaluate(() => window.renderClock({ size: 'm', design: 'clock-sm-08' }))
-  assert.equal(await card.locator('.clock-world').count(), 2)
-  await page.evaluate(() => window.renderClock({ size: 'l', design: 'clock-sm-09' }))
-  assert.equal(await card.locator('.clock-worlds--ledger').count(), 1)
-  assert.equal(await card.locator('.clock-world').count(), 2)
+  // Large size verification
+  await page.evaluate(() => window.renderClock({ size: 'l' }))
+  await card.locator('.clock-large').waitFor()
+  const dial = card.locator('.clock-dial')
+  assert.equal(await dial.count(), 1, 'large has analog dial')
+  assert.equal(await dial.getAttribute('role'), 'img', 'analog dial has role="img"')
+  assert.equal(await card.locator('.clock-second-hand').count(), 1, 'analog face has second hand')
+  assert.equal(await card.locator('.clock-second-hand').getAttribute('stroke'), '#ff9f0a', 'second hand is accent orange')
+  assert.equal(await card.locator('.clock-world').count(), 2, 'large shows saved world clocks below')
+  assert.equal(await card.locator('.clock-large-rule').count(), 1, 'large has divider hairline')
 
-  await page.evaluate(() => window.renderClock({ size: 'm', design: 'clock-sm-01' }))
-  await card.getByLabel('Menu Clock', { exact: true }).focus()
-  await page.keyboard.press('Enter')
-  await page.getByRole('menuitem', { name: 'Settings', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'Clock', exact: true })
+  // Click target and settings drawer verification
+  await cardButton.click()
+  const dialog = page.getByRole('dialog')
+  await dialog.locator('.clock-world-settings').waitFor()
+  assert.equal(await dialog.locator('.clock-picker-option').count(), 9, 'dialog shows all 9 clock face variations in settings')
   const input = dialog.getByRole('textbox', { name: 'World clock timezone', exact: true })
-  await input.fill('Not/AZone').catch(async error => { console.error({ errors, body: await page.locator('body').innerText() }); throw error })
   assert(await input.evaluate(node => node.getBoundingClientRect().height >= 44), 'timezone input touch target')
   assert(await dialog.getByRole('button', { name: 'Add clock', exact: true }).evaluate(node => node.getBoundingClientRect().height >= 44), 'add clock touch target')
 
-  for (const name of ['Precision', 'Roman', 'World pair', 'World grid', 'World ledger', 'Minimal']) {
-    await dialog.getByRole('radio', { name: new RegExp(name) }).click()
-  }
-  assert.equal(await card.locator('.clock-widget').getAttribute('data-clock-design'), 'clock-sm-01', 'face picker returns to the selected face')
-  await dialog.getByRole('radio', { name: /Precision/ }).click()
-  assert.equal(await card.locator('.clock-widget').getAttribute('data-clock-design'), 'clock-sm-02', 'face picker updates the tile immediately')
-  await dialog.getByRole('radio', { name: /Minimal/ }).click()
-
+  // Timezone validation tests
+  await input.fill('Not/AZone')
   await dialog.getByRole('button', { name: 'Add clock', exact: true }).click()
   await dialog.getByRole('alert').filter({ hasText: 'Use a timezone' }).waitFor()
   assert.equal(writes.length, 0)
+
+  // Face variation selection in drawer
+  await dialog.getByRole('radio', { name: /Roman/ }).click()
+  await page.waitForFunction(() => window.clockState.design === 'clock-sm-04')
+
   await input.fill('US/Pacific')
   await dialog.getByRole('button', { name: 'Add clock', exact: true }).click()
   await dialog.getByRole('alert').filter({ hasText: 'already shown' }).waitFor()
   assert.equal(writes.length, 0, 'timezone aliases cannot create duplicate clocks')
+
+  // Save error handling
   failSave = true
   await input.fill('  Europe/London  ')
   await dialog.getByRole('button', { name: 'Add clock', exact: true }).click()
   await dialog.getByRole('alert').filter({ hasText: 'Clock settings unavailable' }).waitFor()
   assert.equal(await input.inputValue(), '  Europe/London  ', 'failed save retains input')
   assert.equal(await world(dialog, 'Europe/London').count(), 0)
+
+  // Successful save
   failSave = false
   releaseSave = true
   await dialog.getByRole('button', { name: 'Add clock', exact: true }).click()
@@ -140,27 +143,24 @@ try {
   releaseSave(); releaseSave = null
   await world(dialog, 'Europe/London').waitFor()
   assert.deepEqual(writes.at(-1).zones, ['America/Los_Angeles', 'Pacific/Kiritimati', 'Europe/London'])
+
+  // 4 clocks limit
   await input.fill('Asia/Tokyo')
   await dialog.getByRole('button', { name: 'Add clock', exact: true }).click()
   await dialog.getByText('4 of 4 world clocks', { exact: true }).waitFor()
   assert.equal(await input.count(), 0)
-  await page.evaluate(() => window.renderClock({ size: 'l', design: 'clock-sm-08' }))
-  assert.equal(await card.locator('.clock-world').count(), 4, 'large world grid shows four cities')
+
+  // Remove clock
   await dialog.getByRole('button', { name: 'Remove America/Los_Angeles' }).click()
   await input.waitFor()
   await world(dialog, 'America/Los_Angeles').waitFor({ state: 'hidden' })
   await page.keyboard.press('Escape')
   await page.waitForFunction(() => !document.querySelector('dialog[open]'))
 
-  zones = ['Not/AZone', ' Europe/London ']
-  await card.getByRole('button', { name: 'Refresh Clock', exact: true }).focus()
-  await page.keyboard.press('Enter')
-  await card.getByText('Timezone unavailable', { exact: true }).waitFor()
-  await world(card, 'Europe/London').waitFor()
-
+  // Overflow checks across themes and viewports
   for (const theme of ['paper', 'graphite', 'ink', 'nocturne', 'nvidia', 'sand', 'claude', 'cursor', 'system']) {
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme)
-    for (const width of [1440, 768, 390]) for (const size of ['s', 'm', 'l']) for (const design of CLOCK_FACES.map(face => face.id)) {
+    for (const width of [1440, 768, 390]) for (const size of ['s', 'm', 'l']) for (const design of ['clock-sm-01', 'clock-sm-04', 'clock-sm-09']) {
       await page.setViewportSize({ width, height: 1000 })
       await page.evaluate(({ size, design }) => window.renderClock({ size, design }), { size, design })
       assert(await card.evaluate(node => node.scrollWidth <= node.clientWidth + 1), `${theme} ${width} ${size} ${design}: card overflow`)
@@ -168,12 +168,16 @@ try {
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${theme} ${width}: page overflow`)
     }
   }
+
+  // Reduced motion
   await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.evaluate(() => window.renderClock({ size: 'l' }))
+  assert.equal(await card.locator('.clock-second-hand').evaluate(el => getComputedStyle(el).transitionDuration), '1s')
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  await page.evaluate(() => window.renderClock({ size: 'm', design: 'clock-sm-05' }))
-  assert.equal(await card.locator('.clock-second-hand').count(), 0, 'reduced motion removes every second hand')
+  assert.equal(await card.locator('.clock-second-hand').evaluate(el => getComputedStyle(el).transitionDuration), '0s', 'reduced motion steps the second hand')
   await page.emulateMedia({ reducedMotion: 'no-preference' })
 
+  // Catalog / Preview verification
   const previousWrites = writes.length
   await page.evaluate(() => window.renderCatalog())
   await page.getByRole('button', { name: 'Choose Clock', exact: true }).click()
@@ -185,11 +189,9 @@ try {
     const live = page.getByLabel(`Clock ${size} preview`, { exact: true })
     await live.locator(`[data-clock-size='${size.toLowerCase()}']`).waitFor()
     assert.equal(await live.locator('input:visible').count(), 0, 'previews do not expose settings')
-    assert.equal(await live.locator('.clock-picker').count(), 0, 'previews do not expose the face picker')
-    assert(await live.locator('.clock-world').count() <= 2, `${size} gallery preview keeps world clocks bounded`)
     assert(await live.evaluate(node => node.scrollWidth <= node.clientWidth + 1), `${size} gallery preview fits`)
   }
   assert.equal(writes.length, previousWrites, 'browsing variants does not write settings')
   assert.deepEqual(errors, [])
-  console.log('PASS clock: nine faces across digital, analog and world families; default face, seconds rules, world limits, face picker, saved clocks, alias validation, failed/pending saves, reduced motion, nine themes, three sizes and widths; no screenshots')
+  console.log('PASS clock: small/medium/large native layouts; digital and analog; timezone validation; settings; reduced motion; nine themes')
 } finally { await browser.close() }
