@@ -67,6 +67,16 @@ class Position(StrictModel):
     size: Literal["s", "m", "l", "wide", "tall"]
     height: int = Field(default=3, ge=2, le=8)
 
+    @field_validator("design", mode="before")
+    @classmethod
+    def normalize_design(cls, value):
+        if not value or not isinstance(value, str):
+            return None
+        if value.startswith("now-playing-"):
+            number = value.split("-")[-1]
+            return f"media-md-{number.zfill(2)}"
+        return value
+
     @field_validator("design")
     @classmethod
     def known_design(cls, value):

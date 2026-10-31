@@ -49,7 +49,7 @@ export function Artwork({ artwork, title, size = 's', onArtworkError }) {
 
 export default function NowPlayingCard({
   size = 's',
-  design = 'now-playing-01',
+  design = 'media-md-01',
   item,
   session,
   artwork,
@@ -69,8 +69,8 @@ export default function NowPlayingCard({
     setFavorite(prev => !prev)
   }
 
-  // Pill / Dynamic Island Variation (now-playing-02 from Image 2)
-  if (design === 'now-playing-02') {
+  // Pill / Dynamic Island Variation (media-md-02 from Image 2)
+  if (design === 'media-md-02' || design === 'now-playing-02') {
     return (
       <div className={`music-body music-body--island music-body--${size}`}>
         <div className="music-island-container">

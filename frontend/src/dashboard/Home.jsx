@@ -75,13 +75,28 @@ export default function Home({ layoutMode = "default" }) {
     request('/widgets/dash.quiet/settings').then(value => { if (mounted.current) { setQuietSettings(value || {}); remember('quiet', value || {}) } }).catch(() => {})
     const timer = setInterval(() => setNow(new Date()), 60000)
     return () => { mounted.current = false; clearInterval(timer) }
-  }, [])
+  }, [layoutMode])
+  function sanitizeLayout(next) {
+    if (!next || !Array.isArray(next.widgets)) return next
+    const widgets = next.widgets.map(w => {
+      if (!w || !w.design) return w
+      let d = w.design
+      if (typeof d === 'string' && d.startsWith('now-playing-')) {
+        const num = d.split('-').at(-1)
+        d = `media-md-${num.padStart(2, '0')}`
+      }
+      return { ...w, design: d }
+    })
+    return { ...next, widgets }
+  }
+
   function persist(next, undo = true, message = 'Layout updated') {
+    const clean = sanitizeLayout(next)
     const previous = gesture.current?.original || layoutRef.current
     if (undo) toast(message, { id: 'home-layout', toasterId: settingsId || selectedId || ['add', 'settings'].includes(drawer?.type) ? 'home-drawer' : undefined, action: { label: 'Undo', onClick: () => persist(previous, false) } })
-    dirty.current = true; layoutRef.current = next; setLayout(next); remember(`layout.${layoutMode}`, next); setSaveState('Saving layout…')
+    dirty.current = true; layoutRef.current = clean; setLayout(clean); remember(`layout.${layoutMode}`, clean); setSaveState('Saving layout…')
     // Serialize saves so a slower earlier request cannot overwrite the last drag.
-    saveQueue.current = saveQueue.current.catch(() => {}).then(() => request(`/layout?mode=${encodeURIComponent(layoutMode)}`, 'PUT', next)).then(() => { if (mounted.current && layoutRef.current === next) setSaveState('Layout saved') }).catch(err => { if (mounted.current) setSaveState(`Layout not saved to server: ${err.message}`) })
+    saveQueue.current = saveQueue.current.catch(() => {}).then(() => request(`/layout?mode=${encodeURIComponent(layoutMode)}`, 'PUT', clean)).then(() => { if (mounted.current && layoutRef.current === clean) setSaveState('Layout saved') }).catch(err => { if (mounted.current) setSaveState(`Layout not saved to server: ${err.message}`) })
   }
   const saveQuiet = useCallback(async value => { const saved = await request('/widgets/dash.quiet/settings', 'PUT', value); setQuietSettings(saved); remember('quiet', saved); setRefreshVersion(n => n + 1) }, [])
   useEffect(() => {
@@ -101,8 +116,9 @@ export default function Home({ layoutMode = "default" }) {
   function changeDesign(id, design) {
     const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []
     if (!widgets.some(w => w.id === id) || !design) return
-    persist({ widgets: widgets.map(w => w.id === id ? { ...w, design } : w) }, true, 'Clock face updated')
-    setAnnouncement('Clock face updated')
+    const msg = id === 'glance.clock' ? 'Clock face updated' : 'Widget design updated'
+    persist({ widgets: widgets.map(w => w.id === id ? { ...w, design } : w) }, true, msg)
+    setAnnouncement(msg)
   }
   function fitWidgets() {
     const widgets = layoutRef.current.widgets.map(item => {

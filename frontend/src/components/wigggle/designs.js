@@ -24,7 +24,7 @@ export function targetsForDesign(design, manifests) {
   return manifests.filter(manifest => ids.includes(manifest.id))
 }
 export function defaultDesign(id) {
-  return id === 'glance.clock' ? 'clock-sm-01' : id === 'glance.weather' ? 'weather-md-02' : id === 'glance.music' ? 'media-md-02'
+  return id === 'glance.clock' ? 'clock-sm-01' : id === 'glance.weather' ? 'weather-md-02' : id === 'glance.music' ? 'media-md-01'
     : id === 'glance.next-event' ? 'calendar-sm-06' : id.startsWith('task.') ? 'productivity-md-02' : 'dashboard-md-01'
 }
 export function designSize(design, manifest) { return manifest.sizes.includes(design.size) ? design.size : manifest.sizes.includes('m') ? 'm' : manifest.sizes[0] }

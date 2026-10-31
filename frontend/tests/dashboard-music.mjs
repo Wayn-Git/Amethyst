@@ -150,10 +150,10 @@ try {
 
     const context = { now: new Date(), layout: { widgets: [] }, removeWidget: () => {}, setEditing: () => {}, openWidget: () => {}, manifests: [manifest] }
     const sizes = [
-      { id: 's', size: 's', design: 'now-playing-01' },
-      { id: 'm', size: 'm', design: 'now-playing-01' },
-      { id: 'l', size: 'l', design: 'now-playing-01' },
-      { id: 'pill', size: 'm', design: 'now-playing-02' },
+      { id: 's', size: 's', design: 'media-md-01' },
+      { id: 'm', size: 'm', design: 'media-md-01' },
+      { id: 'l', size: 'l', design: 'media-md-01' },
+      { id: 'pill', size: 'm', design: 'media-md-02' },
     ]
 
     createRoot(document.getElementById('proof')).render(
