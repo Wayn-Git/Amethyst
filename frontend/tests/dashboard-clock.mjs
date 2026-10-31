@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { chromium } from 'playwright-core'
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { CLOCK_FACES } from '../src/dashboard/widgets/clock/faces.js'
 
 const cache = join(process.env.HOME, '.cache/ms-playwright')
 const executablePath = process.env.CHROMIUM_PATH || readdirSync(cache).filter(n => n.startsWith('chromium-')).sort().reverse().map(n => join(cache, n, 'chrome-linux64/chrome')).find(existsSync)
@@ -159,7 +160,7 @@ try {
 
   for (const theme of ['paper', 'graphite', 'ink', 'nocturne', 'nvidia', 'sand', 'claude', 'cursor', 'system']) {
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme)
-    for (const width of [1440, 768, 390]) for (const size of ['s', 'm', 'l']) for (const design of ['clock-sm-01', 'clock-sm-04', 'clock-sm-09']) {
+    for (const width of [1440, 768, 390]) for (const size of ['s', 'm', 'l']) for (const design of CLOCK_FACES.map(face => face.id)) {
       await page.setViewportSize({ width, height: 1000 })
       await page.evaluate(({ size, design }) => window.renderClock({ size, design }), { size, design })
       assert(await card.evaluate(node => node.scrollWidth <= node.clientWidth + 1), `${theme} ${width} ${size} ${design}: card overflow`)
