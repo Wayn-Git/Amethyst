@@ -4,7 +4,7 @@ import Button from '../../../components/ui/AppButton.jsx'
 
 export function Seek15Back({ size = 20, className = '' }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
       <path d="M4 12a8 8 0 0 1 14.93-4" />
       <polyline points="4 8 4 12 8 12" />
       <text x="12" y="16" fill="currentColor" stroke="none" fontSize="8" fontWeight="700" fontFamily="Inter, sans-serif" textAnchor="middle">15</text>
@@ -14,7 +14,7 @@ export function Seek15Back({ size = 20, className = '' }) {
 
 export function Seek15Forward({ size = 20, className = '' }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
       <path d="M20 12a8 8 0 0 0-14.93-4" />
       <polyline points="20 8 20 12 16 12" />
       <text x="12" y="16" fill="currentColor" stroke="none" fontSize="8" fontWeight="700" fontFamily="Inter, sans-serif" textAnchor="middle">15</text>
@@ -40,7 +40,7 @@ export function Artwork({ artwork, title, size = 's', onArtworkError }) {
         />
       ) : (
         <div className="music-art-fallback">
-          <MusicNotes size={size === 'l' ? 48 : size === 'm' ? 28 : 22} weight="duotone" />
+          <MusicNotes size={size === 'l' ? 48 : size === 'm' ? 28 : 22} weight="regular" />
         </div>
       )}
     </span>

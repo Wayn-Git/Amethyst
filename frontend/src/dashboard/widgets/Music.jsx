@@ -1,5 +1,6 @@
 import { RadioGroup } from '@base-ui/react/radio-group'
 import { Radio } from '@base-ui/react/radio'
+import { MusicNotes } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { StateView } from '../primitives.jsx'
 import { cached, remember, request } from '../api.js'
@@ -98,7 +99,7 @@ export default function Music({
   }
 
   const playerPicker = (players.length > 1 || selectedPlayer) && (
-    <label className="music-player-picker" hidden={!full && size !== 'l' && Boolean(session)}>
+    <label className="music-player-picker" hidden={!full}>
       Player
       <Select
         aria-label="Media player"
@@ -164,14 +165,29 @@ export default function Music({
     return (
       <div className="music-widget" data-music-size={size} data-music-design={activeDesign.id}>
         {playerPicker}
-        <StateView>
-          {selectedPlayer
-            ? 'This player is no longer available. Choose another player above.'
-            : 'Open a desktop music player to start listening.'}
-        </StateView>
+        <Button
+          type="button"
+          variant="plain"
+          className="music-card"
+          onClick={onOpen}
+          aria-label="Now Playing, Open a desktop music player to start listening"
+        >
+          <div className="music-empty-state">
+            <MusicNotes size={size === 'l' ? 44 : 28} weight="regular" className="music-empty-icon" aria-hidden="true" />
+            <p>
+              {selectedPlayer
+                ? 'This player is no longer available. Choose another player above.'
+                : 'Open a desktop music player to start listening.'}
+            </p>
+          </div>
+        </Button>
       </div>
     )
   }
+
+  const trackDescription = item?.title
+    ? `${item.title}${item.artists?.length ? ` by ${item.artists.join(', ')}` : ''}`
+    : 'No track'
 
   return (
     <div className="music-widget" data-music-size={size} data-music-design={activeDesign.id}>
@@ -182,7 +198,7 @@ export default function Music({
         variant="plain"
         className="music-card"
         onClick={onOpen}
-        aria-label={`Now Playing, ${item?.title || 'No track'}`}
+        aria-label={`Now Playing, ${trackDescription}, ${playing ? 'playing' : 'paused'}`}
       >
         <NowPlayingCard
           size={size}
