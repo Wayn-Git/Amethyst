@@ -314,6 +314,8 @@ export default function Integrations() {
     }
   }
 
+  const [runningBriefing, setRunningBriefing] = useState(false)
+
   const handleTestEmail = async () => {
     setTestingNotifier(true)
     try {
@@ -323,6 +325,36 @@ export default function Integrations() {
       toast(e.message || 'Test email failed', 'bad')
     } finally {
       setTestingNotifier(false)
+    }
+  }
+
+  const handleRunBriefing = async () => {
+    setRunningBriefing(true)
+    try {
+      const res = await api.runNotifierBriefing()
+      if (res && res.ok) {
+        toast(`Morning briefing sent to ${notifier?.recipient_email || 'your email'}`, 'ok')
+      } else {
+        toast('Failed to trigger morning briefing', 'bad')
+      }
+    } catch (e) {
+      toast(e.message || 'Failed to trigger briefing', 'bad')
+    } finally {
+      setRunningBriefing(false)
+    }
+  }
+
+  const handlePauseEmails = async () => {
+    setSavingNotifier(true)
+    try {
+      const updated = await api.updateNotifierSettings({ recipient_email: '' })
+      setNotifier((prev) => ({ ...prev, ...updated, recipient_email: '' }))
+      setNotifierDraft((prev) => ({ ...prev, recipient_email: '' }))
+      toast('Agent emails stopped (recipient cleared)', 'ok')
+    } catch (e) {
+      toast(e.message || 'Failed to stop emails', 'bad')
+    } finally {
+      setSavingNotifier(false)
     }
   }
 
@@ -719,6 +751,16 @@ export default function Integrations() {
               </div>
 
               <div className="int-provider-actions">
+                {notifier?.recipient_email && (
+                  <HouseButton
+                    type="button"
+                    className="set-btn-sm is-danger"
+                    disabled={savingNotifier}
+                    onClick={handlePauseEmails}
+                  >
+                    Stop Emails
+                  </HouseButton>
+                )}
                 <HouseButton
                   type="button"
                   className={`set-btn-sm ${editingNotifier === 'recipient' ? 'is-active' : ''}`}
@@ -794,14 +836,24 @@ export default function Integrations() {
 
               <div className="int-provider-actions">
                 {notifier?.agentmail_configured && (
-                  <HouseButton
-                    type="button"
-                    className="set-btn-sm"
-                    disabled={testingNotifier}
-                    onClick={handleTestEmail}
-                  >
-                    {testingNotifier ? 'Sending…' : 'Test Send'}
-                  </HouseButton>
+                  <>
+                    <HouseButton
+                      type="button"
+                      className="set-btn-sm"
+                      disabled={runningBriefing || !notifier?.recipient_email}
+                      onClick={handleRunBriefing}
+                    >
+                      {runningBriefing ? 'Sending…' : 'Run Briefing'}
+                    </HouseButton>
+                    <HouseButton
+                      type="button"
+                      className="set-btn-sm"
+                      disabled={testingNotifier || !notifier?.recipient_email}
+                      onClick={handleTestEmail}
+                    >
+                      {testingNotifier ? 'Sending…' : 'Test Send'}
+                    </HouseButton>
+                  </>
                 )}
                 <HouseButton
                   type="button"

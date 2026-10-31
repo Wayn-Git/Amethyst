@@ -35,8 +35,37 @@ def get_batch_window_seconds() -> float:
     return DEFAULT_BATCH_WINDOW_SECONDS
 
 
-def _format_batch_email(items: list[dict[str, Any]]) -> tuple[str, str]:
-    count = len(items)
+def _enrich_items_with_local_data(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    enriched = []
+    try:
+        from backend.db.connection import get_connection
+        conn = get_connection()
+        for it in items:
+            item_id = it.get("id")
+            if item_id:
+                row = conn.execute(
+                    "SELECT thumbnail_path, author, site FROM library_items WHERE id = ?",
+                    [item_id],
+                ).fetchone()
+                if row:
+                    merged = dict(it)
+                    if not merged.get("thumbnail_path") and row["thumbnail_path"]:
+                        merged["thumbnail_path"] = row["thumbnail_path"]
+                    if not merged.get("author") and row["author"]:
+                        merged["author"] = row["author"]
+                    if not merged.get("site") and row["site"]:
+                        merged["site"] = row["site"]
+                    enriched.append(merged)
+                    continue
+            enriched.append(it)
+        return enriched
+    except Exception:
+        return items
+
+
+def _format_batch_email(items: list[dict[str, Any]]) -> tuple[str, str, str, list[Any]]:
+    enriched = _enrich_items_with_local_data(items)
+    count = len(enriched)
     item_str = "item" if count == 1 else "items"
     subject = f"You saved {count} {item_str} to your library"
 
@@ -44,7 +73,7 @@ def _format_batch_email(items: list[dict[str, Any]]) -> tuple[str, str]:
         f"You saved {count} {item_str}, want to look at them on your laptop?",
         "",
     ]
-    for it in items:
+    for it in enriched:
         title = it.get("title") or "Untitled item"
         url = it.get("url")
         if url:
@@ -57,7 +86,11 @@ def _format_batch_email(items: list[dict[str, Any]]) -> tuple[str, str]:
         "---",
         "Amethyst Library Notifier",
     ])
-    return subject, "\n".join(lines)
+    from notifier.templates import get_library_batch_attachments, render_library_batch_html
+
+    html_body = render_library_batch_html(enriched)
+    attachments = get_library_batch_attachments(enriched)
+    return subject, "\n".join(lines), html_body, attachments
 
 
 def flush_library_batch(mailer: Mailer | None = None) -> int:
@@ -75,12 +108,14 @@ def flush_library_batch(mailer: Mailer | None = None) -> int:
         items_to_send = list(_BATCH)
         _BATCH.clear()
 
-    subject, body = _format_batch_email(items_to_send)
+    subject, body, html, attachments = _format_batch_email(items_to_send)
     try:
         mailer = mailer or Mailer()
         res = mailer.send_email(
             subject=subject,
             text=body,
+            html=html,
+            attachments=attachments,
             urgent=False,
         )
         log.info("Batched library save email sent: %s (status=%s)", subject, res.status)

@@ -196,9 +196,13 @@ def test_notifier_send(to_email: str | None = None) -> dict[str, Any]:
         "You're all set to receive your automated daily morning briefings and weekly library digests."
     )
 
+    from notifier.templates import render_test_verification_html
+    html_body = render_test_verification_html()
+
     res = mailer.send_email(
         subject=subject,
         text=body,
+        html=html_body,
         urgent=True,  # Bypass quiet hours for explicit manual test
     )
     if res.sent:

@@ -85,9 +85,13 @@ def run_digest(db: TursoDB | None = None, mailer: Mailer | None = None) -> int:
     week_str = datetime.now(tz).strftime("Week of %B %d")
     subject = f"Weekly Library Digest — {len(items)} Items ({week_str})"
 
+    from notifier.templates import render_digest_html
+    html_body = render_digest_html(items, digest_text, week_str)
+
     res = mailer.send_email(
         subject=subject,
         text=digest_text,
+        html=html_body,
         urgent=False,
     )
 

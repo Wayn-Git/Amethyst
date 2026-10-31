@@ -1506,7 +1506,7 @@ function General() {
    1b. NOTIFICATIONS VIEW
    ========================================================================== */
 
-function Notifications() {
+function Notifications({ onNavigateSection }) {
   const { notifyOnDone, setNotifyOnDone, setView, toast } = useApp()
   const [briefingHour, setBriefingHour] = useState(8)
   const [briefingEnabled, setBriefingEnabled] = useState(true)
@@ -1624,10 +1624,10 @@ function Notifications() {
     },
     {
       id: 'briefing',
-      title: 'Morning briefing',
-      desc: 'Receive a concise morning summary of open tasks, git activity, and agenda.',
-      linkText: `Configure time (${String(briefingHour).padStart(2, '0')}:00)`,
-      onLinkClick: handleConfigureBriefing,
+      title: 'Morning briefing & agent emails',
+      desc: 'Receive automated morning briefings and library batches in your inbox.',
+      linkText: 'Configure recipient & delivery in Integrations →',
+      onLinkClick: () => onNavigateSection?.('integrations'),
     },
     {
       id: 'health',
@@ -6656,7 +6656,7 @@ export default function Settings() {
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
             >
-              <Panel />
+              <Panel onNavigateSection={setSection} />
             </motion.div>
           </AnimatePresence>
         </div>

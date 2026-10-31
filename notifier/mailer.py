@@ -25,6 +25,31 @@ DEFAULT_TIMEZONE = "Asia/Kolkata"
 DEFAULT_DAILY_CAP = 80
 
 
+def _load_dotenv_if_needed() -> None:
+    try:
+        from pathlib import Path
+        dotenv_path = Path(__file__).resolve().parent.parent / ".env"
+        if dotenv_path.is_file():
+            try:
+                from dotenv import load_dotenv
+                load_dotenv(dotenv_path, override=False)
+            except Exception:
+                pass
+            for line in dotenv_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    k = k.strip()
+                    v = v.strip().strip('"').strip("'")
+                    if k and v and k not in os.environ:
+                        os.environ[k] = v
+    except Exception:
+        pass
+
+
+_load_dotenv_if_needed()
+
+
 @dataclass
 class SendResult:
     sent: bool
@@ -115,6 +140,7 @@ class Mailer:
         subject: str,
         text: str,
         html: str | None = None,
+        attachments: list[Any] | None = None,
     ) -> str | None:
         """Raw send call through AgentMail Python SDK."""
         from agentmail import AgentMail
@@ -138,6 +164,8 @@ class Mailer:
         }
         if html:
             kwargs["html"] = html
+        if attachments:
+            kwargs["attachments"] = attachments
 
         resp = client.inboxes.messages.send(**kwargs)
         # Extract message ID from response
@@ -183,6 +211,7 @@ class Mailer:
         subject: str,
         text: str,
         html: str | None = None,
+        attachments: list[Any] | None = None,
         urgent: bool = False,
     ) -> SendResult:
         """Send an email to the hardcoded recipient.
@@ -234,6 +263,7 @@ class Mailer:
                 subject=subject,
                 text=text,
                 html=html,
+                attachments=attachments,
             )
             # Increment daily send counter
             new_count = self.db.increment_daily_send_count(today_str, 1)

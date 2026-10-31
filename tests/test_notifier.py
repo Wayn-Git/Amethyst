@@ -388,3 +388,40 @@ async def test_dynamic_connector_registration(mock_db: TursoDB) -> None:
         assert len(recorded) == 1
 
 
+def test_email_templates_render() -> None:
+    from notifier.templates import (
+        render_base_card,
+        render_library_batch_html,
+        render_briefing_html,
+        render_digest_html,
+        render_test_verification_html,
+    )
+
+    # 1. Library batch
+    items = [{"title": "PostgreSQL Tutorial", "url": "https://example.com/pg", "kind": "article"}]
+    lib_html = render_library_batch_html(items)
+    assert "PostgreSQL Tutorial" in lib_html
+    assert "https://example.com/pg" in lib_html
+    assert "max-width: 600px" in lib_html
+
+    # 2. Briefing
+    brief_text = "> ⚠️ Gmail service down\n### Schedule\n- Team sync (10:00)\n- [Review PR](https://github.com/pr/1)"
+    brief_html = render_briefing_html(brief_text, "Monday, Oct 31")
+    assert "Gmail service down" in brief_html
+    assert "Schedule" in brief_html
+    assert "Team sync" in brief_html
+    assert "Review PR" in brief_html
+
+    # 3. Digest
+    digest_text = "- [Amethyst Arch](https://example.com/doc) *(Saved on 2026-10-25)*"
+    digest_html = render_digest_html(items, digest_text, "Week of October 31")
+    assert "Weekly Library Digest" in digest_html
+    assert "Amethyst Arch" in digest_html
+
+    # 4. Test verification
+    test_html = render_test_verification_html()
+    assert "AgentMail" in test_html
+    assert "Turso Cloud DB" in test_html
+
+
+

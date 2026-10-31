@@ -214,9 +214,13 @@ async def run_briefing(db: TursoDB | None = None, mailer: Mailer | None = None) 
     today_str = datetime.now(tz).strftime("%A, %b %d")
     subject = f"Morning Briefing — {today_str}"
 
+    from notifier.templates import render_briefing_html
+    html_body = render_briefing_html(briefing_text, today_str)
+
     res = mailer.send_email(
         subject=subject,
         text=briefing_text,
+        html=html_body,
         urgent=False,
     )
 
