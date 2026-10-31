@@ -199,7 +199,7 @@ MANIFESTS = [
         "empty": "Add a feed. No default feeds are installed.",
     },
     {
-        **manifest("glance.music", "Desktop music", ["m", "l"]),
+        **manifest("glance.music", "Desktop music", ["s", "m", "l"]),
         "refresh": {"mode": "poll", "interval_s": 10},
         "actions": [
             dict(id=a, label=a.title(), gate=True)
