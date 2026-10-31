@@ -50,7 +50,7 @@ try {
   window.renderProof()
  })
  const slot = page.locator('[data-slot-id="glance.clock"]')
- await slot.locator('.clock-dial').waitFor().catch(async error => { console.error({ errors, body: await page.locator('body').innerText() }); throw error })
+ await slot.locator('.clock-time').waitFor().catch(async error => { console.error({ errors, body: await page.locator('body').innerText() }); throw error })
  const expanded = await slot.boundingBox()
  await slot.hover(); await slot.getByRole('button', { name: 'Collapse Clock', exact: true }).click()
  assert((await slot.boundingBox()).height <= 64, 'collapse frees grid tracks')

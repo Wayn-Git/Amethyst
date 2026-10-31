@@ -163,6 +163,91 @@ test('renders carousel slide controls and dots for multi-slide posts', () => {
   assert.ok(html.includes('lib-card-slide-dots'), 'Expected slide dots container')
 })
 
+test('renders kind-aware "Want to watch" progress pill for video with unstarted progress', () => {
+  const item = {
+    id: 8,
+    title: 'Awesome Video',
+    kind: 'video',
+    progress: 'unstarted',
+  }
+  const html = renderToStaticMarkup(
+    React.createElement(LibraryCard, { item })
+  )
+  assert.ok(html.includes('lib-card-status-pill--unstarted'), 'Expected unstarted pill class')
+  assert.ok(html.includes('Want to watch'), 'Expected "Want to watch" label')
+})
+
+test('renders kind-aware "Watching" progress pill for video with in_progress status', () => {
+  const item = {
+    id: 9,
+    title: 'Awesome Video 2',
+    kind: 'video',
+    progress: 'in_progress',
+  }
+  const html = renderToStaticMarkup(
+    React.createElement(LibraryCard, { item })
+  )
+  assert.ok(html.includes('lib-card-status-pill--in_progress'), 'Expected in_progress pill class')
+  assert.ok(html.includes('Watching'), 'Expected "Watching" label')
+})
+
+test('renders kind-aware "Want to read" progress pill for article with unstarted progress', () => {
+  const item = {
+    id: 10,
+    title: 'Awesome Article',
+    kind: 'article',
+    progress: 'unstarted',
+  }
+  const html = renderToStaticMarkup(
+    React.createElement(LibraryCard, { item })
+  )
+  assert.ok(html.includes('lib-card-status-pill--unstarted'), 'Expected unstarted pill class')
+  assert.ok(html.includes('Want to read'), 'Expected "Want to read" label')
+})
+
+test('streamlines card actions to Pin and More menu', () => {
+  const item = {
+    id: 11,
+    title: 'Streamlined Card Item',
+    kind: 'article',
+    url: 'https://example.com/test',
+  }
+  const html = renderToStaticMarkup(
+    React.createElement(LibraryCard, { item })
+  )
+  assert.ok(html.includes('lib-overflow-wrap'), 'Expected More menu wrapper')
+  assert.ok(!html.includes('lib-card-action-btn--danger'), 'Trash button should be deferred to more menu')
+})
+
+test('eliminates nested role="button" on card article container for accessibility', () => {
+  const item = {
+    id: 12,
+    title: 'Accessible Card',
+    kind: 'article',
+  }
+  const html = renderToStaticMarkup(
+    React.createElement(LibraryCard, { item })
+  )
+  assert.ok(!html.includes('<article ref="cardRef" data-item-id="12" role="button"'), 'Card article should not have role="button"')
+  assert.ok(!html.includes('tabindex="0"') || !html.includes('<article tabindex="0"'), 'Card article should not have tabindex="0"')
+})
+
+test('suppresses duplicate duration in footer when media overlay already renders duration', () => {
+  const item = {
+    id: 13,
+    title: 'Video with duration',
+    kind: 'video',
+    thumbnail_path: '/thumb.jpg',
+    duration_seconds: 120,
+    duration: 120,
+  }
+  const html = renderToStaticMarkup(
+    React.createElement(LibraryCard, { item })
+  )
+  assert.ok(html.includes('lib-card-duration-badge'), 'Expected duration on media overlay')
+  assert.ok(!html.includes('class="lib-card-duration"'), 'Expected duration in footer to be suppressed')
+})
+
 if (failures.length > 0) {
   console.error(`\n${failures.length} failed:`)
   for (const f of failures) {

@@ -16,6 +16,7 @@ export default function LibraryDetailRow({
   thumbnail,
   title,
   subtitle,
+  kind = null,
   isVideo = false,
   actions = null,
   onClick = null,
@@ -40,6 +41,12 @@ export default function LibraryDetailRow({
       onClick={onClick}
       role={isClickable ? 'button' : undefined}
       tabIndex={isClickable ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (isClickable && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault()
+          onClick(e)
+        }
+      }}
     >
       <div className="lib-detail-row-main">
         {/* Leading 32x32 Thumbnail / Icon */}
@@ -78,10 +85,17 @@ export default function LibraryDetailRow({
           <span className="lib-detail-row-title" title={cleanTitle}>
             {cleanTitle}
           </span>
-          {subtitle && (
-            <span className="lib-detail-row-subtitle" title={subtitle}>
-              {subtitle}
-            </span>
+          {(subtitle || kind) && (
+            <div className="lib-detail-row-subline">
+              {kind && (
+                <span className="lib-detail-row-kind-chip">{kind}</span>
+              )}
+              {subtitle && (
+                <span className="lib-detail-row-subtitle" title={subtitle}>
+                  {subtitle}
+                </span>
+              )}
+            </div>
           )}
         </div>
       </div>

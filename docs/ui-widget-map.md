@@ -9,7 +9,7 @@ Loading: static skeleton and reserved content footprint. Empty: manifest empty t
 | Widget ID | Pattern(s) | Sizes | Real source / fields | Fields and controls | States |
 |---|---|---|---|---|---|
 | `glance.air` | numeral-stat / route-split / settings-tile | s, m, l | api; european_aqi, hours, rain_alert, set_location, sunrise, sunset, temperature, time, timezone | Read-only content; existing links and shell actions | Shared six-state contract |
-| `glance.clock` | analog-clock | s, m, l | local; zones | World clock timezone; save(zones.filter(z => z !== value))}>Remove; Add clock | Shared six-state contract |
+| `glance.clock` | clock-faces / digital / analog / world | s, m, l | local; zones | Clock face (nine faces); World clock timezone; save(zones.filter(z => z !== value))}>Remove; Add clock | Shared six-state contract |
 | `glance.music` | music-transport | m, l | local; artists, items, players, title | Player; decide(true)}>Approve playback; decide(false)}>Cancel; propose('previous')}>; propose(playing ? 'pause' : 'play')}>; propose('next')}> | Shared six-state contract |
 | `glance.next-event` | calendar-page / appointment-card | s, m, l | googlecalendar; items, limited, timezone | Read-only content; existing links and shell actions | Shared six-state contract |
 | `glance.sun` | numeral-stat / route-split / settings-tile | s, m, l | api; european_aqi, hours, rain_alert, set_location, sunrise, sunset, temperature, time, timezone | Read-only content; existing links and shell actions | Shared six-state contract |

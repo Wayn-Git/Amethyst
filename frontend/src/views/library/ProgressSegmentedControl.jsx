@@ -7,25 +7,35 @@ export const TRACKABLE_PROGRESS_KINDS = new Set([
   'movie',
   'place',
   'podcast',
+  'article',
+  'newsletter',
+  'paper',
 ])
 
-export function isTrackableKind(kind) {
+export function isTrackableKind(kind, isVideo = false) {
+  if (isVideo) return true
   return TRACKABLE_PROGRESS_KINDS.has((kind || '').toLowerCase())
 }
 
-export function shouldShowProgress(item) {
+export function shouldShowProgress(item, isVideo = false) {
   if (!item) return false
+  if (item.progress) return true
   const k = (item.kind || '').toLowerCase()
-  if (TRACKABLE_PROGRESS_KINDS.has(k)) return true
-  if (item.progress && item.progress !== 'unstarted') return true
+  if (isVideo || TRACKABLE_PROGRESS_KINDS.has(k)) return true
   return false
 }
 
 export function getProgressLabel(kind, status) {
-  if (!status || status === 'unstarted') return null
+  if (!status) return null
   const options = getProgressOptions(kind)
   const match = options.find((o) => o.key === status)
   return match ? match.label : status
+}
+
+export function getNextProgress(current = 'unstarted') {
+  if (current === 'completed') return 'unstarted'
+  if (current === 'in_progress') return 'completed'
+  return 'in_progress'
 }
 
 /**
@@ -64,7 +74,7 @@ export function getProgressOptions(kind = 'book') {
   }
   if (k === 'article' || k === 'newsletter' || k === 'paper') {
     return [
-      { key: 'unstarted', label: 'To read' },
+      { key: 'unstarted', label: 'Want to read' },
       { key: 'in_progress', label: 'Reading' },
       { key: 'completed', label: 'Read' },
     ]

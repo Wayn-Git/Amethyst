@@ -98,6 +98,12 @@ export default function Home({ layoutMode = "default" }) {
   }, [quietSettings, refreshAll, saveQuiet])
   function move(id, step) { const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []; const index = widgets.findIndex(w => w.id === id); if (widgets[index + step]) { persist({ widgets: moveWidget(widgets, id, widgets[index + step].id) }); setAnnouncement(`${id} moved to position ${index + step + 1}`) } }
   function resize(id, patch) { const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []; persist({ widgets: widgets.map(w => w.id === id ? { ...w, ...patch } : w) }); setAnnouncement(`${id} resized to ${patch.size || 'custom height'}`) }
+  function changeDesign(id, design) {
+    const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []
+    if (!widgets.some(w => w.id === id) || !design) return
+    persist({ widgets: widgets.map(w => w.id === id ? { ...w, design } : w) }, true, 'Clock face updated')
+    setAnnouncement('Clock face updated')
+  }
   function fitWidgets() {
     const widgets = layoutRef.current.widgets.map(item => {
       const manifest = manifests.find(m => m.id === item.id)
@@ -154,8 +160,8 @@ export default function Home({ layoutMode = "default" }) {
   const selected = selectedId && manifests.find(m => m.id === selectedId)
   const membership = [...new Set(currentWidgets.map(w => w.id))].sort().join('|')
   const actions = useRef({})
-  useLayoutEffect(() => { actions.current = { removeWidget, openWidget, move, resize, grip } })
-  const stable = useMemo(() => Object.fromEntries(['removeWidget', 'openWidget', 'move', 'resize', 'grip'].map(key => [key, (...args) => actions.current[key](...args)])), [])
+  useLayoutEffect(() => { actions.current = { removeWidget, openWidget, move, resize, changeDesign, grip } })
+  const stable = useMemo(() => Object.fromEntries(['removeWidget', 'openWidget', 'move', 'resize', 'changeDesign', 'grip'].map(key => [key, (...args) => actions.current[key](...args)])), [])
   const frameContext = useMemo(() => ({ now, quiet, quietSettings, manifests, openPalette, setEditing, connectSource, connectionHealth: connections.data, refreshAll, ...stable, layout: { widgets: membership.split('|').map(id => ({ id })) } }), [now, quiet, quietSettings, manifests, openPalette, connectSource, connections.data, refreshAll, stable, membership])
   const sizeKey = positions.map(p => `${p.id}:${p.size}:${p.design || ""}`).sort().join('|')
   // Size/membership encode content dependencies; order changes only move existing slots.
@@ -241,7 +247,7 @@ export default function Home({ layoutMode = "default" }) {
         {loaded && !homePositions.length && <section className="today-empty-layout"><span><Icon name="grid" size={28} /></span><h2>Make room for your day</h2><p>Add the widgets you want to see here.</p><Button variant="primary" onClick={() => setDrawer({ type: 'add' })}><Icon name="plus" size={16} />Add widget</Button></section>}
       </div>
     </div>
-    <DashboardContext.Provider value={{ openPalette, manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, addWidget, resize, removeWidget, now, openWidget, connectSource, manageConnections, connections }}>
+    <DashboardContext.Provider value={{ openPalette, manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, addWidget, resize, changeDesign, removeWidget, now, openWidget, connectSource, manageConnections, connections }}>
     {(drawer?.type === 'settings' || settingsId) && <Drawer title="Home settings" description="Refresh, quiet hours, and keyboard shortcuts." onClose={closeDrawer}><HomeSettings key={settingsId || 'settings'} settingsId={settingsId} /></Drawer>}
     {drawer?.type === 'add' && <Drawer title="Add widget" description="Choose what belongs in your day." onClose={closeDrawer} className="today-catalog-drawer"><AddWidget /></Drawer>}
     {selected && <Drawer title={selected.title} onClose={closeDrawer}><div className="widget-home today-widgets">{renderWidget(layout.widgets.find(w => w.id === selected.id) || { id: selected.id, size: selected.sizes[0], height: 3 }, true)}</div></Drawer>}

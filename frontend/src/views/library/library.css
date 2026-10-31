@@ -2074,9 +2074,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-sm, 4px);
+  width: 24px;
+  height: 24px;
+  position: relative;
+  border-radius: var(--radius-sm, 6px);
   background: transparent;
   border: 1px solid transparent;
   color: var(--text-muted);
@@ -2086,11 +2087,30 @@
   text-decoration: none;
 }
 
+/* Touch hit expansion (WCAG 2.5.8) */
+.lib-card-action-btn::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+}
+
 .lib-card-action-btn:hover {
   background: var(--surface-3);
   color: var(--text);
   border-color: var(--hairline);
-  transform: scale(1.08);
+  transform: scale(1.05);
+}
+
+.lib-card-action-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.lib-card-action-btn--active {
+  background: var(--surface-3);
+  color: var(--text);
+  border-color: var(--hairline-strong);
 }
 
 .lib-card-action-btn:active {
@@ -9592,16 +9612,43 @@
 .lib-row-status-pill {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 20px;
-  padding: 0 7px;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
   border-radius: var(--radius-sm, 6px);
   font-size: 11px;
   font-weight: 500;
   line-height: 1;
   background: var(--surface-2);
   border: 1px solid var(--hairline);
-  color: var(--text-dim);
+  color: var(--text-muted);
+  text-decoration: none;
+  font-family: inherit;
+}
+
+.lib-card-status-pill--clickable {
+  cursor: pointer;
+  user-select: none;
+  transition: all 120ms var(--lib-ease-out);
+}
+
+.lib-card-status-pill--clickable:hover {
+  transform: translateY(-0.5px);
+  border-color: var(--hairline-strong);
+  color: var(--text);
+  background: var(--surface-3);
+}
+
+.lib-card-status-pill--clickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.lib-card-status-pill--unstarted,
+.lib-row-status-pill--unstarted {
+  background: var(--surface-2);
+  border-color: var(--hairline);
+  color: var(--text-muted);
 }
 
 .lib-card-status-pill--in_progress,

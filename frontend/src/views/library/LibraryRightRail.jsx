@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import Icon from '../../components/Icon.jsx'
 import AppButton from '../../components/ui/AppButton.jsx'
 import LibraryDetailRow from './LibraryDetailRow.jsx'
+import { formatRelativeDate } from './dateUtils.js'
 import { api } from '../../api.js'
 
 export default function LibraryRightRail({
@@ -314,45 +315,64 @@ export default function LibraryRightRail({
       </div>
 
       {/* 5. Related Saves: Plain section with dividers, using shared LibraryDetailRow */}
-      {relatedItems.length > 0 && (
+      {(loadingRelated || relatedItems.length > 0) && (
         <>
           <div className="lib-rail-divider" />
           <div className="lib-rail-section">
             <div className="lib-rail-section-header">
               <span className="lib-rail-label">Related Saves</span>
-              <span className="lib-rail-count">{relatedItems.length}</span>
+              {relatedItems.length > 0 && (
+                <span className="lib-rail-count">{relatedItems.length}</span>
+              )}
             </div>
 
             <div className="lib-rail-related-list">
-              {relatedItems.map((rel, i) => {
-                const thumbUrl = api.thumbnailUrl ? api.thumbnailUrl(rel.id) : null
-                const source = rel.author || rel.site || rel.app || 'Saved item'
-                const isVid = rel.kind === 'video'
+              {loadingRelated && relatedItems.length === 0 ? (
+                <div className="lib-rail-related-skeleton" aria-label="Loading related saves">
+                  {[1, 2, 3].map((n) => (
+                    <div key={n} className="lib-related-skeleton-row">
+                      <div className="lib-related-skeleton-thumb" />
+                      <div className="lib-related-skeleton-content">
+                        <div className="lib-related-skeleton-line lib-related-skeleton-line--title" />
+                        <div className="lib-related-skeleton-line lib-related-skeleton-line--sub" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                relatedItems.map((rel, i) => {
+                  const thumbUrl = api.thumbnailUrl ? api.thumbnailUrl(rel.id) : null
+                  const source = rel.author || rel.site || rel.app || 'Saved item'
+                  const isVid = rel.kind === 'video'
+                  const relDate = rel.created_at || rel.consumed_on ? formatRelativeDate(rel.created_at || rel.consumed_on) : null
+                  const subtitle = relDate ? `${source} · ${relDate}` : source
 
-                return (
-                  <React.Fragment key={rel.id}>
-                    {i > 0 && <div className="lib-detail-divider" />}
-                    <LibraryDetailRow
-                      thumbnail={thumbUrl}
-                      icon={<Icon name={isVid ? 'play' : 'link'} size={14} />}
-                      title={rel.title}
-                      titleFallback={source}
-                      subtitle={source}
-                      isVideo={isVid}
-                      onClick={() => onNavigateItem?.(rel)}
-                      actions={
-                        <AppButton
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onNavigateItem?.(rel)}
-                          title="Open item"
-                          icon={<Icon name="arrow-up-right" size={14} />}
-                        />
-                      }
-                    />
-                  </React.Fragment>
-                )
-              })}
+                  return (
+                    <React.Fragment key={rel.id}>
+                      {i > 0 && <div className="lib-detail-divider" />}
+                      <LibraryDetailRow
+                        thumbnail={thumbUrl}
+                        icon={<Icon name={isVid ? 'play' : 'link'} size={14} />}
+                        title={rel.title}
+                        titleFallback={source}
+                        subtitle={subtitle}
+                        kind={rel.kind && rel.kind !== 'other' ? rel.kind : null}
+                        isVideo={isVid}
+                        onClick={() => onNavigateItem?.(rel)}
+                        actions={
+                          <AppButton
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onNavigateItem?.(rel)}
+                            title="Open item"
+                            icon={<Icon name="arrow-up-right" size={14} />}
+                          />
+                        }
+                      />
+                    </React.Fragment>
+                  )
+                })
+              )}
             </div>
           </div>
         </>

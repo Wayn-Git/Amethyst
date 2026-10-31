@@ -29,7 +29,7 @@ try {
   const { BentoGrid, Tile, ConnectTile } = await import('/src/components/ui/bento/index.jsx')
   const { WidgetState } = await import('/src/dashboard/primitives.jsx')
   const { default: WidgetSlot } = await import('/src/dashboard/WidgetSlot.jsx')
-  const { ClockFace } = await import('/src/dashboard/widgets/Clock.jsx')
+  const { default: Clock } = await import('/src/dashboard/widgets/Clock.jsx')
   const { WeatherFace } = await import('/src/dashboard/widgets/Weather.jsx')
   const { default: Mail } = await import('/src/dashboard/widgets/Mail.jsx')
   const { default: Items } = await import('/src/dashboard/widgets/Items.jsx')
@@ -40,7 +40,7 @@ try {
   const tasks = [{ id: 'one', title: 'Fixture task', editable: true }, { id: 'two', title: 'Remote fixture', editable: false }]
   const deadlines = [{ id: 'old', title: 'Overdue fixture', due_at: new Date(now - 3600000).toISOString() }, { id: 'today', title: 'Today fixture', due_at: new Date(now + 3600000).toISOString() }, { id: 'later', title: 'Future fixture', due_at: new Date(now + 86400000).toISOString() }]
   const pilots = [
-   ['glance.clock', 'dark', ClockFace, { now: new Date(now) }],
+   ['glance.clock', 'dark', Clock, { data: { zones: [] }, size: 's', full: false }],
    ['glance.weather', 'accent', WeatherFace, { data: { temperature: 22, timezone: 'Asia/Kolkata', rain_alert: true } }],
    ['need.inbox', 'light', Mail, { data: { items: [{ id: 'mail', from: 'Ada Lovelace', subject: 'Fixture subject', unread: true, reason: 'Fixture reason', date: 'Today' }] } }],
    ['task.today', 'light', Items, { data: { items: tasks } }],

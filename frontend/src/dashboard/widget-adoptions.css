@@ -96,31 +96,6 @@
   .bento-foundation .home-widget.widget-adoption[data-widget] .adoption-sun > div + div { border-left: 0; padding-left: 0; border-top: 1px solid var(--ui-border); padding-top: var(--tile-space-3); }
 }
 
-.bento-foundation .home-widget.widget-adoption[data-widget] .glance-clock-face { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--tile-space-2); }
-.bento-foundation .home-widget.widget-adoption[data-widget] .clock-dial { display: block; width: 184px; max-width: 100%; aspect-ratio: 1; flex-shrink: 0; overflow: visible; }
-.bento-foundation .home-widget.widget-adoption[data-widget] .clock-dial-face { fill: var(--tile-dial); rx: var(--tile-radius); }
-.bento-foundation .home-widget.widget-adoption[data-widget] .clock-tick { stroke: color-mix(in srgb, var(--tile-light-text) 22%, transparent); stroke-width: 1.5; }
-.bento-foundation .home-widget.widget-adoption[data-widget] .clock-tick-major { stroke: var(--tile-light-text); stroke-width: 2.5; }
-.bento-foundation .home-widget.widget-adoption[data-widget] .clock-numeral { fill: var(--tile-light-text); font: 600 17px var(--ui-font); text-anchor: middle; dominant-baseline: central; }
-.bento-foundation .home-widget.widget-adoption[data-widget] .clock-dial-day,
-.bento-foundation .home-widget.widget-adoption[data-widget] .clock-dial-date { fill: var(--tile-calendar); font: 600 10px var(--ui-font); text-anchor: middle; }
-.bento-foundation .home-widget.widget-adoption[data-widget] .clock-dial-date { fill: var(--tile-light-text); font-size: 13px; }
-.bento-foundation .home-widget.widget-adoption[data-widget] .clock-hand { stroke: var(--tile-light-text); stroke-linecap: round; stroke-width: 5; }
-.bento-foundation .home-widget.widget-adoption[data-widget] .clock-minute-hand { stroke-width: 3.5; }
-.bento-foundation .home-widget.widget-adoption[data-widget] .clock-pin { fill: var(--tile-calendar); }
-.bento-foundation .home-widget.widget-adoption[data-widget] .glance-clock-face .home-clock { display: flex; align-items: baseline; justify-content: center; gap: var(--tile-space-1); }
-.bento-foundation .home-widget.widget-adoption[data-widget] .glance-clock-face .home-clock .clock-digits { font: 500 24px/1.2 var(--ui-font); letter-spacing: -.03em; }
-.bento-foundation .home-widget.widget-adoption[data-widget] .glance-clock-face .clock-period { color: var(--tile-muted); font: var(--tile-label); }
-.bento-foundation .home-widget.widget-adoption[data-widget] .glance-clock-face .clock-date { margin-top: var(--tile-space-2); }
-.bento-foundation .home-widget[data-widget='glance.clock'] .world-clocks { list-style: none; padding: 0; margin: 0; }
-.bento-foundation .home-widget[data-widget='glance.clock'] .world-clock { display: flex; flex-wrap: wrap; align-items: center; gap: var(--tile-space-2); padding-block: var(--tile-space-3); border-bottom: 1px solid var(--ui-border); font: var(--tile-body); }
-.bento-foundation .home-widget[data-widget='glance.clock'] .world-clock-place { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.bento-foundation .home-widget[data-widget='glance.clock'] .world-clock-reading { display: grid; text-align: end; gap: var(--tile-space-1); font-variant-numeric: tabular-nums; }
-.bento-foundation .home-widget[data-widget='glance.clock'] .world-clock-reading > span,
-.bento-foundation .home-widget[data-widget='glance.clock'] .clock-limit { color: var(--tile-muted); font: var(--tile-label); }
-.bento-foundation .home-widget[data-widget='glance.clock'] .clock-proof :is(input,button) { min-height: 44px !important; }
-.bento-foundation .home-widget[data-widget='glance.clock'] .glance-clock-face .clock-zone { display: block; }
-
 .bento-foundation .home-widget.widget-adoption[data-widget] .event-calendar { display: flex; align-items: center; gap: var(--tile-space-4); }
 .bento-foundation .home-widget.widget-adoption[data-widget] .event-day { color: var(--tile-calendar); font: 300 60px/1 var(--ui-font); letter-spacing: -.06em; }
 .bento-foundation .home-widget.widget-adoption[data-widget] .event-calendar > div { display: grid; gap: var(--tile-space-1); }
@@ -216,7 +191,6 @@
 .bento-foundation .home-widget.widget-adoption[data-widget][data-widget='dash.shortcuts'] dd { margin: 0; }
 .bento-foundation .home-widget.widget-adoption[data-widget][data-widget='dash.shortcuts'] kbd { display: inline-block; padding: var(--tile-space-2); border: 0; border-radius: var(--tile-control-radius); background: var(--ui-raised); color: var(--tile-fg); }
 .bento-foundation .home-widget.widget-adoption[data-widget] .widget-list > li:last-child { border-bottom: 0; }
-.bento-foundation .home-widget.widget-adoption[data-widget] .glance-clock-face { justify-items: center; }
 .bento-foundation .home-widget.widget-adoption[data-widget] .widget-content,
 .bento-foundation .home-widget.widget-adoption[data-widget] .widget-skeleton { min-height: 184px; }
 .bento-foundation .home-widget.widget-adoption[data-widget][data-size='s'] .widget-content,

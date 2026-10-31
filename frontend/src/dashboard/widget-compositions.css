@@ -84,17 +84,6 @@
 .bento-foundation .home-widget.widget-adoption[data-composition] .preview-gallery-shapes span { display: block; height: 32px; border-radius: var(--tile-control-radius); background: var(--ui-raised); }
 .bento-foundation .home-widget.widget-adoption[data-composition] .preview-gallery-shapes span:last-child { grid-column: 1 / -1; }
 
-/* Clock: instrument / instrument with world-time column / full world-time board. */
-.bento-foundation .home-widget.widget-adoption[data-composition] .clock-proof { gap: var(--tile-space-2); }
-.bento-foundation .home-widget.widget-adoption[data-composition] .clock-date { margin: 0; }
-.bento-foundation .home-widget.widget-adoption[data-composition][data-size='s'] .glance-clock-face { gap: var(--tile-space-1); padding: 0; }
-.bento-foundation .home-widget.widget-adoption[data-composition][data-size='s'] .clock-dial { width: clamp(64px,30cqw,88px); }
-.bento-foundation .home-widget.widget-adoption[data-composition][data-size='s'] .clock-date { display: none; }
-.bento-foundation .home-widget.widget-adoption[data-composition][data-size='s'] .clock-saved-count { font: var(--widget-caption); text-align: center; color: var(--tile-muted); }
-.bento-foundation .home-widget.widget-adoption[data-composition][data-size='m'] .clock-dial { width: 96px; }
-.bento-foundation .home-widget.widget-adoption[data-composition] .world-clock { padding-block: var(--tile-space-1); font: var(--widget-caption); }
-.bento-foundation .home-widget.widget-adoption[data-composition][data-size='l'] .clock-reading .world-clocks { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--tile-space-4); }
-
 /* Weather and calendar have their own faces, rather than list-shaped cards. */
 .bento-foundation .home-widget.widget-adoption[data-composition] .pilot-weather { min-height: 0; gap: var(--tile-space-2); }
 .bento-foundation .home-widget.widget-adoption[data-composition] .weather-reading .ui-stat > div { font: var(--widget-reading); }
@@ -129,14 +118,9 @@
 .bento-foundation .home-widget.widget-adoption[data-composition] .pilot-focus .pilot-timer { grid-row: 1 / 3; }
 .bento-foundation .home-widget.widget-adoption[data-composition] .pilot-focus .widget-buttons { margin: 0; }
 .bento-foundation .home-widget.widget-adoption[data-composition] .focus-options { grid-column: 1 / -1; }
-.bento-foundation .home-widget.widget-adoption[data-composition] .focus-options[hidden], .bento-foundation .home-widget.widget-adoption[data-composition] .clock-settings[hidden], .bento-foundation .home-widget.widget-adoption[data-composition] .music-player-picker[hidden], .bento-foundation .home-widget.widget-adoption[data-composition] .weather-options[hidden] { display: none; }
+.bento-foundation .home-widget.widget-adoption[data-composition] .focus-options[hidden], .bento-foundation .home-widget.widget-adoption[data-composition] .music-player-picker[hidden], .bento-foundation .home-widget.widget-adoption[data-composition] .weather-options[hidden] { display: none; }
 
 @container tile (width >= 440px) {
-  .bento-foundation .home-widget.widget-adoption[data-composition][data-size='m'] .clock-reading { display: grid; grid-template-columns: 1fr 1fr; gap: var(--tile-space-6); align-items: center; }
-  .bento-foundation .home-widget.widget-adoption[data-composition][data-size='m'] .glance-clock-face { display: grid; grid-template-columns: 96px 1fr; text-align: left; }
-  .bento-foundation .home-widget.widget-adoption[data-composition][data-size='m'] .clock-dial { grid-column: 1; grid-row: 1 / 4; }
-  .bento-foundation .home-widget.widget-adoption[data-composition][data-size='m'] .glance-clock-face .home-clock { justify-content: flex-start; }
-  .bento-foundation .home-widget.widget-adoption[data-composition][data-size='m'] .clock-zone { grid-column: 2; }
   .bento-foundation .home-widget.widget-adoption[data-composition][data-size='l'][data-pattern='tasks'] .widget-workbench.is-inline .widget-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--tile-space-4); }
   .bento-foundation .home-widget.widget-adoption[data-composition][data-size='l'][data-pattern='board'] .widget-workbench.is-inline section[aria-label^='Project '] { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--tile-space-4); }
   .bento-foundation .home-widget.widget-adoption[data-composition][data-size='l'][data-pattern='board'] section[aria-label^='Project '] > :is(h3,details,form) { grid-column: 1 / -1; }
@@ -146,12 +130,6 @@
   .bento-foundation .home-widget.widget-adoption[data-composition] .widget-actions .widget-refresh { display: none; }
   .bento-foundation .home-widget.widget-adoption[data-composition] .adoption-event { grid-template-columns: minmax(0,1fr); }
   .bento-foundation .home-widget.widget-adoption[data-composition] .adoption-event .event-countdown { grid-column: 1; grid-row: auto; }
-  .bento-foundation .home-widget.widget-adoption[data-composition] .clock-reading .glance-clock-face { display: grid; grid-template-columns: 72px 1fr; text-align: left; }
-  .bento-foundation .home-widget.widget-adoption[data-composition] .clock-reading .clock-dial { grid-column: 1; grid-row: 1 / 4; width: 72px; }
-  .bento-foundation .home-widget.widget-adoption[data-composition] .clock-reading .clock-zone { grid-column: 2; }
-  .bento-foundation .home-widget.widget-adoption[data-composition] .clock-reading .glance-clock-face .home-clock { justify-content: flex-start; }
-  .bento-foundation .home-widget.widget-adoption[data-composition][data-size='s'] .clock-reading .glance-clock-face { display: flex; text-align: center; }
-  .bento-foundation .home-widget.widget-adoption[data-composition][data-size='s'] .clock-reading .clock-dial { width: 88px; }
   .bento-foundation .home-widget.widget-adoption[data-composition][data-size='s'] .adoption-event > .adoption-label { display: none; }
   .bento-foundation .home-widget.widget-adoption[data-composition] .pilot-timer { width: 104px; }
   .bento-foundation .home-widget.widget-adoption[data-composition] .preview-board { grid-template-columns: repeat(2,minmax(0,1fr)); }

@@ -1,11 +1,11 @@
 import { Button as HouseButton } from '../../components/ui/bento/index.jsx'
-import { memo, useMemo, useRef, useState, useCallback } from 'react'
+import { memo, useMemo, useRef, useState, useCallback, useEffect } from 'react'
 import { AsciiSkeleton } from 'ascii-reveal'
 import Icon from '../../components/Icon.jsx'
 import { api } from '../../api.js'
 import { getRatingTier } from './ratingUtils.js'
 import { formatDisplayDate } from './dateUtils.js'
-import ProgressSegmentedControl, { shouldShowProgress, isTrackableKind, getProgressLabel } from './ProgressSegmentedControl.jsx'
+import ProgressSegmentedControl, { shouldShowProgress, isTrackableKind, getProgressLabel, getNextProgress } from './ProgressSegmentedControl.jsx'
 import LibraryReminderBanner from './LibraryReminderBanner.jsx'
 
 export const KIND_ICON = {
@@ -176,6 +176,20 @@ function LibraryCardComponent({
   isDragged = false,
 }) {
   const cardRef = useRef(null)
+  const moreMenuRef = useRef(null)
+  const [showMoreMenu, setShowMoreMenu] = useState(false)
+
+  useEffect(() => {
+    if (!showMoreMenu) return
+    const handleClickOutside = (e) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target)) {
+        setShowMoreMenu(false)
+      }
+    }
+    window.addEventListener('mousedown', handleClickOutside, true)
+    return () => window.removeEventListener('mousedown', handleClickOutside, true)
+  }, [showMoreMenu])
+
   const status = item.status || 'ready'
   const isOptimistic = Boolean(item.isOptimistic)
   const isReceived = status === 'received'
@@ -378,7 +392,7 @@ function LibraryCardComponent({
   }, [app, item.subreddit, item.author, domain, item.site, isNote])
 
   const handleCardClick = (e) => {
-    if (e.target.closest('a, button, .lib-tag-pill, .lib-dock-btn, .lib-card-link-chip, .lib-card-tag-badge')) return
+    if (e.target.closest('a, button, input, .lib-tag-pill, .lib-dock-btn, .lib-card-link-chip, .lib-card-tag-badge, .lib-overflow-menu, .lib-card-status-pill')) return
     onSelect?.(item)
   }
 
@@ -399,6 +413,24 @@ function LibraryCardComponent({
   // Semantic rating tier
   const ratingTier = useMemo(() => getRatingTier(item.rating), [item.rating])
 
+  // Progress handling
+  const effectiveKind = isVideo ? 'video' : item.kind || 'article'
+  const isTrackable = isTrackableKind(item.kind, isVideo)
+  const currentProgress = item.progress || 'unstarted'
+  const showProgressBadge = Boolean(item.progress && item.progress !== '')
+  const progressLabel = useMemo(
+    () => getProgressLabel(effectiveKind, currentProgress),
+    [effectiveKind, currentProgress]
+  )
+  const nextProgress = useMemo(
+    () => getNextProgress(currentProgress),
+    [currentProgress]
+  )
+  const nextProgressLabel = useMemo(
+    () => getProgressLabel(effectiveKind, nextProgress),
+    [effectiveKind, nextProgress]
+  )
+
   return (
     <article
       ref={cardRef}
@@ -411,17 +443,7 @@ function LibraryCardComponent({
       onDragEnd={onDragEnd}
       className={`lib-card lib-card--${cardVariant} ${isPost ? 'lib-card--post' : ''} ${isLiveProcessing ? 'lib-card--processing' : ''} ${item.rating === 5 ? 'lib-card--essential' : ''} ${isDragOver ? 'lib-card--drag-over' : ''} ${isDragged ? 'lib-card--dragged' : ''}`}
       onClick={handleCardClick}
-      tabIndex={0}
-      role="button"
-      aria-label={`Inspect ${item.title || 'knowledge resource'}`}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          if (!e.target.closest('a, button, .lib-tag-pill, .lib-dock-btn, .lib-card-link-chip, .lib-card-tag-badge')) {
-            e.preventDefault()
-            onSelect?.(item)
-          }
-        }
-      }}
+      aria-label={item.title || 'Knowledge resource'}
     >
       {/* Flush Hero Media with Native Video and Carousel Navigation */}
       {hasThumbnail ? (
@@ -701,80 +723,91 @@ function LibraryCardComponent({
                   type="button"
                   className={`lib-card-action-btn ${item.is_pinned ? 'lib-card-action-btn--pinned' : ''}`}
                   title={item.is_pinned ? 'Unpin from top' : 'Pin to top'}
+                  aria-label={item.is_pinned ? 'Unpin from top' : 'Pin to top'}
                   onClick={() => onTogglePin ? onTogglePin(item) : api.updateLibraryItem(item.id, { is_pinned: !item.is_pinned })}
                 >
                   <Icon name="pin" size={12} className={item.is_pinned ? 'text-amber-500 fill-amber-500' : ''} />
                 </HouseButton>
 
-                {isTrackableKind(item.kind) && (
+                <div className="lib-overflow-wrap" ref={moreMenuRef}>
                   <HouseButton
                     type="button"
-                    className={`lib-card-action-btn ${item.progress && item.progress !== 'unstarted' ? 'lib-card-action-btn--active' : ''}`}
-                    title={`Progress: ${getProgressLabel(item.kind, item.progress) || 'Unstarted'} (click to cycle)`}
-                    onClick={() => {
-                      const next = item.progress === 'completed'
-                        ? 'unstarted'
-                        : item.progress === 'in_progress'
-                        ? 'completed'
-                        : 'in_progress'
-                      onProgressChange ? onProgressChange(item, next) : api.updateLibraryItem(item.id, { progress: next })
-                    }}
+                    className={`lib-card-action-btn ${showMoreMenu ? 'lib-card-action-btn--active' : ''}`}
+                    title="More actions"
+                    aria-label="More actions"
+                    aria-haspopup="true"
+                    aria-expanded={showMoreMenu}
+                    onClick={() => setShowMoreMenu((v) => !v)}
                   >
-                    <Icon name={item.progress === 'completed' ? 'check' : item.kind === 'video' ? 'play' : 'book'} size={12} />
+                    <Icon name="dots" size={13} />
                   </HouseButton>
-                )}
 
-                {!item.remind_at && (
-                  <LibraryReminderBanner
-                    item={item}
-                    variant="compact"
-                    onSaveReminder={(patch) => onSaveReminder ? onSaveReminder(item, patch) : api.updateLibraryItem(item.id, patch)}
-                    onClearReminder={() => onClearReminder ? onClearReminder(item) : api.updateLibraryItem(item.id, { remind_at: null, reminded_at: null })}
-                  />
-                )}
+                  {showMoreMenu && (
+                    <div className="lib-overflow-menu" role="menu">
+                      {item.url && (
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="lib-overflow-row"
+                          role="menuitem"
+                          onClick={() => setShowMoreMenu(false)}
+                        >
+                          <Icon name="link" size={13} />
+                          <span>Open original URL</span>
+                        </a>
+                      )}
 
-                {item.url && (
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="lib-card-action-btn"
-                    title="Open original website"
-                  >
-                    <Icon name="link" size={12} />
-                  </a>
-                )}
-                {!item.summary && (
-                  <HouseButton
-                    type="button"
-                    className="lib-card-action-btn"
-                    disabled={busy}
-                    title="Read & synthesize with AI"
-                    onClick={() => onEnrich?.(item)}
-                  >
-                    <Icon name="spark" size={12} />
-                  </HouseButton>
-                )}
-                {item.indexed && (
-                  <HouseButton
-                    type="button"
-                    className="lib-card-action-btn"
-                    disabled={busy}
-                    title="Re-index embeddings"
-                    onClick={() => onReindex?.(item)}
-                  >
-                    <Icon name="refresh" size={12} />
-                  </HouseButton>
-                )}
-                <HouseButton
-                  type="button"
-                  className="lib-card-action-btn lib-card-action-btn--danger"
-                  disabled={busy}
-                  title="Delete from library"
-                  onClick={() => onDelete?.(item)}
-                >
-                  <Icon name="trash" size={12} />
-                </HouseButton>
+                      {!item.summary && (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="lib-overflow-row"
+                          disabled={busy}
+                          onClick={() => {
+                            setShowMoreMenu(false)
+                            onEnrich?.(item)
+                          }}
+                        >
+                          <Icon name="spark" size={13} />
+                          <span>Read & synthesize (AI)</span>
+                        </button>
+                      )}
+
+                      {item.indexed && (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="lib-overflow-row"
+                          disabled={busy}
+                          onClick={() => {
+                            setShowMoreMenu(false)
+                            onReindex?.(item)
+                          }}
+                        >
+                          <Icon name="refresh" size={13} />
+                          <span>Re-index embeddings</span>
+                        </button>
+                      )}
+
+                      <div className="lib-overflow-hr" />
+
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="lib-overflow-row lib-overflow-row--danger"
+                        disabled={busy}
+                        onClick={() => {
+                          setShowMoreMenu(false)
+                          onDelete?.(item)
+                        }}
+                      >
+                        <Icon name="trash" size={13} />
+                        <span>Delete from library</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -796,13 +829,31 @@ function LibraryCardComponent({
           )}
         </h3>
 
-        {/* Subtle Progress Status Pill (Visible only when actively watching/reading/completed) */}
-        {item.progress && item.progress !== 'unstarted' && (
+        {/* Kind-aware Interactive Progress Status Badge */}
+        {showProgressBadge && progressLabel && (
           <div className="lib-card-status-row" onClick={(e) => e.stopPropagation()}>
-            <span className={`lib-card-status-pill lib-card-status-pill--${item.progress}`}>
-              {item.progress === 'completed' && <Icon name="check" size={11} className="inline mr-1" />}
-              {getProgressLabel(item.kind, item.progress)}
-            </span>
+            <button
+              type="button"
+              className={`lib-card-status-pill lib-card-status-pill--${currentProgress} lib-card-status-pill--clickable`}
+              title={`Progress: ${progressLabel}. Click to mark as ${nextProgressLabel || 'next'}.`}
+              aria-label={`Progress: ${progressLabel}. Click to mark as ${nextProgressLabel || 'next'}.`}
+              onClick={() => {
+                const next = getNextProgress(currentProgress)
+                onProgressChange ? onProgressChange(item, next) : api.updateLibraryItem(item.id, { progress: next })
+              }}
+            >
+              <Icon
+                name={
+                  currentProgress === 'completed'
+                    ? 'check'
+                    : currentProgress === 'in_progress'
+                    ? (isVideo ? 'play' : 'book')
+                    : 'bookmark'
+                }
+                size={11}
+              />
+              <span>{progressLabel}</span>
+            </button>
           </div>
         )}
 
@@ -934,7 +985,7 @@ function LibraryCardComponent({
             <span className="lib-card-date">
               {dateFull || 'Undated'}
             </span>
-            {durationMeta ? (
+            {(!hasThumbnail && !hasMediaFallback && durationMeta) ? (
               <>
                 <span className="lib-card-dot">·</span>
                 <span className="lib-card-duration">{durationMeta}</span>

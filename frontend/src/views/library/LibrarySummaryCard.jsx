@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../../components/Icon.jsx'
 import AppButton from '../../components/ui/AppButton.jsx'
 import AiProviderIcon from '../../components/AiProviderIcon.jsx'
@@ -173,7 +174,13 @@ export default function LibrarySummaryCard({
   const isSuccess = Boolean(summaryText) && !isPending
 
   return (
-    <section className="lib-summary-surface" aria-label="Summary">
+    <motion.section
+      className={`lib-summary-surface ${isEnriching ? 'lib-summary-surface--enriching' : ''}`}
+      aria-label="Summary"
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+    >
       {/* Header Row: 12px sentence case section label, muted sparkle icon (no green) */}
       <div className="lib-summary-header">
         <div className="lib-summary-title-row">
@@ -340,26 +347,39 @@ export default function LibrarySummaryCard({
             <div className="lib-summary-details-section">
               <button
                 type="button"
-                className="lib-summary-details-toggle"
+                className={`lib-summary-details-toggle ${showDetails ? 'lib-summary-details-toggle--open' : ''}`}
                 onClick={() => setShowDetails((v) => !v)}
                 aria-expanded={showDetails}
               >
                 <span>{showDetails ? 'Hide details' : 'Show details'}</span>
-                <Icon name={showDetails ? 'chevron-up' : 'chevron-down'} size={12} />
+                <span className="lib-summary-chevron-icon">
+                  <Icon name="chevron-down" size={12} />
+                </span>
               </button>
 
-              {showDetails && (
-                <ul className="lib-summary-details-list">
-                  {detailItems.map((item, i) => (
-                    <li key={i} className="lib-summary-detail-item">
-                      {item.label && (
-                        <strong className="lib-summary-detail-label">{item.label}</strong>
-                      )}
-                      <span className="lib-summary-detail-text"> {item.text}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <AnimatePresence initial={false}>
+                {showDetails && (
+                  <motion.div
+                    key="lib-summary-accordion-body"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                    style={{ overflow: 'hidden' }}
+                  >
+                    <ul className="lib-summary-details-list">
+                      {detailItems.map((item, i) => (
+                        <li key={i} className="lib-summary-detail-item">
+                          {item.label && (
+                            <strong className="lib-summary-detail-label">{item.label}</strong>
+                          )}
+                          <span className="lib-summary-detail-text"> {item.text}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
 
@@ -393,6 +413,6 @@ export default function LibrarySummaryCard({
           </div>
         </div>
       )}
-    </section>
+    </motion.section>
   )
 }

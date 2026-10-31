@@ -51,17 +51,6 @@
 }
 .widget-home .widget-skeleton { min-height: 160px; align-content: start; padding: var(--ui-space-4) 0; gap: var(--ui-space-4); }
 .widget-home .widget-skeleton span { height: 32px; background: var(--ui-raised); border-radius: var(--ui-radius); }
-.widget-home .widget-card[data-widget='glance.clock'] .widget-tile { display: grid; gap: var(--ui-space-2); }
-.widget-home .widget-card[data-widget='glance.clock'] .home-clock {
-  display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--ui-space-2);
-  font: 500 clamp(28px, 14cqi, 48px)/1 var(--ui-display); letter-spacing: -.03em; font-variant-numeric: tabular-nums; color: var(--ui-text);
-}
-.widget-home .clock-period { font: 400 12px/18px var(--ui-font); }
-.widget-home .clock-digits { white-space: nowrap; }
-.widget-home .clock-date, .widget-home .clock-zone { font: 400 11px/16px var(--ui-mono); color: var(--ui-muted); overflow-wrap: anywhere; }
-.widget-home .clock-proof { display: grid; gap: var(--ui-space-4); }
-.widget-home .world-clock { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ui-space-2); padding-block: var(--ui-space-2); border-bottom: 1px solid var(--ui-border); }
-.widget-home .world-clock time { margin-left: auto; font-variant-numeric: tabular-nums; }
 .widget-home .widget-mail { display: flex; flex-direction: column; gap: var(--ui-space-2); }
 .widget-home .mail-source-note { order: 2; color: var(--ui-muted); font: 400 11px/16px var(--ui-font); }
 .widget-home .mail-source-note summary { cursor: pointer; }
@@ -102,23 +91,23 @@
   border-radius: var(--ui-radius); background: var(--ui-panel);
 }
 /* Legacy Home form rules must not shrink the shared controls inside these pilots. */
-.widget-home :is(.widget-tasks, .clock-proof) form {
+.widget-home .widget-tasks form {
   gap: var(--ui-space-2); padding: var(--ui-space-3); margin-bottom: var(--ui-space-2);
   border-radius: var(--ui-radius); background: var(--ui-raised); border-color: var(--ui-border);
 }
-.widget-home :is(.widget-tasks, .clock-proof) form label { font: 500 12px/18px var(--ui-font); text-transform: none; letter-spacing: normal; }
+.widget-home .widget-tasks form label { font: 500 12px/18px var(--ui-font); text-transform: none; letter-spacing: normal; }
 .widget-home .widget-tasks .widget-inline-add {
   border-radius: var(--ui-radius) !important; padding: var(--ui-space-1) !important;
   gap: var(--ui-space-2) !important; margin-bottom: var(--ui-space-2) !important;
   background: var(--ui-raised) !important;
 }
-.widget-home :is(.widget-tasks, .clock-proof) [data-slot='input'] { min-height: 36px !important; height: 36px !important; font: 400 13px/20px var(--ui-font) !important; border-radius: var(--ui-radius); }
-.widget-home :is(.widget-tasks, .clock-proof, .widget-mail) .ui-button:not(.task-check-button) {
+.widget-home .widget-tasks [data-slot='input'] { min-height: 36px !important; height: 36px !important; font: 400 13px/20px var(--ui-font) !important; border-radius: var(--ui-radius); }
+.widget-home :is(.widget-tasks, .widget-mail) .ui-button:not(.task-check-button) {
   min-height: 28px !important; height: auto !important; padding: var(--ui-space-1) var(--ui-space-2) !important;
   border: 1px solid var(--ui-border) !important; border-radius: var(--ui-radius) !important;
   background: var(--ui-raised) !important; color: var(--ui-text) !important; font: 500 13px/20px var(--ui-font) !important;
 }
-.widget-home :is(.widget-tasks, .clock-proof, .widget-mail) .ui-button:hover:not(:disabled) { border-color: var(--ui-accent) !important; }
+.widget-home :is(.widget-tasks, .widget-mail) .ui-button:hover:not(:disabled) { border-color: var(--ui-accent) !important; }
 .widget-home .widget-timeline > .timeline-row { position: relative; align-items: start; padding-inline-start: var(--ui-space-6); border: 0; }
 .widget-home .timeline-row::before { content: ''; position: absolute; left: 4px; top: 20px; bottom: -20px; width: 1px; background: var(--ui-border); }
 .widget-home .timeline-row:last-child::before { display: none; }
@@ -137,7 +126,6 @@
   .widget-home .task-source-note { max-width: 80px; }
 }
 @container widget (max-width: 239px) {
-  .widget-home .clock-zone { display: none; }
   .widget-home .widget-card.home-tile[data-widget='glance.clock'] .widget-heading-icon { display: none; }
 }
 

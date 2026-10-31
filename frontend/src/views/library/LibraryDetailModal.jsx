@@ -558,6 +558,10 @@ export default function LibraryDetailModal({
 
   const hasMultipleMediaModes = Boolean(videoItem && slideItems.length > 0)
   const isVideoMode = mediaMode === 'video' && Boolean(videoItem)
+  const effectiveKind = useMemo(() => {
+    if (videoItem) return 'video'
+    return item.kind || 'article'
+  }, [videoItem, item.kind])
 
   // Aspect ratio detection: 9:16 for reels/tiktok/shorts
   const isVertical = useMemo(() => {
@@ -1238,14 +1242,14 @@ export default function LibraryDetailModal({
                     {dateRelative && (
                       <div className="lib-meta-item" title={dateAbsolute || dateRelative}>
                         <Icon name="calendar" size={12} />
-                        <span>Captured {dateRelative}</span>
+                        <span>Captured {dateRelative.toLowerCase() === 'today' ? 'today' : dateRelative}</span>
                       </div>
                     )}
 
                     {durationText && (
-                      <div className="lib-meta-item">
+                      <div className="lib-meta-item" title={`Duration: ${durationText}`}>
                         <Icon name="clock" size={12} />
-                        <span className="mono">{durationText}</span>
+                        <span className="lib-meta-duration">{durationText}</span>
                       </div>
                     )}
 
@@ -1269,7 +1273,7 @@ export default function LibraryDetailModal({
                     <span className="lib-detail-progress-label">Progress</span>
                     <ProgressSegmentedControl
                       progress={item.progress}
-                      kind={item.kind}
+                      kind={effectiveKind}
                       variant="full"
                       onChange={handleProgressChange}
                     />

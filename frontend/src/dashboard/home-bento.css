@@ -44,9 +44,6 @@
 .home-layout-grid .task-source-note { display: none; }
 .home-layout-grid .today-slot-body .home-widget .glance-value { font: var(--tile-number); color: var(--tile-fg); letter-spacing: -.04em; }
 .home-layout-grid .today-slot-body .home-widget[data-widget='glance.next-event'] .glance-value { font: var(--tile-title); }
-.home-layout-grid .today-slot-body .home-widget .clock-digits { font: 500 24px/1.2 var(--ui-font); color: var(--tile-fg); }
-.home-layout-grid .today-slot-body .home-widget .clock-date, .home-layout-grid .today-slot-body .home-widget .clock-zone { color: var(--tile-muted); font: var(--tile-label); }
-.home-layout-grid .today-slot-body .home-widget .glance-clock-face { gap: var(--tile-space-2); }
 .home-layout-grid .today-widget-slot[data-collapsed] { grid-row: span 1; }
 .home-layout-grid .home-connect .ui-state { align-content: center; justify-content: space-between; width: 100%; }
 .home-layout-grid .home-connect .ui-state p { font: var(--tile-title); }
@@ -106,5 +103,3 @@
 .home-layout-grid .today-slot-body .home-widget .widget-content { min-height: 0 !important; flex: 1; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .home-layout-grid .widget-header, .home-layout-grid .widget-show-all { flex-shrink: 0; }
 .home-layout-grid .today-widget-slot[data-drop-target] { outline: 2px solid var(--tile-action); outline-offset: 3px; }
-.home-layout-grid .today-slot-body .home-widget .clock-dial { width: 144px; }
-.home-layout-grid .today-slot-body .home-widget .glance-clock-face { padding-block: var(--tile-space-2); }

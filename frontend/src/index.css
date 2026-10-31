@@ -15506,14 +15506,11 @@ a.text-reveal-wrap {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: var(--canvas-deep);
+  background: var(--sb-bg, #171717);
   position: relative;
   overflow: hidden;
-  margin: 6px 6px 6px 0;
-  border-top-left-radius: 16px;
-  border-bottom-left-radius: 16px;
-  border-top-right-radius: 12px;
-  border-bottom-right-radius: 12px;
+  margin: 0;
+  border-radius: 0;
   border: none;
   transition: border-radius 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -15531,7 +15528,9 @@ a.text-reveal-wrap {
   display: flex;
   flex-direction: column;
   position: relative;
-  border-radius: inherit;
+  margin: 6px;
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
 }
 
 .wb-bar-hover-trigger {
@@ -40003,14 +40002,11 @@ a.text-reveal-wrap {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: var(--canvas-deep);
+  background: var(--sb-bg, #171717);
   position: relative;
   overflow: hidden;
-  margin: 6px 6px 6px 0;
-  border-top-left-radius: 16px;
-  border-bottom-left-radius: 16px;
-  border-top-right-radius: 12px;
-  border-bottom-right-radius: 12px;
+  margin: 0;
+  border-radius: 0;
   border: none;
 }
 
@@ -40022,6 +40018,9 @@ a.text-reveal-wrap {
   display: flex;
   flex-direction: column;
   position: relative;
+  margin: 6px;
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
 }
 
 .wb-bar-hover-trigger {

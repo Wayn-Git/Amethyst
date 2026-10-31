@@ -74,31 +74,6 @@
 @media (prefers-reduced-motion: reduce) { .dashboard-widget-menu[data-slot], .wigggle-sample * { animation: none !important; transition: none !important; } }
 .today-dashboard, .today-drawer, .widget-review, .catalog-live-preview { --wigggle-panel: var(--ui-panel); --wigggle-text: var(--ui-text); --wigggle-muted: var(--ui-muted); --wigggle-raised: var(--ui-raised); --wigggle-border: var(--ui-border); }
 .bento-foundation .home-widget.widget-adoption[data-widget] { --ui-panel: var(--wigggle-panel, var(--tile-light)); --ui-text: var(--wigggle-text, var(--tile-light-text)); --ui-muted: var(--wigggle-muted, var(--tile-light-muted)); --ui-raised: var(--wigggle-raised, var(--tile-canvas)); --ui-border: var(--wigggle-border, var(--ui-border-strong)); --tile-bg: var(--ui-panel); --tile-fg: var(--ui-text); --tile-muted: var(--ui-muted); }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading { display: grid; gap: var(--tile-space-3); min-width: 0; align-items: center; }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading .glance-clock-face { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: var(--tile-space-2); text-align: center; padding: 0; }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-dial { width: 120px; max-width: 100%; }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-dial-face { fill: var(--ui-raised); }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] :is(.clock-tick-major,.clock-hand) { stroke: var(--ui-text); }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-tick { stroke: var(--ui-border-strong); }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-numeral { fill: var(--ui-text); }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] :is(.clock-dial-day,.clock-dial-date) { display: none; }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-second-hand { stroke: var(--ui-accent); stroke-width: 1.5; }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-pin { fill: var(--ui-accent); }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading .home-clock { justify-content: center; font-variant-numeric: tabular-nums; }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading .clock-digits { font: var(--widget-reading); letter-spacing: -.04em; }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .glance-clock-face:has(.clock-dial) .clock-digits { font: var(--tile-title); }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading .clock-date { display: block; margin: 0; }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading .clock-zone { display: block; }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .world-clocks { display: grid; gap: var(--tile-space-3); padding: 0; margin: 0; list-style: none; }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .world-clock { display: flex; align-items: center; gap: var(--tile-space-2); padding: var(--tile-space-2) 0; border-bottom: 1px solid var(--ui-border); }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .world-clock-place { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .world-clock-place :is(strong,small) { display: block; }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .world-clock-place strong { font: var(--tile-title); }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] :is(.world-clock-place small,.world-clock-offset,.clock-saved-count) { color: var(--ui-muted); font: var(--tile-label); }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .world-clock-reading { text-align: right; font-variant-numeric: tabular-nums; }
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-settings[hidden] { display: none; }
-.bento-foundation .home-widget.widget-adoption[data-design='clock-sm-09'] .world-clocks { grid-template-columns: repeat(2,minmax(0,1fr)); }
-.bento-foundation .home-widget.widget-adoption[data-design^='clock-sm-0']:is([data-design$='7'],[data-design$='8'],[data-design$='9']) .clock-reading:has(.world-clocks) .glance-clock-face { display: none; }
 .bento-foundation .home-widget.widget-adoption[data-design^='media-'] .music-track { display: flex; align-items: center; gap: var(--tile-space-3); }
 .bento-foundation .home-widget.widget-adoption[data-design^='media-'] .music-art { width: 88px; height: 88px; border-radius: var(--tile-control-radius); overflow: hidden; flex-shrink: 0; }
 .bento-foundation .home-widget.widget-adoption[data-design^='media-'] .music-art img { width: 100%; height: 100%; object-fit: cover; }
@@ -123,10 +98,6 @@
 .bento-foundation .home-widget.widget-adoption[data-design='productivity-md-02'] .widget-list { display: grid; gap: var(--tile-space-2); }
 .bento-foundation .home-widget.widget-adoption[data-design='productivity-sm-01'] .widget-list > li { border: 0; padding: var(--tile-space-1) 0; }
 .bento-foundation .home-widget.widget-adoption[data-design='dashboard-md-01'] .widget-preview { justify-content: flex-start; }
-@container tile (width >= 390px) {
-  .bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading[data-clock-size='m']:has(.world-clocks),
-  .bento-foundation .home-widget.widget-adoption[data-widget='glance.clock'] .clock-reading[data-clock-size='l']:has(.world-clocks) { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
-}
 .wigggle-live-weather { min-width: 0; }
 .wigggle-live-weather > div { width: 100%; max-width: 100%; height: auto; min-height: 160px; border: 0; padding: var(--tile-space-2); background: transparent; box-shadow: none; white-space: normal; }
 .wigggle-live-weather { --background: var(--ui-panel); --foreground: var(--ui-text); --primary: var(--ui-text); --muted: var(--ui-raised); --muted-foreground: var(--ui-muted); --border: var(--ui-border); }

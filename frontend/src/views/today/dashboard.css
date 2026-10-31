@@ -21,8 +21,8 @@
 .day-eyebrow span { margin: 0 12px; color: var(--text-faint); }
 .day-intro { margin-top: 12px !important; color: var(--text-faint); font-size: var(--text-md); }
 .day-conditions { display: flex; align-items: center; gap: 28px; }
-.day-clock { display: grid; gap: 6px; text-align: right; white-space: nowrap; }
-.day-clock time { font-size: var(--text-2xl); font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+.day-clock { display: grid; gap: 4px; text-align: right; white-space: nowrap; }
+.day-clock time { font-size: var(--text-lg, 18px); font-variant-numeric: tabular-nums; letter-spacing: -.02em; font-weight: 500; }
 .day-clock span { color: var(--text-faint); font-size: var(--text-xs); }
 .day-weather { position: relative; border-left: 1px solid var(--hairline); padding-left: 20px; max-width: 230px; }
 .day-weather > button { display: flex; align-items: center; gap: 12px; text-align: left; padding: 8px; }

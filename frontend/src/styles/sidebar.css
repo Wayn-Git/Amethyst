@@ -1045,38 +1045,68 @@
 }
 
 /* ==========================================================================
-   NESTED SECTION ROUNDING & FRAME MARGINS (Matching Inspiration Image)
+   NESTED SECTION ROUNDING & FRAME MARGINS
    ========================================================================== */
 .wb-main {
-  margin: 6px 6px 6px 0 !important;
-  border-top-left-radius: 16px !important;
-  border-bottom-left-radius: 16px !important;
-  border-top-right-radius: 12px !important;
-  border-bottom-right-radius: 12px !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
   overflow: hidden !important;
   border: none !important;
+  box-shadow: none !important;
+  background: var(--sb-bg, #171717) !important;
+}
+
+.wb-bar {
+  flex: none;
+  height: 48px;
+  background: var(--sb-bg, #171717) !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  border-bottom: 1px solid var(--sb-border, rgba(255, 255, 255, 0.07)) !important;
+  z-index: 10;
+}
+
+/* Floating Rounded Section Canvas (The actual section) */
+.wb-main > .main {
+  margin: 6px 6px 6px 6px !important;
+  border-radius: 14px !important;
+  background: var(--canvas-deep) !important;
+  overflow: hidden !important;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08) !important;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06)) !important;
   transition: border-radius 0.22s cubic-bezier(0.16, 1, 0.3, 1),
               margin 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-.wb.wb--compact .wb-main {
+.wb.wb--compact .wb-main > .main {
   margin: 0 !important;
   border-radius: 0 !important;
+  border: none !important;
   box-shadow: none !important;
 }
 
 .wb-panel {
   margin: 6px 6px 6px 0 !important;
-  border-radius: 12px !important;
+  border-radius: 14px !important;
   overflow: hidden !important;
-  border: none !important;
-  box-shadow: none !important;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06)) !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08) !important;
 }
 
 .wb.wb--compact .wb-panel {
   margin: 0 !important;
   border-radius: 0 !important;
+  border: none !important;
 }
+
+/* When Library Studio Detail is open, hide redundant WorkbenchBar so Studio gets dedicated clean toolbar */
+.wb-main:has(.lib-view--detail-open) .wb-bar {
+  display: none !important;
+}
+
+.wb-main:has(.lib-view--detail-open) > .main {
+  margin: 6px 6px 6px 6px !important;
+}
+
 
 

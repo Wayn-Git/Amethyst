@@ -432,7 +432,6 @@
   overflow: hidden;
 }
 
-.home-clock,
 .glance-value {
   display: block;
   font: 700 21px/1.05 var(--home-heading-font);
@@ -464,19 +463,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* 1. CLOCK TILE: Sky Blue Pastel Badge */
-.home-tile[data-widget="glance.clock"] .widget-heading-icon {
-  background: #e0f2fe;
-  color: #0284c7;
-}
-
-.home-tile[data-widget="glance.clock"] .home-clock {
-  font-family: var(--home-mono-font);
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--text);
 }
 
 .widget-content .home-ascii,

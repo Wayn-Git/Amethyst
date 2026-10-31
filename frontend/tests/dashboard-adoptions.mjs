@@ -82,10 +82,11 @@ try {
  await page.waitForFunction(count => document.querySelectorAll('.widget-adoption').length === count && !document.querySelector('.widget-skeleton'), Object.keys(fixtures[group]).length)
 
  if (group === 'glance') {
-  assert.equal(await widget('glance.clock').locator('.clock-dial line').count(), 62)
-  assert.equal(await widget('glance.clock').locator('.clock-hour-hand').getAttribute('transform'), 'rotate(60 100 100)')
-  assert.equal(await widget('glance.clock').locator('.clock-minute-hand').getAttribute('transform'), 'rotate(0 100 100)')
-  assert.equal(await widget('glance.clock').locator('.home-clock').getAttribute('datetime'), '2026-10-26T06:00:00.000Z')
+  assert.equal(await widget('glance.clock').locator('.clock-widget').getAttribute('data-clock-design'), 'clock-sm-01')
+  assert.equal(await widget('glance.clock').locator('.clock-face--minimal').count(), 1)
+  assert.match(await widget('glance.clock').locator('.clock-time').innerText(), /02:00/)
+  assert.equal(await widget('glance.clock').locator('.clock-time').getAttribute('datetime'), '2026-10-26T06:00:00.000Z')
+  assert.equal(await widget('glance.clock').getByRole('radio').count(), 9, 'every face is available in settings')
   assert.deepEqual(await widget('glance.weather').locator('.weather-hours time').allTextContents(), ['12:00', '13:00'])
   assert.deepEqual(await widget('glance.weather').locator('.weather-hours strong').allTextContents(), ['22°', '24°'])
   assert.equal(await widget('glance.weather').getByLabel('Chance of rain 10%', { exact: true }).count(), 1)

@@ -65,7 +65,7 @@ await page.route('**/api/**', async route => {
 const clock = page.locator('[data-widget="glance.clock"]')
 try {
   await page.goto(base, { waitUntil: 'domcontentloaded' })
-  await clock.locator('.home-clock').waitFor()
+  await clock.locator('.clock-time').waitFor()
   assert.equal(calls.some(path => path.startsWith('/api/today') || path.includes('composio')), false)
   assert.equal(await page.locator('.home-glance > .home-widget').count(), 4)
   assert.equal(await page.locator('[data-widget^="dash."]').count(), 0)
@@ -128,7 +128,7 @@ try {
   await page.getByText('Layout saved', { exact: true }).waitFor()
   layout = await (await fetch(`${backend}/api/layout`)).json()
   assert.equal(layout.widgets.find(w => w.id === 'glance.clock').height, 4)
-  await page.reload({ waitUntil: 'domcontentloaded' }); await clock.locator('.home-clock').waitFor()
+  await page.reload({ waitUntil: 'domcontentloaded' }); await clock.locator('.clock-time').waitFor()
   assert.equal((await (await fetch(`${backend}/api/layout`)).json()).widgets.find(w => w.id === 'glance.clock').size, 'l')
   await clock.getByLabel('Menu Clock', { exact: true }).click()
   await clock.getByRole('button', { name: 'Settings', exact: true }).click()
@@ -139,7 +139,7 @@ try {
   await page.keyboard.press('Escape')
   for (const [state, text] of [['empty', 'No upcoming event'], ['not-connected', 'Connect source'], ['error', 'Fixture failure']]) {
     clockState = state; await page.reload({ waitUntil: 'domcontentloaded' })
-    if (state === 'empty') await clock.locator('.home-clock').waitFor()
+    if (state === 'empty') await clock.locator('.clock-time').waitFor()
     else await clock.getByText(text, { exact: true }).waitFor()
   }
   clockState = 'loading'; await page.reload({ waitUntil: 'domcontentloaded' }); await clock.getByRole('status', { name: 'Loading widget…' }).waitFor()
@@ -150,7 +150,7 @@ try {
   brokenClock = false
   await page.goto(base + '/today?widget=dash.quiet', { waitUntil: 'domcontentloaded' }); await settings.waitFor()
   await page.keyboard.press('Escape'); await settings.waitFor({ state: 'hidden' })
-  await page.reload({ waitUntil: 'domcontentloaded' }); await clock.locator('.home-clock').waitFor()
+  await page.reload({ waitUntil: 'domcontentloaded' }); await clock.locator('.clock-time').waitFor()
   for (const title of ['Refresh status', 'Quiet hours', 'Keyboard shortcuts', 'Widget gallery']) {
     await page.keyboard.press('Control+k')
     const palette = page.getByRole('dialog', { name: 'Spotlight Command Palette', exact: true })

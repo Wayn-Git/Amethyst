@@ -32,7 +32,7 @@ export function visibleRows(data, widgetId) {
 }
 
 export const DETAIL_LABELS = {
-  'glance.clock': 'World clocks', 'glance.weather': 'Change location', 'glance.sun': 'Location settings',
+  'glance.clock': 'Faces & world clocks', 'glance.weather': 'Change location', 'glance.sun': 'Location settings',
   'glance.air': 'Location settings', 'glance.next-event': 'Open calendar', 'glance.music': 'Player settings',
   'glance.travel': 'Trip settings', 'task.focus': 'Timer settings', 'need.inbox': 'Open inbox',
   'need.drafts': 'Review drafts', 'need.waiting': 'Track a reply', 'need.approvals': 'Review approvals',
