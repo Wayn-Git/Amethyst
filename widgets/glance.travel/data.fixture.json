@@ -1,0 +1,24 @@
+{
+  "status": "ready",
+  "message": "",
+  "lastUpdated": "14:15",
+  "duration": "25 min",
+  "eventTitle": "Product Design Sync",
+  "eventTime": "in 45 min",
+  "route": "18 km via Main Expressway",
+  "origin": "Home",
+  "labels": {
+    "title": "Travel time",
+    "nextEvent": "Next event",
+    "origin": "From",
+    "loading": "Loading",
+    "refreshing": "Refreshing",
+    "noEvent": "No upcoming events with a location",
+    "setLocation": "Set trip origin in settings",
+    "notConnected": "Connect Calendar & Maps in settings",
+    "unavailable": "Travel estimate unavailable",
+    "notAvailable": "Not available",
+    "updated": "Updated 14:15",
+    "offlineUpdated": "Offline, updated 14:15"
+  }
+}

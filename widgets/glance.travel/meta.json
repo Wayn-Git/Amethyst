@@ -1,0 +1,20 @@
+{
+  "widgetId": "glance.travel",
+  "size": "m",
+  "designSpec": "One shadow-free 356 × 170 card pairs a quiet status header with a prominent driving duration and compact event details. Neutral theme tokens support the status-driven views; Retry is omitted because the widget is display-only.",
+  "theme": "light",
+  "stages": [
+    "Planning the widget",
+    "Planning complete. No web or image search needed",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Widget ready"
+  ],
+  "generatedAt": "2026-11-01T12:42:03.538Z",
+  "promptFile": "widget-prompts/glance.travel-m.md",
+  "brokenRules": []
+}
