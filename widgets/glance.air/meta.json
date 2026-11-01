@@ -1,0 +1,10 @@
+{
+  "widgetId": "glance.air",
+  "size": "s",
+  "theme": "light",
+  "designSpec": "A single shadow-free 170px card emphasizes the AQI above compact particulate readings and update metadata. Neutral theme tokens and status-driven branches support loading and unavailable states; Retry is omitted because no actions are authorized.",
+  "generatedAt": "2026-11-01T12:33:06Z",
+  "endpoint": "https://widgets.gan.dev/api/author-widget",
+  "promptFile": "widget-prompts/glance.air-s.md",
+  "brokenRules": []
+}

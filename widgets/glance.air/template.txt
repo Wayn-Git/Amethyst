@@ -1,0 +1,55 @@
+<Card width={170} padding={3} gap={3} shadow={false} background="surface">
+  <Row gap={1} align="center">
+    <Icon name="wind" size="xs" color="secondary" />
+    <Caption value={labels.title} color="primary" />
+    <Spacer />
+    <Show when={status === 'loading' || status === 'refreshing'}>
+      <Spinner size="xs" label={status === 'loading' ? labels.loading : labels.refreshing} />
+      <Show.Else>
+        <Icon name={status === 'ready' ? 'check-circle' : status === 'stale' ? 'clock' : status === 'offline' ? 'x-circle' : status === 'error' ? 'alert-circle' : 'circle-question'} size="xs" color="secondary" />
+      </Show.Else>
+    </Show>
+  </Row>
+  <Show when={status === 'loading'}>
+    <Col gap={3}>
+      <LoadingBlock width={72} height={48} radius="sm" />
+      <LoadingBlock width="70%" height={14} radius="xs" />
+      <Each of={[labels.pm25Label, labels.pm10Label]} item="metricLabel">
+        <Row key={metricLabel} justify="between" gap={2}>
+          <Caption value={metricLabel} />
+          <LoadingBlock width={70} height={14} radius="xs" />
+        </Row>
+      </Each>
+    </Col>
+    <Show.ElseIf when={status === 'ready' || status === 'refreshing' || status === 'offline' || status === 'stale'}>
+      <Col gap={3}>
+        <Col gap={1}>
+          <Stat label={labels.aqiLabel} value={has(aqi) ? aqi : labels.notAvailable} size="lg" />
+          <Text value={has(category) ? category : labels.notAvailable} size="sm" />
+        </Col>
+        <Divider color="subtle" />
+        <Col gap={2}>
+          <Each of={[{ label: labels.pm25Label, value: pm2_5 }, { label: labels.pm10Label, value: pm10 }]} item="metric">
+            <Row key={metric.label} justify="between" align="baseline" gap={2} wrap="wrap">
+              <Caption value={metric.label} />
+              <Text value={has(metric.value) ? metric.value : labels.notAvailable} size="sm" tabularNums />
+            </Row>
+          </Each>
+        </Col>
+        <Caption value={(status === 'offline' ? labels.offlinePrefix : status === 'refreshing' ? labels.refreshingPrefix : labels.updatedPrefix) + (has(lastUpdated) ? lastUpdated : labels.notAvailable)} size="sm" />
+      </Col>
+    </Show.ElseIf>
+    <Show.ElseIf when={status === 'empty'}>
+      <Text value={labels.locationUnset} size="sm" />
+    </Show.ElseIf>
+    <Show.ElseIf when={status === 'error'}>
+      <Text value={labels.unavailable} size="sm" />
+    </Show.ElseIf>
+    <Show.Else>
+      <Text value={labels.notAvailable} size="sm" />
+    </Show.Else>
+  </Show>
+  <Show when={has(message)}>
+    <Text value={message} size="sm" color="secondary" />
+  </Show>
+</Card>

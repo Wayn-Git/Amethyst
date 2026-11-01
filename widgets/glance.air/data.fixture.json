@@ -1,0 +1,23 @@
+{
+  "status": "ready",
+  "message": "",
+  "lastUpdated": "12:30",
+  "aqi": "32",
+  "category": "Good",
+  "pm2_5": "8.4 µg/m³",
+  "pm10": "15.2 µg/m³",
+  "labels": {
+    "title": "Air quality",
+    "pm25Label": "PM2.5",
+    "pm10Label": "PM10",
+    "aqiLabel": "European AQI",
+    "loading": "Loading",
+    "refreshing": "Refreshing",
+    "locationUnset": "Location unset",
+    "unavailable": "Air quality unavailable",
+    "notAvailable": "Not available",
+    "updatedPrefix": "Updated ",
+    "offlinePrefix": "Offline, updated ",
+    "refreshingPrefix": "Refreshing · Updated "
+  }
+}
