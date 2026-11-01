@@ -1,0 +1,67 @@
+<Card width={356} height={170} padding={3} gap={2} shadow={false} background="surface">
+  <Row gap={2} justify="between">
+    <Row gap={1}>
+      <Icon name="cloud-sun" size="sm" color="secondary" />
+      <Caption value={data.labels.title} size="sm" />
+    </Row>
+    <Show when={data.status === 'loading' || data.status === 'refreshing' || data.status === 'ready' || data.status === 'offline' || data.status === 'stale'}>
+      <Caption size="sm" value={data.status === 'loading' ? data.labels.loading : data.status === 'refreshing' ? data.labels.refreshing : (data.status === 'offline' ? data.labels.offlineUpdated : data.labels.updated) + ' ' + (data.lastUpdated || data.labels.notAvailable)} />
+    </Show>
+  </Row>
+  <Show when={data.status === 'loading'}>
+    <Row gap={3} minHeight={56}>
+      <LoadingBlock width={78} height={48} radius="sm" />
+      <Col gap={2} flex={1}>
+        <LoadingBlock width="65%" height={14} radius="xs" />
+        <LoadingBlock width="90%" height={12} radius="xs" />
+      </Col>
+    </Row>
+    <Grid columns={4} gap={3}>
+      <Each of={data.hours} item="hour">
+        <LoadingBlock key={hour.time} width="100%" height={42} radius="sm" />
+      </Each>
+    </Grid>
+    <Show.ElseIf when={data.status === 'ready' || data.status === 'refreshing' || data.status === 'offline' || data.status === 'stale'}>
+      <Row gap={3} align="center" minHeight={56}>
+        <Title value={data.temperature || data.labels.notAvailable} size={has(data.temperature) ? '3xl' : 'sm'} tabularNums />
+        <Col gap={0} flex={1} minWidth={0}>
+          <Text value={data.location || data.labels.notAvailable} size="sm" weight="semibold" />
+          <Text value={data.condition || data.labels.notAvailable} size="sm" color="secondary" />
+          <Caption size="sm" value={data.rainAlert || (data.feelsLike || data.labels.notAvailable) + ' · ' + (data.wind || data.labels.notAvailable)} />
+        </Col>
+      </Row>
+      <Show when={size(data.hours) > 0}>
+        <Grid columns={4} gap={2}>
+          <Each of={data.hours.slice(0, 4)} item="hour">
+            <Col key={hour.time} gap={0} align="center">
+              <Caption value={hour.time || data.labels.notAvailable} size="sm" />
+              <Text value={hour.temp || data.labels.notAvailable} size="sm" weight="medium" tabularNums />
+              <Row gap={1}>
+                <Icon name="droplet" size="xs" color="secondary" />
+                <Caption value={hour.rain || data.labels.notAvailable} size="sm" tabularNums />
+              </Row>
+            </Col>
+          </Each>
+        </Grid>
+        <Show.Else>
+          <Text value={data.labels.forecast + ': ' + data.labels.notAvailable} size="sm" color="secondary" />
+        </Show.Else>
+      </Show>
+    </Show.ElseIf>
+    <Show.ElseIf when={data.status === 'empty'}>
+      <Col flex={1} justify="center" gap={2}>
+        <Text value={data.labels.locationUnset} size="sm" />
+        <Show when={has(data.message)}><Text value={data.message} size="sm" color="secondary" /></Show>
+      </Col>
+    </Show.ElseIf>
+    <Show.ElseIf when={data.status === 'error'}>
+      <Col flex={1} justify="center" gap={2}>
+        <Text value={data.labels.unavailable} size="sm" />
+        <Show when={has(data.message)}><Text value={data.message} size="sm" color="secondary" /></Show>
+      </Col>
+    </Show.ElseIf>
+    <Show.Else>
+      <Col flex={1} justify="center"><Text value={data.labels.notAvailable} size="sm" color="secondary" /></Col>
+    </Show.Else>
+  </Show>
+</Card>

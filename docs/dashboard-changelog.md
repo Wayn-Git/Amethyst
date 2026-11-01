@@ -1,5 +1,7 @@
 # Dashboard changelog
 
+- 2026-11-01 · `glance.weather`: migrated to `@tugan/widgets` playground loop per `WIDGET_LOOP.md`; generated 356x170 Medium card template from `widgets.gan.dev/playground`; wired pure adapter for temperature, conditions, location, and 4-hour forecast from Open-Meteo; preserved location settings panel in drawer; zero mock data; verified targeted oxlint, check-widget-map, frontend build, and pytest dashboard suite.
+
 - 2026-11-01 · `glance.sun`: migrated to `@tugan/widgets` playground loop per `WIDGET_LOOP.md`; generated 170px compact template from `widgets.gan.dev/playground`; wired pure adapter for local wall sunrise, sunset, daylight duration, and timezone from Open-Meteo; zero mock data; verified targeted oxlint, check-widget-map, frontend build, and pytest dashboard suite.
 
 - 2026-11-01 · `glance.air`: migrated to `@tugan/widgets` playground loop per `WIDGET_LOOP.md`; generated shadow-free 170px compact template from `widgets.gan.dev/playground`; wired pure adapter for European AQI, rating, and PM2.5/PM10 particulate readings from Open-Meteo; zero mock data; verified targeted oxlint, check-widget-map, frontend build, and pytest dashboard suite.

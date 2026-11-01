@@ -1,0 +1,21 @@
+{
+  "widgetId": "glance.weather",
+  "size": "m",
+  "designSpec": "A single 356 × 170 card pairs a prominent temperature with location and conditions above four aligned hourly forecasts. Neutral theme tokens and no shadows keep it quiet; status branches use supplied data, and Retry is omitted because no actions are permitted.",
+  "theme": "light",
+  "stages": [
+    "Planning the widget",
+    "Planning complete. No web or image search needed",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Arranging the sections",
+    "Widget ready"
+  ],
+  "generatedAt": "2026-11-01T12:39:35.645Z",
+  "promptFile": "widget-prompts/glance.weather-m.md",
+  "brokenRules": []
+}

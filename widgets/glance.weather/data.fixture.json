@@ -1,0 +1,44 @@
+{
+  "status": "ready",
+  "message": "",
+  "lastUpdated": "12:00",
+  "temperature": "28°",
+  "condition": "Mostly Clear",
+  "location": "Kolkata",
+  "feelsLike": "Feels like 31°",
+  "wind": "12 km/h",
+  "rainAlert": "",
+  "hours": [
+    {
+      "time": "13:00",
+      "temp": "29°",
+      "rain": "10%"
+    },
+    {
+      "time": "14:00",
+      "temp": "30°",
+      "rain": "15%"
+    },
+    {
+      "time": "15:00",
+      "temp": "29°",
+      "rain": "10%"
+    },
+    {
+      "time": "16:00",
+      "temp": "27°",
+      "rain": "5%"
+    }
+  ],
+  "labels": {
+    "title": "Weather",
+    "forecast": "Hourly forecast",
+    "loading": "Loading",
+    "refreshing": "Refreshing",
+    "locationUnset": "Location unset in settings",
+    "unavailable": "Weather data unavailable",
+    "notAvailable": "Not available",
+    "updated": "Updated",
+    "offlineUpdated": "Offline, updated"
+  }
+}
