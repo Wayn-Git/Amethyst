@@ -1,0 +1,131 @@
+{
+  "composition": "minimal",
+  "footprint": "medium",
+  "darkMode": false,
+  "selectedId": "launch",
+  "editingId": "",
+  "editSubject": "",
+  "editBody": "",
+  "lastRemoved": "",
+  "status": "ready",
+  "appearance": "light",
+  "scale": "medium",
+  "compositions": [
+    {
+      "label": "Minimal",
+      "value": "minimal"
+    },
+    {
+      "label": "Inbox",
+      "value": "inbox"
+    },
+    {
+      "label": "Editorial",
+      "value": "editorial"
+    },
+    {
+      "label": "Review",
+      "value": "review"
+    }
+  ],
+  "footprints": [
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "labels": {
+    "galleryTitle": "Mail drafts to approve",
+    "galleryHint": "Four directions, two sizes. Explore all eight studies.",
+    "compositionLabel": "Widget composition",
+    "sizeLabel": "Widget size",
+    "darkAppearance": "Dark appearance",
+    "draftsTitle": "Drafts to approve",
+    "draftUnit": "draft",
+    "latest": "Most recently saved",
+    "latestShort": "Latest",
+    "to": "To: ",
+    "separator": " · ",
+    "awaiting": "Awaiting approval",
+    "saved": "Saved draft",
+    "approved": "Approved",
+    "edit": "Edit",
+    "approve": "Approve",
+    "remove": "Remove",
+    "reviewTitle": "Review draft",
+    "featured": "The latest draft",
+    "alsoDrafts": "Also in drafts",
+    "queueHint": "Select a draft to read and review below.",
+    "selectedDraft": "Selected draft · review actions below",
+    "editTitle": "Edit draft",
+    "subject": "Subject",
+    "message": "Message",
+    "cancel": "Cancel",
+    "save": "Save draft locally",
+    "editNotice": "Saving updates this preview and returns the draft to awaiting approval.",
+    "justEdited": "Edited just now",
+    "emptyTitle": "No drafts in this preview",
+    "emptyDescription": "Drafts created or ready for review will appear here.",
+    "removedNotice": "Draft removed from this preview.",
+    "undo": "Undo removal",
+    "localNotice": "Drafts stay local; approval is gated and never auto-sent."
+  },
+  "drafts": [
+    {
+      "id": "launch",
+      "recipient": {
+        "name": "Maya Chen",
+        "email": "maya@example.com"
+      },
+      "subject": "Revised launch timeline",
+      "body": "Hi Maya,\n\nWe’ve moved the internal review to Thursday so the team has time to incorporate your feedback. The public launch stays on Monday. Could you confirm the revised milestones before I share the timeline?\n\nThanks,\nAlex",
+      "status": "awaiting",
+      "edited": "Edited 8 min ago",
+      "editedAt": 1780303920000,
+      "removed": false
+    },
+    {
+      "id": "studio",
+      "recipient": {
+        "name": "Noah Ellis",
+        "email": "noah@example.com"
+      },
+      "subject": "Notes from our studio visit",
+      "body": "Hi Noah,\n\nThank you for showing us around the studio. The material samples were especially helpful. I’ve pulled together our notes and would love to arrange a short follow-up next week to talk through the two directions we discussed.\n\nBest,\nAlex",
+      "status": "awaiting",
+      "edited": "Edited 24 min ago",
+      "editedAt": 1780302960000,
+      "removed": false
+    },
+    {
+      "id": "agenda",
+      "recipient": {
+        "name": "Lena Park",
+        "email": "lena@example.com"
+      },
+      "subject": "Friday’s review agenda",
+      "body": "Hi Lena,\n\nFor Friday’s review, let’s start with the updated prototypes, then leave fifteen minutes for open questions. Please add any decisions you need from the group so we can keep the discussion focused.\n\nThanks,\nAlex",
+      "status": "saved",
+      "edited": "Edited 1 hr ago",
+      "editedAt": 1780300800000,
+      "removed": false
+    },
+    {
+      "id": "series",
+      "recipient": {
+        "name": "Theo Morgan",
+        "email": "theo@example.com"
+      },
+      "subject": "Proposal for the autumn series",
+      "body": "Hi Theo,\n\nI’d like to propose three small workshops for the autumn series, each built around a different making process. If the outline feels right, I can put together a more detailed brief with materials and a suggested schedule.\n\nBest,\nAlex",
+      "status": "awaiting",
+      "edited": "Edited 2 hr ago",
+      "editedAt": 1780297200000,
+      "removed": false
+    }
+  ]
+}

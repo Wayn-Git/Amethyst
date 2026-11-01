@@ -1,0 +1,188 @@
+{
+  "title": "Daily overview",
+  "collectionLabel": "Five directions. Three purpose-built sizes.",
+  "sampleLabel": "Demo day \u00b7 June 16, 2026 \u00b7 9:45 AM",
+  "previewNote": "Switch direction, size, and appearance to explore all 15 layouts.",
+  "direction": "editorial",
+  "widgetSize": "medium",
+  "darkPreview": false,
+  "greeting": "Good morning, Alex",
+  "dayNote": "Design review is next. Keep the proposal on track for 4 PM.",
+  "calendarColor": {
+    "light": "#C33229",
+    "dark": "#FF786F"
+  },
+  "progressColor": {
+    "light": "#0868CE",
+    "dark": "#70AEFF"
+  },
+  "date": {
+    "day": "16",
+    "weekday": "Tuesday",
+    "month": "June",
+    "monthShort": "Jun",
+    "year": "2026",
+    "short": "Tue, Jun 16",
+    "full": "Tuesday, June 16"
+  },
+  "labels": {
+    "direction": "Design direction",
+    "size": "Widget size",
+    "darkPreview": "Dark preview",
+    "upNext": "Up next",
+    "topPriority": "Top priority",
+    "priorityPrefix": "Priority: ",
+    "schedule": "Today's schedule",
+    "priorities": "Priorities & deadlines",
+    "dailyProgress": "Daily progress",
+    "tasksCompleted": "Tasks completed",
+    "completed": "Completed",
+    "remaining": "Remaining",
+    "stillToDo": "Still to do",
+    "onTheCalendar": "On the calendar",
+    "tasks": "Tasks"
+  },
+  "directions": [
+    {
+      "value": "minimal",
+      "label": "01 \u00b7 Minimal",
+      "description": "Quiet, text-first"
+    },
+    {
+      "value": "progress",
+      "label": "02 \u00b7 Progress",
+      "description": "Completion takes the lead"
+    },
+    {
+      "value": "timeline",
+      "label": "03 \u00b7 Timeline",
+      "description": "A schedule-first view"
+    },
+    {
+      "value": "editorial",
+      "label": "04 \u00b7 Editorial",
+      "description": "Date-led, asymmetric"
+    },
+    {
+      "value": "dashboard",
+      "label": "05 \u00b7 Dashboard",
+      "description": "Balanced, structured"
+    }
+  ],
+  "sizes": [
+    {
+      "value": "small",
+      "label": "Small"
+    },
+    {
+      "value": "medium",
+      "label": "Medium"
+    },
+    {
+      "value": "large",
+      "label": "Large"
+    }
+  ],
+  "topTask": "proposal",
+  "tasks": [
+    {
+      "id": "inbox",
+      "title": "Clear the inbox",
+      "done": true,
+      "priority": false,
+      "deadline": ""
+    },
+    {
+      "id": "notes",
+      "title": "Review yesterday's notes",
+      "done": true,
+      "priority": false,
+      "deadline": ""
+    },
+    {
+      "id": "brief",
+      "title": "Read the project brief",
+      "done": true,
+      "priority": false,
+      "deadline": ""
+    },
+    {
+      "id": "agenda",
+      "title": "Share the meeting agenda",
+      "done": true,
+      "priority": false,
+      "deadline": ""
+    },
+    {
+      "id": "feedback",
+      "title": "Organize design feedback",
+      "done": true,
+      "priority": false,
+      "deadline": ""
+    },
+    {
+      "id": "files",
+      "title": "Gather reference files",
+      "done": true,
+      "priority": false,
+      "deadline": ""
+    },
+    {
+      "id": "review",
+      "title": "Prepare review",
+      "done": false,
+      "priority": true,
+      "deadline": "Due 10:15 AM"
+    },
+    {
+      "id": "proposal",
+      "title": "Send proposal",
+      "done": false,
+      "priority": true,
+      "deadline": "Due 4 PM"
+    },
+    {
+      "id": "accessibility",
+      "title": "Review accessibility",
+      "done": false,
+      "priority": false,
+      "deadline": "Due 5 PM"
+    },
+    {
+      "id": "tomorrow",
+      "title": "Plan tomorrow",
+      "done": false,
+      "priority": false,
+      "deadline": "Due 5:30 PM"
+    }
+  ],
+  "events": [
+    {
+      "id": "design-review",
+      "title": "Design review",
+      "time": "10:30",
+      "period": "AM",
+      "timeLabel": "10:30 AM",
+      "duration": "45 minutes",
+      "detail": "Studio \u00b7 45 min"
+    },
+    {
+      "id": "project-checkin",
+      "title": "Project check-in",
+      "time": "2:00",
+      "period": "PM",
+      "timeLabel": "2 PM",
+      "duration": "30 minutes",
+      "detail": "Video call \u00b7 30 min"
+    },
+    {
+      "id": "focus-wrapup",
+      "title": "Focus wrap-up",
+      "time": "4:30",
+      "period": "PM",
+      "timeLabel": "4:30 PM",
+      "duration": "30 minutes",
+      "detail": "Desk \u00b7 30 min"
+    }
+  ]
+}

@@ -174,7 +174,7 @@ def draft(widget_id, action, body):
         return waiting_draft(action, body)
     if any((body.title, body.sent_at, body.reference)):
         raise HTTPException(422, "Unexpected draft fields")
-    if widget_id != "need.drafts" or action not in ("add", "edit", "approve"):
+    if widget_id != "need.drafts" or action not in ("add", "edit", "approve", "remove", "delete"):
         raise HTTPException(404, "Unknown mail action; Gmail sending is disabled")
     payload = body.model_dump(mode="json")
     if action == "add":
@@ -186,10 +186,10 @@ def draft(widget_id, action, body):
         payload["expected"] = draft_row(body.id)
     if action in ("add", "edit") and not all((body.recipient, body.subject, body.text)):
         raise HTTPException(422, "Recipient, subject and draft text are required")
-    if action == "approve" and any((body.recipient, body.subject, body.text)):
-        raise HTTPException(422, "Approve the saved draft without changes")
+    if action in ("approve", "remove", "delete") and any((body.recipient, body.subject, body.text)):
+        raise HTTPException(422, "Approve or remove the saved draft without changes")
     result = save_draft(widget_id, action, body, payload)
-    if action == "approve":
+    if action in ("approve", "remove", "delete"):
         result["item"] = payload["expected"]
     return result
 
@@ -236,6 +236,11 @@ def apply(conn, widget_id, action, body):
         conn.execute(
             "UPDATE dashboard_mail_drafts SET status='approved',updated_at=? WHERE id=?",
             (stamp(), body["id"]),
+        )
+    elif action in ("remove", "delete"):
+        conn.execute(
+            "DELETE FROM dashboard_mail_drafts WHERE id=?",
+            (body["id"],),
         )
     else:
         raise HTTPException(404, "Sending is disabled")

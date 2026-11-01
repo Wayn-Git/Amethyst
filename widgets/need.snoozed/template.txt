@@ -1,0 +1,352 @@
+<Scope
+  values={{
+    visible: items.slice(0, sizeChoice === "medium" ? (layoutChoice === "minimal" ? 1 : 2) : 7),
+    nextItem: items[0] || {},
+    appearance: appearance || "light",
+  }}
+>
+  <Show when={status === "loading"}>
+    <Box
+      width="100%"
+      height={sizeChoice === "large" ? 356 : 170}
+      padding={4}
+      gap={3}
+      background="surface-elevated"
+      radius="xl"
+      justify="center"
+    >
+      <Row gap={3} align="center">
+        <LoadingBlock width={36} height={36} radius="full" />
+        <Col gap={2} flex={1}>
+          <LoadingBlock width={120} height={16} radius="xs" />
+          <LoadingBlock width={160} height={12} radius="xs" />
+        </Col>
+      </Row>
+      <Col gap={2}>
+        <LoadingBlock width="100%" height={32} radius="md" />
+        <LoadingBlock width="100%" height={32} radius="md" />
+      </Col>
+    </Box>
+  </Show>
+
+  <Show when={status === "error"}>
+    <Box
+      width="100%"
+      height={sizeChoice === "large" ? 356 : 170}
+      padding={4}
+      gap={2}
+      background="surface-elevated"
+      radius="xl"
+      justify="center"
+      align="center"
+    >
+      <Icon name="alert-circle" size="lg" color="secondary" />
+      <Text value={message || "Could not load snoozed items"} size="sm" weight="semibold" align="center" />
+      <Caption value="Check database connection" size="sm" align="center" />
+    </Box>
+  </Show>
+
+  <Show when={(status === "empty" || size(items) === 0) && status !== "loading" && status !== "error"}>
+    <Box
+      width="100%"
+      height={sizeChoice === "large" ? 356 : 170}
+      padding={4}
+      gap={2}
+      background="surface-elevated"
+      radius="xl"
+      justify="center"
+      align="center"
+    >
+      <Icon name="moon" size="lg" color="secondary" />
+      <Text value={ui.emptyTitle || "Nothing returning today"} size="md" weight="semibold" align="center" />
+      <Caption value={ui.emptyDescription || "Items scheduled to leave snooze today will appear here."} size="sm" align="center" />
+    </Box>
+  </Show>
+
+  <Show when={status === "ready" || (!status && size(items) > 0)}>
+    <Card
+      size="full"
+      width="100%"
+      height={sizeChoice === "large" ? 356 : 170}
+      padding={sizeChoice === "medium" ? 3 : 4}
+      gap={sizeChoice === "medium" ? 2 : 3}
+      theme={appearance}
+      shadow={false}
+    >
+      <Col gap={1}>
+        <Row align="baseline" gap={2} justify="between" wrap="wrap">
+          <Title value={ui.title || "Returning today"} size="sm" />
+          <Text
+            value={String(size(items)) + ui.itemSuffix}
+            size="xs"
+            color="secondary"
+            tabularNums
+          />
+        </Row>
+        <Show when={sizeChoice === "large"}>
+          <Caption value={ui.fixtureNote} size="sm" />
+        </Show>
+      </Col>
+
+      <Show when={layoutChoice === "minimal"}>
+        <Col gap={sizeChoice === "medium" ? 2 : 3}>
+          <Box
+            background="surface-secondary"
+            radius="lg"
+            padding={sizeChoice === "medium" ? 2 : 3}
+            gap={1}
+          >
+            <Row justify="between" gap={2} align="center">
+              <Text
+                value={ui.nextUp}
+                size="xs"
+                weight="medium"
+                color="secondary"
+              />
+              <Text
+                value={nextItem.time}
+                size="xs"
+                weight="semibold"
+                tabularNums
+              />
+            </Row>
+            <Title
+              value={nextItem.title}
+              size="sm"
+            />
+            <Text value={nextItem.context} size="xs" color="secondary" />
+            <Caption
+              value={
+                nextItem.type +
+                (sizeChoice === "large"
+                  ? " · " + nextItem.source + " · " + nextItem.priority + ui.prioritySuffix
+                  : "")
+              }
+              size="xs"
+            />
+          </Box>
+          <Show when={sizeChoice === "medium" && size(items) > 1}>
+            <Caption
+              value={
+                ui.showingPrefix +
+                "1" +
+                ui.ofLabel +
+                String(size(items)) +
+                ui.localSuffix
+              }
+              size="xs"
+            />
+          </Show>
+          <Show when={sizeChoice === "large" && size(items) > 1}>
+            <Col gap={2}>
+              <Text value={ui.laterToday} size="sm" weight="semibold" />
+              <Col gap={0}>
+                <Each of={items.slice(1, 4)} item="item" index="i">
+                  <Col key={item.id} gap={1}>
+                    <Show when={i > 0}>
+                      <Divider color="subtle" />
+                    </Show>
+                    <Row gap={3} align="start" padding={{ y: 2 }}>
+                      <Col flex={1} minWidth={0} gap={1}>
+                        <Text value={item.title} size="sm" weight="medium" />
+                        <Caption value={item.context} />
+                        <Caption
+                          value={item.type + " · " + item.source + " · " + item.priority + ui.prioritySuffix}
+                          size="sm"
+                        />
+                      </Col>
+                      <Text
+                        value={item.time}
+                        size="sm"
+                        color="secondary"
+                        tabularNums
+                      />
+                    </Row>
+                  </Col>
+                </Each>
+              </Col>
+            </Col>
+          </Show>
+        </Col>
+      </Show>
+
+      <Show when={layoutChoice === "timeline"}>
+        <Col gap={1}>
+          <Each of={visible} item="item" index="i">
+            <Row key={item.id} align="stretch" gap={2}>
+              <Col width={40} minWidth={40} gap={0} padding={{ top: 1 }}>
+                <Text
+                  value={item.time}
+                  size="xs"
+                  color={i === 0 ? "primary" : "secondary"}
+                  weight={i === 0 ? "semibold" : "normal"}
+                  tabularNums
+                />
+              </Col>
+              <Col
+                width={8}
+                minWidth={8}
+                align="center"
+                gap={1}
+                padding={{ top: 2 }}
+              >
+                <Box
+                  size={6}
+                  radius="full"
+                  background={i === 0 ? "emphasis" : "surface-tertiary"}
+                />
+                <Show when={i < size(visible) - 1}>
+                  <Box
+                    width={1}
+                    flex={1}
+                    minHeight={20}
+                    background="default"
+                  />
+                </Show>
+              </Col>
+              <Col
+                flex={1}
+                minWidth={0}
+                gap={0}
+                padding={{ bottom: i < size(visible) - 1 ? 2 : 0 }}
+              >
+                <Show when={i === 0}>
+                  <Caption
+                    value={ui.nextUp}
+                    color="primary"
+                    weight="medium"
+                    size="xs"
+                  />
+                </Show>
+                <Text
+                  value={item.title}
+                  size="xs"
+                  weight={i === 0 ? "semibold" : "medium"}
+                />
+                <Caption value={item.context} size="xs" />
+              </Col>
+            </Row>
+          </Each>
+        </Col>
+      </Show>
+
+      <Show when={layoutChoice === "grouped"}>
+        <Col gap={2}>
+          <Each of={groups} item="group">
+            <Scope
+              values={{
+                groupedItems: visible.filter((item) => item.kind === group.id),
+              }}
+            >
+              <Show when={size(groupedItems) > 0}>
+                <Col key={group.id} gap={1}>
+                  <Row gap={2} align="center">
+                    <Icon name={group.icon} size="xs" color="secondary" />
+                    <Text value={group.label} size="xs" weight="semibold" />
+                    <Spacer />
+                    <Caption value={String(size(groupedItems))} size="xs" tabularNums />
+                  </Row>
+                  <Each of={groupedItems} item="item">
+                    <Row key={item.id} gap={2} align="center">
+                      <Col flex={1} minWidth={0} gap={0}>
+                        <Text value={item.title} size="xs" weight="medium" />
+                        <Caption value={item.context} size="xs" />
+                      </Col>
+                      <Text
+                        value={item.time}
+                        size="xs"
+                        color="secondary"
+                        tabularNums
+                      />
+                    </Row>
+                  </Each>
+                </Col>
+              </Show>
+            </Scope>
+          </Each>
+        </Col>
+      </Show>
+
+      <Show when={layoutChoice === "agenda"}>
+        <Col gap={2}>
+          <Each of={periods} item="part">
+            <Scope
+              values={{
+                appointments: visible.filter((item) => item.period === part.id),
+              }}
+            >
+              <Show when={size(appointments) > 0}>
+                <Col key={part.id} gap={1}>
+                  <Row align="baseline" justify="between" gap={2}>
+                    <Text
+                      value={part.label}
+                      size="xs"
+                      weight="semibold"
+                    />
+                    <Caption value={part.range} size="xs" tabularNums />
+                  </Row>
+                  <Each of={appointments} item="item">
+                    <Row key={item.id} align="center" gap={2}>
+                      <Col flex={1} minWidth={0} gap={0}>
+                        <Text value={item.title} size="xs" weight="medium" />
+                        <Caption value={item.context} size="xs" />
+                      </Col>
+                      <Text
+                        value={item.time}
+                        size="xs"
+                        color="secondary"
+                        tabularNums
+                      />
+                    </Row>
+                  </Each>
+                </Col>
+              </Show>
+            </Scope>
+          </Each>
+        </Col>
+      </Show>
+
+      <Show when={layoutChoice === "compact"}>
+        <Col gap={1}>
+          <Each of={visible} item="item" index="i">
+            <Row
+              key={item.id}
+              align="center"
+              gap={2}
+              padding={1}
+              radius="sm"
+              background={i === 0 ? "surface-secondary" : "transparent"}
+            >
+              <Col width={38} minWidth={38} gap={0}>
+                <Text
+                  value={item.time}
+                  size="xs"
+                  weight={i === 0 ? "semibold" : "normal"}
+                  color={i === 0 ? "primary" : "secondary"}
+                  tabularNums
+                />
+              </Col>
+              <Col flex={1} minWidth={0} gap={0}>
+                <Text
+                  value={item.title}
+                  size="xs"
+                  weight={i === 0 ? "semibold" : "medium"}
+                />
+                <Caption value={item.context} size="xs" />
+              </Col>
+              <Show when={sizeChoice === "large"}>
+                <Text
+                  value={item.priority}
+                  size="xs"
+                  color={item.priority === "High" ? "primary" : "secondary"}
+                  weight={item.priority === "High" ? "semibold" : "normal"}
+                  textAlign="end"
+                />
+              </Show>
+            </Row>
+          </Each>
+        </Col>
+      </Show>
+    </Card>
+  </Show>
+</Scope>

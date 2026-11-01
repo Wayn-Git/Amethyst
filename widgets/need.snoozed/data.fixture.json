@@ -1,0 +1,180 @@
+{
+  "sizeChoice": "medium",
+  "appearance": "light",
+  "layoutChoice": "minimal",
+  "status": "ready",
+  "scale": "medium",
+  "sizes": [
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "appearances": [
+    {
+      "label": "Light",
+      "value": "light"
+    },
+    {
+      "label": "Dark",
+      "value": "dark"
+    }
+  ],
+  "layouts": [
+    {
+      "label": "01 · Minimal",
+      "value": "minimal"
+    },
+    {
+      "label": "02 · Timeline",
+      "value": "timeline"
+    },
+    {
+      "label": "03 · Grouped",
+      "value": "grouped"
+    },
+    {
+      "label": "04 · Agenda",
+      "value": "agenda"
+    },
+    {
+      "label": "05 · Compact list",
+      "value": "compact"
+    }
+  ],
+  "groups": [
+    {
+      "id": "task",
+      "label": "Tasks",
+      "icon": "check-circle"
+    },
+    {
+      "id": "reminder",
+      "label": "Reminders",
+      "icon": "bell"
+    },
+    {
+      "id": "followup",
+      "label": "Follow-ups",
+      "icon": "message"
+    }
+  ],
+  "periods": [
+    {
+      "id": "morning",
+      "label": "Morning",
+      "range": "09:00–12:00"
+    },
+    {
+      "id": "afternoon",
+      "label": "Afternoon",
+      "range": "12:00–18:00"
+    }
+  ],
+  "ui": {
+    "collectionTitle": "Snoozed items",
+    "collectionNote": "10 variations",
+    "sizeLabel": "Widget size",
+    "appearanceLabel": "Widget appearance",
+    "layoutLabel": "Composition",
+    "title": "Returning today",
+    "itemSuffix": " items",
+    "fixtureNote": "Demo schedule · preview at 09:12",
+    "nextUp": "Next up",
+    "nextShort": "Next",
+    "laterToday": "Later today",
+    "prioritySuffix": " priority",
+    "timeLabel": "Time",
+    "itemLabel": "Item / snooze context",
+    "priorityLabel": "Priority",
+    "showingPrefix": "Next ",
+    "ofLabel": " of ",
+    "localSuffix": " shown · local times",
+    "allTimesLocal": "All return times are local.",
+    "emptyTitle": "Nothing returning today",
+    "emptyDescription": "Items scheduled to leave snooze today will appear here."
+  },
+  "items": [
+    {
+      "id": "launch-brief",
+      "title": "Finalize launch brief",
+      "context": "Yesterday · awaiting revised copy",
+      "time": "09:30",
+      "kind": "task",
+      "type": "Task",
+      "source": "Projects",
+      "priority": "High",
+      "period": "morning"
+    },
+    {
+      "id": "supplier-estimate",
+      "title": "Reply to supplier estimate",
+      "context": "Yesterday · waiting on updated pricing",
+      "time": "11:00",
+      "kind": "followup",
+      "type": "Follow-up",
+      "source": "Mail",
+      "priority": "Normal",
+      "period": "morning"
+    },
+    {
+      "id": "library-books",
+      "title": "Renew library books",
+      "context": "Monday · deferred until this morning",
+      "time": "11:45",
+      "kind": "reminder",
+      "type": "Reminder",
+      "source": "Reminders",
+      "priority": "Normal",
+      "period": "morning"
+    },
+    {
+      "id": "homepage-prototype",
+      "title": "Review homepage prototype",
+      "context": "Yesterday · waiting for design revisions",
+      "time": "14:00",
+      "kind": "task",
+      "type": "Task",
+      "source": "Projects",
+      "priority": "High",
+      "period": "afternoon"
+    },
+    {
+      "id": "meeting-recap",
+      "title": "Send meeting recap",
+      "context": "This morning · after the planning call",
+      "time": "15:15",
+      "kind": "followup",
+      "type": "Follow-up",
+      "source": "Mail",
+      "priority": "Normal",
+      "period": "afternoon"
+    },
+    {
+      "id": "annual-checkup",
+      "title": "Book annual checkup",
+      "context": "Monday afternoon · moved to today",
+      "time": "16:00",
+      "kind": "reminder",
+      "type": "Reminder",
+      "source": "Reminders",
+      "priority": "Normal",
+      "period": "afternoon"
+    },
+    {
+      "id": "weekly-priorities",
+      "title": "Prepare weekly priorities",
+      "context": "This morning · after the team check-in",
+      "time": "17:15",
+      "kind": "task",
+      "type": "Task",
+      "source": "Notes",
+      "priority": "Low",
+      "period": "afternoon"
+    }
+  ]
+}

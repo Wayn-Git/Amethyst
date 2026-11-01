@@ -1,0 +1,97 @@
+/* Unanswered mentions widget surface isolation: eliminate double boundaries, outer headers, and double padding */
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.mentions'] {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  box-sizing: border-box;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.mentions']:hover {
+  box-shadow: none !important;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.mentions'] > .today-slot-body {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  box-sizing: border-box;
+  overflow: visible !important;
+}
+
+/* Responsive slot dimensions */
+.home-layout-grid .today-widget-slot[data-slot-id='need.mentions'],
+.bento-foundation .home-widget[data-widget='need.mentions'] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.mentions'][data-size='m'],
+.bento-foundation .home-widget[data-widget='need.mentions'][data-size='m'] {
+  min-height: 170px;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.mentions'][data-size='l'],
+.bento-foundation .home-widget[data-widget='need.mentions'][data-size='l'] {
+  min-height: 356px;
+}
+
+.bento-foundation .home-widget[data-widget='need.mentions'] {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.bento-foundation .home-widget[data-widget='need.mentions'] > .today-slot-header,
+.bento-foundation .home-widget[data-widget='need.mentions'] > .widget-header,
+.bento-foundation .home-widget[data-widget='need.mentions'] .today-header-chip {
+  display: none !important;
+}
+
+.need-mentions-root {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.need-mentions-root .tugan-card {
+  box-sizing: border-box;
+  height: 100%;
+  width: 100%;
+}
+
+.mentions-directions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mentions-direction-btn {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--w-border, rgba(0, 0, 0, 0.1));
+  background: var(--w-surface, #ffffff);
+  color: var(--w-text, #111111);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mentions-direction-btn:hover {
+  background: var(--w-surface-hover, rgba(0, 0, 0, 0.04));
+}
+
+.mentions-direction-btn.is-active {
+  border-color: var(--w-accent, #6366f1);
+  background: var(--w-surface-active, rgba(99, 102, 241, 0.08));
+  color: var(--w-accent, #6366f1);
+  font-weight: 600;
+}

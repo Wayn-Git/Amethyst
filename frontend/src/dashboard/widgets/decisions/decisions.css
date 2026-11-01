@@ -1,0 +1,112 @@
+/* Decisions waiting widget surface isolation: eliminate double boundaries, outer headers, and double padding */
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.decisions'] {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  box-sizing: border-box;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.decisions']:hover {
+  box-shadow: none !important;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.decisions'] > .today-slot-body {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  box-sizing: border-box;
+  overflow: visible !important;
+}
+
+/* Responsive slot dimensions */
+.home-layout-grid .today-widget-slot[data-slot-id='need.decisions'],
+.bento-foundation .home-widget[data-widget='need.decisions'] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.decisions'][data-size='m'],
+.bento-foundation .home-widget[data-widget='need.decisions'][data-size='m'] {
+  min-height: 170px;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.decisions'][data-size='l'],
+.bento-foundation .home-widget[data-widget='need.decisions'][data-size='l'] {
+  min-height: 356px;
+}
+
+.bento-foundation .home-widget[data-widget='need.decisions'] {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.bento-foundation .home-widget[data-widget='need.decisions'] > .today-slot-header,
+.bento-foundation .home-widget[data-widget='need.decisions'] > .widget-header,
+.bento-foundation .home-widget[data-widget='need.decisions'] .today-header-chip {
+  display: none !important;
+}
+
+.home-widget.widget-adoption[data-widget='need.decisions'] {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+.home-widget.widget-adoption[data-widget='need.decisions'] > .widget-header {
+  display: none !important;
+}
+
+.need-decisions-root {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.need-decisions-root .widget-root {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+}
+
+/* Direction switcher in drawer */
+.decisions-directions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.decisions-direction-btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--w-border, rgba(255, 255, 255, 0.1));
+  background: var(--w-card, rgba(255, 255, 255, 0.04));
+  color: var(--w-text, #fff);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.decisions-direction-btn:hover {
+  background: var(--w-card-hover, rgba(255, 255, 255, 0.08));
+}
+
+.decisions-direction-btn.is-active {
+  background: var(--w-accent, #3b82f6);
+  color: #fff;
+  border-color: var(--w-accent, #3b82f6);
+}

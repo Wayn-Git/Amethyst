@@ -1,0 +1,461 @@
+<Scope
+  values={{
+    visible: messages.slice(0, sizeChoice === "medium" ? (layout === "minimal" ? 1 : 2) : 6),
+    oldest: messages[0] || {},
+    appearance: appearance || (darkPreview ? "dark" : "light"),
+  }}
+>
+  <Show when={status === "loading"}>
+    <Box
+      width="100%"
+      height={sizeChoice === "large" ? 356 : 170}
+      padding={4}
+      gap={3}
+      background="surface-elevated"
+      radius="xl"
+      justify="center"
+    >
+      <Row gap={3} align="center">
+        <LoadingBlock width={36} height={36} radius="full" />
+        <Col gap={2} flex={1}>
+          <LoadingBlock width={120} height={16} radius="xs" />
+          <LoadingBlock width={180} height={12} radius="xs" />
+        </Col>
+      </Row>
+      <Col gap={2}>
+        <LoadingBlock width="100%" height={32} radius="md" />
+        <LoadingBlock width="100%" height={32} radius="md" />
+      </Col>
+    </Box>
+  </Show>
+
+  <Show when={status === "error"}>
+    <Box
+      width="100%"
+      height={sizeChoice === "large" ? 356 : 170}
+      padding={4}
+      gap={2}
+      background="surface-elevated"
+      radius="xl"
+      justify="center"
+      align="center"
+    >
+      <Icon name="alert-circle" size="lg" color="secondary" />
+      <Text value={message || "Could not load waiting items"} size="sm" weight="semibold" align="center" />
+      <Caption value="Check email connection" size="sm" align="center" />
+    </Box>
+  </Show>
+
+  <Show when={(status === "empty" || size(messages) === 0) && status !== "loading" && status !== "error"}>
+    <Box
+      width="100%"
+      height={sizeChoice === "large" ? 356 : 170}
+      padding={4}
+      gap={2}
+      background="surface-elevated"
+      radius="xl"
+      justify="center"
+      align="center"
+    >
+      <Icon name="check-circle" size="lg" color="success" />
+      <Text value={labels.emptyTitle || "All caught up"} size="md" weight="semibold" align="center" />
+      <Caption value={labels.emptyDescription || "No pending replies waiting on responses."} size="sm" align="center" />
+    </Box>
+  </Show>
+
+  <Show when={status === "ready" || (!status && size(messages) > 0)}>
+    <Card
+      size="full"
+      width="100%"
+      height={sizeChoice === "large" ? 356 : 170}
+      padding={sizeChoice === "medium" ? 3 : 4}
+      gap={sizeChoice === "medium" ? 2 : 3}
+      theme={appearance}
+      shadow={false}
+    >
+      <Col gap={1}>
+        <Row gap={3} align="baseline">
+          <Title value={title || "Waiting on replies"} size="sm" />
+          <Spacer />
+          <Text
+            value={String(size(messages))}
+            size={sizeChoice === "large" ? "xl" : "md"}
+            weight="semibold"
+            color="secondary"
+            tabularNums
+          />
+        </Row>
+        <Show when={sizeChoice === "large"}>
+          <Caption value={snapshot} size="sm" />
+        </Show>
+      </Col>
+
+      <Show when={layout === "minimal"}>
+        <Col gap={sizeChoice === "medium" ? 2 : 3}>
+          <Box background="surface-secondary" radius="lg" padding={sizeChoice === "medium" ? 2 : 3} gap={2}>
+            <Row gap={2} align="center">
+              <Icon name="clock" size="xs" color="warning" />
+              <Text value={labels.longestWaiting} size="xs" weight="medium" />
+            </Row>
+            <Row align="start" gap={2}>
+              <Box
+                size={sizeChoice === "medium" ? 30 : 36}
+                minWidth={sizeChoice === "medium" ? 30 : 36}
+                radius="full"
+                background="surface-tertiary"
+                align="center"
+                justify="center"
+              >
+                <Text value={oldest.initials} size="xs" weight="medium" />
+              </Box>
+              <Col flex={1} minWidth={0} gap={0}>
+                <Text value={oldest.name} size="sm" weight="semibold" />
+                <Text value={oldest.subject} size="xs" color="secondary" />
+                <Caption
+                  value={
+                    (sizeChoice === "large" ? oldest.sentAt : oldest.sentDate) +
+                    " · " +
+                    oldest.source
+                  }
+                  size="xs"
+                />
+              </Col>
+              <Stat
+                label={labels.waiting}
+                value={oldest.wait}
+                size="sm"
+                align="end"
+              />
+            </Row>
+            <Show when={sizeChoice === "large"}>
+              <Text value={oldest.preview} size="sm" color="secondary" />
+            </Show>
+            <Row>
+              <Button
+                label={labels.draftFollowUp}
+                iconStart="write"
+                variant="outline"
+                size={sizeChoice === "medium" ? "sm" : "2xl"}
+                onClickAction={{
+                  updateState: {
+                    draftOpen: true,
+                    draftTo: oldest.name,
+                    draft:
+                      draftParts.greeting +
+                      oldest.firstName +
+                      draftParts.body +
+                      oldest.subject +
+                      draftParts.ending,
+                  },
+                }}
+              />
+            </Row>
+          </Box>
+          <Show when={sizeChoice === "medium" && size(messages) > 1}>
+            <Caption
+              value={labels.alsoWaiting + " · " + String(size(messages) - 1)}
+              size="xs"
+            />
+          </Show>
+          <Show when={sizeChoice === "large" && size(messages) > 1}>
+            <Col gap={2}>
+              <Caption
+                value={labels.alsoWaiting + " · " + String(size(messages) - 1)}
+              />
+              <Each of={messages.slice(1, 4)} item="item" index="i">
+                <Col key={item.id} gap={2}>
+                  <Show when={i > 0}>
+                    <Divider color="subtle" />
+                  </Show>
+                  <Row align="start" gap={3}>
+                    <Col flex={1} minWidth={0} gap={1}>
+                      <Text value={item.name} size="sm" weight="semibold" />
+                      <Text value={item.subject} size="sm" />
+                      <Caption
+                        value={item.sentAt + " · " + item.source}
+                        size="sm"
+                      />
+                    </Col>
+                    <Col align="end" gap={1} minWidth={58}>
+                      <Text
+                        value={item.wait}
+                        size="sm"
+                        weight="medium"
+                        tabularNums
+                        color={item.due ? "warning" : "secondary"}
+                      />
+                      <Caption
+                        value={item.status}
+                        size="sm"
+                        color={item.due ? "warning" : item.recent ? "info" : "secondary"}
+                      />
+                    </Col>
+                  </Row>
+                </Col>
+              </Each>
+            </Col>
+          </Show>
+        </Col>
+      </Show>
+
+      <Show when={layout === "inbox"}>
+        <Table columnSizing="auto">
+          <Table.Row header>
+            <Table.Cell header>
+              <Text value={labels.message} size="xs" color="secondary" />
+            </Table.Cell>
+            <Table.Cell header width={70}>
+              <Text value={labels.sent} size="xs" color="secondary" />
+            </Table.Cell>
+            <Table.Cell header align="end" width={60}>
+              <Text value={labels.waiting} size="xs" color="secondary" />
+            </Table.Cell>
+          </Table.Row>
+          <Each of={visible} item="item">
+            <Table.Row key={item.id}>
+              <Table.Cell vAlign="top">
+                <Col gap={0} padding={{ y: 1 }}>
+                  <Row gap={2} align="center">
+                    <Box
+                      size={20}
+                      minWidth={20}
+                      radius="full"
+                      background="surface-secondary"
+                      align="center"
+                      justify="center"
+                    >
+                      <Text value={item.initials} size="xs" weight="medium" />
+                    </Box>
+                    <Text value={item.name} size="xs" weight="semibold" />
+                  </Row>
+                  <Text value={item.subject} size="xs" color="secondary" />
+                </Col>
+              </Table.Cell>
+              <Table.Cell vAlign="top">
+                <Col gap={0} padding={{ y: 1 }}>
+                  <Text value={item.sentDay} size="xs" color="secondary" />
+                </Col>
+              </Table.Cell>
+              <Table.Cell align="end" vAlign="top">
+                <Col align="end" gap={0} padding={{ y: 1 }}>
+                  <Text
+                    value={item.wait}
+                    size="xs"
+                    weight={item.id === oldest.id ? "semibold" : "medium"}
+                    color={item.due ? "warning" : "secondary"}
+                    tabularNums
+                  />
+                </Col>
+              </Table.Cell>
+            </Table.Row>
+          </Each>
+        </Table>
+      </Show>
+
+      <Show when={layout === "timeline"}>
+        <Col gap={1}>
+          <Each of={visible} item="item" index="i">
+            <Row key={item.id} align="stretch" gap={2}>
+              <Col
+                width={50}
+                minWidth={50}
+                gap={0}
+                padding={{ top: 1, bottom: 2 }}
+              >
+                <Text value={item.sentDay} size="xs" weight="medium" />
+              </Col>
+              <Col
+                flex={1}
+                minWidth={0}
+                gap={1}
+                border={{ left: { size: 1, color: "subtle" } }}
+                padding={{ left: 2, bottom: 2 }}
+              >
+                <Row gap={2} align="center">
+                  <Box
+                    size={20}
+                    minWidth={20}
+                    radius="full"
+                    background="surface-secondary"
+                    align="center"
+                    justify="center"
+                  >
+                    <Text value={item.initials} size="xs" weight="medium" />
+                  </Box>
+                  <Text value={item.name} size="xs" weight="semibold" />
+                  <Spacer />
+                  <Text
+                    value={item.wait}
+                    size="xs"
+                    color={item.due ? "warning" : "secondary"}
+                    tabularNums
+                  />
+                </Row>
+                <Text value={item.subject} size="xs" color="secondary" />
+              </Col>
+            </Row>
+          </Each>
+        </Col>
+      </Show>
+
+      <Show when={layout === "followup"}>
+        <Col gap={2}>
+          <Row gap={2} align="center">
+            <Icon name="write" size="xs" color="warning" />
+            <Text
+              value={labels.readyForNudge}
+              size="xs"
+              weight="semibold"
+            />
+            <Spacer />
+            <Text
+              value={String(size(messages.filter((item) => item.due)))}
+              size="xs"
+              color="warning"
+              tabularNums
+            />
+          </Row>
+          <Each
+            of={visible.filter((item) => item.due)}
+            item="item"
+            index="i"
+          >
+            <Row key={item.id} gap={2} align="center">
+              <Box
+                size={26}
+                minWidth={26}
+                radius="md"
+                background="surface-secondary"
+                align="center"
+                justify="center"
+              >
+                <Text value={item.initials} size="xs" weight="medium" />
+              </Box>
+              <Col flex={1} minWidth={0} gap={0}>
+                <Text value={item.name} size="xs" weight="semibold" />
+                <Text value={item.subject} size="xs" color="secondary" />
+              </Col>
+              <Text
+                value={item.wait}
+                size="xs"
+                weight="medium"
+                color="warning"
+                tabularNums
+              />
+              <Button
+                iconStart="write"
+                ariaLabel={labels.draftToPrefix + item.name}
+                uniform
+                variant="ghost"
+                size={sizeChoice === "medium" ? "sm" : "2xl"}
+                onClickAction={{
+                  updateState: {
+                    draftOpen: true,
+                    draftTo: item.name,
+                    draft:
+                      draftParts.greeting +
+                      item.firstName +
+                      draftParts.body +
+                      item.subject +
+                      draftParts.ending,
+                  },
+                }}
+              />
+            </Row>
+          </Each>
+        </Col>
+      </Show>
+
+      <Show when={layout === "grouped"}>
+        <Col gap={2}>
+          <Each of={groups} item="group">
+            <Scope
+              values={{
+                grouped: visible.filter((item) => item.sourceId === group.id),
+              }}
+            >
+              <Show when={size(grouped) > 0}>
+                <Col key={group.id} gap={1}>
+                  <Row gap={2} align="center">
+                    <Icon name={group.icon} size="xs" color="secondary" />
+                    <Text value={group.label} size="xs" weight="semibold" />
+                    <Spacer />
+                    <Caption value={String(size(grouped))} size="xs" tabularNums />
+                  </Row>
+                  <Each of={grouped} item="item">
+                    <Box
+                      key={item.id}
+                      background={item.id === oldest.id ? "surface-secondary" : "transparent"}
+                      radius="md"
+                      padding={1}
+                    >
+                      <Row gap={2} align="center">
+                        <Box
+                          size={22}
+                          minWidth={22}
+                          radius="full"
+                          background="surface-tertiary"
+                          align="center"
+                          justify="center"
+                        >
+                          <Text value={item.initials} size="xs" weight="medium" />
+                        </Box>
+                        <Col flex={1} minWidth={0} gap={0}>
+                          <Text value={item.name} size="xs" weight="semibold" />
+                          <Text value={item.subject} size="xs" color="secondary" />
+                        </Col>
+                        <Text
+                          value={item.wait}
+                          size="xs"
+                          color={item.due ? "warning" : "secondary"}
+                          weight="medium"
+                          tabularNums
+                        />
+                      </Row>
+                    </Box>
+                  </Each>
+                </Col>
+              </Show>
+            </Scope>
+          </Each>
+        </Col>
+      </Show>
+
+      <Show when={draftOpen}>
+        <Col key="draft-editor" gap={2}>
+          <Divider />
+          <Row gap={2} align="center">
+            <Col flex={1} minWidth={0} gap={0}>
+              <Text value={labels.localDraft} size="xs" weight="semibold" />
+              <Caption
+                value={labels.toPrefix + draftTo + " · " + labels.notSent}
+                size="xs"
+              />
+            </Col>
+            <Button
+              iconStart="x"
+              ariaLabel={labels.closeDraft}
+              uniform
+              variant="ghost"
+              size="sm"
+              onClickAction={{ updateState: { draftOpen: false } }}
+            />
+          </Row>
+          <Textarea name="draft" bind="draft" rows={2} />
+          <Row>
+            <Button
+              label={labels.copyDraft}
+              iconStart="copy"
+              size="sm"
+              onClickAction={{
+                type: "copy",
+                handler: "client",
+                payload: { value: draft },
+              }}
+            />
+          </Row>
+        </Col>
+      </Show>
+    </Card>
+  </Show>
+</Scope>

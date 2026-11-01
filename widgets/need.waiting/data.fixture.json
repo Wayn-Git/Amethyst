@@ -1,0 +1,213 @@
+{
+  "catalogLabel": "10 design variations · fictional contacts",
+  "title": "Waiting on replies",
+  "snapshot": "Sample snapshot · Nov 17, 2026 · 10:00 AM UTC",
+  "layout": "minimal",
+  "sizeChoice": "medium",
+  "darkPreview": false,
+  "draftOpen": false,
+  "draftTo": "",
+  "draft": "",
+  "status": "ready",
+  "appearance": "light",
+  "scale": "medium",
+  "layouts": [
+    {
+      "value": "minimal",
+      "label": "01 · Minimal spotlight",
+      "specimen": "01 / Minimal spotlight"
+    },
+    {
+      "value": "inbox",
+      "label": "02 · Inbox table",
+      "specimen": "02 / Inbox table"
+    },
+    {
+      "value": "timeline",
+      "label": "03 · Sent timeline",
+      "specimen": "03 / Sent timeline"
+    },
+    {
+      "value": "followup",
+      "label": "04 · Follow-up queue",
+      "specimen": "04 / Follow-up queue"
+    },
+    {
+      "value": "grouped",
+      "label": "05 · Grouped by source",
+      "specimen": "05 / Grouped by source"
+    }
+  ],
+  "sizes": [
+    {
+      "value": "medium",
+      "label": "Medium"
+    },
+    {
+      "value": "large",
+      "label": "Large"
+    }
+  ],
+  "labels": {
+    "composition": "Composition",
+    "sizeLabel": "Widget size",
+    "dark": "Dark",
+    "darkAppearance": "Dark preview appearance",
+    "longestWaiting": "Longest waiting",
+    "longest": "Longest",
+    "waiting": "Waiting",
+    "waitingSuffix": " waiting",
+    "draftFollowUp": "Draft follow-up",
+    "draftToPrefix": "Draft follow-up to ",
+    "alsoWaiting": "Also waiting",
+    "message": "Message",
+    "sent": "Sent",
+    "readyForNudge": "Ready for a nudge",
+    "overdueExplanation": "Overdue by your 3-day follow-up rule.",
+    "withinWindow": "Still within the reply window",
+    "followUpsDue": " follow-ups due",
+    "threshold": "Nudge after 3 days",
+    "recentDefinition": "Recent = sent within the last 24 hours.",
+    "timeNote": "Sent times in UTC. Waiting durations rounded down.",
+    "localDraft": "Local follow-up draft",
+    "toPrefix": "To ",
+    "notSent": "Not sent",
+    "closeDraft": "Close follow-up draft",
+    "draftLabel": "Message",
+    "copyDraft": "Copy draft",
+    "mediumDescription": "Medium · 4 pending replies",
+    "largeDescription": "Large · 6 pending replies"
+  },
+  "draftParts": {
+    "greeting": "Hi ",
+    "body": ", just following up on “",
+    "ending": "”. Could you share an update when you have a moment? Thank you."
+  },
+  "groups": [
+    {
+      "id": "email",
+      "label": "Email",
+      "icon": "mail"
+    },
+    {
+      "id": "slack",
+      "label": "Slack",
+      "icon": "message"
+    },
+    {
+      "id": "messages",
+      "label": "Messages",
+      "icon": "mobile"
+    }
+  ],
+  "messages": [
+    {
+      "id": "launch",
+      "name": "Nora Hayes",
+      "firstName": "Nora",
+      "initials": "NH",
+      "subject": "Website launch approval",
+      "preview": "Could you give the revised homepage a final look before we schedule the launch?",
+      "sourceId": "email",
+      "source": "Email",
+      "sentDay": "Nov 10",
+      "sentDate": "Nov 10, 2026",
+      "sentTime": "9:15 AM",
+      "sentAt": "Nov 10 · 9:15 AM",
+      "wait": "7d",
+      "due": true,
+      "recent": false,
+      "status": "Overdue"
+    },
+    {
+      "id": "handoff",
+      "name": "Eli Morgan",
+      "firstName": "Eli",
+      "initials": "EM",
+      "subject": "Design handoff questions",
+      "preview": "Can you confirm the empty-state behavior and which assets engineering should use?",
+      "sourceId": "slack",
+      "source": "Slack",
+      "sentDay": "Nov 12",
+      "sentDate": "Nov 12, 2026",
+      "sentTime": "2:40 PM",
+      "sentAt": "Nov 12 · 2:40 PM",
+      "wait": "4d 19h",
+      "due": true,
+      "recent": false,
+      "status": "Overdue"
+    },
+    {
+      "id": "proposal",
+      "name": "Maya Brooks",
+      "firstName": "Maya",
+      "initials": "MB",
+      "subject": "Workshop proposal",
+      "preview": "I attached the updated outline. Does the shorter afternoon format work for your team?",
+      "sourceId": "email",
+      "source": "Email",
+      "sentDay": "Nov 13",
+      "sentDate": "Nov 13, 2026",
+      "sentTime": "4:20 PM",
+      "sentAt": "Nov 13 · 4:20 PM",
+      "wait": "3d 17h",
+      "due": true,
+      "recent": false,
+      "status": "Overdue"
+    },
+    {
+      "id": "coffee",
+      "name": "Alex Chen",
+      "firstName": "Alex",
+      "initials": "AC",
+      "subject": "Coffee next Thursday?",
+      "preview": "Would 10:30 work? Happy to meet somewhere near the studio.",
+      "sourceId": "messages",
+      "source": "Messages",
+      "sentDay": "Nov 16",
+      "sentDate": "Nov 16, 2026",
+      "sentTime": "9:10 AM",
+      "sentAt": "Nov 16 · 9:10 AM",
+      "wait": "1d 1h",
+      "due": false,
+      "recent": false,
+      "status": "Waiting"
+    },
+    {
+      "id": "proof",
+      "name": "June Ellis",
+      "firstName": "June",
+      "initials": "JE",
+      "subject": "Print proof review",
+      "preview": "The new proof is ready. Could you check the paper stock and cover alignment?",
+      "sourceId": "email",
+      "source": "Email",
+      "sentDay": "Nov 17",
+      "sentDate": "Nov 17, 2026",
+      "sentTime": "8:20 AM",
+      "sentAt": "Nov 17 · 8:20 AM",
+      "wait": "1h 40m",
+      "due": false,
+      "recent": true,
+      "status": "Recent"
+    },
+    {
+      "id": "export",
+      "name": "Leo Rivera",
+      "firstName": "Leo",
+      "initials": "LR",
+      "subject": "Export format",
+      "preview": "Do you need the figures as SVGs, or should I include PNG versions too?",
+      "sourceId": "slack",
+      "source": "Slack",
+      "sentDay": "Nov 17",
+      "sentDate": "Nov 17, 2026",
+      "sentTime": "9:35 AM",
+      "sentAt": "Nov 17 · 9:35 AM",
+      "wait": "25m",
+      "due": false,
+      "recent": true,
+      "status": "Recent"
+    }
+  ]
+}

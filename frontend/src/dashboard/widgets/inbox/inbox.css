@@ -1,0 +1,97 @@
+/* Priority inbox widget surface isolation: eliminate double boundaries, outer headers, and double padding */
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.inbox'] {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  box-sizing: border-box;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.inbox']:hover {
+  box-shadow: none !important;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.inbox'] > .today-slot-body {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  box-sizing: border-box;
+  overflow: visible !important;
+}
+
+/* Responsive slot dimensions */
+.home-layout-grid .today-widget-slot[data-slot-id='need.inbox'],
+.bento-foundation .home-widget[data-widget='need.inbox'] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.inbox'][data-size='m'],
+.bento-foundation .home-widget[data-widget='need.inbox'][data-size='m'] {
+  min-height: 170px;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.inbox'][data-size='l'],
+.bento-foundation .home-widget[data-widget='need.inbox'][data-size='l'] {
+  min-height: 356px;
+}
+
+.bento-foundation .home-widget[data-widget='need.inbox'] {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.bento-foundation .home-widget[data-widget='need.inbox'] > .today-slot-header,
+.bento-foundation .home-widget[data-widget='need.inbox'] > .widget-header,
+.bento-foundation .home-widget[data-widget='need.inbox'] .today-header-chip {
+  display: none !important;
+}
+
+.need-inbox-root {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.need-inbox-root .tugan-card {
+  box-sizing: border-box;
+  height: 100%;
+  width: 100%;
+}
+
+.inbox-directions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.inbox-direction-btn {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--w-border, rgba(0, 0, 0, 0.1));
+  background: var(--w-surface, #ffffff);
+  color: var(--w-text, #111111);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.inbox-direction-btn:hover {
+  background: var(--w-surface-hover, rgba(0, 0, 0, 0.04));
+}
+
+.inbox-direction-btn.is-active {
+  border-color: var(--w-accent, #6366f1);
+  background: var(--w-accent-subtle, rgba(99, 102, 241, 0.08));
+  color: var(--w-accent, #6366f1);
+  font-weight: 600;
+}

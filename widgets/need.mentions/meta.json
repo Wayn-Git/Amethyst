@@ -1,0 +1,18 @@
+{
+  "widgetId": "need.mentions",
+  "sizes": ["m", "l"],
+  "designSpec": "Five design compositions (Minimal, Unified inbox, Grouped by platform, Timeline, Priority-focused) across Medium (356x170) and Large (356x356). Real live unanswered mentions aggregated from Slack and GitHub via backend/dashboard/mentions.py, computing elapsed wait time, relative age, sender initials, and unread flags.",
+  "theme": "light",
+  "stages": [
+    "Planning the widget",
+    "Planning complete. No web or image search needed",
+    "Generating the widget interface",
+    "Shaping the layout",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Widget ready"
+  ],
+  "generatedAt": "2026-11-01T14:50:00.000Z",
+  "promptFile": "docs/widget-playground/Widgets/todo/unanswered mentions widget",
+  "brokenRules": []
+}

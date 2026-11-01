@@ -1,0 +1,238 @@
+{
+  "direction": "minimal",
+  "scale": "medium",
+  "appearance": "light",
+  "warningSurface": {
+    "light": "#FFF3F0",
+    "dark": "#302321"
+  },
+  "labels": {
+    "collection": "Overdue collection \u00b7 10 design studies",
+    "direction": "Direction",
+    "size": "Size",
+    "medium": "Medium",
+    "large": "Large",
+    "darkMode": "Switch to dark appearance",
+    "lightMode": "Switch to light appearance",
+    "overdue": "Overdue",
+    "needsAttention": "Needs your attention",
+    "duePrefix": "Due ",
+    "daysLate": "d overdue",
+    "daysLateShort": "days late",
+    "daysOverdue": "days overdue",
+    "days": "days",
+    "criticalSuffix": " critical",
+    "openSuffix": " open",
+    "totalSuffix": " total",
+    "openItemsSuffix": " open items, grouped by age",
+    "oldestFirst": "Oldest deadline first",
+    "oldestOpen": "The oldest open deadline",
+    "criticalFirst": "Critical first",
+    "completePrefix": "Mark complete: ",
+    "markComplete": "Mark complete",
+    "complete": "Complete",
+    "alsoOverdue": "Also overdue",
+    "item": "item",
+    "noneInGroup": "Nothing overdue here.",
+    "snapshot": "Demo snapshot \u00b7 May 18, 2026",
+    "shownSuffix": " shown",
+    "overdueSuffix": " overdue total",
+    "completedHere": "Completed here",
+    "undo": "Undo",
+    "emptyTitle": "Nothing overdue",
+    "emptyDescription": "All sample tasks have been marked complete.",
+    "localNote": "Sample tasks. Completion and appearance changes stay in this widget."
+  },
+  "directions": [
+    {
+      "value": "minimal",
+      "label": "Minimal",
+      "study": "01"
+    },
+    {
+      "value": "timeline",
+      "label": "Timeline",
+      "study": "02"
+    },
+    {
+      "value": "priority",
+      "label": "Priority",
+      "study": "03"
+    },
+    {
+      "value": "grouped",
+      "label": "Grouped",
+      "study": "04"
+    },
+    {
+      "value": "editorial",
+      "label": "Editorial",
+      "study": "05"
+    }
+  ],
+  "sizes": [
+    {
+      "value": "medium",
+      "label": "Medium"
+    },
+    {
+      "value": "large",
+      "label": "Large"
+    }
+  ],
+  "priorityGroups": [
+    {
+      "id": "critical",
+      "label": "Critical",
+      "min": 1,
+      "max": 1,
+      "color": "danger"
+    },
+    {
+      "id": "high",
+      "label": "High priority",
+      "min": 2,
+      "max": 2,
+      "color": "warning"
+    },
+    {
+      "id": "standard",
+      "label": "Standard priority",
+      "min": 3,
+      "max": 4,
+      "color": "secondary"
+    }
+  ],
+  "durationGroups": [
+    {
+      "id": "oldest",
+      "label": "7+ days overdue",
+      "short": "7+",
+      "min": 7,
+      "max": 999,
+      "color": "danger"
+    },
+    {
+      "id": "week",
+      "label": "3\u20136 days overdue",
+      "short": "3\u20136",
+      "min": 3,
+      "max": 6,
+      "color": "secondary"
+    },
+    {
+      "id": "recent",
+      "label": "1\u20132 days overdue",
+      "short": "1\u20132",
+      "min": 1,
+      "max": 2,
+      "color": "secondary"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "release",
+      "index": 0,
+      "title": "Approve release checklist",
+      "due": "May 8",
+      "days": 10,
+      "priority": "Critical",
+      "rank": 1,
+      "color": "danger",
+      "project": "Platform \u00b7 Spring release",
+      "medium": true,
+      "done": false
+    },
+    {
+      "id": "supplier",
+      "index": 1,
+      "title": "Review supplier contract",
+      "due": "May 10",
+      "days": 8,
+      "priority": "High",
+      "rank": 2,
+      "color": "warning",
+      "project": "Operations \u00b7 Procurement",
+      "medium": false,
+      "done": false
+    },
+    {
+      "id": "security",
+      "index": 2,
+      "title": "Resolve security findings",
+      "due": "May 12",
+      "days": 6,
+      "priority": "Critical",
+      "rank": 1,
+      "color": "danger",
+      "project": "Platform \u00b7 Access review",
+      "medium": true,
+      "done": false
+    },
+    {
+      "id": "roadmap",
+      "index": 3,
+      "title": "Finalize Q3 roadmap",
+      "due": "May 14",
+      "days": 4,
+      "priority": "High",
+      "rank": 2,
+      "color": "warning",
+      "project": "Product \u00b7 Planning",
+      "medium": false,
+      "done": false
+    },
+    {
+      "id": "expenses",
+      "index": 4,
+      "title": "Submit expense report",
+      "due": "May 15",
+      "days": 3,
+      "priority": "Normal",
+      "rank": 3,
+      "color": "secondary",
+      "project": "Admin \u00b7 Monthly expenses",
+      "medium": true,
+      "done": false
+    },
+    {
+      "id": "qa",
+      "index": 5,
+      "title": "Send QA handoff notes",
+      "due": "May 16",
+      "days": 2,
+      "priority": "High",
+      "rank": 2,
+      "color": "warning",
+      "project": "Mobile \u00b7 Version 2.8",
+      "medium": true,
+      "done": false
+    },
+    {
+      "id": "website",
+      "index": 6,
+      "title": "Review launch page copy",
+      "due": "May 17",
+      "days": 1,
+      "priority": "Normal",
+      "rank": 3,
+      "color": "secondary",
+      "project": "Marketing \u00b7 Website",
+      "medium": false,
+      "done": false
+    },
+    {
+      "id": "onboarding",
+      "index": 7,
+      "title": "Update onboarding guide",
+      "due": "May 17",
+      "days": 1,
+      "priority": "Low",
+      "rank": 4,
+      "color": "secondary",
+      "project": "People \u00b7 Team handbook",
+      "medium": false,
+      "done": false
+    }
+  ]
+}

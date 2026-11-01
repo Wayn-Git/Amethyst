@@ -1,0 +1,541 @@
+<Scope
+  values={{
+    pendingCount: size(
+      requests.filter((request) => request.decision === "pending"),
+    ),
+    request: requests[0] || {},
+    appearance: darkAppearance ? "dark" : "light",
+  }}
+>
+  <Show when={status === "loading"}>
+    <Card
+      size="full"
+      width="100%"
+      height={widgetSize === "large" ? 356 : 170}
+      theme={appearance}
+      padding={4}
+      gap={3}
+      shadow={false}
+      justify="center"
+    >
+      <Row gap={3} align="center">
+        <LoadingBlock width={32} height={32} radius="sm" />
+        <Col gap={1} flex={1}>
+          <LoadingBlock width={140} height={16} radius="xs" />
+          <LoadingBlock width={100} height={12} radius="xs" />
+        </Col>
+      </Row>
+      <LoadingBlock width="100%" height={28} radius="sm" />
+      <Row gap={2}>
+        <LoadingBlock width="50%" height={32} radius="md" />
+        <LoadingBlock width="50%" height={32} radius="md" />
+      </Row>
+    </Card>
+  </Show>
+
+  <Show when={status === "error"}>
+    <Card
+      size="full"
+      width="100%"
+      height={widgetSize === "large" ? 356 : 170}
+      theme={appearance}
+      padding={4}
+      gap={2}
+      shadow={false}
+      justify="center"
+      align="center"
+    >
+      <Icon name="alert-circle" size="lg" color="secondary" />
+      <Text value={message || "Permission approvals unavailable"} size="sm" weight="semibold" align="center" />
+      <Caption value="Check agent system connection" size="sm" align="center" />
+    </Card>
+  </Show>
+
+  <Show when={(status === "empty" || pendingCount === 0) && status !== "loading" && status !== "error"}>
+    <Card
+      size="full"
+      width="100%"
+      height={widgetSize === "large" ? 356 : 170}
+      theme={appearance}
+      padding={4}
+      gap={2}
+      shadow={false}
+      justify="center"
+      align="center"
+    >
+      <Icon name="shield-check" size="lg" color="success" />
+      <Text value="All approvals clear" size="md" weight="semibold" align="center" />
+      <Caption value="No pending agent tool authorization requests." size="sm" align="center" />
+    </Card>
+  </Show>
+
+  <Show when={status === "ready" || (!status && pendingCount > 0)}>
+    <Card
+      size="full"
+      width="100%"
+      height={widgetSize === "large" ? 356 : 170}
+      theme={appearance}
+      padding={4}
+      gap={widgetSize === "medium" ? 2 : 3}
+      shadow={false}
+    >
+      <Show when={widgetSize === "medium"}>
+        <Show when={direction === "minimal"}>
+          <Col gap={2} height="100%" justify="between">
+            <Col gap={1}>
+              <Row gap={2} align="center">
+                <Box
+                  size={26}
+                  radius="sm"
+                  background="surface-secondary"
+                  align="center"
+                  justify="center"
+                >
+                  <Icon name={request.icon || "shield"} size="sm" />
+                </Box>
+                <Col flex={1} minWidth={0} gap={0}>
+                  <Text value={request.tool + " access"} size="xs" weight="semibold" />
+                  <Caption value={request.agent + " · " + request.timestamp} size="xs" />
+                </Col>
+                <Badge
+                  label={request.riskLabel || "Review"}
+                  color={request.riskTone || "secondary"}
+                  variant="soft"
+                />
+              </Row>
+              <Text value={request.action} size="xs" weight="semibold" maxLines={1} />
+              <Caption value={request.scope} size="xs" maxLines={1} />
+            </Col>
+            <Show when={request.decision === "pending"}>
+              <Row gap={2}>
+                <Col flex={1}>
+                  <Button
+                    label={copy.deny || "Deny"}
+                    iconStart="x"
+                    variant="outline"
+                    color="primary"
+                    size="sm"
+                    block
+                    onClickAction={{
+                      action: "deny",
+                      id: request.id,
+                      patchState: set("requests.0.decision", "deny"),
+                    }}
+                  />
+                </Col>
+                <Col flex={1}>
+                  <Button
+                    label={copy.approve || "Approve"}
+                    iconStart="check"
+                    color="info"
+                    size="sm"
+                    block
+                    onClickAction={{
+                      action: "approve",
+                      id: request.id,
+                      patchState: set("requests.0.decision", "approve"),
+                    }}
+                  />
+                </Col>
+              </Row>
+              <Show.Else>
+                <Row gap={2} align="center" justify="between">
+                  <Row gap={1} align="center">
+                    <Icon
+                      name={request.decision === "approve" ? "check-circle" : "x-circle"}
+                      size="sm"
+                      color={request.decision === "approve" ? "success" : "secondary"}
+                    />
+                    <Text
+                      value={request.decision === "approve" ? (copy.approveSelected || "Approved") : (copy.denySelected || "Denied")}
+                      size="xs"
+                      weight="medium"
+                    />
+                  </Row>
+                  <Button
+                    label={copy.undo || "Undo"}
+                    variant="ghost"
+                    size="xs"
+                    onClickAction={{
+                      action: "undo",
+                      id: request.id,
+                      patchState: set("requests.0.decision", "pending"),
+                    }}
+                  />
+                </Row>
+              </Show.Else>
+            </Show>
+          </Col>
+        </Show>
+
+        <Show when={direction === "review"}>
+          <Col gap={2} height="100%" justify="between">
+            <Col gap={1}>
+              <Row gap={2} align="center">
+                <Caption value={copy.reviewTitle || "Review tool access"} size="xs" />
+                <Spacer />
+                <Badge label={request.riskLabel} color={request.riskTone} variant="soft" />
+              </Row>
+              <Text value={request.action} size="xs" weight="semibold" maxLines={1} />
+              <Caption value={request.tool + " · " + request.scope} size="xs" maxLines={1} />
+              <Caption value={request.accessNote || request.description} size="xs" maxLines={1} />
+            </Col>
+            <Show when={request.decision === "pending"}>
+              <Row gap={2}>
+                <Col flex={1}>
+                  <Button
+                    label={copy.deny || "Deny"}
+                    iconStart="x"
+                    variant="outline"
+                    color="primary"
+                    size="sm"
+                    block
+                    onClickAction={{
+                      action: "deny",
+                      id: request.id,
+                      patchState: set("requests.0.decision", "deny"),
+                    }}
+                  />
+                </Col>
+                <Col flex={1}>
+                  <Button
+                    label={copy.approve || "Approve"}
+                    iconStart="check"
+                    color="info"
+                    size="sm"
+                    block
+                    onClickAction={{
+                      action: "approve",
+                      id: request.id,
+                      patchState: set("requests.0.decision", "approve"),
+                    }}
+                  />
+                </Col>
+              </Row>
+              <Show.Else>
+                <Row gap={2} align="center" justify="between">
+                  <Text
+                    value={request.decision === "approve" ? "Approved" : "Denied"}
+                    size="xs"
+                    weight="medium"
+                  />
+                  <Button
+                    label={copy.undo || "Undo"}
+                    variant="ghost"
+                    size="xs"
+                    onClickAction={{
+                      action: "undo",
+                      id: request.id,
+                      patchState: set("requests.0.decision", "pending"),
+                    }}
+                  />
+                </Row>
+              </Show.Else>
+            </Show>
+          </Col>
+        </Show>
+
+        <Show when={direction === "inbox"}>
+          <Col gap={2} height="100%" justify="between">
+            <Col gap={1}>
+              <Row gap={2} align="center">
+                <Box
+                  size={24}
+                  radius="full"
+                  background="surface-secondary"
+                  align="center"
+                  justify="center"
+                >
+                  <Text value={request.initials || "AG"} size="xs" weight="semibold" />
+                </Box>
+                <Col flex={1} minWidth={0} gap={0}>
+                  <Text value={request.agent} size="xs" weight="semibold" />
+                  <Caption value={request.timestamp} size="xs" />
+                </Col>
+                <Badge label={request.riskLabel} color={request.riskTone} variant="soft" />
+              </Row>
+              <Text value={request.action} size="xs" weight="semibold" maxLines={1} />
+              <Caption value={request.tool + " · " + request.scope} size="xs" maxLines={1} />
+            </Col>
+            <Show when={request.decision === "pending"}>
+              <Row gap={2}>
+                <Col flex={1}>
+                  <Button
+                    label={copy.deny || "Deny"}
+                    iconStart="x"
+                    variant="outline"
+                    color="primary"
+                    size="sm"
+                    block
+                    onClickAction={{
+                      action: "deny",
+                      id: request.id,
+                      patchState: set("requests.0.decision", "deny"),
+                    }}
+                  />
+                </Col>
+                <Col flex={1}>
+                  <Button
+                    label={copy.approve || "Approve"}
+                    iconStart="check"
+                    color="info"
+                    size="sm"
+                    block
+                    onClickAction={{
+                      action: "approve",
+                      id: request.id,
+                      patchState: set("requests.0.decision", "approve"),
+                    }}
+                  />
+                </Col>
+              </Row>
+              <Show.Else>
+                <Row gap={2} align="center" justify="between">
+                  <Text
+                    value={request.decision === "approve" ? "Approved" : "Denied"}
+                    size="xs"
+                    weight="medium"
+                  />
+                  <Button
+                    label={copy.undo || "Undo"}
+                    variant="ghost"
+                    size="xs"
+                    onClickAction={{
+                      action: "undo",
+                      id: request.id,
+                      patchState: set("requests.0.decision", "pending"),
+                    }}
+                  />
+                </Row>
+              </Show.Else>
+            </Show>
+          </Col>
+        </Show>
+
+        <Show when={direction === "security"}>
+          <Col gap={2} height="100%" justify="between">
+            <Col gap={1}>
+              <Row gap={2} align="center">
+                <Icon name="lock" size="sm" color="warning" />
+                <Text value={request.accessTitle || "Security boundary"} size="xs" weight="semibold" />
+                <Spacer />
+                <Badge label={request.riskLabel} color={request.riskTone} variant="soft" />
+              </Row>
+              <Text value={request.scope} size="xs" weight="semibold" maxLines={1} />
+              <Caption value={request.tool + " · " + request.action} size="xs" maxLines={1} />
+            </Col>
+            <Show when={request.decision === "pending"}>
+              <Row gap={2}>
+                <Col flex={1}>
+                  <Button
+                    label={copy.deny || "Deny"}
+                    iconStart="x"
+                    variant="outline"
+                    color="primary"
+                    size="sm"
+                    block
+                    onClickAction={{
+                      action: "deny",
+                      id: request.id,
+                      patchState: set("requests.0.decision", "deny"),
+                    }}
+                  />
+                </Col>
+                <Col flex={1}>
+                  <Button
+                    label={copy.approve || "Approve"}
+                    iconStart="check"
+                    color="info"
+                    size="sm"
+                    block
+                    onClickAction={{
+                      action: "approve",
+                      id: request.id,
+                      patchState: set("requests.0.decision", "approve"),
+                    }}
+                  />
+                </Col>
+              </Row>
+              <Show.Else>
+                <Row gap={2} align="center" justify="between">
+                  <Text
+                    value={request.decision === "approve" ? "Approved" : "Denied"}
+                    size="xs"
+                    weight="medium"
+                  />
+                  <Button
+                    label={copy.undo || "Undo"}
+                    variant="ghost"
+                    size="xs"
+                    onClickAction={{
+                      action: "undo",
+                      id: request.id,
+                      patchState: set("requests.0.decision", "pending"),
+                    }}
+                  />
+                </Row>
+              </Show.Else>
+            </Show>
+          </Col>
+        </Show>
+
+        <Show when={direction === "editorial"}>
+          <Col gap={2} height="100%" justify="between">
+            <Col gap={1}>
+              <Caption value={copy.editorialEyebrow || "PERMISSION REVIEW"} size="xs" />
+              <Text value={request.editorial || request.action} size="xs" weight="semibold" maxLines={1} />
+              <Caption value={request.agent + " · " + request.timestamp + " · " + request.tool} size="xs" maxLines={1} />
+              <Caption value={request.scope} size="xs" maxLines={1} />
+            </Col>
+            <Show when={request.decision === "pending"}>
+              <Row gap={2}>
+                <Col flex={1}>
+                  <Button
+                    label={copy.deny || "Deny"}
+                    iconStart="x"
+                    variant="outline"
+                    color="primary"
+                    size="sm"
+                    block
+                    onClickAction={{
+                      action: "deny",
+                      id: request.id,
+                      patchState: set("requests.0.decision", "deny"),
+                    }}
+                  />
+                </Col>
+                <Col flex={1}>
+                  <Button
+                    label={copy.approve || "Approve"}
+                    iconStart="check"
+                    color="info"
+                    size="sm"
+                    block
+                    onClickAction={{
+                      action: "approve",
+                      id: request.id,
+                      patchState: set("requests.0.decision", "approve"),
+                    }}
+                  />
+                </Col>
+              </Row>
+              <Show.Else>
+                <Row gap={2} align="center" justify="between">
+                  <Text
+                    value={request.decision === "approve" ? "Approved" : "Denied"}
+                    size="xs"
+                    weight="medium"
+                  />
+                  <Button
+                    label={copy.undo || "Undo"}
+                    variant="ghost"
+                    size="xs"
+                    onClickAction={{
+                      action: "undo",
+                      id: request.id,
+                      patchState: set("requests.0.decision", "pending"),
+                    }}
+                  />
+                </Row>
+              </Show.Else>
+            </Show>
+          </Col>
+        </Show>
+      </Show>
+
+      <Show when={widgetSize === "large"}>
+        <Col gap={3}>
+          <Row gap={2} align="center">
+            <Icon name="shield-check" size="sm" color="secondary" />
+            <Title value={copy.title || "Permission approvals"} size="sm" />
+            <Spacer />
+            <Badge
+              label={String(pendingCount) + " pending"}
+              size="sm"
+              color={pendingCount > 0 ? "warning" : "secondary"}
+            />
+          </Row>
+          <Divider flush />
+
+          <Each of={requests.slice(0, 3)} item="req" index="i">
+            <Box
+              key={req.id}
+              gap={2}
+              border={req.urgent ? { size: 1, color: "warning" } : 0}
+              radius="sm"
+              padding={req.urgent ? 2 : 1}
+              background="surface-secondary"
+            >
+              <Row gap={2} align="start">
+                <Box
+                  size={28}
+                  radius="sm"
+                  background="surface-tertiary"
+                  align="center"
+                  justify="center"
+                >
+                  <Icon name={req.icon || "shield"} size="sm" />
+                </Box>
+                <Col flex={1} minWidth={0} gap={0}>
+                  <Row gap={2} align="center">
+                    <Text value={req.tool} size="xs" weight="semibold" />
+                    <Caption value={req.agent} size="xs" />
+                    <Spacer />
+                    <Badge label={req.riskLabel} color={req.riskTone} variant="soft" />
+                  </Row>
+                  <Text value={req.action} size="xs" weight="semibold" maxLines={1} />
+                  <Caption value={req.scope} size="xs" maxLines={1} />
+                </Col>
+              </Row>
+              <Show when={req.decision === "pending"}>
+                <Row gap={2} justify="end">
+                  <Button
+                    label={copy.deny || "Deny"}
+                    variant="outline"
+                    color="primary"
+                    size="sm"
+                    onClickAction={{
+                      action: "deny",
+                      id: req.id,
+                      patchState: set("requests." + String(i) + ".decision", "deny"),
+                    }}
+                  />
+                  <Button
+                    label={copy.approve || "Approve"}
+                    iconStart="check"
+                    color="info"
+                    size="sm"
+                    onClickAction={{
+                      action: "approve",
+                      id: req.id,
+                      patchState: set("requests." + String(i) + ".decision", "approve"),
+                    }}
+                  />
+                </Row>
+                <Show.Else>
+                  <Row gap={2} align="center" justify="between">
+                    <Text
+                      value={req.decision === "approve" ? "Approved" : "Denied"}
+                      size="xs"
+                      weight="medium"
+                    />
+                    <Button
+                      label={copy.undo || "Undo"}
+                      variant="ghost"
+                      size="xs"
+                      onClickAction={{
+                        action: "undo",
+                        id: req.id,
+                        patchState: set("requests." + String(i) + ".decision", "pending"),
+                      }}
+                    />
+                  </Row>
+                </Show.Else>
+              </Show>
+            </Box>
+          </Each>
+        </Col>
+      </Show>
+    </Card>
+  </Show>
+</Scope>

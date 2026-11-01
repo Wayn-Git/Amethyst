@@ -1,0 +1,598 @@
+<Scope
+  values={{
+    accent: accent || { light: "#704373", dark: "#D6B0DA" },
+    accentSurface: accentSurface || { light: "#F2ECF3", dark: "#302633" },
+    waitColor: waitColor || { light: "#846019", dark: "#E4C17B" },
+    waitSurface: waitSurface || { light: "#FAF5E9", dark: "#2B271F" },
+  }}
+>
+  <Show when={status === "loading"}>
+    <Card
+      width="100%"
+      size="md"
+      height={layoutSize === "large" ? 356 : 170}
+      padding={4}
+      gap={3}
+      theme={darkMode ? "dark" : "light"}
+      shadow={false}
+    >
+      <Row gap={2} align="center">
+        <LoadingBlock width={24} height={24} radius="full" />
+        <LoadingBlock width={120} height={18} radius="xs" />
+      </Row>
+      <LoadingBlock width="100%" height={32} radius="sm" />
+      <Row gap={2}>
+        <LoadingBlock width="50%" height={36} radius="md" />
+        <LoadingBlock width="50%" height={36} radius="md" />
+      </Row>
+    </Card>
+  </Show>
+
+  <Show when={status === "error"}>
+    <Card
+      width="100%"
+      size="md"
+      height={layoutSize === "large" ? 356 : 170}
+      padding={4}
+      gap={2}
+      theme={darkMode ? "dark" : "light"}
+      shadow={false}
+      justify="center"
+      align="center"
+    >
+      <Icon name="alert-circle" size="lg" color="secondary" />
+      <Text value={message || "Slack DMs unavailable"} size="sm" weight="semibold" align="center" />
+      <Caption value="Check Slack connection" size="sm" align="center" />
+    </Card>
+  </Show>
+
+  <Show when={(status === "empty" || size(messages) === 0) && status !== "loading" && status !== "error"}>
+    <Card
+      width="100%"
+      size="md"
+      height={layoutSize === "large" ? 356 : 170}
+      padding={4}
+      gap={2}
+      theme={darkMode ? "dark" : "light"}
+      shadow={false}
+      justify="center"
+      align="center"
+    >
+      <Icon name="check-circle" size="lg" color="success" />
+      <Text value={(labels && labels.emptyTitle) || "No unreplied Slack DMs"} size="sm" weight="semibold" align="center" />
+      <Caption value={(labels && labels.emptyDescription) || "All direct messages are caught up"} size="sm" align="center" />
+    </Card>
+  </Show>
+
+  <Show when={status === "ready" && size(messages) > 0}>
+    <Show when={direction === "minimal" && layoutSize === "medium"}>
+      <Card
+        width="100%"
+        size="md"
+        padding={4}
+        gap={2}
+        theme={darkMode ? "dark" : "light"}
+        height="100%"
+        justify="between"
+        shadow={false}
+      >
+        <Row gap={2} align="center">
+          <Icon name="message" color={accent} size="sm" />
+          <Title value={(labels && labels.title) || "Unreplied DMs"} size="sm" />
+          <Spacer />
+          <Caption value={String(size(messages))} />
+        </Row>
+        <Scope values={{ dm: messages[0] || {} }}>
+          <Col gap={2}>
+            <Row gap={3} align="center">
+              <Avatar
+                name={dm.name || "User"}
+                src={dm.photo != null && availableImages && availableImages[dm.photo] ? availableImages[dm.photo].url : ""}
+                size={34}
+                radius="full"
+              />
+              <Col flex={1} minWidth={0} gap={1}>
+                <Row gap={2} align="center">
+                  <Text value={dm.name || "User"} size="sm" weight="semibold" maxLines={1} />
+                  <Show when={dm.unread}>
+                    <Box size={5} radius="full" background={accent} />
+                  </Show>
+                  <Spacer />
+                  <Caption value={dm.time} size="xs" />
+                </Row>
+                <Caption value={dm.waitLabel} size="xs" color="secondary" />
+              </Col>
+            </Row>
+            <Text
+              value={dm.preview}
+              size="sm"
+              color="secondary"
+              maxLines={2}
+            />
+          </Col>
+        </Scope>
+      </Card>
+    </Show>
+
+    <Show when={direction === "minimal" && layoutSize === "large"}>
+      <Card
+        width="100%"
+        size="md"
+        padding={4}
+        gap={3}
+        theme={darkMode ? "dark" : "light"}
+        height="100%"
+        shadow={false}
+      >
+        <Row gap={2} align="center">
+          <Icon name="message" color={accent} size="sm" />
+          <Title value={(labels && labels.title) || "Unreplied DMs"} size="sm" />
+          <Spacer />
+          <Caption value={workspace || "Slack"} />
+        </Row>
+        <Scope values={{ dm: messages[0] || {} }}>
+          <Col gap={2}>
+            <Row gap={3} align="center">
+              <Avatar
+                name={dm.name || "User"}
+                src={dm.photo != null && availableImages && availableImages[dm.photo] ? availableImages[dm.photo].url : ""}
+                size={36}
+                radius="full"
+              />
+              <Col flex={1} minWidth={0} gap={1}>
+                <Row gap={2} align="center">
+                  <Text value={dm.name || "User"} size="sm" weight="semibold" maxLines={1} />
+                  <Show when={dm.unread}>
+                    <Box size={5} radius="full" background={accent} />
+                  </Show>
+                  <Spacer />
+                  <Caption value={dm.time} size="xs" />
+                </Row>
+                <Caption value={dm.waitLabel} size="xs" color="secondary" />
+              </Col>
+            </Row>
+            <Text value={dm.preview} size="sm" color="secondary" maxLines={2} />
+          </Col>
+        </Scope>
+        <Divider />
+        <Col gap={2} flex={1}>
+          <Caption value={(labels && labels.latest) || "Other unanswered"} weight="medium" size="xs" />
+          <Each of={messages.slice(1, 4)} item="dm">
+            <Row
+              key={dm.id}
+              gap={2}
+              align="center"
+              padding={{ x: 2, y: 1 }}
+              radius="sm"
+              background={dm.oldest ? waitSurface : "transparent"}
+            >
+              <Avatar
+                name={dm.name || "User"}
+                src={dm.photo != null && availableImages && availableImages[dm.photo] ? availableImages[dm.photo].url : ""}
+                size={26}
+                radius="full"
+              />
+              <Col flex={1} minWidth={0} gap={0}>
+                <Row gap={1} align="center">
+                  <Text value={dm.name} size="sm" weight="medium" maxLines={1} />
+                  <Show when={dm.unread}>
+                    <Box size={5} radius="full" background={accent} />
+                  </Show>
+                  <Spacer />
+                  <Caption value={dm.time} size="xs" />
+                </Row>
+                <Caption value={dm.preview} maxLines={1} />
+              </Col>
+            </Row>
+          </Each>
+        </Col>
+      </Card>
+    </Show>
+
+    <Show when={direction === "conversation" && layoutSize === "medium"}>
+      <Card
+        width="100%"
+        size="md"
+        padding={4}
+        gap={2}
+        theme={darkMode ? "dark" : "light"}
+        height="100%"
+        justify="between"
+        shadow={false}
+      >
+        <Row gap={2} align="center">
+          <Title value={(labels && labels.needsReply) || "Needs a reply"} size="sm" />
+          <Spacer />
+          <Caption value={String(size(messages)) + " waiting"} />
+        </Row>
+        <Scope values={{ dm: messages[0] || {} }}>
+          <Row align="start" gap={2}>
+            <Avatar
+              name={dm.name || "User"}
+              src={dm.photo != null && availableImages && availableImages[dm.photo] ? availableImages[dm.photo].url : ""}
+              size={30}
+              radius="full"
+            />
+            <Col flex={1} minWidth={0} gap={1}>
+              <Row gap={1} align="center">
+                <Text value={dm.name || "User"} size="sm" weight="semibold" maxLines={1} />
+                <Show when={dm.unread}>
+                  <Box size={5} radius="full" background={accent} />
+                </Show>
+                <Spacer />
+                <Caption value={dm.time} size="xs" />
+              </Row>
+              <Box background="surface-secondary" padding={2} radius="md">
+                <Text value={dm.preview} size="xs" maxLines={2} />
+              </Box>
+              <Caption value={dm.waitLabel || ((labels && labels.replyNeeded) || "Reply needed")} size="xs" color="secondary" />
+            </Col>
+          </Row>
+        </Scope>
+      </Card>
+    </Show>
+
+    <Show when={direction === "conversation" && layoutSize === "large"}>
+      <Card
+        width="100%"
+        size="md"
+        padding={4}
+        gap={3}
+        theme={darkMode ? "dark" : "light"}
+        height="100%"
+        shadow={false}
+      >
+        <Row gap={2} align="center">
+          <Icon name="message" color={accent} size="sm" />
+          <Col flex={1} gap={0}>
+            <Title value={(labels && labels.directMessages) || "Direct messages"} size="sm" />
+            <Caption value={workspace || "Slack"} size="xs" />
+          </Col>
+          <Caption value={String(size(messages)) + " waiting"} />
+        </Row>
+        <Col gap={2} flex={1}>
+          <Each of={messages.slice(0, 3)} item="dm">
+            <Col key={dm.id} gap={1}>
+              <Row gap={2} align="center">
+                <Avatar
+                  name={dm.name || "User"}
+                  src={dm.photo != null && availableImages && availableImages[dm.photo] ? availableImages[dm.photo].url : ""}
+                  size={24}
+                  radius="full"
+                />
+                <Text value={dm.name} size="sm" weight="semibold" maxLines={1} />
+                <Show when={dm.unread}>
+                  <Box size={5} radius="full" background={accent} />
+                </Show>
+                <Spacer />
+                <Caption value={dm.time} size="xs" />
+              </Row>
+              <Col padding={{ left: 6 }} gap={1}>
+                <Box
+                  background={dm.oldest ? waitSurface : "surface-secondary"}
+                  padding={2}
+                  radius="md"
+                >
+                  <Text value={dm.preview} size="xs" maxLines={2} />
+                </Box>
+                <Row gap={1} align="center">
+                  <Show when={dm.oldest}>
+                    <Icon name="clock" size="xs" color={waitColor} />
+                  </Show>
+                  <Caption
+                    value={dm.waitLabel}
+                    size="xs"
+                    color={dm.oldest ? waitColor : "secondary"}
+                  />
+                </Row>
+              </Col>
+            </Col>
+          </Each>
+        </Col>
+      </Card>
+    </Show>
+
+    <Show when={direction === "inbox" && layoutSize === "medium"}>
+      <Card
+        width="100%"
+        size="md"
+        padding={4}
+        gap={2}
+        theme={darkMode ? "dark" : "light"}
+        height="100%"
+        shadow={false}
+      >
+        <Row gap={2} align="center">
+          <Col gap={0}>
+            <Title value={(labels && labels.title) || "Unreplied DMs"} size="sm" />
+            <Caption value={workspace || "Slack"} size="xs" />
+          </Col>
+          <Spacer />
+          <Text
+            value={String(size(messages))}
+            size="lg"
+            weight="medium"
+            color="secondary"
+            tabularNums
+          />
+        </Row>
+        <Col gap={1}>
+          <Each of={messages.slice(0, 2)} item="dm">
+            <Row key={dm.id} gap={2} align="center">
+              <Avatar
+                name={dm.name || "User"}
+                src={dm.photo != null && availableImages && availableImages[dm.photo] ? availableImages[dm.photo].url : ""}
+                size={28}
+                radius="full"
+              />
+              <Col flex={1} minWidth={0} gap={0}>
+                <Row gap={1} align="center">
+                  <Text value={dm.name} size="sm" weight="semibold" maxLines={1} />
+                  <Show when={dm.unread}>
+                    <Box size={5} radius="full" background={accent} />
+                  </Show>
+                  <Spacer />
+                  <Caption value={dm.time} size="xs" />
+                </Row>
+                <Caption value={dm.preview} maxLines={1} />
+              </Col>
+            </Row>
+          </Each>
+        </Col>
+      </Card>
+    </Show>
+
+    <Show when={direction === "inbox" && layoutSize === "large"}>
+      <Card
+        width="100%"
+        size="md"
+        padding={4}
+        gap={3}
+        theme={darkMode ? "dark" : "light"}
+        height="100%"
+        shadow={false}
+      >
+        <Row gap={2} align="center">
+          <Col gap={0}>
+            <Title value={(labels && labels.title) || "Unreplied DMs"} size="sm" />
+            <Caption value={workspace || "Slack"} size="xs" />
+          </Col>
+          <Spacer />
+          <Text
+            value={String(size(messages))}
+            size="xl"
+            weight="medium"
+            color="secondary"
+            tabularNums
+          />
+        </Row>
+        <Col gap={1} flex={1}>
+          <Each of={messages.slice(0, 4)} item="dm" index="i">
+            <Col key={dm.id} gap={1}>
+              <Show when={i > 0}>
+                <Divider />
+              </Show>
+              <Row gap={2} align="center" padding={{ y: 1 }}>
+                <Avatar
+                  name={dm.name || "User"}
+                  src={dm.photo != null && availableImages && availableImages[dm.photo] ? availableImages[dm.photo].url : ""}
+                  size={30}
+                  radius="full"
+                />
+                <Col flex={1} minWidth={0} gap={0}>
+                  <Row gap={1} align="center">
+                    <Text value={dm.name} size="sm" weight="semibold" maxLines={1} />
+                    <Show when={dm.unread}>
+                      <Box size={5} radius="full" background={accent} />
+                    </Show>
+                    <Spacer />
+                    <Caption value={dm.time} size="xs" />
+                  </Row>
+                  <Caption value={dm.preview} maxLines={1} />
+                </Col>
+              </Row>
+            </Col>
+          </Each>
+        </Col>
+      </Card>
+    </Show>
+
+    <Show when={direction === "timeline" && layoutSize === "medium"}>
+      <Card
+        width="100%"
+        size="md"
+        padding={4}
+        gap={2}
+        theme={darkMode ? "dark" : "light"}
+        height="100%"
+        shadow={false}
+      >
+        <Row gap={2} align="center">
+          <Icon name="clock" size="sm" color="secondary" />
+          <Title value={(labels && labels.stillWaiting) || "Still waiting"} size="sm" />
+          <Spacer />
+          <Caption value={String(size(messages))} />
+        </Row>
+        <Col gap={1}>
+          <Each of={messages.slice(0, 2)} item="dm">
+            <Row key={dm.id} align="center" gap={2}>
+              <Avatar
+                name={dm.name}
+                src={dm.photo != null && availableImages && availableImages[dm.photo] ? availableImages[dm.photo].url : ""}
+                size={26}
+                radius="full"
+              />
+              <Col flex={1} minWidth={0} gap={0}>
+                <Row gap={1} align="center">
+                  <Text value={dm.name} size="sm" weight="semibold" maxLines={1} />
+                  <Show when={dm.unread}>
+                    <Box size={5} radius="full" background={accent} />
+                  </Show>
+                  <Spacer />
+                  <Caption value={dm.time} size="xs" />
+                </Row>
+                <Caption value={dm.preview} maxLines={1} />
+              </Col>
+            </Row>
+          </Each>
+        </Col>
+      </Card>
+    </Show>
+
+    <Show when={direction === "timeline" && layoutSize === "large"}>
+      <Card
+        width="100%"
+        size="md"
+        padding={4}
+        gap={3}
+        theme={darkMode ? "dark" : "light"}
+        height="100%"
+        shadow={false}
+      >
+        <Row gap={2} align="center">
+          <Icon name="clock" size="sm" color="secondary" />
+          <Title value={(labels && labels.stillWaiting) || "Still waiting"} size="sm" />
+          <Spacer />
+          <Caption value={String(size(messages))} />
+        </Row>
+        <Col gap={1} flex={1}>
+          <Each of={messages.slice(0, 4)} item="dm" index="i">
+            <Row key={dm.id} align="start" gap={2}>
+              <Col width={24} align="center" gap={1}>
+                <Avatar
+                  name={dm.name}
+                  src={dm.photo != null && availableImages && availableImages[dm.photo] ? availableImages[dm.photo].url : ""}
+                  size={24}
+                  radius="full"
+                />
+                <Show when={i < 3}>
+                  <Box width={1} height={28} background="surface-tertiary" />
+                </Show>
+              </Col>
+              <Col flex={1} minWidth={0} gap={1} padding={{ bottom: 2 }}>
+                <Row gap={1} align="center">
+                  <Text value={dm.name} size="sm" weight="semibold" maxLines={1} />
+                  <Show when={dm.unread}>
+                    <Box size={5} radius="full" background={accent} />
+                  </Show>
+                  <Spacer />
+                  <Caption value={dm.time} size="xs" />
+                </Row>
+                <Text
+                  value={dm.preview}
+                  size="xs"
+                  color="secondary"
+                  maxLines={2}
+                />
+              </Col>
+            </Row>
+          </Each>
+        </Col>
+      </Card>
+    </Show>
+
+    <Show when={direction === "priority" && layoutSize === "medium"}>
+      <Card
+        width="100%"
+        size="md"
+        padding={4}
+        gap={2}
+        theme={darkMode ? "dark" : "light"}
+        height="100%"
+        justify="between"
+        shadow={false}
+      >
+        <Row gap={2} align="center">
+          <Title value={(labels && labels.longestWaiting) || "Longest waiting"} size="sm" />
+          <Spacer />
+          <Caption value={String(size(messages)) + " unreplied"} />
+        </Row>
+        <Scope values={{ dm: messages[0] || {} }}>
+          <Box background={dm.oldest ? waitSurface : "surface-secondary"} padding={2} radius="md" gap={1}>
+            <Row gap={2} align="center">
+              <Avatar
+                name={dm.name || "User"}
+                src={dm.photo != null && availableImages && availableImages[dm.photo] ? availableImages[dm.photo].url : ""}
+                size={26}
+                radius="full"
+              />
+              <Text value={dm.name} size="sm" weight="semibold" maxLines={1} />
+              <Show when={dm.unread}>
+                <Box size={5} radius="full" background={accent} />
+              </Show>
+              <Spacer />
+              <Caption value={dm.waitLabel} color={waitColor} size="xs" />
+            </Row>
+            <Text value={dm.preview} size="xs" maxLines={2} />
+          </Box>
+        </Scope>
+      </Card>
+    </Show>
+
+    <Show when={direction === "priority" && layoutSize === "large"}>
+      <Card
+        width="100%"
+        size="md"
+        padding={4}
+        gap={3}
+        theme={darkMode ? "dark" : "light"}
+        height="100%"
+        shadow={false}
+      >
+        <Row gap={2} align="center">
+          <Col gap={0}>
+            <Caption value={workspace || "Slack"} size="xs" />
+            <Title value={(labels && labels.replyPriorities) || "Reply priorities"} size="sm" />
+          </Col>
+          <Spacer />
+          <Caption value={String(size(messages)) + " waiting"} />
+        </Row>
+        <Scope values={{ dm: messages[0] || {} }}>
+          <Row gap={3} padding={2} radius="md" background={waitSurface} align="center">
+            <Icon name="clock" size="md" color={waitColor} />
+            <Col gap={0}>
+              <Caption value={(labels && labels.waitingLongest) || "Waiting longest"} color={waitColor} size="xs" />
+              <Text
+                value={dm.waitShort || dm.waitLabel}
+                size="lg"
+                weight="semibold"
+                color={waitColor}
+              />
+            </Col>
+            <Spacer />
+            <Text value={dm.name} size="sm" weight="semibold" color={waitColor} />
+          </Row>
+        </Scope>
+        <Col gap={1} flex={1}>
+          <Each of={messages.slice(0, 4)} item="dm" index="i">
+            <Col key={dm.id} gap={1}>
+              <Show when={i > 0}>
+                <Divider />
+              </Show>
+              <Row gap={2} align="center" padding={{ y: 1 }}>
+                <Avatar
+                  name={dm.name || "User"}
+                  src={dm.photo != null && availableImages && availableImages[dm.photo] ? availableImages[dm.photo].url : ""}
+                  size={26}
+                  radius="full"
+                />
+                <Col flex={1} minWidth={0} gap={0}>
+                  <Row gap={1} align="center">
+                    <Text value={dm.name} size="sm" weight="medium" maxLines={1} />
+                    <Show when={dm.unread}>
+                      <Box size={5} radius="full" background={accent} />
+                    </Show>
+                    <Spacer />
+                    <Caption value={dm.time} size="xs" />
+                  </Row>
+                  <Caption value={dm.preview} maxLines={1} />
+                </Col>
+                <Caption value={dm.waitShort} size="xs" color={dm.oldest ? waitColor : "secondary"} />
+              </Row>
+            </Col>
+          </Each>
+        </Col>
+      </Card>
+    </Show>
+  </Show>
+</Scope>

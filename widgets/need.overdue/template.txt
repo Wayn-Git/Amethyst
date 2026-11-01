@@ -1,0 +1,2187 @@
+<Scope
+  values={{
+    open: (tasks || []).filter((task) => !task.done),
+    completed: (tasks || []).filter((task) => task.done),
+  }}
+>
+  <Show when={status === "loading"}>
+    <Box
+      width="100%"
+      height={scale === "large" ? 356 : 170}
+      padding={4}
+      gap={3}
+      background="surface-elevated"
+      radius="xl"
+    >
+      <Row gap={3} align="center">
+        <LoadingBlock width={40} height={40} radius="sm" />
+        <Col gap={2} flex={1}>
+          <LoadingBlock width={80} height={18} radius="xs" />
+          <LoadingBlock width={140} height={14} radius="xs" />
+        </Col>
+      </Row>
+      <Col gap={2}>
+        <LoadingBlock width="100%" height={44} radius="md" />
+        <LoadingBlock width="100%" height={44} radius="md" />
+      </Col>
+    </Box>
+  </Show>
+  <Show when={status === "error"}>
+    <Box
+      width="100%"
+      height={scale === "large" ? 356 : 170}
+      padding={4}
+      gap={2}
+      background="surface-elevated"
+      radius="xl"
+      justify="center"
+      align="center"
+    >
+      <Icon name="alert-circle" size="lg" color="secondary" />
+      <Text value={message || "Could not load overdue items"} size="sm" weight="semibold" align="center" />
+      <Caption value="Check database connection" size="sm" align="center" />
+    </Box>
+  </Show>
+  <Show when={(status === "empty" || size(open) === 0) && status !== "loading" && status !== "error"}>
+    <Box
+      width="100%"
+      height={scale === "large" ? 356 : 170}
+      padding={4}
+      gap={2}
+      background="surface-elevated"
+      radius="xl"
+      justify="center"
+      align="center"
+    >
+      <Icon name="check-circle" size="lg" color="success" />
+      <Text value={labels.emptyTitle || "Nothing overdue"} size="md" weight="semibold" align="center" />
+      <Caption value={labels.emptyDescription || "All tasks are up to date."} size="sm" align="center" />
+    </Box>
+  </Show>
+  <Show when={status === "ready" || (!status && size(open) > 0)}>
+    <Show when={mode === "gallery"}>
+<Scope
+  values={{
+    open: tasks.filter((task) => !task.done),
+    completed: tasks.filter((task) => task.done),
+  }}
+>
+  <Basic theme={appearance} gap={3} align="center">
+    <Box width="100%" maxWidth={440} gap={3}>
+      <Row gap={2}>
+        <Caption value={labels.collection} />
+        <Spacer />
+        <Button
+          iconStart={appearance === "light" ? "moon" : "sun"}
+          ariaLabel={
+            appearance === "light" ? labels.darkMode : labels.lightMode
+          }
+          uniform
+          variant="ghost"
+          size="2xl"
+          onClickAction={{
+            updateState: {
+              appearance: appearance === "light" ? "dark" : "light",
+            },
+          }}
+        />
+      </Row>
+      <Row gap={3} wrap="wrap" align="end">
+        <Col gap={1} flex={1} minWidth={150}>
+          <Label value={labels.direction} fieldName="direction" />
+          <Select
+            name="direction"
+            bind="direction"
+            options={directions}
+            block
+            size="2xl"
+          />
+        </Col>
+        <Col gap={1}>
+          <Label value={labels.size} fieldName="scale" />
+          <SegmentedControl
+            name="scale"
+            bind="scale"
+            options={sizes}
+            ariaLabel={labels.size}
+            size="2xl"
+          />
+        </Col>
+      </Row>
+      <Scope
+        values={{
+          visible:
+            scale === "large"
+              ? open
+              : direction === "grouped"
+                ? sortBy(
+                    open
+                      .filter((task) => task.medium)
+                      .concat(open.filter((task) => !task.medium))
+                      .slice(0, 4),
+                    "days",
+                    "desc",
+                  )
+                : direction === "priority"
+                  ? sortBy(open, "rank", "asc").slice(0, 4)
+                  : open.slice(0, 4),
+        }}
+      >
+        <Box
+          background="surface-elevated"
+          radius="2xl"
+          padding={5}
+          gap={4}
+          border={{ size: 1, color: "subtle" }}
+        >
+          <Caption
+            value={
+              directions.find((item) => item.value === direction).study +
+              " · " +
+              directions.find((item) => item.value === direction).label +
+              " · " +
+              (scale === "medium" ? labels.medium : labels.large)
+            }
+            size="sm"
+          />
+          <Show when={size(visible) > 0}>
+            <Scope values={{ lead: visible[0], rest: visible.slice(1) }}>
+              <Show when={direction === "minimal"}>
+                <Show when={scale === "medium"}>
+                  <Col gap={4}>
+                    <Row gap={3} align="baseline">
+                      <Title
+                        value={String(size(open))}
+                        size="4xl"
+                        tabularNums
+                      />
+                      <Col gap={1}>
+                        <Title value={labels.overdue} size="sm" />
+                        <Caption value={labels.needsAttention} />
+                      </Col>
+                    </Row>
+                    <Col gap={2}>
+                      <Row gap={2}>
+                        <Text
+                          value={lead.priority}
+                          color={lead.color}
+                          size="sm"
+                          weight="semibold"
+                        />
+                        <Spacer />
+                        <Caption
+                          value={String(lead.days) + labels.daysLate}
+                          color="danger"
+                        />
+                      </Row>
+                      <Row gap={2} align="start">
+                        <Text value={lead.title} size="xl" weight="semibold" />
+                        <Spacer />
+                        <Button
+                          iconStart="empty-circle"
+                          ariaLabel={labels.completePrefix + lead.title}
+                          uniform
+                          variant="ghost"
+                          size="2xl"
+                          onClickAction={{
+                            patchState: set(
+                              "tasks." + String(lead.index) + ".done",
+                              true,
+                            ),
+                          }}
+                        />
+                      </Row>
+                      <Caption value={labels.duePrefix + lead.due} />
+                    </Col>
+                    <Divider color="subtle" />
+                    <Col gap={3}>
+                      <Each of={rest} item="task">
+                        <Row key={task.id} gap={2} align="start">
+                          <Col flex={1} minWidth={0} gap={1}>
+                            <Text
+                              value={task.title}
+                              size="sm"
+                              weight="medium"
+                            />
+                            <Caption
+                              value={
+                                labels.duePrefix +
+                                task.due +
+                                " · " +
+                                String(task.days) +
+                                labels.daysLate
+                              }
+                            />
+                            <Text
+                              value={task.priority}
+                              size="xs"
+                              color={task.color}
+                            />
+                          </Col>
+                          <Button
+                            iconStart="empty-circle"
+                            ariaLabel={labels.completePrefix + task.title}
+                            uniform
+                            variant="ghost"
+                            size="2xl"
+                            onClickAction={{
+                              patchState: set(
+                                "tasks." + String(task.index) + ".done",
+                                true,
+                              ),
+                            }}
+                          />
+                        </Row>
+                      </Each>
+                    </Col>
+                  </Col>
+                  <Show.Else>
+                    <Row gap={4} wrap="wrap" align="start">
+                      <Col width={68} gap={2}>
+                        <Title
+                          value={String(size(open))}
+                          size="4xl"
+                          tabularNums
+                        />
+                        <Text
+                          value={labels.overdue}
+                          size="sm"
+                          weight="semibold"
+                        />
+                        <Divider color="subtle" />
+                        <Text
+                          value={
+                            String(
+                              size(open.filter((task) => task.rank === 1)),
+                            ) + labels.criticalSuffix
+                          }
+                          size="sm"
+                          color="danger"
+                        />
+                      </Col>
+                      <Col flex={1} minWidth={190} gap={4}>
+                        <Each of={priorityGroups} item="group">
+                          <Scope
+                            values={{
+                              members: visible.filter(
+                                (task) =>
+                                  task.rank >= group.min &&
+                                  task.rank <= group.max,
+                              ),
+                            }}
+                          >
+                            <Show when={size(members) > 0}>
+                              <Col key={group.id} gap={3}>
+                                <Text
+                                  value={group.label}
+                                  color={group.color}
+                                  size="sm"
+                                  weight="semibold"
+                                />
+                                <Each of={members} item="task">
+                                  <Col key={task.id} gap={1}>
+                                    <Checkbox
+                                      bind={
+                                        "tasks." + String(task.index) + ".done"
+                                      }
+                                      label={task.title}
+                                    />
+                                    <Caption value={task.project} />
+                                    <Caption
+                                      value={
+                                        labels.duePrefix +
+                                        task.due +
+                                        " · " +
+                                        String(task.days) +
+                                        labels.daysLate
+                                      }
+                                    />
+                                    <Show when={group.id === "standard"}>
+                                      <Text
+                                        value={task.priority}
+                                        size="xs"
+                                        color="secondary"
+                                      />
+                                    </Show>
+                                  </Col>
+                                </Each>
+                              </Col>
+                            </Show>
+                          </Scope>
+                        </Each>
+                      </Col>
+                    </Row>
+                  </Show.Else>
+                </Show>
+                <Show.ElseIf when={direction === "timeline"}>
+                  <Show when={scale === "medium"}>
+                    <Col gap={4}>
+                      <Row align="baseline" gap={2}>
+                        <Title value={labels.overdue} size="md" />
+                        <Spacer />
+                        <Text
+                          value={String(size(open)) + labels.openSuffix}
+                          size="sm"
+                          color="secondary"
+                        />
+                      </Row>
+                      <Caption value={labels.oldestFirst} />
+                      <Timeline
+                        items={visible.map((task) => ({
+                          title: task.title,
+                          description:
+                            labels.duePrefix + task.due + " · " + task.priority,
+                          time: String(task.days) + labels.daysLate,
+                          icon:
+                            task.id === lead.id
+                              ? "alert-circle"
+                              : "empty-circle",
+                          color: task.id === lead.id ? "danger" : "secondary",
+                        }))}
+                        gap={4}
+                      />
+                    </Col>
+                    <Show.Else>
+                      <Col gap={4}>
+                        <Row gap={3} align="baseline">
+                          <Title value={labels.overdue} size="md" />
+                          <Spacer />
+                          <Text
+                            value={String(size(open)) + labels.openSuffix}
+                            size="sm"
+                            weight="medium"
+                          />
+                        </Row>
+                        <Caption value={labels.oldestFirst} />
+                        <Col gap={4}>
+                          <Each of={durationGroups} item="group">
+                            <Scope
+                              values={{
+                                members: visible.filter(
+                                  (task) =>
+                                    task.days >= group.min &&
+                                    task.days <= group.max,
+                                ),
+                              }}
+                            >
+                              <Show when={size(members) > 0}>
+                                <Col key={group.id} gap={3}>
+                                  <Text
+                                    value={group.label}
+                                    size="sm"
+                                    weight="semibold"
+                                    color={group.color}
+                                  />
+                                  <Col gap={0}>
+                                    <Each of={members} item="task">
+                                      <Row key={task.id} gap={3} align="start">
+                                        <Col
+                                          width={38}
+                                          gap={0}
+                                          padding={{ top: 1 }}
+                                        >
+                                          <Text
+                                            value={String(task.days)}
+                                            size="xl"
+                                            weight={
+                                              task.id === lead.id
+                                                ? "semibold"
+                                                : "normal"
+                                            }
+                                            color={
+                                              task.id === lead.id
+                                                ? "danger"
+                                                : "secondary"
+                                            }
+                                            tabularNums
+                                          />
+                                          <Caption
+                                            value={labels.days}
+                                            size="sm"
+                                          />
+                                        </Col>
+                                        <Col
+                                          flex={1}
+                                          minWidth={0}
+                                          gap={1}
+                                          padding={{ left: 3, bottom: 4 }}
+                                          border={{
+                                            left: { size: 1, color: "subtle" },
+                                          }}
+                                        >
+                                          <Checkbox
+                                            bind={
+                                              "tasks." +
+                                              String(task.index) +
+                                              ".done"
+                                            }
+                                            label={task.title}
+                                          />
+                                          <Caption
+                                            value={
+                                              task.project +
+                                              " · " +
+                                              task.priority
+                                            }
+                                            color={task.color}
+                                          />
+                                          <Caption
+                                            value={labels.duePrefix + task.due}
+                                          />
+                                        </Col>
+                                      </Row>
+                                    </Each>
+                                  </Col>
+                                </Col>
+                              </Show>
+                            </Scope>
+                          </Each>
+                        </Col>
+                      </Col>
+                    </Show.Else>
+                  </Show>
+                </Show.ElseIf>
+                <Show.ElseIf when={direction === "priority"}>
+                  <Show when={scale === "medium"}>
+                    <Col gap={4}>
+                      <Row align="baseline" gap={3}>
+                        <Title value={labels.overdue} size="md" />
+                        <Spacer />
+                        <Text
+                          value={String(size(open)) + labels.totalSuffix}
+                          size="sm"
+                          color="secondary"
+                        />
+                      </Row>
+                      <Box
+                        background={warningSurface}
+                        radius="md"
+                        padding={4}
+                        gap={3}
+                      >
+                        <Row gap={2}>
+                          <Icon name="alert-circle" color="danger" size="sm" />
+                          <Text
+                            value={labels.criticalFirst}
+                            size="sm"
+                            weight="semibold"
+                            color="danger"
+                          />
+                        </Row>
+                        <Text value={lead.title} size="xl" weight="semibold" />
+                        <Text
+                          value={
+                            labels.duePrefix +
+                            lead.due +
+                            " · " +
+                            String(lead.days) +
+                            labels.daysLate
+                          }
+                          size="sm"
+                          color="danger"
+                        />
+                        <Button
+                          label={labels.markComplete}
+                          iconStart="check"
+                          variant="outline"
+                          size="2xl"
+                          onClickAction={{
+                            patchState: set(
+                              "tasks." + String(lead.index) + ".done",
+                              true,
+                            ),
+                          }}
+                        />
+                        <Each
+                          of={rest.filter((task) => task.rank === 1)}
+                          item="task"
+                        >
+                          <Col
+                            key={task.id}
+                            gap={1}
+                            padding={{ top: 2 }}
+                            border={{ top: { size: 1, color: "subtle" } }}
+                          >
+                            <Checkbox
+                              bind={"tasks." + String(task.index) + ".done"}
+                              label={task.title}
+                            />
+                            <Caption
+                              value={
+                                labels.duePrefix +
+                                task.due +
+                                " · " +
+                                String(task.days) +
+                                labels.daysLate +
+                                " · " +
+                                task.priority
+                              }
+                              color="danger"
+                            />
+                          </Col>
+                        </Each>
+                      </Box>
+                      <Col gap={3}>
+                        <Each
+                          of={rest.filter((task) => task.rank !== 1)}
+                          item="task"
+                        >
+                          <Col key={task.id} gap={1}>
+                            <Checkbox
+                              bind={"tasks." + String(task.index) + ".done"}
+                              label={task.title}
+                            />
+                            <Caption
+                              value={
+                                labels.duePrefix +
+                                task.due +
+                                " · " +
+                                String(task.days) +
+                                labels.daysLate
+                              }
+                            />
+                            <Text
+                              value={task.priority}
+                              size="xs"
+                              color={task.color}
+                            />
+                          </Col>
+                        </Each>
+                      </Col>
+                    </Col>
+                    <Show.Else>
+                      <Col gap={4}>
+                        <Row gap={3} align="baseline">
+                          <Title value={labels.overdue} size="md" />
+                          <Spacer />
+                          <Text
+                            value={String(size(open)) + labels.totalSuffix}
+                            size="sm"
+                            weight="medium"
+                          />
+                        </Row>
+                        <Each of={priorityGroups} item="group">
+                          <Scope
+                            values={{
+                              members: visible.filter(
+                                (task) =>
+                                  task.rank >= group.min &&
+                                  task.rank <= group.max,
+                              ),
+                            }}
+                          >
+                            <Show when={size(members) > 0}>
+                              <Box
+                                key={group.id}
+                                padding={group.id === "critical" ? 4 : 0}
+                                background={
+                                  group.id === "critical"
+                                    ? warningSurface
+                                    : "transparent"
+                                }
+                                radius={group.id === "critical" ? "lg" : "none"}
+                                gap={3}
+                              >
+                                <Row gap={2}>
+                                  <Text
+                                    value={group.label}
+                                    size="sm"
+                                    weight="semibold"
+                                    color={group.color}
+                                  />
+                                  <Spacer />
+                                  <Text
+                                    value={String(size(members))}
+                                    size="sm"
+                                    color={group.color}
+                                    tabularNums
+                                  />
+                                </Row>
+                                <Each of={members} item="task" index="i">
+                                  <Col
+                                    key={task.id}
+                                    gap={1}
+                                    padding={{ top: i === 0 ? 0 : 3 }}
+                                    border={
+                                      i === 0
+                                        ? 0
+                                        : { top: { size: 1, color: "subtle" } }
+                                    }
+                                  >
+                                    <Row gap={2} align="start">
+                                      <Text
+                                        value={task.title}
+                                        size={
+                                          group.id === "critical" ? "lg" : "sm"
+                                        }
+                                        weight={
+                                          group.id === "critical"
+                                            ? "semibold"
+                                            : "medium"
+                                        }
+                                      />
+                                      <Spacer />
+                                      <Button
+                                        iconStart="empty-circle"
+                                        ariaLabel={
+                                          labels.completePrefix + task.title
+                                        }
+                                        uniform
+                                        variant="ghost"
+                                        size="2xl"
+                                        onClickAction={{
+                                          patchState: set(
+                                            "tasks." +
+                                              String(task.index) +
+                                              ".done",
+                                            true,
+                                          ),
+                                        }}
+                                      />
+                                    </Row>
+                                    <Caption value={task.project} />
+                                    <Text
+                                      value={
+                                        labels.duePrefix +
+                                        task.due +
+                                        " · " +
+                                        String(task.days) +
+                                        labels.daysLate
+                                      }
+                                      size="sm"
+                                      color={
+                                        group.id === "critical"
+                                          ? "danger"
+                                          : "secondary"
+                                      }
+                                    />
+                                    <Show when={group.id === "standard"}>
+                                      <Caption value={task.priority} />
+                                    </Show>
+                                  </Col>
+                                </Each>
+                              </Box>
+                            </Show>
+                          </Scope>
+                        </Each>
+                      </Col>
+                    </Show.Else>
+                  </Show>
+                </Show.ElseIf>
+                <Show.ElseIf when={direction === "grouped"}>
+                  <Show when={scale === "medium"}>
+                    <Col gap={4}>
+                      <Row align="baseline" gap={3}>
+                        <Title value={labels.overdue} size="md" />
+                        <Spacer />
+                        <Text
+                          value={String(size(open)) + labels.totalSuffix}
+                          size="sm"
+                          color="secondary"
+                        />
+                      </Row>
+                      <Each of={durationGroups} item="group">
+                        <Scope
+                          values={{
+                            members: visible.filter(
+                              (task) =>
+                                task.days >= group.min &&
+                                task.days <= group.max,
+                            ),
+                          }}
+                        >
+                          <Show when={size(members) > 0}>
+                            <Row
+                              key={group.id}
+                              gap={3}
+                              align="start"
+                              padding={{ top: 3 }}
+                              border={{ top: { size: 1, color: "subtle" } }}
+                            >
+                              <Col width={62} gap={1}>
+                                <Text
+                                  value={group.short}
+                                  size="sm"
+                                  weight="semibold"
+                                  color={group.color}
+                                />
+                                <Caption
+                                  value={labels.daysLateShort}
+                                  size="sm"
+                                />
+                              </Col>
+                              <Col flex={1} minWidth={0} gap={3}>
+                                <Each of={members} item="task">
+                                  <Col key={task.id} gap={1}>
+                                    <Checkbox
+                                      bind={
+                                        "tasks." + String(task.index) + ".done"
+                                      }
+                                      label={task.title}
+                                    />
+                                    <Caption
+                                      value={
+                                        labels.duePrefix +
+                                        task.due +
+                                        " · " +
+                                        String(task.days) +
+                                        labels.daysLate
+                                      }
+                                    />
+                                    <Text
+                                      value={task.priority}
+                                      size="xs"
+                                      weight={
+                                        task.id === lead.id
+                                          ? "semibold"
+                                          : "normal"
+                                      }
+                                      color={task.color}
+                                    />
+                                  </Col>
+                                </Each>
+                              </Col>
+                            </Row>
+                          </Show>
+                        </Scope>
+                      </Each>
+                    </Col>
+                    <Show.Else>
+                      <Col gap={4}>
+                        <Col gap={1}>
+                          <Title value={labels.overdue} size="md" />
+                          <Text
+                            value={String(size(open)) + labels.openItemsSuffix}
+                            size="sm"
+                            color="secondary"
+                          />
+                        </Col>
+                        <Grid
+                          columns="repeat(auto-fit, minmax(min(100%, 160px), 1fr))"
+                          gap={4}
+                        >
+                          <Each of={durationGroups.slice(0, 2)} item="group">
+                            <Grid.Item>
+                              <Scope
+                                values={{
+                                  members: visible.filter(
+                                    (task) =>
+                                      task.days >= group.min &&
+                                      task.days <= group.max,
+                                  ),
+                                }}
+                              >
+                                <Col
+                                  gap={4}
+                                  padding={{ top: 3 }}
+                                  border={{ top: { size: 1, color: "subtle" } }}
+                                >
+                                  <Col gap={1}>
+                                    <Text
+                                      value={group.label}
+                                      size="sm"
+                                      weight="semibold"
+                                      color={group.color}
+                                    />
+                                    <Caption
+                                      value={pluralize(
+                                        size(members),
+                                        labels.item,
+                                      )}
+                                    />
+                                  </Col>
+                                  <Show when={size(members) > 0}>
+                                    <Each of={members} item="task">
+                                      <Col key={task.id} gap={2}>
+                                        <Checkbox
+                                          bind={
+                                            "tasks." +
+                                            String(task.index) +
+                                            ".done"
+                                          }
+                                          label={task.title}
+                                        />
+                                        <Caption value={task.project} />
+                                        <Caption
+                                          value={labels.duePrefix + task.due}
+                                        />
+                                        <Text
+                                          value={
+                                            String(task.days) + labels.daysLate
+                                          }
+                                          size="sm"
+                                          color={
+                                            task.id === lead.id
+                                              ? "danger"
+                                              : "secondary"
+                                          }
+                                        />
+                                        <Text
+                                          value={task.priority}
+                                          size="xs"
+                                          weight="medium"
+                                          color={task.color}
+                                        />
+                                      </Col>
+                                    </Each>
+                                    <Show.Else>
+                                      <Text
+                                        value={labels.noneInGroup}
+                                        size="sm"
+                                        color="secondary"
+                                      />
+                                    </Show.Else>
+                                  </Show>
+                                </Col>
+                              </Scope>
+                            </Grid.Item>
+                          </Each>
+                        </Grid>
+                        <Scope
+                          values={{
+                            recent: visible.filter((task) => task.days <= 2),
+                          }}
+                        >
+                          <Show when={size(recent) > 0}>
+                            <Col
+                              gap={3}
+                              padding={{ top: 3 }}
+                              border={{ top: { size: 1, color: "subtle" } }}
+                            >
+                              <Row gap={2}>
+                                <Text
+                                  value={durationGroups[2].label}
+                                  size="sm"
+                                  weight="semibold"
+                                />
+                                <Spacer />
+                                <Caption
+                                  value={pluralize(size(recent), labels.item)}
+                                />
+                              </Row>
+                              <Each of={recent} item="task">
+                                <Row key={task.id} gap={2} align="start">
+                                  <Col flex={1} minWidth={0} gap={1}>
+                                    <Checkbox
+                                      bind={
+                                        "tasks." + String(task.index) + ".done"
+                                      }
+                                      label={task.title}
+                                    />
+                                    <Caption
+                                      value={
+                                        task.project + " · " + task.priority
+                                      }
+                                    />
+                                    <Caption
+                                      value={
+                                        labels.duePrefix +
+                                        task.due +
+                                        " · " +
+                                        String(task.days) +
+                                        labels.daysLate
+                                      }
+                                    />
+                                  </Col>
+                                </Row>
+                              </Each>
+                            </Col>
+                          </Show>
+                        </Scope>
+                      </Col>
+                    </Show.Else>
+                  </Show>
+                </Show.ElseIf>
+                <Show.Else>
+                  <Show when={scale === "medium"}>
+                    <Col gap={4}>
+                      <Row gap={2}>
+                        <Text
+                          value={labels.overdue}
+                          size="sm"
+                          weight="semibold"
+                        />
+                        <Spacer />
+                        <Caption
+                          value={String(size(open)) + labels.totalSuffix}
+                        />
+                      </Row>
+                      <Col gap={3}>
+                        <Text
+                          value={labels.oldestOpen}
+                          size="sm"
+                          color="secondary"
+                        />
+                        <Title value={lead.title} size="2xl" />
+                        <Text
+                          value={
+                            String(lead.days) +
+                            labels.daysLate +
+                            " · " +
+                            lead.priority
+                          }
+                          size="sm"
+                          color={lead.color}
+                          weight="medium"
+                        />
+                        <Row gap={2}>
+                          <Caption value={labels.duePrefix + lead.due} />
+                          <Spacer />
+                          <Button
+                            iconStart="check"
+                            label={labels.complete}
+                            variant="ghost"
+                            size="2xl"
+                            onClickAction={{
+                              patchState: set(
+                                "tasks." + String(lead.index) + ".done",
+                                true,
+                              ),
+                            }}
+                          />
+                        </Row>
+                      </Col>
+                      <Divider color="subtle" />
+                      <Col gap={3}>
+                        <Each of={rest} item="task">
+                          <Col key={task.id} gap={1}>
+                            <Text
+                              value={task.title}
+                              size="sm"
+                              weight="medium"
+                            />
+                            <Caption
+                              value={
+                                labels.duePrefix +
+                                task.due +
+                                " · " +
+                                String(task.days) +
+                                labels.daysLate +
+                                " · " +
+                                task.priority
+                              }
+                            />
+                          </Col>
+                        </Each>
+                      </Col>
+                    </Col>
+                    <Show.Else>
+                      <Col gap={5}>
+                        <Row gap={2}>
+                          <Text
+                            value={labels.overdue}
+                            size="sm"
+                            weight="semibold"
+                          />
+                          <Spacer />
+                          <Text
+                            value={String(size(open)) + labels.openSuffix}
+                            size="sm"
+                            color="secondary"
+                          />
+                        </Row>
+                        <Col gap={3}>
+                          <Row gap={3} align="center">
+                            <Title
+                              value={String(lead.days)}
+                              size="4xl"
+                              color="danger"
+                              tabularNums
+                            />
+                            <Col gap={1}>
+                              <Text value={labels.daysOverdue} size="sm" />
+                              <Text
+                                value={lead.priority}
+                                size="sm"
+                                color={lead.color}
+                                weight="semibold"
+                              />
+                            </Col>
+                          </Row>
+                          <Title value={lead.title} size="2xl" />
+                          <Text
+                            value={
+                              lead.project + " · " + labels.duePrefix + lead.due
+                            }
+                            size="sm"
+                            color="secondary"
+                          />
+                          <Row>
+                            <Button
+                              label={labels.markComplete}
+                              iconStart="check"
+                              color="primary"
+                              size="2xl"
+                              onClickAction={{
+                                patchState: set(
+                                  "tasks." + String(lead.index) + ".done",
+                                  true,
+                                ),
+                              }}
+                            />
+                          </Row>
+                        </Col>
+                        <Divider color="subtle" />
+                        <Col gap={4}>
+                          <Text
+                            value={
+                              labels.alsoOverdue + " · " + String(size(rest))
+                            }
+                            size="sm"
+                            weight="semibold"
+                          />
+                          <Each of={priorityGroups} item="group">
+                            <Scope
+                              values={{
+                                members: rest.filter(
+                                  (task) =>
+                                    task.rank >= group.min &&
+                                    task.rank <= group.max,
+                                ),
+                              }}
+                            >
+                              <Show when={size(members) > 0}>
+                                <Col key={group.id} gap={3}>
+                                  <Caption
+                                    value={group.label}
+                                    color={group.color}
+                                  />
+                                  <Each of={members} item="task">
+                                    <Col key={task.id} gap={1}>
+                                      <Checkbox
+                                        bind={
+                                          "tasks." +
+                                          String(task.index) +
+                                          ".done"
+                                        }
+                                        label={task.title}
+                                      />
+                                      <Caption
+                                        value={
+                                          task.project + " · " + task.priority
+                                        }
+                                      />
+                                      <Caption
+                                        value={
+                                          labels.duePrefix +
+                                          task.due +
+                                          " · " +
+                                          String(task.days) +
+                                          labels.daysLate
+                                        }
+                                      />
+                                    </Col>
+                                  </Each>
+                                </Col>
+                              </Show>
+                            </Scope>
+                          </Each>
+                        </Col>
+                      </Col>
+                    </Show.Else>
+                  </Show>
+                </Show.Else>
+              </Show>
+            </Scope>
+            <Show.Else>
+              <EmptyState
+                icon="check-circle"
+                title={labels.emptyTitle}
+                description={labels.emptyDescription}
+                padding={3}
+              />
+            </Show.Else>
+          </Show>
+          <Divider color="subtle" />
+          <Col gap={1}>
+            <Caption value={labels.snapshot} />
+            <Caption
+              value={
+                String(size(visible)) +
+                labels.shownSuffix +
+                " · " +
+                String(size(open)) +
+                labels.overdueSuffix
+              }
+            />
+          </Col>
+          <Show when={size(completed) > 0}>
+            <Col gap={3}>
+              <Text
+                value={labels.completedHere + " · " + String(size(completed))}
+                size="sm"
+                weight="medium"
+              />
+              <Each of={completed} item="task">
+                <Row key={task.id} gap={2}>
+                  <Icon name="check-circle" size="sm" color="secondary" />
+                  <Col flex={1} minWidth={0} gap={1}>
+                    <Text
+                      value={task.title}
+                      size="sm"
+                      color="secondary"
+                      lineThrough
+                    />
+                    <Caption value={task.project} />
+                  </Col>
+                  <Button
+                    label={labels.undo}
+                    variant="ghost"
+                    size="2xl"
+                    onClickAction={{
+                      patchState: set(
+                        "tasks." + String(task.index) + ".done",
+                        false,
+                      ),
+                    }}
+                  />
+                </Row>
+              </Each>
+            </Col>
+          </Show>
+        </Box>
+      </Scope>
+      <Caption value={labels.localNote} size="sm" />
+    </Box>
+  </Basic>
+</Scope>
+    </Show>
+    <Show when={mode !== "gallery"}>
+      <Scope
+        values={{
+          visible:
+            scale === "large"
+              ? open
+              : direction === "grouped"
+                ? sortBy(
+                    open
+                      .filter((task) => task.medium)
+                      .concat(open.filter((task) => !task.medium))
+                      .slice(0, 4),
+                    "days",
+                    "desc",
+                  )
+                : direction === "priority"
+                  ? sortBy(open, "rank", "asc").slice(0, 4)
+                  : open.slice(0, 4),
+        }}
+      >
+        <Box
+          background="surface-elevated"
+          radius="2xl"
+          width="100%"
+          padding={scale === "large" ? 4 : { x: 3, top: 3, bottom: 2 }}
+          gap={scale === "large" ? 3 : 2}
+          border={{ size: 1, color: "subtle" }}
+        >
+          <Caption
+            value={
+              directions.find((item) => item.value === direction).study +
+              " · " +
+              directions.find((item) => item.value === direction).label +
+              " · " +
+              (scale === "medium" ? labels.medium : labels.large)
+            }
+            size="sm"
+          />
+          <Show when={size(visible) > 0}>
+            <Scope values={{ lead: visible[0], rest: visible.slice(1) }}>
+              <Show when={direction === "minimal"}>
+                <Show when={scale === "medium"}>
+                  <Col gap={4}>
+                    <Row gap={3} align="baseline">
+                      <Title
+                        value={String(size(open))}
+                        size="4xl"
+                        tabularNums
+                      />
+                      <Col gap={1}>
+                        <Title value={labels.overdue} size="sm" />
+                        <Caption value={labels.needsAttention} />
+                      </Col>
+                    </Row>
+                    <Col gap={2}>
+                      <Row gap={2}>
+                        <Text
+                          value={lead.priority}
+                          color={lead.color}
+                          size="sm"
+                          weight="semibold"
+                        />
+                        <Spacer />
+                        <Caption
+                          value={String(lead.days) + labels.daysLate}
+                          color="danger"
+                        />
+                      </Row>
+                      <Row gap={2} align="start">
+                        <Text value={lead.title} size="xl" weight="semibold" />
+                        <Spacer />
+                        <Button
+                          iconStart="empty-circle"
+                          ariaLabel={labels.completePrefix + lead.title}
+                          uniform
+                          variant="ghost"
+                          size="2xl"
+                          onClickAction={{
+                            patchState: set(
+                              "tasks." + String(lead.index) + ".done",
+                              true,
+                            ),
+                          }}
+                        />
+                      </Row>
+                      <Caption value={labels.duePrefix + lead.due} />
+                    </Col>
+                    <Divider color="subtle" />
+                    <Col gap={3}>
+                      <Each of={rest} item="task">
+                        <Row key={task.id} gap={2} align="start">
+                          <Col flex={1} minWidth={0} gap={1}>
+                            <Text
+                              value={task.title}
+                              size="sm"
+                              weight="medium"
+                            />
+                            <Caption
+                              value={
+                                labels.duePrefix +
+                                task.due +
+                                " · " +
+                                String(task.days) +
+                                labels.daysLate
+                              }
+                            />
+                            <Text
+                              value={task.priority}
+                              size="xs"
+                              color={task.color}
+                            />
+                          </Col>
+                          <Button
+                            iconStart="empty-circle"
+                            ariaLabel={labels.completePrefix + task.title}
+                            uniform
+                            variant="ghost"
+                            size="2xl"
+                            onClickAction={{
+                              patchState: set(
+                                "tasks." + String(task.index) + ".done",
+                                true,
+                              ),
+                            }}
+                          />
+                        </Row>
+                      </Each>
+                    </Col>
+                  </Col>
+                  <Show.Else>
+                    <Row gap={4} wrap="wrap" align="start">
+                      <Col width={68} gap={2}>
+                        <Title
+                          value={String(size(open))}
+                          size="4xl"
+                          tabularNums
+                        />
+                        <Text
+                          value={labels.overdue}
+                          size="sm"
+                          weight="semibold"
+                        />
+                        <Divider color="subtle" />
+                        <Text
+                          value={
+                            String(
+                              size(open.filter((task) => task.rank === 1)),
+                            ) + labels.criticalSuffix
+                          }
+                          size="sm"
+                          color="danger"
+                        />
+                      </Col>
+                      <Col flex={1} minWidth={190} gap={4}>
+                        <Each of={priorityGroups} item="group">
+                          <Scope
+                            values={{
+                              members: visible.filter(
+                                (task) =>
+                                  task.rank >= group.min &&
+                                  task.rank <= group.max,
+                              ),
+                            }}
+                          >
+                            <Show when={size(members) > 0}>
+                              <Col key={group.id} gap={3}>
+                                <Text
+                                  value={group.label}
+                                  color={group.color}
+                                  size="sm"
+                                  weight="semibold"
+                                />
+                                <Each of={members} item="task">
+                                  <Col key={task.id} gap={1}>
+                                    <Checkbox
+                                      bind={
+                                        "tasks." + String(task.index) + ".done"
+                                      }
+                                      label={task.title}
+                                    />
+                                    <Caption value={task.project} />
+                                    <Caption
+                                      value={
+                                        labels.duePrefix +
+                                        task.due +
+                                        " · " +
+                                        String(task.days) +
+                                        labels.daysLate
+                                      }
+                                    />
+                                    <Show when={group.id === "standard"}>
+                                      <Text
+                                        value={task.priority}
+                                        size="xs"
+                                        color="secondary"
+                                      />
+                                    </Show>
+                                  </Col>
+                                </Each>
+                              </Col>
+                            </Show>
+                          </Scope>
+                        </Each>
+                      </Col>
+                    </Row>
+                  </Show.Else>
+                </Show>
+                <Show.ElseIf when={direction === "timeline"}>
+                  <Show when={scale === "medium"}>
+                    <Col gap={4}>
+                      <Row align="baseline" gap={2}>
+                        <Title value={labels.overdue} size="md" />
+                        <Spacer />
+                        <Text
+                          value={String(size(open)) + labels.openSuffix}
+                          size="sm"
+                          color="secondary"
+                        />
+                      </Row>
+                      <Caption value={labels.oldestFirst} />
+                      <Timeline
+                        items={visible.map((task) => ({
+                          title: task.title,
+                          description:
+                            labels.duePrefix + task.due + " · " + task.priority,
+                          time: String(task.days) + labels.daysLate,
+                          icon:
+                            task.id === lead.id
+                              ? "alert-circle"
+                              : "empty-circle",
+                          color: task.id === lead.id ? "danger" : "secondary",
+                        }))}
+                        gap={4}
+                      />
+                    </Col>
+                    <Show.Else>
+                      <Col gap={4}>
+                        <Row gap={3} align="baseline">
+                          <Title value={labels.overdue} size="md" />
+                          <Spacer />
+                          <Text
+                            value={String(size(open)) + labels.openSuffix}
+                            size="sm"
+                            weight="medium"
+                          />
+                        </Row>
+                        <Caption value={labels.oldestFirst} />
+                        <Col gap={4}>
+                          <Each of={durationGroups} item="group">
+                            <Scope
+                              values={{
+                                members: visible.filter(
+                                  (task) =>
+                                    task.days >= group.min &&
+                                    task.days <= group.max,
+                                ),
+                              }}
+                            >
+                              <Show when={size(members) > 0}>
+                                <Col key={group.id} gap={3}>
+                                  <Text
+                                    value={group.label}
+                                    size="sm"
+                                    weight="semibold"
+                                    color={group.color}
+                                  />
+                                  <Col gap={0}>
+                                    <Each of={members} item="task">
+                                      <Row key={task.id} gap={3} align="start">
+                                        <Col
+                                          width={38}
+                                          gap={0}
+                                          padding={{ top: 1 }}
+                                        >
+                                          <Text
+                                            value={String(task.days)}
+                                            size="xl"
+                                            weight={
+                                              task.id === lead.id
+                                                ? "semibold"
+                                                : "normal"
+                                            }
+                                            color={
+                                              task.id === lead.id
+                                                ? "danger"
+                                                : "secondary"
+                                            }
+                                            tabularNums
+                                          />
+                                          <Caption
+                                            value={labels.days}
+                                            size="sm"
+                                          />
+                                        </Col>
+                                        <Col
+                                          flex={1}
+                                          minWidth={0}
+                                          gap={1}
+                                          padding={{ left: 3, bottom: 4 }}
+                                          border={{
+                                            left: { size: 1, color: "subtle" },
+                                          }}
+                                        >
+                                          <Checkbox
+                                            bind={
+                                              "tasks." +
+                                              String(task.index) +
+                                              ".done"
+                                            }
+                                            label={task.title}
+                                          />
+                                          <Caption
+                                            value={
+                                              task.project +
+                                              " · " +
+                                              task.priority
+                                            }
+                                            color={task.color}
+                                          />
+                                          <Caption
+                                            value={labels.duePrefix + task.due}
+                                          />
+                                        </Col>
+                                      </Row>
+                                    </Each>
+                                  </Col>
+                                </Col>
+                              </Show>
+                            </Scope>
+                          </Each>
+                        </Col>
+                      </Col>
+                    </Show.Else>
+                  </Show>
+                </Show.ElseIf>
+                <Show.ElseIf when={direction === "priority"}>
+                  <Show when={scale === "medium"}>
+                    <Col gap={4}>
+                      <Row align="baseline" gap={3}>
+                        <Title value={labels.overdue} size="md" />
+                        <Spacer />
+                        <Text
+                          value={String(size(open)) + labels.totalSuffix}
+                          size="sm"
+                          color="secondary"
+                        />
+                      </Row>
+                      <Box
+                        background={warningSurface}
+                        radius="md"
+                        padding={4}
+                        gap={3}
+                      >
+                        <Row gap={2}>
+                          <Icon name="alert-circle" color="danger" size="sm" />
+                          <Text
+                            value={labels.criticalFirst}
+                            size="sm"
+                            weight="semibold"
+                            color="danger"
+                          />
+                        </Row>
+                        <Text value={lead.title} size="xl" weight="semibold" />
+                        <Text
+                          value={
+                            labels.duePrefix +
+                            lead.due +
+                            " · " +
+                            String(lead.days) +
+                            labels.daysLate
+                          }
+                          size="sm"
+                          color="danger"
+                        />
+                        <Button
+                          label={labels.markComplete}
+                          iconStart="check"
+                          variant="outline"
+                          size="2xl"
+                          onClickAction={{
+                            patchState: set(
+                              "tasks." + String(lead.index) + ".done",
+                              true,
+                            ),
+                          }}
+                        />
+                        <Each
+                          of={rest.filter((task) => task.rank === 1)}
+                          item="task"
+                        >
+                          <Col
+                            key={task.id}
+                            gap={1}
+                            padding={{ top: 2 }}
+                            border={{ top: { size: 1, color: "subtle" } }}
+                          >
+                            <Checkbox
+                              bind={"tasks." + String(task.index) + ".done"}
+                              label={task.title}
+                            />
+                            <Caption
+                              value={
+                                labels.duePrefix +
+                                task.due +
+                                " · " +
+                                String(task.days) +
+                                labels.daysLate +
+                                " · " +
+                                task.priority
+                              }
+                              color="danger"
+                            />
+                          </Col>
+                        </Each>
+                      </Box>
+                      <Col gap={3}>
+                        <Each
+                          of={rest.filter((task) => task.rank !== 1)}
+                          item="task"
+                        >
+                          <Col key={task.id} gap={1}>
+                            <Checkbox
+                              bind={"tasks." + String(task.index) + ".done"}
+                              label={task.title}
+                            />
+                            <Caption
+                              value={
+                                labels.duePrefix +
+                                task.due +
+                                " · " +
+                                String(task.days) +
+                                labels.daysLate
+                              }
+                            />
+                            <Text
+                              value={task.priority}
+                              size="xs"
+                              color={task.color}
+                            />
+                          </Col>
+                        </Each>
+                      </Col>
+                    </Col>
+                    <Show.Else>
+                      <Col gap={4}>
+                        <Row gap={3} align="baseline">
+                          <Title value={labels.overdue} size="md" />
+                          <Spacer />
+                          <Text
+                            value={String(size(open)) + labels.totalSuffix}
+                            size="sm"
+                            weight="medium"
+                          />
+                        </Row>
+                        <Each of={priorityGroups} item="group">
+                          <Scope
+                            values={{
+                              members: visible.filter(
+                                (task) =>
+                                  task.rank >= group.min &&
+                                  task.rank <= group.max,
+                              ),
+                            }}
+                          >
+                            <Show when={size(members) > 0}>
+                              <Box
+                                key={group.id}
+                                padding={group.id === "critical" ? 4 : 0}
+                                background={
+                                  group.id === "critical"
+                                    ? warningSurface
+                                    : "transparent"
+                                }
+                                radius={group.id === "critical" ? "lg" : "none"}
+                                gap={3}
+                              >
+                                <Row gap={2}>
+                                  <Text
+                                    value={group.label}
+                                    size="sm"
+                                    weight="semibold"
+                                    color={group.color}
+                                  />
+                                  <Spacer />
+                                  <Text
+                                    value={String(size(members))}
+                                    size="sm"
+                                    color={group.color}
+                                    tabularNums
+                                  />
+                                </Row>
+                                <Each of={members} item="task" index="i">
+                                  <Col
+                                    key={task.id}
+                                    gap={1}
+                                    padding={{ top: i === 0 ? 0 : 3 }}
+                                    border={
+                                      i === 0
+                                        ? 0
+                                        : { top: { size: 1, color: "subtle" } }
+                                    }
+                                  >
+                                    <Row gap={2} align="start">
+                                      <Text
+                                        value={task.title}
+                                        size={
+                                          group.id === "critical" ? "lg" : "sm"
+                                        }
+                                        weight={
+                                          group.id === "critical"
+                                            ? "semibold"
+                                            : "medium"
+                                        }
+                                      />
+                                      <Spacer />
+                                      <Button
+                                        iconStart="empty-circle"
+                                        ariaLabel={
+                                          labels.completePrefix + task.title
+                                        }
+                                        uniform
+                                        variant="ghost"
+                                        size="2xl"
+                                        onClickAction={{
+                                          patchState: set(
+                                            "tasks." +
+                                              String(task.index) +
+                                              ".done",
+                                            true,
+                                          ),
+                                        }}
+                                      />
+                                    </Row>
+                                    <Caption value={task.project} />
+                                    <Text
+                                      value={
+                                        labels.duePrefix +
+                                        task.due +
+                                        " · " +
+                                        String(task.days) +
+                                        labels.daysLate
+                                      }
+                                      size="sm"
+                                      color={
+                                        group.id === "critical"
+                                          ? "danger"
+                                          : "secondary"
+                                      }
+                                    />
+                                    <Show when={group.id === "standard"}>
+                                      <Caption value={task.priority} />
+                                    </Show>
+                                  </Col>
+                                </Each>
+                              </Box>
+                            </Show>
+                          </Scope>
+                        </Each>
+                      </Col>
+                    </Show.Else>
+                  </Show>
+                </Show.ElseIf>
+                <Show.ElseIf when={direction === "grouped"}>
+                  <Show when={scale === "medium"}>
+                    <Col gap={4}>
+                      <Row align="baseline" gap={3}>
+                        <Title value={labels.overdue} size="md" />
+                        <Spacer />
+                        <Text
+                          value={String(size(open)) + labels.totalSuffix}
+                          size="sm"
+                          color="secondary"
+                        />
+                      </Row>
+                      <Each of={durationGroups} item="group">
+                        <Scope
+                          values={{
+                            members: visible.filter(
+                              (task) =>
+                                task.days >= group.min &&
+                                task.days <= group.max,
+                            ),
+                          }}
+                        >
+                          <Show when={size(members) > 0}>
+                            <Row
+                              key={group.id}
+                              gap={3}
+                              align="start"
+                              padding={{ top: 3 }}
+                              border={{ top: { size: 1, color: "subtle" } }}
+                            >
+                              <Col width={62} gap={1}>
+                                <Text
+                                  value={group.short}
+                                  size="sm"
+                                  weight="semibold"
+                                  color={group.color}
+                                />
+                                <Caption
+                                  value={labels.daysLateShort}
+                                  size="sm"
+                                />
+                              </Col>
+                              <Col flex={1} minWidth={0} gap={3}>
+                                <Each of={members} item="task">
+                                  <Col key={task.id} gap={1}>
+                                    <Checkbox
+                                      bind={
+                                        "tasks." + String(task.index) + ".done"
+                                      }
+                                      label={task.title}
+                                    />
+                                    <Caption
+                                      value={
+                                        labels.duePrefix +
+                                        task.due +
+                                        " · " +
+                                        String(task.days) +
+                                        labels.daysLate
+                                      }
+                                    />
+                                    <Text
+                                      value={task.priority}
+                                      size="xs"
+                                      weight={
+                                        task.id === lead.id
+                                          ? "semibold"
+                                          : "normal"
+                                      }
+                                      color={task.color}
+                                    />
+                                  </Col>
+                                </Each>
+                              </Col>
+                            </Row>
+                          </Show>
+                        </Scope>
+                      </Each>
+                    </Col>
+                    <Show.Else>
+                      <Col gap={4}>
+                        <Col gap={1}>
+                          <Title value={labels.overdue} size="md" />
+                          <Text
+                            value={String(size(open)) + labels.openItemsSuffix}
+                            size="sm"
+                            color="secondary"
+                          />
+                        </Col>
+                        <Grid
+                          columns="repeat(auto-fit, minmax(min(100%, 160px), 1fr))"
+                          gap={4}
+                        >
+                          <Each of={durationGroups.slice(0, 2)} item="group">
+                            <Grid.Item>
+                              <Scope
+                                values={{
+                                  members: visible.filter(
+                                    (task) =>
+                                      task.days >= group.min &&
+                                      task.days <= group.max,
+                                  ),
+                                }}
+                              >
+                                <Col
+                                  gap={4}
+                                  padding={{ top: 3 }}
+                                  border={{ top: { size: 1, color: "subtle" } }}
+                                >
+                                  <Col gap={1}>
+                                    <Text
+                                      value={group.label}
+                                      size="sm"
+                                      weight="semibold"
+                                      color={group.color}
+                                    />
+                                    <Caption
+                                      value={pluralize(
+                                        size(members),
+                                        labels.item,
+                                      )}
+                                    />
+                                  </Col>
+                                  <Show when={size(members) > 0}>
+                                    <Each of={members} item="task">
+                                      <Col key={task.id} gap={2}>
+                                        <Checkbox
+                                          bind={
+                                            "tasks." +
+                                            String(task.index) +
+                                            ".done"
+                                          }
+                                          label={task.title}
+                                        />
+                                        <Caption value={task.project} />
+                                        <Caption
+                                          value={labels.duePrefix + task.due}
+                                        />
+                                        <Text
+                                          value={
+                                            String(task.days) + labels.daysLate
+                                          }
+                                          size="sm"
+                                          color={
+                                            task.id === lead.id
+                                              ? "danger"
+                                              : "secondary"
+                                          }
+                                        />
+                                        <Text
+                                          value={task.priority}
+                                          size="xs"
+                                          weight="medium"
+                                          color={task.color}
+                                        />
+                                      </Col>
+                                    </Each>
+                                    <Show.Else>
+                                      <Text
+                                        value={labels.noneInGroup}
+                                        size="sm"
+                                        color="secondary"
+                                      />
+                                    </Show.Else>
+                                  </Show>
+                                </Col>
+                              </Scope>
+                            </Grid.Item>
+                          </Each>
+                        </Grid>
+                        <Scope
+                          values={{
+                            recent: visible.filter((task) => task.days <= 2),
+                          }}
+                        >
+                          <Show when={size(recent) > 0}>
+                            <Col
+                              gap={3}
+                              padding={{ top: 3 }}
+                              border={{ top: { size: 1, color: "subtle" } }}
+                            >
+                              <Row gap={2}>
+                                <Text
+                                  value={durationGroups[2].label}
+                                  size="sm"
+                                  weight="semibold"
+                                />
+                                <Spacer />
+                                <Caption
+                                  value={pluralize(size(recent), labels.item)}
+                                />
+                              </Row>
+                              <Each of={recent} item="task">
+                                <Row key={task.id} gap={2} align="start">
+                                  <Col flex={1} minWidth={0} gap={1}>
+                                    <Checkbox
+                                      bind={
+                                        "tasks." + String(task.index) + ".done"
+                                      }
+                                      label={task.title}
+                                    />
+                                    <Caption
+                                      value={
+                                        task.project + " · " + task.priority
+                                      }
+                                    />
+                                    <Caption
+                                      value={
+                                        labels.duePrefix +
+                                        task.due +
+                                        " · " +
+                                        String(task.days) +
+                                        labels.daysLate
+                                      }
+                                    />
+                                  </Col>
+                                </Row>
+                              </Each>
+                            </Col>
+                          </Show>
+                        </Scope>
+                      </Col>
+                    </Show.Else>
+                  </Show>
+                </Show.ElseIf>
+                <Show.Else>
+                  <Show when={scale === "medium"}>
+                    <Col gap={4}>
+                      <Row gap={2}>
+                        <Text
+                          value={labels.overdue}
+                          size="sm"
+                          weight="semibold"
+                        />
+                        <Spacer />
+                        <Caption
+                          value={String(size(open)) + labels.totalSuffix}
+                        />
+                      </Row>
+                      <Col gap={3}>
+                        <Text
+                          value={labels.oldestOpen}
+                          size="sm"
+                          color="secondary"
+                        />
+                        <Title value={lead.title} size="2xl" />
+                        <Text
+                          value={
+                            String(lead.days) +
+                            labels.daysLate +
+                            " · " +
+                            lead.priority
+                          }
+                          size="sm"
+                          color={lead.color}
+                          weight="medium"
+                        />
+                        <Row gap={2}>
+                          <Caption value={labels.duePrefix + lead.due} />
+                          <Spacer />
+                          <Button
+                            iconStart="check"
+                            label={labels.complete}
+                            variant="ghost"
+                            size="2xl"
+                            onClickAction={{
+                              patchState: set(
+                                "tasks." + String(lead.index) + ".done",
+                                true,
+                              ),
+                            }}
+                          />
+                        </Row>
+                      </Col>
+                      <Divider color="subtle" />
+                      <Col gap={3}>
+                        <Each of={rest} item="task">
+                          <Col key={task.id} gap={1}>
+                            <Text
+                              value={task.title}
+                              size="sm"
+                              weight="medium"
+                            />
+                            <Caption
+                              value={
+                                labels.duePrefix +
+                                task.due +
+                                " · " +
+                                String(task.days) +
+                                labels.daysLate +
+                                " · " +
+                                task.priority
+                              }
+                            />
+                          </Col>
+                        </Each>
+                      </Col>
+                    </Col>
+                    <Show.Else>
+                      <Col gap={5}>
+                        <Row gap={2}>
+                          <Text
+                            value={labels.overdue}
+                            size="sm"
+                            weight="semibold"
+                          />
+                          <Spacer />
+                          <Text
+                            value={String(size(open)) + labels.openSuffix}
+                            size="sm"
+                            color="secondary"
+                          />
+                        </Row>
+                        <Col gap={3}>
+                          <Row gap={3} align="center">
+                            <Title
+                              value={String(lead.days)}
+                              size="4xl"
+                              color="danger"
+                              tabularNums
+                            />
+                            <Col gap={1}>
+                              <Text value={labels.daysOverdue} size="sm" />
+                              <Text
+                                value={lead.priority}
+                                size="sm"
+                                color={lead.color}
+                                weight="semibold"
+                              />
+                            </Col>
+                          </Row>
+                          <Title value={lead.title} size="2xl" />
+                          <Text
+                            value={
+                              lead.project + " · " + labels.duePrefix + lead.due
+                            }
+                            size="sm"
+                            color="secondary"
+                          />
+                          <Row>
+                            <Button
+                              label={labels.markComplete}
+                              iconStart="check"
+                              color="primary"
+                              size="2xl"
+                              onClickAction={{
+                                patchState: set(
+                                  "tasks." + String(lead.index) + ".done",
+                                  true,
+                                ),
+                              }}
+                            />
+                          </Row>
+                        </Col>
+                        <Divider color="subtle" />
+                        <Col gap={4}>
+                          <Text
+                            value={
+                              labels.alsoOverdue + " · " + String(size(rest))
+                            }
+                            size="sm"
+                            weight="semibold"
+                          />
+                          <Each of={priorityGroups} item="group">
+                            <Scope
+                              values={{
+                                members: rest.filter(
+                                  (task) =>
+                                    task.rank >= group.min &&
+                                    task.rank <= group.max,
+                                ),
+                              }}
+                            >
+                              <Show when={size(members) > 0}>
+                                <Col key={group.id} gap={3}>
+                                  <Caption
+                                    value={group.label}
+                                    color={group.color}
+                                  />
+                                  <Each of={members} item="task">
+                                    <Col key={task.id} gap={1}>
+                                      <Checkbox
+                                        bind={
+                                          "tasks." +
+                                          String(task.index) +
+                                          ".done"
+                                        }
+                                        label={task.title}
+                                      />
+                                      <Caption
+                                        value={
+                                          task.project + " · " + task.priority
+                                        }
+                                      />
+                                      <Caption
+                                        value={
+                                          labels.duePrefix +
+                                          task.due +
+                                          " · " +
+                                          String(task.days) +
+                                          labels.daysLate
+                                        }
+                                      />
+                                    </Col>
+                                  </Each>
+                                </Col>
+                              </Show>
+                            </Scope>
+                          </Each>
+                        </Col>
+                      </Col>
+                    </Show.Else>
+                  </Show>
+                </Show.Else>
+              </Show>
+            </Scope>
+            <Show.Else>
+              <EmptyState
+                icon="check-circle"
+                title={labels.emptyTitle}
+                description={labels.emptyDescription}
+                padding={3}
+              />
+            </Show.Else>
+          </Show>
+          <Divider color="subtle" />
+          <Col gap={1}>
+            <Caption value={labels.snapshot} />
+            <Caption
+              value={
+                String(size(visible)) +
+                labels.shownSuffix +
+                " · " +
+                String(size(open)) +
+                labels.overdueSuffix
+              }
+            />
+          </Col>
+          <Show when={size(completed) > 0}>
+            <Col gap={3}>
+              <Text
+                value={labels.completedHere + " · " + String(size(completed))}
+                size="sm"
+                weight="medium"
+              />
+              <Each of={completed} item="task">
+                <Row key={task.id} gap={2}>
+                  <Icon name="check-circle" size="sm" color="secondary" />
+                  <Col flex={1} minWidth={0} gap={1}>
+                    <Text
+                      value={task.title}
+                      size="sm"
+                      color="secondary"
+                      lineThrough
+                    />
+                    <Caption value={task.project} />
+                  </Col>
+                  <Button
+                    label={labels.undo}
+                    variant="ghost"
+                    size="2xl"
+                    onClickAction={{
+                      patchState: set(
+                        "tasks." + String(task.index) + ".done",
+                        false,
+                      ),
+                    }}
+                  />
+                </Row>
+              </Each>
+            </Col>
+          </Show>
+
+        </Box>
+      </Scope>
+    </Show>
+  </Show>
+</Scope>

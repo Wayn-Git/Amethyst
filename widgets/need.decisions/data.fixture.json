@@ -1,0 +1,162 @@
+{
+  "direction": "minimal",
+  "sizeMode": "medium",
+  "appearance": "light",
+  "feedback": "",
+  "selectionWash": {
+    "light": "#edf5ff",
+    "dark": "#1b2c42"
+  },
+  "selections": {
+    "release": "",
+    "onboarding": ""
+  },
+  "outcomes": {
+    "release": "waiting",
+    "onboarding": "waiting"
+  },
+  "labels": {
+    "galleryTitle": "Decision studies",
+    "gallerySubtitle": "Five distinct directions \u00b7 Medium and Large",
+    "direction": "Design direction",
+    "size": "Widget size",
+    "dark": "Dark",
+    "light": "Light",
+    "switchDark": "Switch to dark appearance",
+    "switchLight": "Switch to light appearance",
+    "demoNote": "Demo queue. Answer and Dismiss only update this preview.",
+    "waiting": "Waiting",
+    "waitingSuffix": " waiting",
+    "waitingForAnswer": "Waiting for your answer",
+    "agoSuffix": " ago",
+    "editorialEyebrow": "YOUR CALL \u00b7 ANSWER PENDING",
+    "answer": "Answer",
+    "dismiss": "Dismiss",
+    "reset": "Reset demo",
+    "feedbackTitle": "Preview updated",
+    "emptyTitle": "No decisions waiting",
+    "emptyDescription": "Both demo decisions have been answered or dismissed. Reset to explore the other compositions."
+  },
+  "directions": [
+    {
+      "label": "01 \u00b7 Minimal",
+      "value": "minimal"
+    },
+    {
+      "label": "02 \u00b7 Inbox",
+      "value": "inbox"
+    },
+    {
+      "label": "03 \u00b7 Comparison",
+      "value": "comparison"
+    },
+    {
+      "label": "04 \u00b7 Priority",
+      "value": "priority"
+    },
+    {
+      "label": "05 \u00b7 Editorial",
+      "value": "editorial"
+    }
+  ],
+  "sizes": [
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "directionInfo": {
+    "minimal": {
+      "title": "Decisions waiting",
+      "icon": "empty-circle"
+    },
+    "inbox": {
+      "title": "Decision inbox",
+      "icon": "inbox"
+    },
+    "comparison": {
+      "title": "Compare & decide",
+      "icon": "layers"
+    },
+    "priority": {
+      "title": "Needs your attention",
+      "icon": "clock"
+    },
+    "editorial": {
+      "title": "Two questions. Your call.",
+      "icon": "write"
+    }
+  },
+  "choiceLetters": [
+    "A",
+    "B",
+    "C"
+  ],
+  "decisions": [
+    {
+      "id": "release",
+      "question": "Ship the release today?",
+      "context": "Checks passed. The accessibility review is still open.",
+      "category": "Release timing",
+      "agent": "Release agent",
+      "agentIcon": "cube",
+      "wait": "18 min",
+      "deadline": "Answer due in 30 min",
+      "priority": "Time-sensitive",
+      "urgent": true,
+      "options": [
+        {
+          "value": "release",
+          "label": "Release now",
+          "consequence": "Keeps today\u2019s target; the review stays open."
+        },
+        {
+          "value": "test",
+          "label": "Run more tests",
+          "consequence": "More validation; launch moves to tomorrow."
+        }
+      ]
+    },
+    {
+      "id": "onboarding",
+      "question": "Which onboarding should we use?",
+      "context": "Both flows are ready for the next pilot.",
+      "category": "Pilot experience",
+      "agent": "Product agent",
+      "agentIcon": "compass",
+      "wait": "42 min",
+      "deadline": "Answer due tomorrow",
+      "priority": "Normal priority",
+      "urgent": false,
+      "options": [
+        {
+          "value": "guided",
+          "label": "Guided setup",
+          "consequence": "More guidance; adds one setup step."
+        },
+        {
+          "value": "quick",
+          "label": "Quick start",
+          "consequence": "Faster entry; less help along the way."
+        }
+      ]
+    }
+  ],
+  "resetAction": {
+    "updateState": {
+      "selections": {
+        "release": "",
+        "onboarding": ""
+      },
+      "outcomes": {
+        "release": "waiting",
+        "onboarding": "waiting"
+      },
+      "feedback": ""
+    }
+  }
+}

@@ -1,0 +1,148 @@
+/* Overdue items widget surface isolation: eliminate double boundaries, outer headers, and double padding */
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.overdue'] {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  box-sizing: border-box;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.overdue']:hover {
+  box-shadow: none !important;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.overdue'] > .today-slot-body {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  box-sizing: border-box;
+  overflow: visible !important;
+}
+
+/* Responsive slot dimensions */
+.home-layout-grid .today-widget-slot[data-slot-id='need.overdue'],
+.bento-foundation .home-widget[data-widget='need.overdue'] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.overdue'][data-size='m'],
+.bento-foundation .home-widget[data-widget='need.overdue'][data-size='m'] {
+  min-height: 170px;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='need.overdue'][data-size='l'],
+.bento-foundation .home-widget[data-widget='need.overdue'][data-size='l'] {
+  min-height: 356px;
+}
+
+.bento-foundation .home-widget[data-widget='need.overdue'] {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.bento-foundation .home-widget[data-widget='need.overdue'] > .today-slot-header,
+.bento-foundation .home-widget[data-widget='need.overdue'] > .widget-header,
+.bento-foundation .home-widget[data-widget='need.overdue'] .today-header-chip {
+  display: none !important;
+}
+
+.home-widget.widget-adoption[data-widget='need.overdue'] {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+.home-widget.widget-adoption[data-widget='need.overdue'] > .widget-header,
+.home-widget.widget-adoption[data-widget='need.overdue'] > .widget-footer {
+  display: none !important;
+}
+
+.need-overdue-root {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.need-overdue-root .widget-root {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.need-overdue-root .wg-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  box-sizing: border-box;
+}
+
+/* Compact circular checkbox buttons for tasks */
+.need-overdue-root button:not(.overdue-direction-btn),
+.need-overdue-root .ui-button:not(.overdue-direction-btn) {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+  min-height: 22px !important;
+  max-width: 22px !important;
+  max-height: 22px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  border: 1.5px solid var(--w-border, #d1d1d6) !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.need-overdue-root button:not(.overdue-direction-btn):hover,
+.need-overdue-root .ui-button:not(.overdue-direction-btn):hover {
+  border-color: var(--w-text, #111113) !important;
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Direction switcher in drawer */
+.overdue-directions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.overdue-direction-btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--w-border, rgba(255, 255, 255, 0.1));
+  background: var(--w-card, rgba(255, 255, 255, 0.04));
+  color: var(--w-text, #fff);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.overdue-direction-btn:hover {
+  background: var(--w-card-hover, rgba(255, 255, 255, 0.08));
+}
+
+.overdue-direction-btn.is-active {
+  background: var(--w-accent, #3b82f6);
+  color: #fff;
+  border-color: var(--w-accent, #3b82f6);
+}

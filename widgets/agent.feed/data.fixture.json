@@ -1,0 +1,188 @@
+{
+  "direction": "minimal",
+  "sizeChoice": "medium",
+  "darkAppearance": false,
+  "labels": {
+    "galleryTitle": "Recent activity studies",
+    "galleryCount": "15 layouts",
+    "direction": "Design direction",
+    "size": "Widget size",
+    "dark": "Dark",
+    "darkAppearance": "Dark appearance",
+    "sample": "Synthetic activity \u00b7 Switch direction, size and appearance",
+    "recent": "Recent activity",
+    "timeline": "Activity timeline",
+    "feed": "Team updates",
+    "editorialEyebrow": "LATEST DECISION",
+    "snapshot": "Fixed preview \u00b7 Nov 11, 2026 at 10:50 AM",
+    "emptyTitle": "No recent activity",
+    "emptyDescription": "New updates will appear here."
+  },
+  "directions": [
+    {
+      "value": "minimal",
+      "label": "Minimal",
+      "code": "01",
+      "description": "Icon-led summaries, quiet dividers and a restrained expanded history."
+    },
+    {
+      "value": "timeline",
+      "label": "Timeline",
+      "code": "02",
+      "description": "A dedicated time column and fine connecting rail make chronology explicit."
+    },
+    {
+      "value": "grouped",
+      "label": "Grouped",
+      "code": "03",
+      "description": "Date headings and softly inset sections create distinct, readable clusters."
+    },
+    {
+      "value": "feed",
+      "label": "Feed-focused",
+      "code": "04",
+      "description": "People, file attachments, comments and calendar details each get their own treatment."
+    },
+    {
+      "value": "editorial",
+      "label": "Editorial",
+      "code": "05",
+      "description": "A typographic lead gives the latest decision prominence; supporting activity stays secondary."
+    }
+  ],
+  "sizeOptions": [
+    {
+      "value": "small",
+      "label": "Small"
+    },
+    {
+      "value": "medium",
+      "label": "Medium"
+    },
+    {
+      "value": "large",
+      "label": "Large"
+    }
+  ],
+  "days": [
+    {
+      "id": "today",
+      "label": "Today",
+      "date": "Nov 11"
+    },
+    {
+      "id": "yesterday",
+      "label": "Yesterday",
+      "date": "Nov 10"
+    },
+    {
+      "id": "earlier",
+      "label": "Earlier",
+      "date": "Mon, Nov 9"
+    }
+  ],
+  "heroTitle": "Homepage, approved.",
+  "uploadPreview": {
+    "name": "Launch assets",
+    "detail": "6 files \u00b7 18 MB \u00b7 Shared folder"
+  },
+  "commentPreview": "\u201cThe shorter headline reads better. Ready for review.\u201d",
+  "meetingPreview": {
+    "day": "12",
+    "title": "Team kickoff",
+    "detail": "Thu, Nov 12 \u00b7 11:00 AM"
+  },
+  "events": [
+    {
+      "id": "homepage-approval",
+      "kind": "approval",
+      "title": "Homepage revisions approved",
+      "description": "Maya Chen signed off on the final layout.",
+      "actor": "Maya Chen",
+      "meta": "Website refresh \u00b7 Round 3",
+      "time": "8 min ago",
+      "clock": "10:42 AM",
+      "day": "today",
+      "icon": "check-circle",
+      "important": true
+    },
+    {
+      "id": "launch-upload",
+      "kind": "upload",
+      "title": "Launch assets uploaded",
+      "description": "Theo Park added six launch files.",
+      "actor": "Theo Park",
+      "meta": "Launch kit \u00b7 Shared with the team",
+      "time": "24 min ago",
+      "clock": "10:26 AM",
+      "day": "today",
+      "icon": "upload",
+      "important": false
+    },
+    {
+      "id": "brief-comment",
+      "kind": "comment",
+      "title": "New comment on project brief",
+      "description": "Lena Ortiz left feedback on the brief.",
+      "actor": "Lena Ortiz",
+      "meta": "Project brief \u00b7 Headline feedback",
+      "time": "1 hr ago",
+      "clock": "9:50 AM",
+      "day": "today",
+      "icon": "message",
+      "important": false
+    },
+    {
+      "id": "kickoff-scheduled",
+      "kind": "meeting",
+      "title": "Kickoff meeting scheduled",
+      "description": "Jules Reed scheduled the team kickoff.",
+      "actor": "Jules Reed",
+      "meta": "Team calendar \u00b7 5 guests",
+      "time": "Yesterday, 4:20 PM",
+      "clock": "4:20 PM",
+      "day": "yesterday",
+      "icon": "calendar",
+      "important": false
+    },
+    {
+      "id": "review-completed",
+      "kind": "milestone",
+      "title": "Design review completed",
+      "description": "Maya Chen closed the design review.",
+      "actor": "Maya Chen",
+      "meta": "Website refresh \u00b7 4 decisions recorded",
+      "time": "Yesterday, 2:10 PM",
+      "clock": "2:10 PM",
+      "day": "yesterday",
+      "icon": "check-circle",
+      "important": true
+    },
+    {
+      "id": "brief-updated",
+      "kind": "document",
+      "title": "Project brief updated",
+      "description": "Theo Park published version 4.",
+      "actor": "Theo Park",
+      "meta": "Project brief \u00b7 Version 4",
+      "time": "Monday, 3:35 PM",
+      "clock": "3:35 PM",
+      "day": "earlier",
+      "icon": "document",
+      "important": false
+    },
+    {
+      "id": "workspace-created",
+      "kind": "workspace",
+      "title": "Workspace created",
+      "description": "Jules Reed created the project space.",
+      "actor": "Jules Reed",
+      "meta": "Website refresh \u00b7 5 members",
+      "time": "Monday, 9:00 AM",
+      "clock": "9:00 AM",
+      "day": "earlier",
+      "icon": "users",
+      "important": false
+    }
+  ]
+}

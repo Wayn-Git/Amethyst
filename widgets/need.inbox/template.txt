@@ -1,0 +1,232 @@
+<Scope
+  values={{
+    lead: messages[0] || {},
+    visible: messages.slice(0, density === "medium" ? (mediumStyle === "minimal" ? 1 : 2) : 6),
+    selectedMessage: messages.find((m) => m.id === selectedId) || null,
+    appearance: appearance || "light",
+  }}
+>
+  <Show when={status === "loading"}>
+    <Box
+      width="100%"
+      height={density === "large" ? 356 : 170}
+      padding={4}
+      gap={3}
+      background="surface-elevated"
+      radius="xl"
+      justify="center"
+    >
+      <Row gap={3} align="center">
+        <LoadingBlock width={36} height={36} radius="full" />
+        <Col gap={2} flex={1}>
+          <LoadingBlock width={120} height={16} radius="xs" />
+          <LoadingBlock width={180} height={12} radius="xs" />
+        </Col>
+      </Row>
+      <Col gap={2}>
+        <LoadingBlock width="100%" height={32} radius="md" />
+        <LoadingBlock width="100%" height={32} radius="md" />
+      </Col>
+    </Box>
+  </Show>
+
+  <Show when={status === "error"}>
+    <Box
+      width="100%"
+      height={density === "large" ? 356 : 170}
+      padding={4}
+      gap={2}
+      background="surface-elevated"
+      radius="xl"
+      justify="center"
+      align="center"
+    >
+      <Icon name="alert-circle" size="lg" color="secondary" />
+      <Text value={message || "Could not load inbox"} size="sm" weight="semibold" align="center" />
+      <Caption value="Check email connection" size="sm" align="center" />
+    </Box>
+  </Show>
+
+  <Show when={(status === "empty" || size(messages) === 0) && status !== "loading" && status !== "error"}>
+    <Box
+      width="100%"
+      height={density === "large" ? 356 : 170}
+      padding={4}
+      gap={2}
+      background="surface-elevated"
+      radius="xl"
+      justify="center"
+      align="center"
+    >
+      <Icon name="mail" size="lg" color="secondary" />
+      <Text value={labels.emptyTitle || "Inbox zero"} size="md" weight="semibold" align="center" />
+      <Caption value={labels.emptyDescription || "No priority messages waiting for your attention."} size="sm" align="center" />
+    </Box>
+  </Show>
+
+  <Show when={status === "ready" || (!status && size(messages) > 0)}>
+    <Card
+      size="full"
+      width="100%"
+      height={density === "large" ? 356 : 170}
+      padding={density === "medium" ? 3 : 4}
+      gap={density === "medium" ? 2 : 3}
+      theme={appearance}
+      shadow={false}
+    >
+      <Show when={selectedMessage !== null}>
+        <Col gap={2}>
+          <Row gap={2} align="center">
+            <Button
+              iconStart="arrow-left"
+              label={labels.back || "Back"}
+              variant="ghost"
+              size="sm"
+              onClickAction={{ updateState: { selectedId: "" } }}
+            />
+            <Spacer />
+            <Caption value={selectedMessage.time} size="xs" />
+          </Row>
+          <Col gap={1}>
+            <Text value={selectedMessage.sender} size="sm" weight="semibold" />
+            <Title value={selectedMessage.subject} size="sm" />
+          </Col>
+          <Text
+            value={selectedMessage.body || selectedMessage.preview}
+            size="xs"
+            color="secondary"
+            maxLines={density === "medium" ? 2 : 8}
+          />
+        </Col>
+      </Show>
+
+      <Show when={selectedMessage === null}>
+        <Row gap={2} align="center" justify="between">
+          <Row gap={2} align="center">
+            <Icon name="mail" size="xs" color="secondary" />
+            <Title value={labels.inboxTitle || "Priority inbox"} size="sm" />
+          </Row>
+          <Badge
+            label={String(size(messages.filter((m) => m.unread))) + labels.unreadSuffix}
+            size="sm"
+            color="secondary"
+          />
+        </Row>
+
+        <Show when={density === "medium"}>
+          <Show when={mediumStyle === "minimal"}>
+            <Box background="surface-secondary" radius="lg" padding={2} gap={1}>
+              <Row justify="between" gap={2} align="center">
+                <Row gap={1} align="center">
+                  <Box size={6} radius="full" background={lead.unread ? "info" : "surface-tertiary"} />
+                  <Text value={lead.sender} size="xs" weight="semibold" />
+                </Row>
+                <Caption value={lead.time} size="xs" tabularNums />
+              </Row>
+              <Text value={lead.subject} size="sm" weight="semibold" />
+              <Text value={lead.preview} size="xs" color="secondary" maxLines={1} />
+              <Row justify="end" align="center">
+                <Button
+                  label={labels.readMessage}
+                  iconEnd="arrow-right"
+                  variant="outline"
+                  size="sm"
+                  onClickAction={{ updateState: { selectedId: lead.id } }}
+                />
+              </Row>
+            </Box>
+          </Show>
+
+          <Show when={mediumStyle === "inbox"}>
+            <Col gap={1}>
+              <Each of={visible} item="mail" index="i">
+                <Box
+                  key={mail.id}
+                  radius="md"
+                  padding={1}
+                  background={mail.unread ? "surface-secondary" : "transparent"}
+                >
+                  <Row align="center" gap={2}>
+                    <Box
+                      size={24}
+                      minWidth={24}
+                      background="surface-tertiary"
+                      radius="full"
+                      align="center"
+                      justify="center"
+                    >
+                      <Text value={mail.initials} size="xs" weight="medium" />
+                    </Box>
+                    <Col flex={1} minWidth={0} gap={0}>
+                      <Row gap={1} align="center">
+                        <Text value={mail.sender} size="xs" weight={mail.unread ? "semibold" : "medium"} />
+                        <Spacer />
+                        <Caption value={mail.time} size="xs" tabularNums />
+                      </Row>
+                      <Text value={mail.subject} size="xs" weight={mail.unread ? "semibold" : "normal"} />
+                    </Col>
+                  </Row>
+                </Box>
+              </Each>
+            </Col>
+          </Show>
+
+          <Show when={mediumStyle === "mediumEditorial"}>
+            <Col gap={1}>
+              <Row gap={2} align="center">
+                <Text value={lead.sender} size="xs" weight="semibold" />
+                <Spacer />
+                <Caption value={lead.time} size="xs" tabularNums />
+              </Row>
+              <Title value={lead.subject} size="sm" />
+              <Text value={lead.preview} size="xs" color="secondary" maxLines={1} />
+              <Row justify="end">
+                <Button
+                  label={labels.readMessage}
+                  variant="ghost"
+                  size="sm"
+                  onClickAction={{ updateState: { selectedId: lead.id } }}
+                />
+              </Row>
+            </Col>
+          </Show>
+        </Show>
+
+        <Show when={density === "large"}>
+          <Col gap={2}>
+            <Each of={visible} item="mail" index="i">
+              <Box
+                key={mail.id}
+                radius="md"
+                padding={2}
+                background={mail.unread ? "surface-secondary" : "transparent"}
+              >
+                <Row align="start" gap={3}>
+                  <Box
+                    size={32}
+                    minWidth={32}
+                    background="surface-tertiary"
+                    radius="full"
+                    align="center"
+                    justify="center"
+                  >
+                    <Text value={mail.initials} size="xs" weight="medium" />
+                  </Box>
+                  <Col flex={1} minWidth={0} gap={1}>
+                    <Row gap={2} align="center">
+                      <Text value={mail.sender} size="sm" weight={mail.unread ? "semibold" : "medium"} />
+                      <Spacer />
+                      <Caption value={mail.time} size="xs" tabularNums />
+                    </Row>
+                    <Text value={mail.subject} size="sm" weight={mail.unread ? "semibold" : "normal"} />
+                    <Text value={mail.preview} size="xs" color="secondary" maxLines={2} />
+                  </Col>
+                </Row>
+              </Box>
+            </Each>
+          </Col>
+        </Show>
+      </Show>
+    </Card>
+  </Show>
+</Scope>

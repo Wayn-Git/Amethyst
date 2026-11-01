@@ -1,0 +1,20 @@
+{
+  "widgetId": "need.inbox",
+  "sizes": ["m", "l"],
+  "designSpec": "Six composition styles across Medium (Minimal spotlight, Inbox stack, Editorial lead) and Large (Grouped triage, Ranked priorities, Editorial digest). Real Gmail messages via backend/dashboard/mail.py with sender name/email parsing, unread indicators, needs-reply detection, AI model priority ranking, and reading detail view.",
+  "theme": "light",
+  "stages": [
+    "Planning the widget",
+    "Planning complete. No web or image search needed",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Widget ready"
+  ],
+  "generatedAt": "2026-11-01T14:45:00.000Z",
+  "promptFile": "docs/widget-playground/Widgets/todo/prirotiy  inbox",
+  "brokenRules": []
+}

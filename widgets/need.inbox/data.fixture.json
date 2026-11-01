@@ -1,0 +1,160 @@
+{
+  "density": "medium",
+  "appearance": "light",
+  "mediumStyle": "minimal",
+  "largeStyle": "grouped",
+  "selectedId": "",
+  "status": "ready",
+  "scale": "medium",
+  "sizes": [
+    {
+      "label": "Medium",
+      "value": "medium"
+    },
+    {
+      "label": "Large",
+      "value": "large"
+    }
+  ],
+  "appearances": [
+    {
+      "label": "Light",
+      "value": "light"
+    },
+    {
+      "label": "Dark",
+      "value": "dark"
+    }
+  ],
+  "mediumOptions": [
+    {
+      "label": "Minimal spotlight",
+      "value": "minimal"
+    },
+    {
+      "label": "Inbox stack",
+      "value": "inbox"
+    },
+    {
+      "label": "Editorial lead",
+      "value": "mediumEditorial"
+    }
+  ],
+  "largeOptions": [
+    {
+      "label": "Grouped triage",
+      "value": "grouped"
+    },
+    {
+      "label": "Ranked priorities",
+      "value": "priority"
+    },
+    {
+      "label": "Editorial digest",
+      "value": "largeEditorial"
+    }
+  ],
+  "labels": {
+    "galleryTitle": "Priority inbox",
+    "galleryNote": "Six studies across medium and large cards.",
+    "appearanceLabel": "Appearance",
+    "sizeLabel": "Card size",
+    "compositionLabel": "Study",
+    "inboxTitle": "Priority inbox",
+    "unreadSuffix": " unread",
+    "needsReply": "Needs reply",
+    "readMessage": "Read message",
+    "back": "Back to inbox",
+    "urgent": "Urgent",
+    "important": "Important",
+    "other": "Other",
+    "emptyTitle": "Inbox zero",
+    "emptyDescription": "No priority messages waiting for your attention."
+  },
+  "messages": [
+    {
+      "id": "launch",
+      "sender": "Maya Chen",
+      "initials": "MC",
+      "email": "maya.chen@example.com",
+      "subject": "Approval needed: launch brief",
+      "preview": "Could you confirm the revised timeline before 11?",
+      "time": "9:42 AM",
+      "unread": true,
+      "needsReply": true,
+      "attachments": 0,
+      "priority": "urgent",
+      "body": "Hi Alex,\n\nThe revised launch brief is ready. We moved the internal walkthrough to Thursday and kept the customer announcement on Monday.\n\nCould you confirm the timeline before 11? Once you’re comfortable with it, I’ll share the brief with the team.\n\nThanks,\nMaya"
+    },
+    {
+      "id": "studio",
+      "sender": "Theo Park",
+      "initials": "TP",
+      "email": "theo.park@example.com",
+      "subject": "A quick decision on the studio",
+      "preview": "The space is on hold until noon. Which date works?",
+      "time": "9:18 AM",
+      "unread": false,
+      "needsReply": true,
+      "attachments": 1,
+      "priority": "urgent",
+      "body": "Hi Alex,\n\nThe studio can hold either of the two dates we discussed until noon. Would you prefer Tuesday or Thursday for the team session?\n\nI’ve included the room overview so you can compare the setup. Let me know your preference before I confirm anything.\n\nTheo"
+    },
+    {
+      "id": "design",
+      "sender": "Design Team",
+      "initials": "DT",
+      "email": "design@example.com",
+      "subject": "Updated onboarding screens",
+      "preview": "The latest layouts and review notes are attached.",
+      "time": "8:55 AM",
+      "unread": true,
+      "needsReply": false,
+      "attachments": 2,
+      "priority": "important",
+      "body": "Morning Alex,\n\nWe’ve updated the onboarding layouts with the shorter welcome flow and clearer permission copy.\n\nThe latest screens and review notes are attached. No decision is needed this morning; we’ll walk through the changes in the next design review.\n\nDesign Team"
+    },
+    {
+      "id": "plan",
+      "sender": "Nora Ellis",
+      "initials": "NE",
+      "email": "nora.ellis@example.com",
+      "subject": "Your notes on the Q3 plan",
+      "preview": "A few open questions before tomorrow’s review.",
+      "time": "8:26 AM",
+      "unread": true,
+      "needsReply": true,
+      "attachments": 0,
+      "priority": "important",
+      "body": "Hi Alex,\n\nI’ve worked your notes into the Q3 plan. Two questions are still open: who owns the research handoff, and should the pilot include the support team?\n\nCould you share your thoughts before tomorrow’s review? A short reply is perfect.\n\nThanks,\nNora"
+    },
+    {
+      "id": "platform",
+      "sender": "Platform Team",
+      "initials": "PT",
+      "email": "platform@example.com",
+      "subject": "Staging is ready for review",
+      "preview": "The new build includes the fixes you flagged.",
+      "time": "7:48 AM",
+      "unread": false,
+      "needsReply": false,
+      "attachments": 0,
+      "priority": "other",
+      "body": "Hi Alex,\n\nThe latest staging build includes the layout and keyboard-navigation fixes you flagged last week.\n\nThis is a heads-up for your next review pass. There’s nothing you need to reply to right now.\n\nPlatform Team"
+    },
+    {
+      "id": "notes",
+      "sender": "Studio Notes",
+      "initials": "SN",
+      "email": "notes@example.com",
+      "subject": "This week, in good company",
+      "preview": "Three reads and one idea for a calmer workday.",
+      "time": "Yesterday",
+      "unread": true,
+      "needsReply": false,
+      "attachments": 0,
+      "priority": "other",
+      "body": "This week’s studio note\n\nA small collection for a slower moment: an essay on attention, a conversation about creative routines, and a reminder to leave a little space between meetings.\n\nNo reply needed. Save this one for a quiet break.\n\nStudio Notes"
+    }
+  ]
+}

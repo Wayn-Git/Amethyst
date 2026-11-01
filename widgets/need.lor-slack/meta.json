@@ -1,0 +1,18 @@
+{
+  "widgetId": "need.lor-slack",
+  "sizes": ["m", "l"],
+  "designSpec": "Five design directions (Minimal, Conversation, Inbox, Timeline, Priority) across Medium (356x170) and Large (356x356). Real live Slack direct messages awaiting reply via backend/dashboard/communication.py (Composio slack_dms), computing elapsed wait durations, relative timestamps, and unreplied priorities.",
+  "theme": "light",
+  "stages": [
+    "Planning the widget",
+    "Planning complete. No web or image search needed",
+    "Generating the widget interface",
+    "Shaping the layout",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Widget ready"
+  ],
+  "generatedAt": "2026-11-01T14:45:00.000Z",
+  "promptFile": "docs/widget-playground/Widgets/todo/unreplied slack dms",
+  "brokenRules": []
+}

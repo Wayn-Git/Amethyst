@@ -1,0 +1,16 @@
+{
+  "widgetId": "need.decisions",
+  "sizes": ["m", "l"],
+  "designSpec": "Five design directions (Minimal, Inbox, Comparison, Priority, Editorial) across Medium (356x170) and Large (356x356). Real questions requiring user decisions from backend/agent/questions.py wired with multiple-choice options, urgency indicators, and interactive answer/dismiss actions.",
+  "theme": "light",
+  "stages": [
+    "Planning the widget",
+    "Generating the widget interface",
+    "Shaping the layout",
+    "Balancing the content",
+    "Widget ready"
+  ],
+  "generatedAt": "2026-11-01T14:25:00.000Z",
+  "promptFile": "docs/widget-playground/Widgets/todo/deicion waiting",
+  "brokenRules": []
+}

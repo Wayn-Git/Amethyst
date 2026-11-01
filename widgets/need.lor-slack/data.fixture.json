@@ -1,0 +1,271 @@
+{
+  "direction": "minimal",
+  "layoutSize": "medium",
+  "darkMode": false,
+  "workspace": "Northstar",
+  "workspaceInitial": "N",
+  "snapshotLabel": "Sample snapshot \u00b7 Thu, Jun 18, 2026 \u00b7 11:00 AM",
+  "accent": {
+    "light": "#704373",
+    "dark": "#D6B0DA"
+  },
+  "accentSurface": {
+    "light": "#F2ECF3",
+    "dark": "#302633"
+  },
+  "waitColor": {
+    "light": "#846019",
+    "dark": "#E4C17B"
+  },
+  "waitSurface": {
+    "light": "#FAF5E9",
+    "dark": "#2B271F"
+  },
+  "labels": {
+    "collection": "Slack DM studies",
+    "layoutCount": "10 layouts",
+    "direction": "Design direction",
+    "sizeLabel": "Widget size",
+    "lightAction": "Switch preview to light appearance",
+    "darkAction": "Switch preview to dark appearance",
+    "title": "Unreplied DMs",
+    "latest": "Latest unanswered",
+    "unread": "Unread",
+    "replyNeeded": "Reply needed",
+    "latestReply": "Latest message \u00b7 reply needed",
+    "needsReply": "Needs a reply",
+    "directMessages": "Direct messages",
+    "threeConversations": "3 conversations",
+    "threeWaiting": "3 waiting",
+    "fiveWaiting": "5 waiting",
+    "sixWaiting": "6 waiting",
+    "allNeedReply": "All conversations are awaiting your reply.",
+    "stillWaiting": "Still waiting",
+    "latestFirst": "Latest first \u00b7 4 unanswered messages",
+    "waitingOnYou": "Waiting on you",
+    "timelineSubtitle": "Northstar \u00b7 6 conversations \u00b7 latest first",
+    "replyQueue": "Reply queue",
+    "waitingLongest": "Waiting longest",
+    "replyPriorities": "Reply priorities",
+    "oldestFirst": "Oldest first",
+    "earlierAtTop": "Earlier conversations at top",
+    "legend": "Dot = unread. Read messages can still need a reply.",
+    "demoNote": "Fictional workspace and messages \u00b7 illustrative portraits \u00b7 not connected to Slack."
+  },
+  "directions": [
+    {
+      "value": "minimal",
+      "label": "01  Minimal \u00b7 latest message"
+    },
+    {
+      "value": "conversation",
+      "label": "02  Conversation \u00b7 message excerpts"
+    },
+    {
+      "value": "inbox",
+      "label": "03  Inbox \u00b7 organized list"
+    },
+    {
+      "value": "timeline",
+      "label": "04  Timeline \u00b7 chronological rail"
+    },
+    {
+      "value": "priority",
+      "label": "05  Priority \u00b7 longest waiting"
+    }
+  ],
+  "sizes": [
+    {
+      "value": "medium",
+      "label": "Medium"
+    },
+    {
+      "value": "large",
+      "label": "Large"
+    }
+  ],
+  "availableImages": [
+    {
+      "url": "https://prod.ucwe.capgemini.com/pt-en/wp-content/uploads/sites/42/2023/07/Preeti_Yadav.jpg?w=960"
+    },
+    {
+      "url": "https://images-pw.pixieset.com/elementfield/042723612/Devonte-5940R-cc54e4e3.jpg"
+    },
+    {
+      "url": "https://data.heykorean.com/housing/agent/2024/02/17/1708197903_Minji.jpg"
+    },
+    {
+      "url": "https://cdn.asp.events/CLIENT_Frontlin_6829EAB8_B454_024C_273DEBA68DC056BA/sites/FGBL26/media/libraries/speakers/Dario.jpg"
+    },
+    {
+      "url": "https://workik.com/staticassets/images/ananya%20patel.png"
+    },
+    {
+      "url": "https://145788446.fs1.hubspotusercontent-eu1.net/hub/145788446/hubfs/andr%C3%A9_siegrist_mos3776_1200x1200.jpg?name=andr%C3%A9_siegrist_mos3776_1200x1200.jpg&width=1199"
+    }
+  ],
+  "messages": [
+    {
+      "id": "maya",
+      "name": "Maya Chen",
+      "photo": 0,
+      "preview": "Could you review the launch copy before noon?",
+      "time": "10:42 AM",
+      "shortTime": "10:42",
+      "periodLabel": "AM",
+      "waitLabel": "Waiting 18m",
+      "waitShort": "18m",
+      "unread": true,
+      "oldest": false,
+      "context": ""
+    },
+    {
+      "id": "jordan",
+      "name": "Jordan Ellis",
+      "photo": 1,
+      "preview": "The updated handoff is ready. Does 2 pm work?",
+      "time": "10:16 AM",
+      "shortTime": "10:16",
+      "periodLabel": "AM",
+      "waitLabel": "Waiting 44m",
+      "waitShort": "44m",
+      "unread": true,
+      "oldest": false,
+      "context": ""
+    },
+    {
+      "id": "nina",
+      "name": "Nina Park",
+      "photo": 2,
+      "preview": "Which empty state should we ship for search?",
+      "time": "9:28 AM",
+      "shortTime": "9:28",
+      "periodLabel": "AM",
+      "waitLabel": "Waiting 1h 32m",
+      "waitShort": "1h 32m",
+      "unread": false,
+      "oldest": false,
+      "context": ""
+    },
+    {
+      "id": "leo",
+      "name": "Leo Brooks",
+      "photo": 3,
+      "preview": "Are we still on for the walkthrough tomorrow?",
+      "time": "Wed 4:35 PM",
+      "shortTime": "4:35",
+      "periodLabel": "Wed PM",
+      "waitLabel": "Waiting 18h",
+      "waitShort": "18h",
+      "unread": false,
+      "oldest": false,
+      "context": ""
+    },
+    {
+      "id": "asha",
+      "name": "Asha Rao",
+      "photo": 4,
+      "preview": "Can you sign off on the onboarding screens?",
+      "time": "Tue 10:10 AM",
+      "shortTime": "10:10",
+      "periodLabel": "Tue AM",
+      "waitLabel": "Waiting 2 days",
+      "waitShort": "2 days",
+      "unread": true,
+      "oldest": false,
+      "context": ""
+    },
+    {
+      "id": "owen",
+      "name": "Owen Reed",
+      "photo": 5,
+      "preview": "Quick check: are we keeping the current API limit?",
+      "time": "Mon 10:00 AM",
+      "shortTime": "10:00",
+      "periodLabel": "Mon AM",
+      "waitLabel": "Waiting 3 days",
+      "waitShort": "3 days",
+      "unread": false,
+      "oldest": true,
+      "context": "You \u00b7 Mon 9:40 AM: \u201cI\u2019ll confirm after standup.\u201d"
+    }
+  ],
+  "minimalGroups": [
+    {
+      "label": "Recent",
+      "indices": [
+        1,
+        2
+      ]
+    },
+    {
+      "label": "Earlier",
+      "indices": [
+        3,
+        4,
+        5
+      ]
+    }
+  ],
+  "conversationGroups": [
+    {
+      "label": "Recent",
+      "detail": "Today",
+      "indices": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "label": "Earlier",
+      "detail": "Mon\u2013Tue",
+      "indices": [
+        4,
+        5
+      ]
+    }
+  ],
+  "standardGroups": [
+    {
+      "label": "Recent",
+      "detail": "Today",
+      "indices": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "label": "Earlier",
+      "detail": "Mon\u2013Wed",
+      "indices": [
+        3,
+        4,
+        5
+      ]
+    }
+  ],
+  "priorityMedium": [
+    4,
+    0
+  ],
+  "priorityGroups": [
+    {
+      "label": "Earlier",
+      "indices": [
+        5,
+        4,
+        3
+      ]
+    },
+    {
+      "label": "Recent",
+      "indices": [
+        0,
+        1,
+        2
+      ]
+    }
+  ]
+}

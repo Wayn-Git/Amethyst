@@ -1,0 +1,139 @@
+/* Recent activity widget surface isolation: eliminate double boundaries, outer headers, and double padding */
+
+.home-layout-grid .today-widget-slot[data-slot-id='agent.feed'] {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  box-sizing: border-box;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='agent.feed']:hover {
+  box-shadow: none !important;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='agent.feed'] > .today-slot-body {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  box-sizing: border-box;
+  overflow: visible !important;
+}
+
+/* Responsive slot dimensions */
+.home-layout-grid .today-widget-slot[data-slot-id='agent.feed'],
+.bento-foundation .home-widget[data-widget='agent.feed'] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='agent.feed'][data-size='s'],
+.bento-foundation .home-widget[data-widget='agent.feed'][data-size='s'] {
+  min-height: 170px;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='agent.feed'][data-size='m'],
+.bento-foundation .home-widget[data-widget='agent.feed'][data-size='m'] {
+  min-height: 170px;
+}
+
+.home-layout-grid .today-widget-slot[data-slot-id='agent.feed'][data-size='l'],
+.bento-foundation .home-widget[data-widget='agent.feed'][data-size='l'] {
+  min-height: 356px;
+}
+
+.bento-foundation .home-widget[data-widget='agent.feed'] {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* Chrome: title, badges, freshness removed from outer card. Actions hover-only top-right. */
+.bento-foundation .home-widget.widget-adoption[data-widget='agent.feed'] > .widget-header {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  display: flex;
+  width: auto;
+  padding: 0;
+  margin: 0;
+  gap: 0;
+  background: transparent;
+  border: 0;
+  pointer-events: none;
+}
+
+.bento-foundation .home-widget.widget-adoption[data-widget='agent.feed'] .widget-title,
+.bento-foundation .home-widget.widget-adoption[data-widget='agent.feed'] .widget-source,
+.bento-foundation .home-widget.widget-adoption[data-widget='agent.feed'] .widget-freshness,
+.bento-foundation .home-widget.widget-adoption[data-widget='agent.feed'] .widget-chip {
+  display: none !important;
+}
+
+.bento-foundation .home-widget.widget-adoption[data-widget='agent.feed'] .widget-actions {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+.bento-foundation .home-widget.widget-adoption[data-widget='agent.feed']:is(:hover, :focus-within) .widget-actions,
+.bento-foundation .home-widget.widget-adoption[data-widget='agent.feed'] .widget-menu[open] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.bento-foundation .home-widget[data-widget='agent.feed'] > .today-slot-header,
+.bento-foundation .home-widget[data-widget='agent.feed'] .today-header-chip {
+  display: none !important;
+}
+
+.agent-feed-root {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.agent-feed-root .tugan-card {
+  box-sizing: border-box;
+  height: 100%;
+  width: 100%;
+}
+
+.activity-directions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.activity-direction-btn {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--w-border, rgba(0, 0, 0, 0.1));
+  background: var(--w-surface, #ffffff);
+  color: var(--w-text, #111111);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.activity-direction-btn:hover {
+  background: var(--w-surface-hover, rgba(0, 0, 0, 0.04));
+}
+
+.activity-direction-btn.is-active {
+  border-color: var(--w-accent, #6366f1);
+  background: var(--w-accent-subtle, rgba(99, 102, 241, 0.08));
+  color: var(--w-accent, #6366f1);
+  font-weight: 600;
+}

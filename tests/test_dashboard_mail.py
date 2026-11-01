@@ -370,3 +370,21 @@ async def test_mail_provider_dispatch_and_local_api_validation(db, monkeypatch):
             ).status_code
             == 422
         )
+
+
+async def test_remove_draft_action(db):
+    from backend.dashboard import mail
+    from backend.dashboard.items import decide
+
+    res = mail.draft("need.drafts", "add", mail.MailInput(recipient="test@example.com", subject="To remove", text="Draft body"))
+    await decide("need.drafts", res["draft_id"], True)
+
+    items = (await mail.provide("need.drafts"))["items"]
+    draft_id = items[0]["id"]
+
+    res_del = mail.draft("need.drafts", "remove", mail.MailInput(id=draft_id))
+    await decide("need.drafts", res_del["draft_id"], True)
+
+    remaining = (await mail.provide("need.drafts"))["items"]
+    assert all(r["id"] != draft_id for r in remaining)
+

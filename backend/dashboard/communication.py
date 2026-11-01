@@ -47,6 +47,7 @@ async def slack_dms(widget_id):
                         "url": row["url"],
                         "source": "Slack",
                         "person": row["user"],
+                        "ts": row["id"],
                     }
                 )
     return {"items": items, "limited": limited}

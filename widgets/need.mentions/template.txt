@@ -1,0 +1,355 @@
+<Scope
+  values={{
+    shownCount:
+      layout === "minimal"
+        ? sizeMode === "medium"
+          ? 1
+          : 5
+        : sizeMode === "medium"
+          ? 2
+          : 6,
+    recent: (mentions || []).filter((m) => m.ageHours < 24),
+    waiting: sortBy(
+      (mentions || []).filter((m) => m.ageHours >= 24),
+      "ageHours",
+      "desc",
+    ),
+  }}
+>
+  <Show when={status === "loading"}>
+    <Card
+      size="md"
+      width="100%"
+      height={sizeMode === "large" ? 356 : 170}
+      padding={4}
+      gap={3}
+      theme={appearance}
+      shadow={false}
+    >
+      <Row gap={2} align="center">
+        <LoadingBlock width={24} height={24} radius="full" />
+        <LoadingBlock width={120} height={18} radius="xs" />
+      </Row>
+      <LoadingBlock width="100%" height={32} radius="sm" />
+      <Row gap={2}>
+        <LoadingBlock width="50%" height={36} radius="md" />
+        <LoadingBlock width="50%" height={36} radius="md" />
+      </Row>
+    </Card>
+  </Show>
+
+  <Show when={status === "error"}>
+    <Card
+      size="md"
+      width="100%"
+      height={sizeMode === "large" ? 356 : 170}
+      padding={4}
+      gap={2}
+      theme={appearance}
+      shadow={false}
+      justify="center"
+      align="center"
+    >
+      <Icon name="alert-circle" size="lg" color="secondary" />
+      <Text value={message || "Mentions unavailable"} size="sm" weight="semibold" align="center" />
+      <Caption value="Check Slack and GitHub connections" size="sm" align="center" />
+    </Card>
+  </Show>
+
+  <Show when={(status === "empty" || size(mentions) === 0) && status !== "loading" && status !== "error"}>
+    <Card
+      size="md"
+      width="100%"
+      height={sizeMode === "large" ? 356 : 170}
+      padding={4}
+      gap={2}
+      theme={appearance}
+      shadow={false}
+      justify="center"
+      align="center"
+    >
+      <Icon name="check-circle" size="lg" color="success" />
+      <Text value={(labels && labels.emptyTitle) || "No unanswered mentions"} size="sm" weight="semibold" align="center" />
+      <Caption value={(labels && labels.emptyDescription) || "You are all caught up across Slack and GitHub"} size="sm" align="center" />
+    </Card>
+  </Show>
+
+  <Show when={status === "ready" && size(mentions) > 0}>
+    <Card
+      size="md"
+      width="100%"
+      height="100%"
+      padding={4}
+      gap={2}
+      theme={appearance}
+      shadow={false}
+    >
+      <Row gap={2} align="center">
+        <Col flex={1} minWidth={0} gap={0}>
+          <Title value={(labels && labels.title) || "Unanswered mentions"} size="sm" />
+          <Caption
+            value={
+              String(size(mentions)) +
+              " unanswered" +
+              (size(mentions.filter((m) => m.unread)) > 0
+                ? " · " + String(size(mentions.filter((m) => m.unread))) + " unread"
+                : "")
+            }
+            size="xs"
+          />
+        </Col>
+        <Text
+          value={String(size(mentions))}
+          size="lg"
+          weight="semibold"
+          color="emphasis"
+          tabularNums
+        />
+      </Row>
+
+      <Show when={layout === "minimal"}>
+        <Col gap={2} height="100%" justify="between">
+          <Col gap={1}>
+            <Row gap={2} align="center">
+              <Icon
+                name={mentions[0].platform === "slack" ? "message" : "code"}
+                size="sm"
+                color={mentions[0].platform === "slack" ? "warning" : "secondary"}
+              />
+              <Col flex={1} minWidth={0} gap={0}>
+                <Text
+                  value={mentions[0].sender}
+                  size="sm"
+                  weight="semibold"
+                  maxLines={1}
+                />
+                <Caption value={mentions[0].context} size="xs" />
+              </Col>
+              <Show when={mentions[0].unread}>
+                <Box size={5} radius="full" background="info" />
+              </Show>
+              <Caption
+                value={mentions[0].time}
+                size="xs"
+                color={mentions[0].ageHours >= 24 ? "warning" : "secondary"}
+              />
+            </Row>
+            <Text
+              value={mentions[0].preview}
+              size="sm"
+              weight="medium"
+              maxLines={sizeMode === "medium" ? 2 : 3}
+            />
+          </Col>
+          <Show when={sizeMode === "large"}>
+            <Col gap={1} flex={1}>
+              <Divider />
+              <Each
+                of={mentions.slice(1, 4)}
+                item="m"
+                index="i"
+              >
+                <Col key={m.id} gap={1} padding={{ y: 1 }}>
+                  <Show when={i > 0}>
+                    <Divider />
+                  </Show>
+                  <Row gap={2} align="center">
+                    <Icon
+                      name={m.platform === "slack" ? "message" : "code"}
+                      size="xs"
+                      color="secondary"
+                    />
+                    <Text value={m.sender} size="sm" weight="semibold" maxLines={1} />
+                    <Show when={m.unread}>
+                      <Box size={5} radius="full" background="info" />
+                    </Show>
+                    <Spacer />
+                    <Caption
+                      value={m.time}
+                      size="xs"
+                      color={m.ageHours >= 24 ? "warning" : "secondary"}
+                    />
+                  </Row>
+                  <Text value={m.preview} size="xs" color="secondary" maxLines={1} />
+                </Col>
+              </Each>
+            </Col>
+          </Show>
+        </Col>
+      </Show>
+
+      <Show when={layout === "unified"}>
+        <Col gap={1} height="100%">
+          <Each of={mentions.slice(0, sizeMode === "medium" ? 2 : 4)} item="m" index="i">
+            <Col key={m.id} gap={1}>
+              <Show when={i > 0}>
+                <Divider />
+              </Show>
+              <Row gap={2} align="start" padding={{ y: 1 }}>
+                <Box
+                  size={26}
+                  radius="full"
+                  background="surface-secondary"
+                  align="center"
+                  justify="center"
+                >
+                  <Text
+                    value={m.initials}
+                    size="xs"
+                    weight="semibold"
+                    color="secondary"
+                  />
+                </Box>
+                <Col flex={1} minWidth={0} gap={0}>
+                  <Row gap={2} align="center">
+                    <Text value={m.sender} size="sm" weight="semibold" maxLines={1} />
+                    <Show when={m.unread}>
+                      <Box size={5} radius="full" background="info" />
+                    </Show>
+                    <Spacer />
+                    <Caption
+                      value={m.time}
+                      size="xs"
+                      color={m.ageHours >= 24 ? "warning" : "secondary"}
+                    />
+                  </Row>
+                  <Text value={m.preview} size="xs" color="secondary" maxLines={sizeMode === "medium" ? 1 : 2} />
+                  <Row gap={1} align="center">
+                    <Icon
+                      name={m.platform === "slack" ? "message" : "code"}
+                      size="xs"
+                      color="secondary"
+                    />
+                    <Caption value={m.context} size="xs" />
+                  </Row>
+                </Col>
+              </Row>
+            </Col>
+          </Each>
+        </Col>
+      </Show>
+
+      <Show when={layout === "grouped"}>
+        <Col gap={2} height="100%">
+          <Each of={platforms || []} item="platform" index="p">
+            <Scope
+              values={{
+                groupItems: (mentions || [])
+                  .filter((m) => m.platform === platform.id)
+                  .slice(0, sizeMode === "medium" ? 1 : 2),
+              }}
+            >
+              <Col key={platform.id} gap={1}>
+                <Show when={p > 0}>
+                  <Divider />
+                </Show>
+                <Row gap={2} align="center">
+                  <Icon
+                    name={platform.id === "slack" ? "message" : "code"}
+                    size="xs"
+                    color={platform.id === "slack" ? "warning" : "secondary"}
+                  />
+                  <Text value={platform.name} size="xs" weight="semibold" />
+                  <Caption value={String(size(groupItems))} size="xs" />
+                </Row>
+                <Each of={groupItems} item="m">
+                  <Row key={m.id} gap={2} align="center">
+                    <Col flex={1} minWidth={0} gap={0}>
+                      <Row gap={2} align="center">
+                        <Text value={m.sender} size="sm" weight="medium" maxLines={1} />
+                        <Show when={m.unread}>
+                          <Box size={5} radius="full" background="info" />
+                        </Show>
+                        <Spacer />
+                        <Caption
+                          value={m.time}
+                          size="xs"
+                          color={m.ageHours >= 24 ? "warning" : "secondary"}
+                        />
+                      </Row>
+                      <Text value={m.preview} size="xs" color="secondary" maxLines={1} />
+                    </Col>
+                  </Row>
+                </Each>
+              </Col>
+            </Scope>
+          </Each>
+        </Col>
+      </Show>
+
+      <Show when={layout === "timeline"}>
+        <Col gap={1} height="100%">
+          <Each of={mentions.slice(0, sizeMode === "medium" ? 2 : 4)} item="m" index="i">
+            <Col key={m.id} gap={1}>
+              <Show when={i > 0}>
+                <Divider />
+              </Show>
+              <Row gap={2} align="start" padding={{ y: 1 }}>
+                <Col width={16} align="center" gap={1}>
+                  <Box size={8} radius="full" background={m.unread ? "info" : "surface-tertiary"} />
+                  <Show when={i < (sizeMode === "medium" ? 1 : 3)}>
+                    <Box width={1} height={20} background="surface-tertiary" />
+                  </Show>
+                </Col>
+                <Col flex={1} minWidth={0} gap={0}>
+                  <Row gap={2} align="center">
+                    <Text value={m.sender} size="sm" weight="semibold" maxLines={1} />
+                    <Spacer />
+                    <Caption value={m.time} size="xs" />
+                  </Row>
+                  <Text value={m.preview} size="xs" color="secondary" maxLines={sizeMode === "medium" ? 1 : 2} />
+                  <Caption value={m.context} size="xs" />
+                </Col>
+              </Row>
+            </Col>
+          </Each>
+        </Col>
+      </Show>
+
+      <Show when={layout === "priority"}>
+        <Col gap={2} height="100%" justify="between">
+          <Scope values={{ topWaiting: (waiting && waiting[0]) || mentions[0] }}>
+            <Box
+              background={attentionSurface ? (appearance === "dark" ? attentionSurface.dark : attentionSurface.light) : "surface-secondary"}
+              radius="md"
+              padding={2}
+              gap={1}
+            >
+              <Row gap={2} align="center">
+                <Icon name="clock" size="xs" color="warning" />
+                <Text
+                  value={(labels && labels.attention) || "Waiting"}
+                  size="xs"
+                  weight="semibold"
+                  color="warning"
+                />
+                <Spacer />
+                <Caption value={topWaiting.time} color="warning" size="xs" />
+              </Row>
+              <Row gap={2} align="center">
+                <Text value={topWaiting.sender} size="sm" weight="semibold" maxLines={1} />
+                <Caption value={topWaiting.context} size="xs" />
+              </Row>
+              <Text value={topWaiting.preview} size="xs" maxLines={sizeMode === "medium" ? 1 : 2} />
+            </Box>
+          </Scope>
+          <Show when={sizeMode === "large"}>
+            <Col gap={1} flex={1}>
+              <Caption value={(labels && labels.recent) || "Recent mentions"} weight="medium" size="xs" />
+              <Each of={recent.slice(0, 3)} item="m">
+                <Row key={m.id} gap={2} align="center" padding={{ y: 1 }}>
+                  <Text value={m.sender} size="sm" weight="medium" maxLines={1} />
+                  <Show when={m.unread}>
+                    <Box size={5} radius="full" background="info" />
+                  </Show>
+                  <Spacer />
+                  <Caption value={m.time} size="xs" />
+                </Row>
+              </Each>
+            </Col>
+          </Show>
+        </Col>
+      </Show>
+    </Card>
+  </Show>
+</Scope>

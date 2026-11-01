@@ -1,0 +1,201 @@
+{
+  "layout": "unified",
+  "sizeMode": "medium",
+  "appearance": "light",
+  "labels": {
+    "study": "Design studies \u00b7 10 compositions \u00b7 synthetic inbox",
+    "composition": "Composition",
+    "size": "Widget size",
+    "appearance": "Appearance",
+    "title": "Unanswered mentions",
+    "latest": "Latest mention",
+    "alsoToday": "Also today",
+    "today": "Today",
+    "earlier": "Earlier \u00b7 still unanswered",
+    "carried": "Carried over \u00b7 more than 24h",
+    "unreadSuffix": "\u00b7 Unread",
+    "waitingSuffix": "\u00b7 Awaiting reply",
+    "overDay": "Unanswered for more than 24 hours",
+    "attention": "Waiting more than 24h",
+    "recent": "Recent mentions",
+    "explanation": "Unread and unanswered are separate states. Attention is based on time waiting, not unread status."
+  },
+  "layouts": [
+    {
+      "value": "minimal",
+      "label": "01 \u00b7 Minimal"
+    },
+    {
+      "value": "unified",
+      "label": "02 \u00b7 Unified inbox"
+    },
+    {
+      "value": "grouped",
+      "label": "03 \u00b7 Grouped by platform"
+    },
+    {
+      "value": "timeline",
+      "label": "04 \u00b7 Timeline"
+    },
+    {
+      "value": "priority",
+      "label": "05 \u00b7 Priority-focused"
+    }
+  ],
+  "sizes": [
+    {
+      "value": "medium",
+      "label": "Medium"
+    },
+    {
+      "value": "large",
+      "label": "Large"
+    }
+  ],
+  "appearances": [
+    {
+      "value": "light",
+      "label": "Light"
+    },
+    {
+      "value": "dark",
+      "label": "Dark"
+    }
+  ],
+  "attentionSurface": {
+    "light": "#faf5eb",
+    "dark": "#2b261d"
+  },
+  "availableImages": [
+    {
+      "url": "https://toppng.com/uploads/preview/slack-new-logo-11609376882jqwk3wapi2.png",
+      "alt": "Slack"
+    },
+    {
+      "url": "https://toppng.com/public/uploads/preview/github-logo-transparent-background-11659780033ppk7hsffs0.png",
+      "alt": "GitHub"
+    }
+  ],
+  "platforms": [
+    {
+      "id": "slack",
+      "name": "Slack",
+      "imageIndex": 0,
+      "description": "Conversations"
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "imageIndex": 1,
+      "description": "PR \u00b7 Issue \u00b7 Discussion"
+    }
+  ],
+  "mentions": [
+    {
+      "id": "spacing-review",
+      "platform": "slack",
+      "platformName": "Slack",
+      "sender": "Maya Chen",
+      "initials": "MC",
+      "kind": "Discussion",
+      "kindIcon": "message",
+      "context": "#design-systems \u00b7 Discussion",
+      "preview": "Could you review the updated spacing before we publish the library?",
+      "time": "8m",
+      "ageHours": 0.133,
+      "unread": true
+    },
+    {
+      "id": "focus-review",
+      "platform": "github",
+      "platformName": "GitHub",
+      "sender": "Eli Brooks",
+      "initials": "EB",
+      "kind": "Pull request",
+      "kindIcon": "code",
+      "context": "atlas/web \u00b7 PR #128",
+      "preview": "The keyboard fix is ready. Can you take another look at the focus ring?",
+      "time": "24m",
+      "ageHours": 0.4,
+      "unread": true
+    },
+    {
+      "id": "release-question",
+      "platform": "slack",
+      "platformName": "Slack",
+      "sender": "Nora Patel",
+      "initials": "NP",
+      "kind": "Discussion",
+      "kindIcon": "message",
+      "context": "#release-room \u00b7 Discussion",
+      "preview": "Do we want to hold the release until the empty state is merged?",
+      "time": "1h",
+      "ageHours": 1,
+      "unread": false
+    },
+    {
+      "id": "invitation-status",
+      "platform": "github",
+      "platformName": "GitHub",
+      "sender": "Theo Park",
+      "initials": "TP",
+      "kind": "Issue",
+      "kindIcon": "alert-circle",
+      "context": "atlas/api \u00b7 Issue #246",
+      "preview": "Should expired invitations return 410 instead of 404?",
+      "time": "2h",
+      "ageHours": 2,
+      "unread": false
+    },
+    {
+      "id": "migration-owner",
+      "platform": "slack",
+      "platformName": "Slack",
+      "sender": "Sam Rivera",
+      "initials": "SR",
+      "kind": "Discussion",
+      "kindIcon": "message",
+      "context": "#product \u00b7 Discussion",
+      "preview": "Can you confirm who owns the migration checklist?",
+      "time": "26h",
+      "ageHours": 26,
+      "unread": false
+    },
+    {
+      "id": "motion-documentation",
+      "platform": "github",
+      "platformName": "GitHub",
+      "sender": "Ava Morgan",
+      "initials": "AM",
+      "kind": "Discussion",
+      "kindIcon": "message",
+      "context": "atlas/web \u00b7 Discussion #52",
+      "preview": "Would a reduced-motion example help document this pattern?",
+      "time": "2d",
+      "ageHours": 49,
+      "unread": false
+    }
+  ],
+  "notes": {
+    "minimal": {
+      "medium": "Medium / Minimal \u2014 one generous latest preview, then two compact entries.",
+      "large": "Large / Minimal \u2014 an expanded latest mention, three recent entries, and a carried-over item."
+    },
+    "unified": {
+      "medium": "Medium / Unified \u2014 four mixed-source rows with initials, previews, and source context.",
+      "large": "Large / Unified \u2014 six chronological rows, separated into Today and Earlier."
+    },
+    "grouped": {
+      "medium": "Medium / Grouped \u2014 two Slack conversations and two GitHub mentions under distinct source headers.",
+      "large": "Large / Grouped \u2014 three entries per platform, with conversation identities and GitHub type markers."
+    },
+    "timeline": {
+      "medium": "Medium / Timeline \u2014 four compact entries connected by a quiet chronological rail.",
+      "large": "Large / Timeline \u2014 six entries with a dedicated time gutter and a carried-over segment."
+    },
+    "priority": {
+      "medium": "Medium / Priority \u2014 the oldest unanswered mention leads, followed by three recent items.",
+      "large": "Large / Priority \u2014 two mentions waiting over a day, then a separate four-item recent queue."
+    }
+  }
+}
