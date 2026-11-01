@@ -40,6 +40,7 @@
     "@radix-ui/react-slider": "^1.6.1",
     "@remixicon/react": "^4.9.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@tugan/widgets": "^0.9.0",
     "@untitledui/file-icons": "^0.0.9",
     "@untitledui/icons": "^0.0.23",
     "@xterm/addon-fit": "^0.11.0",
