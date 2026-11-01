@@ -236,22 +236,22 @@ git commit -m "feat(dashboard): migrate glance.travel to @tugan/widgets playgrou
 - Consumes: `GET /api/widgets/glance.next-event/data` (`items`, `timezone`, `limited`)
 - Produces: `glance.next-event` rendered with `WidgetRenderer`
 
-- [ ] **Step 1: Write `widget-prompts/glance.next-event-s.md`**
+- [x] **Step 1: Write `widget-prompts/glance.next-event-s.md`**
 Assemble prompt for next event countdown, title, time, and location.
 
-- [ ] **Step 2: Generate via Playground and capture artifacts**
+- [x] **Step 2: Generate via Playground and capture artifacts**
 Save `widgets/glance.next-event/template.txt`, `data.fixture.json`, `meta.json`, `wiring.md`.
 
-- [ ] **Step 3: Implement `frontend/src/dashboard/widgets/NextEventGlance.jsx`**
+- [x] **Step 3: Implement `frontend/src/dashboard/widgets/NextEventGlance.jsx`**
 Adapter calculates countdown minutes, formats event time strings, and handles `empty` / `not_connected`.
 
-- [ ] **Step 4: Register in `frontend/src/dashboard/registry.js`**
+- [x] **Step 4: Register in `frontend/src/dashboard/registry.js`**
 Point `glance.next-event` to `NextEventGlance.jsx`.
 
-- [ ] **Step 5: Verify zero mock data, lint, build, and tests**
+- [x] **Step 5: Verify zero mock data, lint, build, and tests**
 Run `npm run lint --prefix frontend` and `npm run build --prefix frontend`.
 
-- [ ] **Step 6: Update changelog and commit**
+- [x] **Step 6: Update changelog and commit**
 ```bash
 git add widgets/glance.next-event/ widget-prompts/glance.next-event-s.md frontend/src/dashboard/widgets/NextEventGlance.jsx frontend/src/dashboard/registry.js docs/dashboard-changelog.md
 git commit -m "feat(dashboard): migrate glance.next-event to @tugan/widgets playground loop"
@@ -266,17 +266,18 @@ git commit -m "feat(dashboard): migrate glance.next-event to @tugan/widgets play
 - Modify: `docs/agent-context/sections/today.md`
 - Modify: `docs/agent-context/components/widget-system.md`
 
-- [ ] **Step 1: Run whole-suite parity and verification checks**
+- [x] **Step 1: Run whole-suite parity and verification checks**
 Run: `python scripts/check-widget-map.py`
 Run: `npm run lint --prefix frontend`
 Run: `npm run build --prefix frontend`
 Run: `pytest tests/test_dashboard_shell.py -q`
 
-- [ ] **Step 2: Update documentation**
+- [x] **Step 2: Update documentation**
 Tick Done boxes for the 5 Glance widgets in `docs/dashboard-spec.md`. Update `docs/agent-context/components/widget-system.md`.
 
-- [ ] **Step 3: Commit final verification**
+- [x] **Step 3: Commit final verification**
 ```bash
 git add docs/dashboard-spec.md docs/agent-context/sections/today.md docs/agent-context/components/widget-system.md
 git commit -m "docs(dashboard): mark 5 glance widgets migrated to playground loop"
 ```
+

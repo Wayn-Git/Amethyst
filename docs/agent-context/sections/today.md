@@ -85,6 +85,11 @@ Actions are declared in the manifest. `gate: true` means the action goes through
 confirmation. Actions are dispatched at
 `POST /api/widgets/{id}/actions/{action}`.
 
+### Glance widgets and Playground Loop
+
+Glance widgets (`glance.air`, `glance.sun`, `glance.weather`, `glance.travel`, `glance.next-event`) render via `@tugan/widgets` `WidgetRenderer` using exact templates generated from `widgets.gan.dev/playground` per `docs/widget-playground/WIDGET_LOOP.md`. Artifacts live in `widgets/<widget-id>/` (`template.txt`, `data.fixture.json`, `meta.json`, `wiring.md`), and frontend adapters in `frontend/src/dashboard/widgets/` map live backend payloads to the playground data contracts with zero runtime mock data.
+
+
 ## Adding a widget
 
 1. Add a manifest in `backend/dashboard/registry.py` using the helpers

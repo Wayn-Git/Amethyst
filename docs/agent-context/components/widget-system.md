@@ -141,6 +141,9 @@ browser clock. `Alt+Q` snoozes refresh for one hour.
 - size-change and add animations, skipped under reduced motion;
 - an error boundary that retries when the payload changes.
 
+Glance widgets (`glance.air`, `glance.sun`, `glance.weather`, `glance.travel`, `glance.next-event`) render via `@tugan/widgets` `WidgetRenderer` using exact templates generated from `widgets.gan.dev/playground` per `docs/widget-playground/WIDGET_LOOP.md`. Artifacts reside in `widgets/<widget-id>/` (`template.txt`, `data.fixture.json`, `meta.json`, `wiring.md`), with pure adapters in `frontend/src/dashboard/widgets/`.
+
+
 `useWidget` invalidates on window events:
 
 | Event | Refreshes |
