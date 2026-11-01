@@ -1,0 +1,19 @@
+{
+  "status": "ready",
+  "message": "",
+  "lastUpdated": "14:15",
+  "countdown": "in 45m",
+  "eventTitle": "Weekly Team Sync",
+  "eventTime": "15:00 - 16:00",
+  "location": "Room 4B",
+  "date": "Today",
+  "labels": {
+    "title": "Next event",
+    "loading": "Loading",
+    "refreshing": "Refreshing",
+    "noEvents": "No upcoming events",
+    "notConnected": "Connect Calendar in settings",
+    "unavailable": "Calendar unavailable",
+    "notAvailable": "Not available"
+  }
+}

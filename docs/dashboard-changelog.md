@@ -1,5 +1,7 @@
 # Dashboard changelog
 
+- 2026-11-01 · `glance.next-event`: migrated to `@tugan/widgets` playground loop per `WIDGET_LOOP.md`; generated shadow-free 170x170 Compact card template from `widgets.gan.dev/playground`; wired pure adapter for countdown, event title, formatted time interval, location, and date from Google Calendar via Composio; zero mock data; verified targeted oxlint, check-widget-map, frontend build, and pytest dashboard suite.
+
 - 2026-11-01 · `glance.travel`: migrated to `@tugan/widgets` playground loop per `WIDGET_LOOP.md`; generated 356x170 Medium card template from `widgets.gan.dev/playground`; wired pure adapter for driving duration, event title, route, and relative start time from Google Maps/Calendar; preserved home origin configuration in drawer; zero mock data; verified targeted oxlint, check-widget-map, frontend build, and pytest dashboard suite.
 
 - 2026-11-01 · `glance.weather`: migrated to `@tugan/widgets` playground loop per `WIDGET_LOOP.md`; generated 356x170 Medium card template from `widgets.gan.dev/playground`; wired pure adapter for temperature, conditions, location, and 4-hour forecast from Open-Meteo; preserved location settings panel in drawer; zero mock data; verified targeted oxlint, check-widget-map, frontend build, and pytest dashboard suite.

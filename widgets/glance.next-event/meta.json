@@ -1,0 +1,22 @@
+{
+  "widgetId": "glance.next-event",
+  "size": "s",
+  "designSpec": "A shadow-free 170 × 170 card prioritizes the countdown above compact event details, using neutral theme tokens throughout. Status branches provide loading skeletons and read-only fallback states; update metadata uses a history icon and supplied text. Retry is omitted because the action contract is display-only.",
+  "theme": "light",
+  "stages": [
+    "Planning the widget",
+    "Planning complete. No web or image search needed",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Widget ready"
+  ],
+  "generatedAt": "2026-11-01T12:46:29.042Z",
+  "promptFile": "widget-prompts/glance.next-event-s.md",
+  "brokenRules": []
+}
