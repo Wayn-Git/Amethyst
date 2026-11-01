@@ -1,0 +1,22 @@
+{
+  "status": "ready",
+  "message": "",
+  "lastUpdated": "06:00",
+  "sunrise": "06:24 AM",
+  "sunset": "05:42 PM",
+  "dayLength": "11h 18m",
+  "timezone": "Asia/Kolkata",
+  "labels": {
+    "title": "Sun",
+    "sunrise": "Sunrise",
+    "sunset": "Sunset",
+    "dayLength": "Daylight",
+    "loading": "Loading",
+    "refreshing": "Refreshing",
+    "locationUnset": "Location unset",
+    "unavailable": "Solar times unavailable",
+    "notAvailable": "Not available",
+    "updatedPrefix": "Updated ",
+    "offlineUpdatedPrefix": "Offline, updated "
+  }
+}

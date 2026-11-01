@@ -1,0 +1,23 @@
+{
+  "widgetId": "glance.sun",
+  "size": "s",
+  "designSpec": "A single 170px, shadow-free card presents sunrise and sunset side by side, with quieter daylight and timezone metadata. Theme-aware neutral tokens and data-driven status branches keep it glanceable; no controls or local simulation are introduced.",
+  "theme": "light",
+  "stages": [
+    "Planning the widget",
+    "Planning complete. No web or image search needed",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Checking the preview",
+    "Widget ready"
+  ],
+  "generatedAt": "2026-11-01T12:37:16.428Z",
+  "promptFile": "widget-prompts/glance.sun-s.md",
+  "brokenRules": []
+}

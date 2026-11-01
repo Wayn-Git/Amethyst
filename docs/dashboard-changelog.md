@@ -1,5 +1,7 @@
 # Dashboard changelog
 
+- 2026-11-01 · `glance.sun`: migrated to `@tugan/widgets` playground loop per `WIDGET_LOOP.md`; generated 170px compact template from `widgets.gan.dev/playground`; wired pure adapter for local wall sunrise, sunset, daylight duration, and timezone from Open-Meteo; zero mock data; verified targeted oxlint, check-widget-map, frontend build, and pytest dashboard suite.
+
 - 2026-11-01 · `glance.air`: migrated to `@tugan/widgets` playground loop per `WIDGET_LOOP.md`; generated shadow-free 170px compact template from `widgets.gan.dev/playground`; wired pure adapter for European AQI, rating, and PM2.5/PM10 particulate readings from Open-Meteo; zero mock data; verified targeted oxlint, check-widget-map, frontend build, and pytest dashboard suite.
 
 - 2026-11-01 · `glance.music`: removed rigid 356px height clamp and hidden overflow on Large widget slots (`.today-widget-slot[data-slot-id='glance.music'][data-size='l']`), allowing natural card expansion without slicing dropdown selects or footer captions; hid floating `.today-collapse` caret button toolbar over dashboard widgets when not editing; restored high-contrast solid 48px play button and dark transport icons on light cards (`#1c1815`); tuned Studio deck inner padding and spacing to match reference; verified frontend build and pytest suite.
