@@ -306,6 +306,35 @@ async def item_action(widget_id: str, action: str, body: dict):
             from backend.dashboard.system import ModelInput, model_draft
 
             return model_draft(action, ModelInput.model_validate(body))
+        if widget_id == "need.decisions":
+            from backend.agent.questions import answer as answer_question, reject as reject_question
+
+            ask_id = str(body.get("id") or body.get("ask_id") or "")
+            if not ask_id:
+                raise HTTPException(422, "id is required")
+            if action == "answer":
+                ans = body.get("answer") or body.get("answers") or []
+                answers = [ans] if isinstance(ans, str) else list(ans)
+                settled = answer_question(ask_id, answers)
+                return {"settled": settled, "id": ask_id}
+            if action == "dismiss":
+                settled = reject_question(ask_id)
+                return {"settled": settled, "id": ask_id}
+            raise HTTPException(404, f"Unknown action: {action}")
+        if widget_id == "need.approvals":
+            from backend.api.main import ConfirmationDecision, decide_confirmation
+
+            req_id = str(body.get("id") or body.get("request_id") or "")
+            if not req_id:
+                raise HTTPException(422, "id is required")
+            if action not in ("approve", "deny"):
+                raise HTTPException(404, f"Unknown action: {action}")
+            allow = action == "approve"
+            remember = bool(body.get("remember", False))
+            res = await decide_confirmation(
+                req_id, ConfirmationDecision(allow=allow, remember=remember)
+            )
+            return {"settled": True, "id": req_id, **res}
         if widget_id.startswith("dev."):
             return developer_draft(widget_id, action, DeveloperInput.model_validate(body))
         return draft(widget_id, action, ItemInput.model_validate(body))

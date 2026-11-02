@@ -139,3 +139,50 @@ async def test_dashboard_decisions_survive_restart(db, monkeypatch):
     assert len(audit) == len(history) == 2
     assert "approved" in history[0]["detail"]
     assert "denied" in history[1]["detail"]
+
+
+async def test_decisions_actions(monkeypatch):
+    from backend.agent import questions
+    from backend.dashboard.router import item_action
+
+    calls = []
+    monkeypatch.setattr(questions, "answer", lambda ask_id, ans: calls.append(("answer", ask_id, ans)) or True)
+    monkeypatch.setattr(questions, "reject", lambda ask_id: calls.append(("reject", ask_id)) or True)
+
+    res1 = await item_action("need.decisions", "answer", {"id": "ask-123", "answer": "Option A"})
+    assert res1 == {"settled": True, "id": "ask-123"}
+    assert calls[0] == ("answer", "ask-123", ["Option A"])
+
+    res2 = await item_action("need.decisions", "dismiss", {"id": "ask-123"})
+    assert res2 == {"settled": True, "id": "ask-123"}
+    assert calls[1] == ("reject", "ask-123")
+
+
+async def test_approvals_actions(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from backend.dashboard.router import item_action
+
+    decide_mock = AsyncMock(return_value={"status": "recorded"})
+    monkeypatch.setitem(
+        sys.modules,
+        "backend.api.main",
+        SimpleNamespace(
+            ConfirmationDecision=lambda allow, remember=False: {"allow": allow, "remember": remember},
+            decide_confirmation=decide_mock,
+        ),
+    )
+
+    res1 = await item_action("need.approvals", "approve", {"id": "req-1"})
+    assert res1["settled"] is True
+    assert res1["id"] == "req-1"
+    decide_mock.assert_awaited_with("req-1", {"allow": True, "remember": False})
+
+    res2 = await item_action("need.approvals", "deny", {"id": "req-2"})
+    assert res2["settled"] is True
+    assert res2["id"] == "req-2"
+    decide_mock.assert_awaited_with("req-2", {"allow": False, "remember": False})
+
+

@@ -31,6 +31,7 @@ export default function Home({ layoutMode = "default" }) {
   const { setOverlay, setCapabilitiesTab } = useApp()
   const connections = useConnections()
   const openPalette = useCallback(() => setOverlay('palette'), [setOverlay])
+  const openAppearance = useCallback(() => navigate('/settings?tab=appearance'), [navigate])
   const manageConnections = useCallback(() => { setCapabilitiesTab('connectors'); navigate('/capabilities') }, [navigate, setCapabilitiesTab])
   const connectSource = useCallback(() => setDrawer({ type: 'settings', settingsId: 'sys.connectors' }), [])
   const [drawer, setDrawer] = useState(null)
@@ -76,14 +77,35 @@ export default function Home({ layoutMode = "default" }) {
     const timer = setInterval(() => setNow(new Date()), 60000)
     return () => { mounted.current = false; clearInterval(timer) }
   }, [layoutMode])
+  const studyMap = {
+    linear: 'media-sm-01',
+    signal: 'media-sm-02',
+    floating: 'media-sm-03',
+    progress: 'media-sm-04',
+    equalizer: 'media-sm-05',
+    classic: 'media-md-01',
+    split: 'media-md-02',
+    green: 'media-md-03',
+    light: 'media-md-04',
+    mono: 'media-md-05',
+    studio: 'media-lg-01',
+    lyrics: 'media-lg-02',
+    queue: 'media-lg-03',
+    dashboard: 'media-lg-04',
+    album: 'media-lg-05',
+  }
+
   function sanitizeLayout(next) {
     if (!next || !Array.isArray(next.widgets)) return next
     const widgets = next.widgets.map(w => {
       if (!w || !w.design) return w
       let d = w.design
-      if (typeof d === 'string' && d.startsWith('now-playing-')) {
-        const num = d.split('-').at(-1)
-        d = `media-md-${num.padStart(2, '0')}`
+      if (typeof d === 'string') {
+        if (studyMap[d]) d = studyMap[d]
+        else if (d.startsWith('now-playing-')) {
+          const num = d.split('-').at(-1)
+          d = `media-md-${num.padStart(2, '0')}`
+        }
       }
       return { ...w, design: d }
     })
@@ -112,12 +134,32 @@ export default function Home({ layoutMode = "default" }) {
     return () => window.removeEventListener('keydown', key)
   }, [quietSettings, refreshAll, saveQuiet])
   function move(id, step) { const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []; const index = widgets.findIndex(w => w.id === id); if (widgets[index + step]) { persist({ widgets: moveWidget(widgets, id, widgets[index + step].id) }); setAnnouncement(`${id} moved to position ${index + step + 1}`) } }
-  function resize(id, patch) { const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []; persist({ widgets: widgets.map(w => w.id === id ? { ...w, ...patch } : w) }); setAnnouncement(`${id} resized to ${patch.size || 'custom height'}`) }
+  function resize(id, patch) {
+    const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []
+    const nextHeight = patch.height ?? (patch.size === 'l' ? 4 : (patch.size === 's' || patch.size === 'm') ? 3 : undefined)
+    persist({
+      widgets: widgets.map(w => w.id === id ? {
+        ...w,
+        ...patch,
+        ...(nextHeight ? { height: nextHeight } : {}),
+      } : w)
+    })
+    setAnnouncement(`${id} resized to ${patch.size || 'custom height'}`)
+  }
   function changeDesign(id, design) {
     const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []
     if (!widgets.some(w => w.id === id) || !design) return
+    const canonical = studyMap[design] || design
+    const targetSize = id.startsWith('glance.') ? undefined : canonical.includes('-sm-') ? 's' : canonical.includes('-lg-') ? 'l' : canonical.includes('-md-') ? 'm' : undefined
+    const targetHeight = targetSize === 'l' ? 4 : 3
     const msg = id === 'glance.clock' ? 'Clock face updated' : 'Widget design updated'
-    persist({ widgets: widgets.map(w => w.id === id ? { ...w, design } : w) }, true, msg)
+    persist({
+      widgets: widgets.map(w => w.id === id ? {
+        ...w,
+        design: canonical,
+        ...(targetSize ? { size: targetSize, height: targetHeight } : {})
+      } : w)
+    }, true, msg)
     setAnnouncement(msg)
   }
   function fitWidgets() {
@@ -263,7 +305,7 @@ export default function Home({ layoutMode = "default" }) {
         {loaded && !homePositions.length && <section className="today-empty-layout"><span><Icon name="grid" size={28} /></span><h2>Make room for your day</h2><p>Add the widgets you want to see here.</p><Button variant="primary" onClick={() => setDrawer({ type: 'add' })}><Icon name="plus" size={16} />Add widget</Button></section>}
       </div>
     </div>
-    <DashboardContext.Provider value={{ openPalette, manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, addWidget, resize, changeDesign, removeWidget, now, openWidget, connectSource, manageConnections, connections }}>
+    <DashboardContext.Provider value={{ openPalette, openAppearance, manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, addWidget, resize, changeDesign, removeWidget, now, openWidget, connectSource, manageConnections, connections }}>
     {(drawer?.type === 'settings' || settingsId) && <Drawer title="Home settings" description="Refresh, quiet hours, and keyboard shortcuts." onClose={closeDrawer}><HomeSettings key={settingsId || 'settings'} settingsId={settingsId} /></Drawer>}
     {drawer?.type === 'add' && <Drawer title="Add widget" description="Choose what belongs in your day." onClose={closeDrawer} className="today-catalog-drawer"><AddWidget /></Drawer>}
     {selected && <Drawer title={selected.title} onClose={closeDrawer}><div className="widget-home today-widgets">{renderWidget(layout.widgets.find(w => w.id === selected.id) || { id: selected.id, size: selected.sizes[0], height: 3 }, true)}</div></Drawer>}

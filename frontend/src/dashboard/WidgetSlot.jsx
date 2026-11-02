@@ -2,12 +2,13 @@ import { memo, useId, useState } from 'react'
 import Button from '../components/ui/AppButton.jsx'
 import { Segmented } from '../components/ui/bento/index.jsx'
 import Icon from '../components/Icon.jsx'
-import { widgetTone } from './layout.js'
+import { ADOPTED_WIDGETS, widgetTone } from './layout.js'
 
 export default memo(function WidgetSlot({ id, title, size, displaySize = size, sizes, lane, editing, dragging, dropTarget, move, resize, grip, children }) {
   const bodyId = useId()
   const [collapsed, setCollapsed] = useState(false)
-  return <section className={`today-widget-slot home-slot ui-tile${dragging ? ' is-drag-target' : ''}`} data-drop-target={dropTarget || undefined} data-tone={widgetTone(id)} data-slot-id={id} data-lane={lane} data-size={displaySize} data-collapsed={collapsed || undefined} aria-label={`${title} slot`}>
+  const adopted = ADOPTED_WIDGETS.has(id)
+  return <section className={`today-widget-slot home-slot ui-tile${adopted ? ' widget-slot-adopted' : ''}${dragging ? ' is-drag-target' : ''}`} data-drop-target={dropTarget || undefined} data-tone={widgetTone(id)} data-slot-id={id} data-lane={lane} data-size={displaySize} data-collapsed={collapsed || undefined} aria-label={`${title} slot`}>
     <div className={`today-slot-toolbar${editing ? ' is-editing' : ''}`}>
       {editing && <>
         <Button className="today-drag" size="small" variant="ghost" {...grip('move', id)} onKeyDown={event => { if (event.key.startsWith('Arrow')) { event.preventDefault(); move(id, ['ArrowUp', 'ArrowLeft'].includes(event.key) ? -1 : 1) } }} aria-label={`Move ${title}`} title="Drag or use arrow keys"><Icon name="dots-six" size={16} /><span>{title}</span></Button>

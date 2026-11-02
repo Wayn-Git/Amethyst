@@ -1,5 +1,5 @@
 /* Home composition adapts legacy widget contents to the shared tile surface. */
-.today-dashboard.bento-foundation { background: var(--tile-canvas); --today-gap: var(--tile-gutter); }
+.today-dashboard.bento-foundation { background: var(--tile-canvas); --today-gap: var(--tile-space-3); }
 .today-page { max-width: var(--ui-max-width); }
 .today-dashboard.bento-foundation .today-edit-bar { flex-wrap: wrap; background: var(--tile-accent); color: var(--tile-accent-text); border-color: transparent; }
 .today-dashboard.bento-foundation .today-edit-bar p { color: var(--tile-accent-muted); }
@@ -21,10 +21,10 @@
   --text: var(--tile-fg); --text-dim: var(--tile-muted); --text-faint: var(--tile-muted);
   --canvas: var(--tile-bg); --surface: var(--ui-raised); --hairline: var(--ui-border);
   background: var(--tile-bg); color: var(--tile-fg); border: 0; box-shadow: none; transform: none;
-  padding: var(--tile-space-6); border-radius: var(--tile-radius); height: auto; min-height: 100%; max-height: none;
-  flex: 1; overflow: visible; gap: var(--tile-space-4);
+  padding: var(--tile-space-6); border-radius: var(--tile-radius); height: 100%; min-height: 0; max-height: 100%;
+  flex: 1; overflow: hidden; gap: var(--tile-space-4);
 }
-.home-layout-grid .today-slot-body .home-widget .widget-content { min-height: 0; overflow: visible; max-height: none; }
+.home-layout-grid .today-slot-body .home-widget .widget-content { flex: 1; min-height: 0; max-height: 100%; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .home-layout-grid .widget-header { align-items: flex-start; position: relative; padding-bottom: var(--tile-space-2); }
 .home-layout-grid .widget-title { flex-wrap: wrap; }
 .home-layout-grid .today-slot-body .home-widget .widget-title h2 { color: var(--tile-fg); font: 600 14px/20px var(--ui-font); white-space: normal; }
@@ -87,7 +87,7 @@
 .bento-foundation .home-widget :is(.ui-button, summary, select, input:not([type='checkbox'])) { min-height: 44px; }
 .bento-foundation :is(button, summary, a, select, input):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .home-layout-grid .today-slot-toolbar:not(.is-editing) { bottom: var(--tile-space-1); right: var(--tile-space-1); }
-.home-layout-grid .today-slot-body > .home-widget { padding-bottom: var(--tile-space-8); }
+.home-layout-grid .today-slot-body > .home-widget:not(.widget-adoption) { padding-bottom: var(--tile-space-8); }
 @media (max-width: 767px) {
   .today-dashboard.bento-foundation .today-page { padding-block: var(--tile-space-6); }
   .today-dashboard.bento-foundation .today-greeting h1 { font-size: 28px; }
@@ -97,8 +97,13 @@
 .home-layout-grid .bento-grid {
   grid-template-columns: repeat(auto-fill, minmax(var(--w-unit, 170px), 1fr));
   grid-auto-rows: var(--w-unit, 170px);
-  grid-auto-flow: dense;
-  gap: var(--w-gap, 16px);
+  grid-auto-flow: row;
+  gap: var(--tile-space-3);
+}
+.home-layout-grid .today-widget-slot.ui-tile {
+  overflow: hidden;
+  contain: paint;
+  border-radius: var(--w-radius, 24px);
 }
 .home-layout-grid .today-widget-slot.ui-tile[data-size='s'] { grid-column: span 1; grid-row: span 1; min-height: 0; }
 .home-layout-grid .today-widget-slot.ui-tile[data-size='m'] { grid-column: span 2; grid-row: span 1; min-height: 0; }
@@ -108,7 +113,6 @@
 .home-layout-grid .today-widget-slot.ui-tile[data-collapsed] { grid-row: span 1; align-self: start; }
 .home-layout-grid .today-slot-body { min-height: 0; height: 100%; display: flex; flex-direction: column; }
 .home-layout-grid .today-slot-body > .home-widget { height: 100%; min-height: 0; --pilot-height: 0px; }
-.home-layout-grid .today-slot-body .home-widget .widget-content { min-height: 0 !important; flex: 1; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .home-layout-grid .widget-header, .home-layout-grid .widget-show-all { flex-shrink: 0; }
 .home-layout-grid .today-widget-slot[data-drop-target] { outline: 2px dashed var(--w-accent, var(--tile-action)); outline-offset: 3px; }
 @container bento (width < 390px) {

@@ -178,6 +178,7 @@
     "group": "glance",
     "tier": "mvp",
     "sizes": [
+      "s",
       "m",
       "l"
     ],
@@ -284,6 +285,11 @@
       {
         "id": "approve",
         "label": "Approve",
+        "gate": true
+      },
+      {
+        "id": "remove",
+        "label": "Remove",
         "gate": true
       }
     ],

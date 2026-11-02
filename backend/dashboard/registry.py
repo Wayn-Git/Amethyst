@@ -176,7 +176,7 @@ def mail_manifest(widget_id, title):
             source={"type": "local"},
             requires=[],
             empty="No drafts waiting.",
-            actions=[dict(id=a, label=a.title(), gate=True) for a in ("add", "edit", "approve")],
+            actions=[dict(id=a, label=a.title(), gate=True) for a in ("add", "edit", "approve", "remove")],
         )
     return value
 
@@ -220,7 +220,7 @@ MANIFESTS = [
         "empty": "Set location.",
     },
     {
-        **manifest("glance.weather", "Weather", ["m", "l"]),
+        **manifest("glance.weather", "Weather", ["s", "m", "l"]),
         "source": {"type": "api"},
         "refresh": {"mode": "poll", "interval_s": 1800},
         "empty": "Set location.",

@@ -86,6 +86,7 @@ html:root .widget-home.today-widgets {
 .today-slot-body[hidden] { display: none; }
 .today-slot-toolbar { position: absolute; z-index: 3; inset: auto var(--ui-space-2) var(--ui-space-2) auto; display: flex; align-items: center; gap: var(--ui-space-1); }
 .today-widget-slot:not(:hover):not(:focus-within):not([data-collapsed]) > .today-slot-toolbar:not(.is-editing) { opacity: 0; pointer-events: none; }
+.home-layout-grid .today-widget-slot:not([data-collapsed]) > .today-slot-toolbar:not(.is-editing) { display: none !important; }
 .today-widgets .today-slot-toolbar .ui-button { height: 28px; min-height: 28px; padding: var(--ui-space-1); border: 0; border-radius: var(--ui-radius); background: var(--ui-panel); color: var(--ui-muted); }
 .today-widgets .today-slot-toolbar.is-editing { position: relative; inset: auto; min-height: 40px; padding: var(--ui-space-1) var(--ui-space-2); background: var(--ui-raised); border: 1px solid var(--ui-border); border-radius: var(--ui-radius); margin-bottom: var(--ui-space-2); }
 .today-widgets .today-slot-toolbar .today-drag { min-width: 0; flex: 1; justify-content: flex-start; cursor: grab; touch-action: none; }

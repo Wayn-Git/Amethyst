@@ -339,6 +339,21 @@ def test_wigggle_design_layout_persistence_and_validation(client):
     assert client.put("/api/layout", json=layout).status_code == 200
     reset_connection()
     assert client.get("/api/layout").json() == layout
+    for size in ["s", "m", "l"]:
+        layout["widgets"][0].update(size=size, design="clock-sm-04")
+        assert client.put("/api/layout", json=layout).status_code == 200
+    for widget_id, design in [
+        ("glance.weather", "weather-sm-05"),
+        ("glance.music", "media-sm-04"),
+        ("glance.next-event", "calendar-sm-05"),
+        ("glance.air", "air-sm-03"),
+        ("glance.sun", "sun-sm-04"),
+        ("glance.travel", "travel-sm-02"),
+    ]:
+        for size in ["s", "m", "l"]:
+            assert client.put("/api/layout", json={"widgets": [{"id": widget_id, "size": size, "design": design}]}).status_code == 200
+    layout["widgets"][0].update(size="s", design="clock-sm-06")
+    assert client.put("/api/layout", json=layout).status_code == 200
     for design in ["../../secret", "clock-sm-99", "unknown-sm-01", "weather-lg-01"]:
         layout["widgets"][0]["design"] = design
         assert client.put("/api/layout", json=layout).status_code == 422

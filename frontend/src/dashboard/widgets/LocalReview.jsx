@@ -21,5 +21,5 @@ export default function LocalReview({ widgetId, refresh, children }) {
     window.dispatchEvent(new Event('dashboard-items-changed'))
     await refresh()
   })
-  return <div>{error && <StateView role="alert">{error}</StateView>}{draft && <section aria-label="Review local change"><p>{draft.action}</p><pre>{JSON.stringify(draft.item, null, 2)}</pre><Button variant="primary" type="submit" disabled={busy} onClick={() => decide(true)}>Approve change</Button><Button type="submit" disabled={busy} onClick={() => decide(false)}>Reject change</Button></section>}<fieldset key={revision} disabled={busy || Boolean(draft)} hidden={Boolean(draft)}>{children(propose)}</fieldset></div>
+  return <div>{error && <StateView role="alert">{error}</StateView>}{draft && <section aria-label="Review local change"><p>{draft.action}</p><pre>{JSON.stringify(draft.item, null, 2)}</pre><Button variant="primary" type="submit" disabled={busy} onClick={() => decide(true)}>Approve change</Button><Button type="submit" disabled={busy} onClick={() => decide(false)}>Reject change</Button></section>}<div key={revision} inert={busy || Boolean(draft)} hidden={Boolean(draft)}>{children(propose)}</div></div>
 }

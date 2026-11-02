@@ -72,6 +72,25 @@ class Position(StrictModel):
     def normalize_design(cls, value):
         if not value or not isinstance(value, str):
             return None
+        study_map = {
+            "linear": "media-sm-01",
+            "signal": "media-sm-02",
+            "floating": "media-sm-03",
+            "progress": "media-sm-04",
+            "equalizer": "media-sm-05",
+            "classic": "media-md-01",
+            "split": "media-md-02",
+            "green": "media-md-03",
+            "light": "media-md-04",
+            "mono": "media-md-05",
+            "studio": "media-lg-01",
+            "lyrics": "media-lg-02",
+            "queue": "media-lg-03",
+            "dashboard": "media-lg-04",
+            "album": "media-lg-05",
+        }
+        if value in study_map:
+            return study_map[value]
         if value.startswith("now-playing-"):
             number = value.split("-")[-1]
             return f"media-md-{number.zfill(2)}"
@@ -84,8 +103,9 @@ class Position(StrictModel):
             return value
         counts = {
             "calendar": {"sm": 9, "md": 6, "lg": 6}, "clock": {"sm": 13},
-            "dashboard": {"sm": 6, "md": 2, "lg": 2}, "media": {"sm": 8, "md": 5},
+            "dashboard": {"sm": 6, "md": 2, "lg": 2}, "media": {"sm": 8, "md": 5, "lg": 5},
             "productivity": {"sm": 7, "md": 4}, "sports": {"sm": 7},
+            "air": {"sm": 5}, "sun": {"sm": 5}, "travel": {"sm": 5},
             "stocks": {"sm": 6}, "weather": {"sm": 9, "md": 2},
         }
         category, size, number = value.split("-")

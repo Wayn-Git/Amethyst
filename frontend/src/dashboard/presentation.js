@@ -38,4 +38,6 @@ export const DETAIL_LABELS = {
   'need.drafts': 'Review drafts', 'need.waiting': 'Track a reply', 'need.approvals': 'Review approvals',
   'need.decisions': 'Answer questions', 'lib.capture': 'Capture a note', 'lib.search': 'Search Library',
   'lib.ask': 'Ask your Library', 'dash.palette': 'Open command palette', 'dash.gallery': 'Browse widgets',
+  'task.agenda': 'Calendar settings & agenda', 'need.overdue': 'Review overdue items',
+  'need.lor-slack': 'Open Slack DMs',
 }

@@ -51,12 +51,22 @@
     --radius-3xl: calc(var(--radius) * 2.2);
     --color-bg-inset: var(--canvas-deep, rgba(0, 0, 0, 0.25));
     --color-inset: var(--canvas-deep, rgba(0, 0, 0, 0.25));
-    --color-ink: var(--text, #f1f5f9);
+    --color-bg: var(--bg);
+    --color-surface: var(--surface);
+    --color-ink: var(--ink);
     --color-ink-2: var(--text-dim, #94a3b8);
     --color-ink-3: var(--text-faint, #64748b);
+    --color-muted: var(--muted);
+    --color-line: var(--line);
+    --color-soft: var(--soft);
+    --color-accent: var(--accent);
+    --color-accent-soft: var(--accent-soft);
+    --color-ok: var(--ok);
+    --color-warn: var(--warn);
+    --radius-card: var(--r);
+    --radius-r: var(--r);
     --color-hover: rgba(var(--tint, 255 255 255) / 0.06);
     --color-hover-2: rgba(var(--tint, 255 255 255) / 0.1);
-    --color-line: var(--hairline, rgba(255, 255, 255, 0.08));
     --animate-marquee: marquee var(--duration) infinite linear;
     --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
   @keyframes marquee {
@@ -70,6 +80,18 @@
 }
 
 :root {
+    --bg: #ececf0;
+    --surface: #ffffff;
+    --ink: #1d1d1f;
+    --muted: #6e6e73;
+    --line: #e8e8ed;
+    --soft: #f5f5f7;
+    --accent: #6d4aff;
+    --accent-soft: #efeaff;
+    --ok: #1a7f4b;
+    --warn: #b25e00;
+    --r: 24px;
+
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
@@ -80,10 +102,6 @@
     --primary-foreground: oklch(0.985 0 0);
     --secondary: oklch(0.97 0 0);
     --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
     --destructive: oklch(0.577 0.245 27.325);
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
@@ -118,6 +136,18 @@
 }
 
 .dark {
+    --bg: #141416;
+    --surface: #1d1d1f;
+    --ink: #f5f5f7;
+    --muted: #a1a1a6;
+    --line: #38383c;
+    --soft: #2a2a2d;
+    --accent: #b9a8ff;
+    --accent-soft: #2c2640;
+    --ok: #1a7f4b;
+    --warn: #b25e00;
+    --r: 24px;
+
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.205 0 0);
@@ -128,10 +158,6 @@
     --primary-foreground: oklch(0.205 0 0);
     --secondary: oklch(0.269 0 0);
     --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);

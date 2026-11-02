@@ -1173,7 +1173,7 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 }
 
 /* Two sizes below the default, both still 12px. */
-.btn--pill { padding: 9px 14px; font-size: var(--text-sm); }
+.btn--pill { padding: 9px 14px; font-size: var(--text-sm); border-radius: 9999px !important; }
 .btn--small { padding: 7px 12px; font-size: var(--text-xs); border-radius: var(--r-sm); }
 
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }

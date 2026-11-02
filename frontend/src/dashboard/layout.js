@@ -56,16 +56,21 @@ export function previewRows(payload) {
   return { payload: preview, count }
 }
 
+export const ADOPTED_WIDGETS = new Set([
+  'glance.music', 'glance.air', 'glance.sun', 'glance.weather', 'glance.clock', 'glance.travel', 'glance.next-event',
+  'need.inbox', 'need.drafts', 'need.waiting', 'need.mentions', 'need.overdue', 'need.decisions', 'need.approvals', 'need.lor-slack', 'need.snoozed',
+  'task.today', 'task.focus', 'task.agenda', 'task.backlog', 'task.deadlines', 'task.reminders', 'task.kanban', 'task.goals', 'task.habits', 'task.plan', 'task.conflicts', 'task.free', 'task.risk',
+  'agent.brief', 'agent.feed',
+])
 export const SYSTEM_WIDGETS = ['dash.sync', 'dash.quiet', 'dash.shortcuts', 'dash.gallery']
 export const NEED_WIDGETS = ['need.inbox', 'need.drafts', 'need.waiting', 'need.mentions', 'need.overdue']
-export const GLANCE_WIDGETS = ['glance.clock', 'glance.weather', 'glance.next-event', 'glance.music']
+export const GLANCE_WIDGETS = ['glance.clock', 'glance.weather', 'glance.next-event']
 export function preferredWidgetSize(manifest) {
   const preferred = ['glance.clock', 'glance.air', 'glance.next-event'].includes(manifest.id) ? 's' : 'm'
   return manifest.sizes.includes(preferred) ? preferred : manifest.sizes[0]
 }
-export function widgetDisplaySize(id, size) {
-  if (size !== 'm') return size
-  return id === 'glance.sun' ? 'wide' : size
+export function widgetDisplaySize(_id, size) {
+  return size
 }
 export function rankNeeds(manifests, records) {
   const kind = { 'need.inbox': 'MAIL', 'need.drafts': 'DRAFT', 'need.waiting': 'WAITING', 'need.mentions': 'MENTION', 'need.overdue': 'OVERDUE' }
