@@ -99,26 +99,63 @@ class MailAccount:
 
 def accounts() -> list[MailAccount]:
     """Every Google account the connector has signed in, newest first."""
-    if not CREDENTIALS_DIR.is_dir():
-        return []
     out: list[MailAccount] = []
-    for path in CREDENTIALS_DIR.glob("*@*"):
-        if not path.is_file():
-            continue
+    from backend.mcp.provider_ownership import is_provider_owned_by_composio
+
+    composio_owned = is_provider_owned_by_composio("gmail")
+    if composio_owned:
         try:
-            data = json.loads(path.read_text())
-        except (OSError, ValueError):
-            continue
-        if not data.get("refresh_token"):
-            continue  # a file written before a sign-in finished
-        out.append(
-            MailAccount(
-                address=path.stem,
-                scopes=tuple(data.get("scopes") or ()),
-                signed_in_at=path.stat().st_mtime,
+            from backend.mcp.composio_service import composio_service
+
+            conns = composio_service.get_connections()
+            gmail_conn = conns.get("gmail")
+            if gmail_conn and gmail_conn.get("status") == "ACTIVE":
+                local_stem = None
+                if CREDENTIALS_DIR.is_dir():
+                    local_stem = next(
+                        (p.stem for p in CREDENTIALS_DIR.glob("*@*") if p.is_file()), None
+                    )
+                addr = (
+                    (
+                        gmail_conn.get("word_id")
+                        if "@" in str(gmail_conn.get("word_id", ""))
+                        else None
+                    )
+                    or gmail_conn.get("email")
+                    or local_stem
+                    or gmail_conn.get("user_id")
+                    or gmail_conn.get("word_id")
+                    or "composio-user@gmail.com"
+                )
+                out.append(
+                    MailAccount(
+                        address=str(addr),
+                        scopes=("https://mail.google.com", "gmail.modify", "gmail.send"),
+                        signed_in_at=time.time(),
+                    )
+                )
+        except Exception as exc:
+            log.debug("Error retrieving Composio Gmail account: %s", exc)
+
+    if not out and CREDENTIALS_DIR.is_dir():
+        for path in CREDENTIALS_DIR.glob("*@*"):
+            if not path.is_file():
+                continue
+            try:
+                data = json.loads(path.read_text())
+            except (OSError, ValueError):
+                continue
+            if not data.get("refresh_token"):
+                continue  # a file written before a sign-in finished
+            out.append(
+                MailAccount(
+                    address=path.stem,
+                    scopes=tuple(data.get("scopes") or ()),
+                    signed_in_at=path.stat().st_mtime,
+                )
             )
-        )
     return sorted(out, key=lambda a: a.signed_in_at, reverse=True)
+
 
 
 def _preferred() -> MailAccount:
@@ -328,14 +365,173 @@ def _body_of(payload: dict[str, Any]) -> tuple[str, bool]:
     return _html_to_text("\n".join(html)), bool(html)
 
 
-async def threads(query: str = "in:inbox", limit: int = 25) -> list[dict[str, Any]]:
-    """The newest messages matching a Gmail search, summarised.
+async def _composio_call(slug: str, arguments: dict[str, Any]) -> Any:
+    """Execute a Composio tool via MCP manager or directly through Composio transport."""
+    from backend.mcp.live import connection, get_manager
+    from backend.tools.base import ToolContext
 
-    One `messages.list` for the ids, then a metadata fetch per message --
-    Gmail has no call that returns a page of headers. The fetches are
-    concurrent and bounded; serially a page took as many round trips as it had
-    rows.
-    """
+    manager = get_manager()
+    if manager:
+        tool = manager.registry.resolve_tool(slug)
+        if tool:
+            context = ToolContext(read_only=False)
+            res = await tool.handler(arguments, context)
+            if res.is_error:
+                raise MailUnavailable(f"Composio {slug} error: {res.content}")
+            data = json.loads(res.content) if isinstance(res.content, str) else res.content
+            if isinstance(data, dict):
+                return data.get("data", data)
+            return data
+
+    conn = connection("composio")
+    if not conn:
+        raise MailUnavailable("Gmail is connected via Composio, but Composio transport is unavailable.")
+
+    exec_args = {
+        "tools": [
+            {
+                "tool_slug": slug,
+                "arguments": arguments,
+            }
+        ]
+    }
+    raw = await conn.call("COMPOSIO_MULTI_EXECUTE_TOOL", exec_args)
+    from backend.mcp.manager import normalize_result
+
+    norm = normalize_result(raw)
+    if norm.is_error:
+        raise MailUnavailable(f"Composio {slug} error: {norm.content}")
+
+    data = json.loads(norm.content) if isinstance(norm.content, str) else norm.content
+    if isinstance(data, dict):
+        results = data.get("data", {}).get("results") or data.get("results")
+        if isinstance(results, list) and results:
+            first_res = results[0]
+            resp_obj = first_res.get("response", {})
+            return resp_obj.get("data", resp_obj)
+        return data.get("data", data)
+    return data
+
+
+def _summarise_composio_email(row: dict[str, Any]) -> dict[str, Any]:
+    headers = row.get("payload", {}).get("headers") or row.get("headers") or []
+    if isinstance(headers, list):
+        hdict = {
+            h.get("name", "").lower(): h.get("value", "")
+            for h in headers
+            if isinstance(h, dict)
+        }
+    elif isinstance(headers, dict):
+        hdict = {str(k).lower(): v for k, v in headers.items()}
+    else:
+        hdict = {}
+
+    subject = row.get("subject") or hdict.get("subject") or "(no subject)"
+    sender = row.get("from") or row.get("sender") or hdict.get("from") or ""
+    to = row.get("to") or hdict.get("to") or ""
+    date = row.get("date") or hdict.get("date") or ""
+    msg_id = row.get("id") or row.get("message_id") or ""
+    thread_id = row.get("thread_id") or row.get("threadId") or msg_id
+    label_ids = row.get("label_ids") or row.get("labelIds") or []
+    snippet = row.get("snippet") or row.get("body") or ""
+    if isinstance(snippet, str) and len(snippet) > 300:
+        snippet = snippet[:297] + "..."
+
+    return {
+        "id": msg_id,
+        "thread_id": thread_id,
+        "subject": subject,
+        "from": sender,
+        "to": to,
+        "date": date,
+        "snippet": snippet,
+        "unread": "UNREAD" in label_ids or row.get("unread", False),
+        "starred": "STARRED" in label_ids or row.get("starred", False),
+        "labels": row.get("labels")
+        or [x for x in label_ids if not str(x).startswith("CATEGORY_")],
+    }
+
+
+async def _composio_threads(query: str = "in:inbox", limit: int = 25) -> list[dict[str, Any]]:
+    res = await _composio_call(
+        "GMAIL_FETCH_EMAILS",
+        {"query": query, "max_results": max(1, min(limit, 100)), "verbose": True},
+    )
+    if isinstance(res, dict):
+        rows = res.get("messages") or res.get("emails") or res.get("data") or []
+    elif isinstance(res, list):
+        rows = res
+    else:
+        rows = []
+
+    out = []
+    for row in rows:
+        if isinstance(row, dict):
+            out.append(_summarise_composio_email(row))
+    return out
+
+
+async def _composio_thread(thread_id: str) -> dict[str, Any]:
+    rows = []
+    try:
+        res = await _composio_call(
+            "GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID", {"message_id": thread_id}
+        )
+        if isinstance(res, dict):
+            rows = [res]
+    except Exception:
+        pass
+    if not rows:
+        try:
+            res = await _composio_call(
+                "GMAIL_FETCH_EMAILS",
+                {"query": f"thread:{thread_id}", "max_results": 20, "verbose": True},
+            )
+            if isinstance(res, dict):
+                rows = res.get("messages") or res.get("emails") or res.get("data") or []
+            elif isinstance(res, list):
+                rows = res
+        except Exception:
+            pass
+    if not rows:
+        raise MailUnavailable("That conversation has no messages, or was deleted.")
+    out = []
+    for msg in rows:
+        summary = _summarise_composio_email(msg)
+        summary["body"] = msg.get("body") or msg.get("snippet") or ""
+        summary["body_from_html"] = False
+        out.append(summary)
+    return {
+        "id": thread_id,
+        "subject": out[0]["subject"] if out else "(no subject)",
+        "messages": out,
+    }
+
+
+async def _composio_reply(thread_id: str, body: str) -> dict[str, Any]:
+    res = await _composio_call(
+        "GMAIL_REPLY_TO_THREAD", {"thread_id": thread_id, "body": body}
+    )
+    msg_id = (res.get("id") or res.get("message_id")) if isinstance(res, dict) else str(res)
+    return {"id": msg_id or thread_id, "thread_id": thread_id}
+
+
+async def threads(query: str = "in:inbox", limit: int = 25) -> list[dict[str, Any]]:
+    """The newest messages matching a Gmail search, summarised."""
+    from backend.mcp.provider_ownership import is_provider_owned_by_composio
+
+    if is_provider_owned_by_composio("gmail"):
+        return await _composio_threads(query, limit)
+
+    try:
+        return await _local_threads(query, limit)
+    except MailUnavailable:
+        if is_provider_owned_by_composio("gmail"):
+            return await _composio_threads(query, limit)
+        raise
+
+
+async def _local_threads(query: str = "in:inbox", limit: int = 25) -> list[dict[str, Any]]:
     listing = await _call(
         "GET", "/messages", params={"q": query, "maxResults": max(1, min(limit, 100))}
     )
@@ -367,6 +563,20 @@ async def threads(query: str = "in:inbox", limit: int = 25) -> list[dict[str, An
 
 async def thread(thread_id: str) -> dict[str, Any]:
     """One conversation, with every message's body."""
+    from backend.mcp.provider_ownership import is_provider_owned_by_composio
+
+    if is_provider_owned_by_composio("gmail"):
+        return await _composio_thread(thread_id)
+
+    try:
+        return await _local_thread(thread_id)
+    except MailUnavailable:
+        if is_provider_owned_by_composio("gmail"):
+            return await _composio_thread(thread_id)
+        raise
+
+
+async def _local_thread(thread_id: str) -> dict[str, Any]:
     data = await _call("GET", f"/threads/{thread_id}", params={"format": "full"})
     messages = data.get("messages") or []
     if not messages:
@@ -384,13 +594,23 @@ async def thread(thread_id: str) -> dict[str, Any]:
 
 
 async def unread_count(address: str | None = None) -> dict[str, int]:
-    """Unread messages and threads in the inbox, in one request.
+    """Unread messages and threads in the inbox, in one request."""
+    from backend.mcp.provider_ownership import is_provider_owned_by_composio
 
-    `threads()` costs one list call plus one fetch per thread and cannot report
-    a total larger than the page it asked for. The INBOX label carries both
-    totals and costs a single call, which is what a count on a dashboard should
-    cost.
-    """
+    if is_provider_owned_by_composio("gmail"):
+        unread = await _composio_threads(query="is:unread", limit=50)
+        return {"messages": len(unread), "threads": len(unread)}
+
+    try:
+        return await _local_unread_count(address)
+    except MailUnavailable:
+        if is_provider_owned_by_composio("gmail"):
+            unread = await _composio_threads(query="is:unread", limit=50)
+            return {"messages": len(unread), "threads": len(unread)}
+        raise
+
+
+async def _local_unread_count(address: str | None = None) -> dict[str, int]:
     data = await _call("GET", "/labels/INBOX", address=address)
     return {
         "messages": int(data.get("messagesUnread") or 0),
@@ -425,13 +645,21 @@ async def modify_labels(
 
 
 async def reply(thread_id: str, body: str) -> dict[str, Any]:
-    """Reply to the last message in a thread, in the thread.
+    """Reply to the last message in a thread, in the thread."""
+    from backend.mcp.provider_ownership import is_provider_owned_by_composio
 
-    The `In-Reply-To` and `References` headers are what make Gmail -- and every
-    other mail client -- file the answer under the conversation rather than
-    starting a new one beside it. `threadId` alone is not enough: Gmail accepts
-    it and still shows the reply as its own thread for the recipient.
-    """
+    if is_provider_owned_by_composio("gmail"):
+        return await _composio_reply(thread_id, body)
+
+    try:
+        return await _local_reply(thread_id, body)
+    except MailUnavailable:
+        if is_provider_owned_by_composio("gmail"):
+            return await _composio_reply(thread_id, body)
+        raise
+
+
+async def _local_reply(thread_id: str, body: str) -> dict[str, Any]:
     conversation = await thread(thread_id)
     last = conversation["messages"][-1]
     full = await _call("GET", f"/messages/{last['id']}", params={"format": "metadata"})
@@ -455,6 +683,7 @@ async def reply(thread_id: str, body: str) -> dict[str, Any]:
     raw = base64.urlsafe_b64encode(mail.as_bytes()).decode()
     sent = await _call("POST", "/messages/send", body={"raw": raw, "threadId": thread_id})
     return {"id": sent.get("id"), "thread_id": sent.get("threadId") or thread_id}
+
 
 
 def _compose(
