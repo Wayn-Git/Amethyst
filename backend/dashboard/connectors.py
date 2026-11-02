@@ -167,9 +167,11 @@ async def _read(widget_id, toolkit, slug, arguments):
         ):
             raise RuntimeError("Connector reader must be read-only")
         current = state(toolkit)
+        if current["retry_at"] and current["retry_at"] <= time.time() and current["failures"] > 0:
+            reconcile(toolkit, None, force_reset=True)
+            current = state(toolkit)
         if (
             not access_enabled(widget_id)
-            or (toolkit == "googlecalendar" and not access_enabled("task.agenda"))
             or not composio_service.is_configured()
         ):
             raise SourceUnavailable
@@ -260,7 +262,6 @@ async def _read(widget_id, toolkit, slug, arguments):
             raise failed(toolkit, exc) from None
         if (
             not access_enabled(widget_id)
-            or (toolkit == "googlecalendar" and not access_enabled("task.agenda"))
             or composio_service.is_reauth_required(toolkit)
         ):
             raise SourceUnavailable
@@ -292,9 +293,16 @@ async def _read(widget_id, toolkit, slug, arguments):
         finish_turn_trace(trace, watchdog, token)
 
 
-def reconcile(toolkit, account):
+def reconcile(toolkit, account, force_reset=False):
     """Share account changes with widget caches, including OAuth completed elsewhere."""
     current = state(toolkit)
+    if force_reset:
+        with transaction() as conn:
+            conn.execute(
+                "UPDATE dashboard_connector_health SET failures=0,retry_at=0 WHERE toolkit=?",
+                (toolkit,),
+            )
+        current = state(toolkit)
     if account and current["reconnect_started"]:
         updated = account.get("updated_at") or account.get("created_at")
         try:
@@ -335,12 +343,10 @@ async def health(force=False):
         if is_provider_overridden_by_local(toolkit):
             continue
         account = connections.get(toolkit)
-        current = reconcile(toolkit, account)
+        current = reconcile(toolkit, account, force_reset=force)
         status = (
             "needs reconnect"
             if current["needs_reconnect"] or composio_service.is_reauth_required(toolkit)
-            else "disabled"
-            if account and toolkit not in enabled
             else "connected"
             if account
             else "not set up"

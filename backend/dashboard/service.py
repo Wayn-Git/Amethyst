@@ -202,9 +202,11 @@ async def refresh(widget_id):
                 for requirement in REGISTRY[widget_id]["manifest"].get("requires", [])
             ):
                 raise SourceUnavailable
-            payload = await asyncio.wait_for(
-                PROVIDERS[widget_id](widget_id),
-                timeout=60
+            sources = REGISTRY[widget_id]["manifest"]["source"]
+            sources = sources if isinstance(sources, list) else [sources]
+            is_connector = any(s.get("type") == "composio" for s in sources)
+            timeout = (
+                60
                 if widget_id
                 in (
                     "agent.brief",
@@ -214,13 +216,12 @@ async def refresh(widget_id):
                     "lib.ask",
                     "lib.readlater",
                 )
-                else 10,
+                else (30 if is_connector else 10)
             )
-            sources = REGISTRY[widget_id]["manifest"]["source"]
-            sources = sources if isinstance(sources, list) else [sources]
-            if any(source.get("toolkit") == "googlecalendar" for source in sources):
-                if not access_enabled("task.agenda"):
-                    raise SourceUnavailable
+            payload = await asyncio.wait_for(
+                PROVIDERS[widget_id](widget_id),
+                timeout=timeout,
+            )
             cache_write(
                 widget_id,
                 payload,
@@ -302,6 +303,7 @@ def schedule(widget_id, background_tasks, force=False):
         return
     retry_source = data["state"] == "not-connected" and time.monotonic() >= RETRY_AFTER.get(key, 0)
     if force:
+        RETRY_AFTER.pop(key, None)
         if widget_id == "feed.news":
             cached = cache_read("feed.rss")
             cache_write("feed.rss", cached["payload"], "stale", synced_at=cached["synced_at"])
