@@ -3,7 +3,7 @@
 The widget dashboard at `/today`. It is the default landing page and the
 composable “whole day on one page” surface.
 
-**Verified 2026-10-31 · commit `3c363b7` · dirty working tree.**
+**Verified 2026-11-02 · commit `ba6b9f3` · dirty working tree.**
 
 ## Entry points
 
@@ -52,6 +52,9 @@ scripts/check-widget-map.py              backend/frontend parity check
   manifest does not allow (422).
 - Editing supports drag reorder, resize, remove, add, fit-to-suggested and
   keyboard move. Changes are saved through `PUT /api/layout?mode=...`.
+- Glance settings and the add catalog show live design previews at Small,
+  Medium and Large. Adding a preview saves its chosen size and design id;
+  applying a design to an existing widget preserves its slot size.
 - Quiet hours pause refresh. Settings are stored through the `dash.quiet`
   widget settings endpoint.
 
@@ -87,7 +90,7 @@ confirmation. Actions are dispatched at
 
 ### Glance widgets and Playground Loop
 
-Glance widgets (`glance.air`, `glance.sun`, `glance.weather`, `glance.travel`, `glance.next-event`) render via `@tugan/widgets` `WidgetRenderer` using exact templates generated from `widgets.gan.dev/playground` per `docs/widget-playground/WIDGET_LOOP.md`. Artifacts live in `widgets/<widget-id>/` (`template.txt`, `data.fixture.json`, `meta.json`, `wiring.md`), and frontend adapters in `frontend/src/dashboard/widgets/` map live backend payloads to the playground data contracts with zero runtime mock data.
+Glance widgets (`glance.air`, `glance.music`, `glance.next-event`, `glance.sun`, `glance.travel`, `glance.weather`) and task widgets (`task.backlog`, `task.conflicts`, `task.deadlines`, `task.free`, `task.goals`, `task.habits`, `task.kanban`, `task.plan`, `task.reminders`, `task.risk`) render via `@tugan/widgets` `WidgetRenderer` using exact templates generated from `widgets.gan.dev/playground` per `docs/widget-playground/WIDGET_LOOP.md`. Artifacts live in `widgets/<widget-id>/` (`template.txt`, `data.fixture.json`, `meta.json`, `wiring.md`), and frontend adapters in `frontend/src/dashboard/widgets/` map live backend payloads to the playground data contracts; fixture data is not loaded at runtime. `glance.clock` is an exception: its persisted face setting selects among nine native faces using local time and saved world zones only.
 
 
 ## Adding a widget

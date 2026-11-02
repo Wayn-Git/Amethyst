@@ -4,7 +4,7 @@ The Home dashboard contract: 80 validated widget manifests, a lazy frontend
 renderer registry, a SQLite cache, per-widget refresh, and a persisted 12-column
 bento layout.
 
-**Verified 2026-10-31 · commit `3c363b7` · dirty working tree.**
+**Verified 2026-11-02 · commit `ba6b9f3` · dirty working tree.**
 
 Related: [sections/today.md](../sections/today.md), [FRONTEND.md](../FRONTEND.md),
 [BACKEND.md](../BACKEND.md), [DATABASE.md](../DATABASE.md),
@@ -141,7 +141,7 @@ browser clock. `Alt+Q` snoozes refresh for one hour.
 - size-change and add animations, skipped under reduced motion;
 - an error boundary that retries when the payload changes.
 
-Glance widgets (`glance.air`, `glance.sun`, `glance.weather`, `glance.travel`, `glance.next-event`) render via `@tugan/widgets` `WidgetRenderer` using exact templates generated from `widgets.gan.dev/playground` per `docs/widget-playground/WIDGET_LOOP.md`. Artifacts reside in `widgets/<widget-id>/` (`template.txt`, `data.fixture.json`, `meta.json`, `wiring.md`), with pure adapters in `frontend/src/dashboard/widgets/`.
+Glance widgets (`glance.air`, `glance.music`, `glance.next-event`, `glance.sun`, `glance.travel`, `glance.weather`) and task widgets (`task.backlog`, `task.conflicts`, `task.deadlines`, `task.free`, `task.goals`, `task.habits`, `task.kanban`, `task.plan`, `task.reminders`, `task.risk`) render via `@tugan/widgets` `WidgetRenderer` using exact templates generated from `widgets.gan.dev/playground` per `docs/widget-playground/WIDGET_LOOP.md`. Artifacts reside in `widgets/<widget-id>/` (`template.txt`, `data.fixture.json`, `meta.json`, `wiring.md`), with adapters in `frontend/src/dashboard/widgets/` mapping live providers to template contracts; fixture data is not loaded at runtime. `glance.clock` uses its existing native `ClockFace` variants because its persisted design setting selects among nine live-time faces; it reads only saved world zones.
 
 
 `useWidget` invalidates on window events:
@@ -173,6 +173,12 @@ Editing supports:
 - add from the catalog drawer;
 - remove from the widget menu;
 - “Fit widgets” to preferred manifest sizes.
+
+Glance widget settings and the add catalog show live previews for each design at
+Small, Medium and Large. Adding a preview stores both its selected size and
+design id; applying a design to an existing widget preserves its slot size.
+Widget renderers receive the active variation and continue to use live provider
+data. The size tabs control preview size only until an Add action is chosen.
 
 Saves are serialized through a promise queue so an earlier slow request cannot
 overwrite the latest layout. The client writes optimistically, caches locally

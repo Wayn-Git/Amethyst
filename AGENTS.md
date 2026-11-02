@@ -90,7 +90,22 @@ If documentation conflicts with implementation, trust the implementation and cor
 
 ### Repository-specific guardrails
 
+- Widget design work for the Today section follows `docs/widget-playground/WIDGET_LOOP.md`. If it conflicts with this file, this file wins.
 - Home dashboard work starts with `docs/dashboard-spec.md` and records progress in `docs/dashboard-changelog.md`. The current implementation map is in `docs/agent-context/sections/today.md` and `docs/agent-context/components/widget-system.md`.
+- **NO MOCK DATA**: All widgets must be wired to real backend endpoints and live data. User-provided JSON is for reference schema and test fixtures only.
+- **NO DOUBLE BOUNDARIES**: Suppress outer container borders, backgrounds, double padding, and duplicate titles/chips on `.home-widget.widget-adoption`. Keep hover chrome top-right.
+- **NO CONTENT CLIPPING**: Content must never be sliced or cut off at slot edges (e.g., bottom row of 356×170 Medium cards). Balance internal padding, typography sizes, gaps, and layout flow so all elements fit within slot boundaries.
+- **PREVIEW IS THE VISUAL CONTRACT**: For each widget, keep the selected Gan-Tu preview PNGs for every supported size and theme in `widgets/<widget-id>/previews/` (for example, `small-light.png`). Compare the added widget in `dash.gallery` against the matching preview at the same size and theme. Preserve its composition, typography, iconography, spacing, surface treatment, and corner shape; wiring may replace sample values with live data but must not redesign or visually normalize the widget. If the design changes, regenerate and replace the preview intentionally.
+- **KEEP THE WIDGET BODY, DROP DEMO CHROME**: A generated gallery, variation selector, demo title, or preview controls are not part of the widget. Select or regenerate one design and remove only that gallery/demo wrapper; preserve the chosen widget's own header, controls, and designed card surface. The outer dashboard frame is app-owned and managed by `WidgetFrame` and existing settings. Do not add another outer card, border, background, padding, title, or radius around an adopted widget; preserve any intentional surface inside the reference design.
+- **PRESERVE EACH FORM FACTOR**: Match each supported size to its corresponding preview and dashboard slot. Never force different widget shapes into one shared width, height, aspect ratio, or corner radius; do not scale, stretch, crop, or clip a widget to make it fit. If the preview and added widget differ, diagnose the slot, frame, or global CSS and fix that integration while keeping the designed widget intact. Verify every supported size in both themes and confirm the preview still matches after adding it.
+- **WIDGET TODO/DONE PIPELINE**:
+  - Implement widgets one by one from `docs/widget-playground/Widgets/todo/`.
+  - Once implemented, tested, and verified, move the file from `docs/widget-playground/Widgets/todo/` into `docs/widget-playground/Widgets/done/`.
+- **MULTI-AGENT COORDINATION & LOCKING**: Multiple agents run concurrently on different widgets.
+  - Before starting, claim ONE file in `docs/widget-playground/Widgets/todo/` and announce the claim.
+  - Touch ONLY files belonging to your claimed widget: its backend provider (`backend/dashboard/<name>.py`), frontend component (`frontend/src/dashboard/widgets/<Name>.jsx`), scoped CSS, `widgets/<id>/` assets, tests, and its entry in `docs/widget-playground/Widgets/done/`.
+  - NEVER edit files belonging to other widgets to prevent merge conflicts and overwrites across agents.
+  - On completion and verification, move the claimed file from `docs/widget-playground/Widgets/todo/` to `docs/widget-playground/Widgets/done/`.
 - Drafts only. Writes go through the permission gate in `backend/security/confirmation.py`.
 - Use theme tokens, not hardcoded visual values. Never invent features or data.
 - Run only the tests for the code you touched; verify the served desktop build when changing the frontend.
