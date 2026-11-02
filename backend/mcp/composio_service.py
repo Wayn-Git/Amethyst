@@ -1712,6 +1712,14 @@ class ComposioService:
                     result = parsed
             except (ValueError, TypeError):
                 pass
+        try:
+            conns = self.get_connections()
+            for tk, data in conns.items():
+                if data and (data.get("status") == "ACTIVE" or data.get("id")):
+                    if tk not in result:
+                        result.append(tk)
+        except Exception as exc:
+            log.debug("Could not inspect active connections for enabled toolkits: %s", exc)
         self._enabled_toolkits_cache = (now + 60.0, list(result))
         return list(result)
 
