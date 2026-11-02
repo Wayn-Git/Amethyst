@@ -85,6 +85,8 @@ def state(toolkit):
 
 
 def failed(toolkit, error):
+    import logging
+    logging.getLogger(__name__).warning("Connector read failed for toolkit %s: %s", toolkit, error, exc_info=isinstance(error, Exception))
     if is_auth_failure_text(str(error)):
         composio_service.mark_reauth_required(toolkit, reason="Dashboard authentication expired")
         with transaction() as conn:
@@ -259,6 +261,8 @@ async def _read(widget_id, toolkit, slug, arguments):
                 value = project(slug, value, arguments)
                 read_cache.set("dashboard_" + slug, cache_args, json.dumps(value))
         except Exception as exc:
+            import logging
+            logging.getLogger(__name__).exception("Connector _read failed for %s (%s): %r", toolkit, slug, exc)
             raise failed(toolkit, exc) from None
         if (
             not access_enabled(widget_id)
