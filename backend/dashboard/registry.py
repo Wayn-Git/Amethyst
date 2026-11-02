@@ -390,6 +390,7 @@ MANIFESTS = [
     {
         **planning_manifest("glance.travel", "Travel time to next event"),
         "group": "glance",
+        "sizes": ["s", "m", "l"],
         "source": [
             {"type": "composio", "toolkit": "googlecalendar"},
             {"type": "composio", "toolkit": "google_maps"},
