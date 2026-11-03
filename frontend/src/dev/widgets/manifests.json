@@ -1685,6 +1685,7 @@
     "group": "glance",
     "tier": "v2",
     "sizes": [
+      "s",
       "m",
       "l"
     ],

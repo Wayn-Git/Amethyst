@@ -18,7 +18,7 @@ export function WidgetState({ data, empty, editable, disconnected, children }) {
   if (data.state === 'not-connected') return <><StateView role="status">Not connected. Required source or setting is unavailable.</StateView>{disconnected && children}</>
   if (data.state === 'error') return <StateView role="alert">{data.error || 'This widget could not refresh.'}</StateView>
   // Keep the content in the same slot when refresh changes an empty list to populated or back.
-  return <>{data.state === 'empty' && <StateView role="status">{empty}</StateView>}{(data.state !== 'empty' || editable) && children}</>
+  return <>{data.state === 'empty' && empty && <StateView role="status">{empty}</StateView>}{(data.state !== 'empty' || editable) && children}</>
 }
 
 export function WidgetHeader({ title, count, source, data, now, icon, children }) {

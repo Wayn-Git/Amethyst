@@ -8,7 +8,7 @@ import WidgetPreview from './WidgetPreview.jsx'
 import { DETAIL_LABELS, WIDGET_PRESENTATIONS } from './presentation.js'
 import { useDashboard } from './context.js'
 import { ADOPTED_WIDGETS, previewRows, WIDGET_ICONS, widgetTone } from './layout.js'
-import { Button, Input, Select, Segmented } from '../components/ui/bento/index.jsx'
+import { Button, Input, Select } from '../components/ui/bento/index.jsx'
 import { WidgetCard, WidgetHeader, WidgetState, Skeleton, StateView } from './primitives.jsx'
 import './widget-compositions.css'
 import './widget-motion.css'
@@ -19,6 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import WidgetSetup from './WidgetSetup.jsx'
 import { widgetStatus } from './setup.js'
 import { variationNumber, widgetVariations } from './widgetVariations.js'
+import { gridSize } from './grid.js'
 
 export { WidgetHeader, WidgetState, Skeleton } from './primitives.jsx'
 
@@ -54,8 +55,7 @@ export function WidgetPresentation({ manifest, position, size = position?.size |
   const [retry, setRetry] = useState(0)
   const [expanded, setExpanded] = useState(false)
   const [setupOpen, setSetupOpen] = useState(false)
-  const [variationSelection, setVariationSelection] = useState({ slotSize: size, previewSize: size })
-  const variationSize = variationSelection.slotSize === size ? variationSelection.previewSize : size
+  const variationSize = size
   const Content = WIDGETS[manifest.id]
   const pattern = WIDGET_PRESENTATIONS[manifest.id] || 'controls'
   const instrument = ['clock', 'weather', 'sun', 'air', 'player', 'timer'].includes(pattern) || manifest.id === 'glance.next-event'
@@ -83,7 +83,7 @@ export function WidgetPresentation({ manifest, position, size = position?.size |
   const detailName = `${DETAIL_LABELS[manifest.id] || `Open ${manifest.title}`}${!instrument && previewData.count > 5 ? ` (${previewData.count})` : ''}`
   const settings = () => { if (full || preview) return; setExpanded(true) }
   const protect = children => <WidgetBoundary key={retry} resetKey={JSON.stringify(data.payload)} id={manifest.id} onRetry={() => { setRetry(n => n + 1); refresh() }}>{children}</WidgetBoundary>
-  const content = (payload, inDrawer = false) => protect(<WidgetState data={data} empty={manifest.empty} disconnected={['task.agenda', 'glance.travel'].includes(manifest.id)} editable={!preview && (['glance.travel', 'need.overdue', 'need.decisions', 'need.approvals', 'need.lor-slack', 'agent.rules', 'agent.watchers', 'agent.research', 'agent.delegated', 'agent.jobs', 'agent.brief', 'agent.next', 'comm.thread-summary', 'comm.newsletters', 'comm.reachout'].includes(manifest.id) || manifest.id.startsWith('task.') || ['feed.news', 'feed.rss', 'need.mentions', 'need.inbox', 'comm.templates', 'comm.tone', 'need.waiting', 'need.drafts', 'lib.capture', 'lib.search', 'lib.ask', 'lib.readlater', 'lib.highlights', 'lib.daily', 'lib.collections', 'dev.appeal', 'dev.recovery', 'dev.backup', 'dev.unpushed'].includes(manifest.id))}><Suspense fallback={<Skeleton />}>{data.refreshing && (['lib.ask', 'lib.readlater'].includes(manifest.id) || (manifest.id === 'comm.thread-summary' && payload?.model_enabled)) && <StateView role="status">Generating…</StateView>}{Content ? <Content design={activeDesign} full={inDrawer ? true : full} size={inDrawer ? 'l' : size} slotSize={size} summaryData={data.payload} data={payload} refresh={refresh} widgetId={manifest.id} onOpen={settings} /> : <StateView role="alert">Widget component unavailable.</StateView>}</Suspense></WidgetState>)
+  const content = (payload, inDrawer = false) => protect(<WidgetState data={data} empty={manifest.id === 'glance.music' ? null : manifest.empty} disconnected={['task.agenda', 'glance.travel'].includes(manifest.id)} editable={preview || manifest.id === 'glance.music' || adopted || instrument || ['glance.travel', 'need.overdue', 'need.decisions', 'need.approvals', 'need.lor-slack', 'agent.rules', 'agent.watchers', 'agent.research', 'agent.delegated', 'agent.jobs', 'agent.brief', 'agent.next', 'comm.thread-summary', 'comm.newsletters', 'comm.reachout'].includes(manifest.id) || manifest.id.startsWith('task.') || ['feed.news', 'feed.rss', 'need.mentions', 'need.inbox', 'comm.templates', 'comm.tone', 'need.waiting', 'need.drafts', 'lib.capture', 'lib.search', 'lib.ask', 'lib.readlater', 'lib.highlights', 'lib.daily', 'lib.collections', 'dev.appeal', 'dev.recovery', 'dev.backup', 'dev.unpushed'].includes(manifest.id)}><Suspense fallback={<Skeleton />}>{data.refreshing && (['lib.ask', 'lib.readlater'].includes(manifest.id) || (manifest.id === 'comm.thread-summary' && payload?.model_enabled)) && <StateView role="status">Generating…</StateView>}{Content ? <Content design={activeDesign} full={inDrawer ? true : full} size={inDrawer ? 'l' : size} slotSize={size} summaryData={data.payload} data={payload} refresh={refresh} widgetId={manifest.id} onOpen={settings} preview={preview} /> : <StateView role="alert">Widget component unavailable.</StateView>}</Suspense></WidgetState>)
   const requiredSource = manifest.requires?.find(value => value.startsWith('connector:'))?.slice(10) || (Array.isArray(manifest.source) ? manifest.source : [manifest.source]).find(source => source?.toolkit)?.toolkit
   const sourceName = { gmail: 'Gmail', googlecalendar: 'Google Calendar', github: 'GitHub', slack: 'Slack' }[requiredSource] || requiredSource || manifest.title
   const connectionStatus = connectionHealth?.items?.find(item => item.id === requiredSource)?.status
@@ -101,13 +101,13 @@ export function WidgetPresentation({ manifest, position, size = position?.size |
         {expanded && <Drawer title={manifest.title} onClose={() => setExpanded(false)} open={expanded} portal={true} className="widget-workbench">
           {variations.length > 0 && <section className="widget-variation-picker" aria-label={`${manifest.title} design variations`}>
             <h3>Choose a design</h3>
-            <Segmented aria-label="Preview size" value={variationSize} onValueChange={value => setVariationSelection({ slotSize: size, previewSize: value })} options={manifest.sizes.filter(value => ['s', 'm', 'l'].includes(value)).map(value => ({ value, label: { s: 'Small', m: 'Medium', l: 'Large' }[value] }))} />
+            <p className="widget-variation-size-note">Previewing the current {size.toUpperCase()} size. Switching designs keeps this size.</p>
             <div className="widget-variation-options" data-preview-size={variationSize}>
               {variations.map(item => <article className={`widget-variation-option${selectedVariation === item.id ? ' is-selected' : ''}`} key={item.id} data-design={item.id}>
                 <header><strong>{item.name}</strong><span>{variationSize === 's' ? 'Small' : variationSize === 'm' ? 'Medium' : 'Large'} preview</span></header>
-                <div className="widget-variation-preview-frame" data-size={variationSize} inert>
+                <div className="widget-variation-preview-frame" data-size={variationSize} style={gridSize(variationSize)} inert>
                   <WidgetBoundary key={`${item.id}-${variationSize}`} resetKey={JSON.stringify(data.payload)} id={`${manifest.id}-${item.id}`} onRetry={refresh}>
-                    <Suspense fallback={<Skeleton />}><Content design={item.id} size={variationSize} slotSize={variationSize} data={data.payload} summaryData={data.payload} refresh={refresh} widgetId={manifest.id} /></Suspense>
+                    <Suspense fallback={<Skeleton />}><Content design={item.id} size={variationSize} slotSize={variationSize} data={data.payload} summaryData={data.payload} refresh={refresh} widgetId={manifest.id} preview={true} /></Suspense>
                   </WidgetBoundary>
                 </div>
                 <Button size="small" variant={selectedVariation === item.id ? 'secondary' : 'primary'} onClick={() => changeDesign?.(manifest.id, item.id)}>{selectedVariation === item.id ? 'Selected' : 'Use this design'}</Button>
