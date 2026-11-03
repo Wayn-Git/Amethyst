@@ -107,6 +107,7 @@ def test_registry_contains_shipped_local_widgets(client):
         "glance.travel",
         "glance.next-event",
         "task.focus",
+        "task.habits",
         "task.today",
         "task.backlog",
         "task.deadlines",

@@ -215,6 +215,11 @@ class DraftDecision(StrictModel):
 async def item_action(widget_id: str, action: str, body: dict):
     enabled(widget_id)
     try:
+        if widget_id == "task.habits":
+            from backend.dashboard.habits import HabitInput
+            from backend.dashboard.habits import draft as habit_draft
+
+            return habit_draft(action, HabitInput.model_validate(body))
         if widget_id == "task.focus":
             from backend.dashboard.focus import FocusInput
             from backend.dashboard.focus import draft as focus_draft

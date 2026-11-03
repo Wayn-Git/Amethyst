@@ -34,5 +34,19 @@ try {
     await page.getByRole('button', { name: 'Approve change', exact: true }).click()
     await page.getByText(/Stopped/).first().waitFor()
   }
+  if (widget === 'task.habits') {
+    await page.getByLabel('Habit title', { exact: true }).fill('Read fixture')
+    await page.getByRole('button', { name: 'Create habit', exact: true }).click()
+    await page.getByRole('button', { name: 'Reject change', exact: true }).click()
+    assert.equal(await page.getByText('Read fixture', { exact: true }).count(), 0)
+    await page.getByLabel('Habit title', { exact: true }).fill('Read fixture')
+    await page.getByRole('button', { name: 'Create habit', exact: true }).click()
+    await page.getByRole('button', { name: 'Approve change', exact: true }).click()
+    await page.getByRole('button', { name: 'Check in Read fixture', exact: true }).click()
+    await page.getByRole('button', { name: 'Approve change', exact: true }).click()
+    await page.getByText('1/1 daily · Streak: 1', { exact: true }).waitFor()
+    await page.reload()
+    await page.getByText('1/1 daily · Streak: 1', { exact: true }).waitFor()
+  }
   console.log(`${widget}: passed`)
 } finally { await browser.close() }

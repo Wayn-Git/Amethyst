@@ -118,6 +118,10 @@ async def local_provider(widget_id):
         from backend.dashboard.library import provide
 
         return await provide(widget_id)
+    if widget_id == "task.habits":
+        from backend.dashboard.habits import provide
+
+        return provide()
     if widget_id == "task.focus":
         from backend.dashboard.focus import provide
 

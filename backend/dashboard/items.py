@@ -324,6 +324,10 @@ async def decide(widget_id, draft_id, approved):
 
 
 def apply(conn, widget_id, action, body):
+    if widget_id == "task.habits":
+        from backend.dashboard.habits import apply as apply_habit
+
+        return apply_habit(conn, action, body)
     if widget_id == "task.focus":
         from backend.dashboard.focus import apply as apply_focus
 

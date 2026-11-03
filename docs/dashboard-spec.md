@@ -268,7 +268,7 @@ Source legend: `local` = SQLite only · `lib` = Library · `dir` = Director · `
 | task.reminders | Reminders and alarms | local | MVP | [x] |
 | task.plan | Auto-planned day with time blocks | llm, cmp:googlecalendar | v2 | [x] |
 | task.focus | Focus timer | local | v2 | [x] |
-| task.habits | Habit streaks | local | v2 | [ ] |
+| task.habits | Habit streaks | local | v2 | [x] |
 | task.goals | Goals | local | v2 | [ ] |
 | task.free | Free-slot finder | cmp:googlecalendar | v2 | [x] |
 | task.kanban | Mini kanban per project | local | v2 | [ ] |

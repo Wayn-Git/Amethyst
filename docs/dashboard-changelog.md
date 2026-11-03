@@ -125,3 +125,5 @@ Start Vite on port 5177. Start an isolated FastAPI app with `backend.dashboard.r
 - 2026-10-25 lib.collections: gated named tag collections, note tagging through LibraryStore and filtering through LibraryService; 47 focused backend tests, all five widget UI flows and shared-primitives checks passed. Live models/pages were mocked; existing reader lint findings remain.
 
 - 2026-10-25 task.focus: gated settings/start/stop, persistent session log, restart-safe sys.notify completion; focused backend and functional UI tests pass.
+
+- 2026-10-25 task.habits: gated local creation/check-ins, daily or Monday-based weekly targets, date-derived streaks; fixed-clock backend and functional UI checks pass.

@@ -168,3 +168,16 @@ CREATE TABLE IF NOT EXISTS dashboard_focus (
     completed INTEGER NOT NULL DEFAULT 0
 );
 CREATE UNIQUE INDEX IF NOT EXISTS dashboard_focus_active ON dashboard_focus((1)) WHERE ended_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS dashboard_habits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    period TEXT NOT NULL CHECK(period IN ('daily','weekly')),
+    target INTEGER NOT NULL CHECK(target BETWEEN 1 AND 100)
+);
+CREATE TABLE IF NOT EXISTS dashboard_habit_checkins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    habit_id INTEGER NOT NULL REFERENCES dashboard_habits(id) ON DELETE CASCADE,
+    day TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS dashboard_habit_history ON dashboard_habit_checkins(habit_id,day);
