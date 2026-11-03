@@ -4451,28 +4451,32 @@ function Usage() {
                   {/* 5H Gauge */}
                   <div
                     style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
-                    title={`5-Hour Window: ${fam.left_5h_pct}% left · Resets in ${fam.resets_in || '4h 19m'}`}
+                    title={`5-hour window: ${(fam.tokens_5h || 0).toLocaleString()} tokens · ${fam.runs_5h || 0} runs · quota unknown`}
                   >
                     <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-dim)', minWidth: 20, fontFamily: 'var(--font-mono)' }}>
                       5H
                     </span>
                     <SegmentedTickBar filled={fam.ticks_5h_filled} total={18} />
                     <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', minWidth: 64, color: 'var(--text-dim)', textAlign: 'right' }}>
-                      <strong style={{ color: fam.left_5h_pct === 0 ? 'var(--text-dim)' : 'var(--text)', fontWeight: 600 }}>{fam.left_5h_pct}%</strong> LEFT
+                      {fam.left_5h_pct == null
+                        ? <span style={{ color: 'var(--text-faint)' }}>—</span>
+                        : <><strong style={{ color: fam.left_5h_pct === 0 ? 'var(--text-dim)' : 'var(--text)', fontWeight: 600 }}>{fam.left_5h_pct}%</strong> LEFT</>}
                     </span>
                   </div>
 
                   {/* 7D Gauge */}
                   <div
                     style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
-                    title={`7-Day Window: ${fam.left_7d_pct}% left`}
+                    title={`7-day window: ${(fam.tokens_7d || 0).toLocaleString()} tokens · ${fam.runs_7d || 0} runs · quota unknown`}
                   >
                     <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-dim)', minWidth: 20, fontFamily: 'var(--font-mono)' }}>
                       7D
                     </span>
                     <SegmentedTickBar filled={fam.ticks_7d_filled} total={18} />
                     <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', minWidth: 64, color: 'var(--text-dim)', textAlign: 'right' }}>
-                      <strong style={{ color: fam.left_7d_pct === 0 ? 'var(--text-dim)' : 'var(--text)', fontWeight: 600 }}>{fam.left_7d_pct}%</strong> LEFT
+                      {fam.left_7d_pct == null
+                        ? <span style={{ color: 'var(--text-faint)' }}>—</span>
+                        : <><strong style={{ color: fam.left_7d_pct === 0 ? 'var(--text-dim)' : 'var(--text)', fontWeight: 600 }}>{fam.left_7d_pct}%</strong> LEFT</>}
                     </span>
                   </div>
                 </div>
@@ -4532,15 +4536,15 @@ function Activity() {
   const failedRuns = stats?.failed_runs ?? 0
   const models = stats?.models || []
   const recentRuns = stats?.recent_runs || []
-  const avgActiveTokensStr = stats?.avg_active_day_tokens_display || '3.59M'
-  const totalSpendFormatted = stats?.total_spend_formatted || '$0.00'
+  const avgActiveTokensStr = stats?.avg_active_day_tokens_display || '0'
+  const totalSpendFormatted = stats?.total_spend_formatted || 'unknown'
   const tokens = stats?.tokens || {
-    total: 27153,
-    input: 2805,
-    output: 24348,
-    total_formatted: '27.2K',
-    input_formatted: '2.8K',
-    output_formatted: '24.3K',
+    total: 0,
+    input: 0,
+    output: 0,
+    total_formatted: '0',
+    input_formatted: '0',
+    output_formatted: '0',
   }
 
   // Build Real Interactive Time-Series from SQLite Daily Telemetry
@@ -4551,9 +4555,9 @@ function Activity() {
       dailyMap.set(d.day, d)
     }
 
-    // Sequence ending on today (2026-09-15)
+    // Sequence ending on today
     const points = []
-    const now = new Date('2026-09-15T12:00:00')
+    const now = new Date()
     const width = 600
     const baselineY = 128
     const peakYLimit = 24
@@ -4573,7 +4577,7 @@ function Activity() {
       const entry = dailyMap.get(iso)
       const cnt = entry ? entry.cnt : 0
       const failed_cnt = entry ? entry.failed_cnt : 0
-      const tokens = entry ? Math.round(cnt * 1450) : 0
+      const tokens = entry ? (entry.tokens || 0) : 0
 
       points.push({
         iso,
