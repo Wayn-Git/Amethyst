@@ -455,6 +455,7 @@ function LibraryCardComponent({
                   src={currentImageUrl}
                   alt=""
                   loading="lazy"
+                  decoding="async"
                   onError={handleImageError}
                 />
                 {/* Subtle bottom vignette only */}

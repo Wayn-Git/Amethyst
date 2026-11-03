@@ -7587,59 +7587,79 @@ async def enrich_library_item(
 async def library_thumbnail(item_id: int) -> FileResponse:
     """The still, by id. The browser is never handed a filesystem path."""
     from backend.library.service import LibraryService
-    from backend.library.store import LibraryStore
+    from backend.library.store import LibraryStore, opt_thumbnail_path, thumbnail_path
+
+    cache_headers = {"Cache-Control": "public, max-age=604800, stale-while-revalidate=86400"}
+    opt_cand = opt_thumbnail_path(item_id)
+    if opt_cand.is_file():
+        return FileResponse(opt_cand, media_type="image/jpeg", headers=cache_headers)
 
     store = LibraryStore()
     row = store.get(item_id)
     if row is None:
         raise HTTPException(404, f"no library item {item_id}")
 
+    path = None
     if row["thumbnail_path"]:
-        path = Path(row["thumbnail_path"])
-        if not path.is_file() and ".psok" in str(path):
-            alt = Path(str(path).replace(".psok", ".amethyst"))
+        p = Path(row["thumbnail_path"])
+        if not p.is_file() and ".psok" in str(p):
+            alt = Path(str(p).replace(".psok", ".amethyst"))
             if alt.is_file():
-                path = alt
-        elif not path.is_file() and ".amethyst" in str(path):
-            alt = Path(str(path).replace(".amethyst", ".psok"))
+                p = alt
+        elif not p.is_file() and ".amethyst" in str(p):
+            alt = Path(str(p).replace(".amethyst", ".psok"))
             if alt.is_file():
-                path = alt
-        if path.is_file():
-            import mimetypes
-            mime, _ = mimetypes.guess_type(str(path))
-            return FileResponse(path, media_type=mime or "image/jpeg")
+                p = alt
+        if p.is_file():
+            path = p
 
-    # Check if a thumbnail already exists on disk for this item
-    from backend.library.store import thumbnail_path
-    cand = thumbnail_path(item_id)
-    if cand.is_file():
-        import mimetypes
-        mime, _ = mimetypes.guess_type(str(cand))
-        return FileResponse(cand, media_type=mime or "image/jpeg")
-    for ext in (".jpg", ".jpeg", ".png", ".webp"):
-        alt_cand = cand.parent / f"{item_id:06d}-thumb{ext}"
-        if alt_cand.is_file():
-            import mimetypes
-            mime, _ = mimetypes.guess_type(str(alt_cand))
-            return FileResponse(alt_cand, media_type=mime or "image/jpeg")
+    if not path:
+        cand = thumbnail_path(item_id)
+        if cand.is_file():
+            path = cand
+        else:
+            for ext in (".jpg", ".jpeg", ".png", ".webp"):
+                alt = cand.parent / f"{item_id:06d}-thumb{ext}"
+                if alt.is_file():
+                    path = alt
+                    break
 
     # If missing or not yet downloaded, try on-demand fetch once with a short timeout
-    if row["url"]:
+    if not path and row["url"]:
         service = LibraryService(store)
         try:
             fetched = await asyncio.wait_for(service.fetch_thumbnail_for_item(item_id), timeout=3.0)
+            if fetched:
+                row = store.get(item_id)
+                if row and row["thumbnail_path"]:
+                    p = Path(row["thumbnail_path"])
+                    if p.is_file():
+                        path = p
         except Exception:
-            fetched = False
-        if fetched:
-            row = store.get(item_id)
-            if row and row["thumbnail_path"]:
-                path = Path(row["thumbnail_path"])
-                if path.is_file():
-                    import mimetypes
-                    mime, _ = mimetypes.guess_type(str(path))
-                    return FileResponse(path, media_type=mime or "image/jpeg")
+            pass
 
-    raise HTTPException(404, "there is no thumbnail for that item")
+    if not path or not path.is_file():
+        raise HTTPException(404, "there is no thumbnail for that item")
+
+    # Compress and cache on the fly
+    try:
+        from PIL import Image
+        with Image.open(path) as img:
+            if img.mode in ('RGBA', 'P', 'LA'):
+                rgb_img = Image.new('RGB', img.size, (15, 15, 20))
+                if img.mode == 'P':
+                    img = img.convert('RGBA')
+                rgb_img.paste(img, mask=img.split()[-1] if 'A' in img.mode else None)
+                img = rgb_img
+            elif img.mode != 'RGB':
+                img = img.convert('RGB')
+            img.thumbnail((640, 640), Image.Resampling.LANCZOS)
+            img.save(opt_cand, 'JPEG', quality=84, optimize=True)
+            return FileResponse(opt_cand, media_type="image/jpeg", headers=cache_headers)
+    except Exception:
+        import mimetypes
+        mime, _ = mimetypes.guess_type(str(path))
+        return FileResponse(path, media_type=mime or "image/jpeg", headers=cache_headers)
 
 
 @app.api_route("/api/library/{item_id}/slides/{index}", methods=["GET", "HEAD"])

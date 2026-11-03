@@ -124,6 +124,10 @@ def thumbnail_path(item_id: int) -> Path:
     return media_dir() / f"{item_id:06d}-thumb.jpg"
 
 
+def opt_thumbnail_path(item_id: int) -> Path:
+    return media_dir() / f"{item_id:06d}-thumb-opt.jpg"
+
+
 def slide_path(item_id: int, index: int) -> Path:
     return media_dir() / f"{item_id:06d}-slide-{index}.jpg"
 

@@ -1288,6 +1288,9 @@
   border-radius: var(--radius-cards, 6px);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   overflow: hidden;
+  content-visibility: auto;
+  contain-intrinsic-size: 320px 380px;
+  contain: layout paint;
   transition: transform 140ms var(--lib-ease-out), border-color 140ms var(--lib-ease-out), box-shadow 140ms var(--lib-ease-out);
   cursor: pointer;
   user-select: none;
@@ -1647,6 +1650,8 @@
   object-fit: cover;
   object-position: center top;
   display: block;
+  will-change: transform;
+  transform: translateZ(0);
   transition: transform 350ms var(--lib-ease-out);
 }
 
@@ -1665,7 +1670,7 @@
 }
 
 .lib-card:hover .lib-card-media-img {
-  transform: scale(1.02);
+  transform: scale(1.02) translateZ(0);
 }
 
 /* Ambient Dark Gradient Scrim - subtle bottom vignette only at rest, enhanced on hover */
@@ -1681,8 +1686,7 @@
 
 .lib-card:hover .lib-card-media-scrim,
 .lib-card:focus-within .lib-card-media-scrim {
-  opacity: 1;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.2) 100%);
+  opacity: 0.95;
 }
 
 /* Top-Left Platform Glass Badge - hidden at rest, revealed on card hover */
