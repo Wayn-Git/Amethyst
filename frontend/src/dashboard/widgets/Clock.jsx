@@ -5,7 +5,7 @@ import { request } from '../api.js'
 import ClockFace from './clock/ClockFace.jsx'
 import WorldClocks from './clock/WorldClocks.jsx'
 import { clockFace, DEFAULT_CLOCK_FACE, showSeconds, worldLimit } from './clock/faces.js'
-import { canonicalZone, cityName, formatTime, timeLabel, useClock, useReducedMotion } from './clock/helpers.js'
+import { canonicalZone, cityName, DEFAULT_WORLD_ZONES, formatTime, timeLabel, useClock, useReducedMotion } from './clock/helpers.js'
 import './clock/clock.css'
 
 function WorldSettings({ now, zones, busy, error, zone, setZone, setError, remove, add, id }) {
@@ -42,8 +42,10 @@ export default function Clock({ data, full = false, size = 's', design = DEFAULT
 
   const saved = zones.length > 0
   const limit = worldLimit(face, size)
-  const shownZones = (saved ? zones : []).slice(0, limit)
-  const city = cityName(Intl.DateTimeFormat().resolvedOptions().timeZone)
+  const baseZones = saved ? zones : DEFAULT_WORLD_ZONES
+  const shownZones = baseZones.slice(0, limit || 4)
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const city = cityName(timeZone)
   const time = formatTime(now)
   const label = `Clock, ${city}, ${timeLabel(time)}${size === 's' ? '' : ', world clocks'}`
 
@@ -79,8 +81,23 @@ export default function Clock({ data, full = false, size = 's', design = DEFAULT
     <WorldSettings now={now} zones={zones} busy={busy} error={error} zone={zone} setZone={setZone} setError={setError} remove={index => save(zones.filter((_, position) => position !== index))} add={add} id={`${id}-zone`} />
   </div>
 
-  const body = <div className={`clock-widget clock-widget--${face.family}`} data-clock-size={size} data-clock-design={face.id} data-variation={face.number}>
-    <ClockFace now={now} face={face} size={size} city={city} zones={shownZones} reducedMotion={reducedMotion} seconds={seconds} />
-  </div>
+  const body = (
+    <div
+      className={`clock-widget clock-widget--${face.family}`}
+      data-clock-size={size}
+      data-clock-design={face.id}
+      data-variation={face.number}
+    >
+      <ClockFace
+        now={now}
+        face={face}
+        size={size}
+        city={city}
+        zones={shownZones}
+        reducedMotion={reducedMotion}
+        seconds={seconds}
+      />
+    </div>
+  )
   return onOpen ? <Button type="button" className="clock-card" aria-label={label} onClick={onOpen}>{body}</Button> : body
 }

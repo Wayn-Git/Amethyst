@@ -3,55 +3,153 @@ import { WidgetRenderer } from '@tugan/widgets'
 import { StateView } from '../primitives.jsx'
 import { request } from '../api.js'
 import { Button } from '../../components/ui/bento/index.jsx'
-import design from '../../../../widgets/glance.music/design.json'
 import template from '../../../../widgets/glance.music/template.txt?raw'
 import { variationNumber } from '../widgetVariations.js'
 import './music/music.css'
 
-function resolve(value, theme) {
-  if (!value || typeof value !== 'object') return value
-  return value[theme] || value.light || null
+const FALLBACK_IMAGES = {
+  minimal: 'https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/cc/0d/a7/cc0da7d8-e73c-ca80-d3d9-347a99254c7f/cover.jpg/1200x1200bf-60.jpg',
+  immersive: 'https://f4.bcbits.com/img/a3309701101_16.jpg',
+  rich: 'https://images.universal-music.de/img/assets/236/236934/4/2048/norah-jones-come-away-with-me-cover.jpg',
+  editorial: 'https://cdn.shopify.com/s/files/1/0881/4568/products/BonIver-ForEmmaForeverAgo_1_800x.jpg?v=1605041850',
 }
 
-function adaptMusic(data, layout, theme) {
-  const track = Boolean(data?.title)
-  const action = name => data?.controls?.[name] && data.player_id
+const DESIGN_MAP = {
+  minimal: 'minimal',
+  woodland: 'minimal',
+  immersive: 'immersive',
+  'open-water': 'immersive',
+  'deep-water': 'immersive',
+  rich: 'rich',
+  'blue-note': 'rich',
+  editorial: 'editorial',
+  'white space': 'editorial',
+  window: 'editorial',
+}
+
+function resolveActiveDesign(selectedDesign) {
+  const s = String(selectedDesign || '').toLowerCase()
+  if (DESIGN_MAP[s]) return DESIGN_MAP[s]
+  const num = variationNumber(s)
+  if (num === 1) return 'minimal'
+  if (num === 2) return 'immersive'
+  if (num === 3) return 'rich'
+  if (num === 4) return 'editorial'
+  return 'minimal'
+}
+
+function formatMinutes(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0:00'
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+const PREVIEW_FIXTURES = {
+  minimal: {
+    title: 'Ghost',
+    artist: 'Justin Bieber',
+    album: 'Justice',
+    artwork_url: FALLBACK_IMAGES.minimal,
+    status: 'Playing',
+    position: 48,
+    duration: 153,
+    active_player: 'Apple Music',
+  },
+  immersive: {
+    title: 'Starboy',
+    artist: 'The Weeknd, Daft Punk',
+    album: 'Starboy',
+    artwork_url: FALLBACK_IMAGES.immersive,
+    status: 'Playing',
+    position: 72,
+    duration: 230,
+    active_player: 'Apple Music',
+  },
+  rich: {
+    title: 'Come Away With Me',
+    artist: 'Norah Jones',
+    album: 'Come Away With Me',
+    artwork_url: FALLBACK_IMAGES.rich,
+    status: 'Playing',
+    position: 95,
+    duration: 198,
+    active_player: 'Apple Music',
+  },
+  editorial: {
+    title: 'Skinny Love',
+    artist: 'Bon Iver',
+    album: 'For Emma, Forever Ago',
+    artwork_url: FALLBACK_IMAGES.editorial,
+    status: 'Playing',
+    position: 64,
+    duration: 239,
+    active_player: 'Apple Music',
+  },
+}
+
+function adaptMusic(data, size, selectedDesign, preview = false) {
+  const activeDesign = resolveActiveDesign(selectedDesign)
+  const isPreviewFallback = preview && !data?.title
+  const effectiveData = isPreviewFallback ? (PREVIEW_FIXTURES[activeDesign] || PREVIEW_FIXTURES.minimal) : data
+
+  const hasTrack = Boolean(effectiveData?.title)
+  const playing = effectiveData?.status === 'Playing'
+
+  const title = hasTrack ? effectiveData.title : 'Nothing playing'
+  const artist = Array.isArray(effectiveData?.artists) && effectiveData.artists.length
+    ? effectiveData.artists.filter(Boolean).join(', ')
+    : (effectiveData?.artist || (hasTrack ? 'Unknown Artist' : 'No active player'))
+  const album = effectiveData?.album || (hasTrack ? 'Desktop Audio' : 'Sound Studies')
+  const shortAlbum = effectiveData?.album ? effectiveData.album.slice(0, 20) : (hasTrack ? 'Now Playing' : 'Silent')
+  const year = typeof effectiveData?.year === 'string' || typeof effectiveData?.year === 'number' ? String(effectiveData.year) : '2026'
+
+  const elapsed = Number.isFinite(effectiveData?.position) && effectiveData.position >= 0 ? effectiveData.position : 0
+  const duration = Number.isFinite(effectiveData?.duration) && effectiveData.duration > 0 ? effectiveData.duration : (elapsed > 0 ? elapsed + 60 : 180)
+  const elapsedStr = formatMinutes(elapsed)
+  const remainingStr = `−${formatMinutes(Math.max(0, duration - elapsed))}`
+  const durationStr = formatMinutes(duration)
+
+  const image = effectiveData?.artwork_url || FALLBACK_IMAGES[activeDesign]
+  const immersiveBg = `linear-gradient(135deg, rgba(20, 15, 22, 0.88), rgba(16, 12, 18, 0.65)), url('${image}') center / cover`
+  const device = effectiveData?.active_player ? `${effectiveData.active_player} · Mac` : 'Mac Speakers'
+
+  const makeAction = actionName => effectiveData?.player_id
     ? {
-        type: `glance.music.${name}`,
-        payload: { player: data.player_id, track_id: data.track_id || '' },
+        type: `glance.music.${actionName}`,
+        payload: { player: effectiveData.player_id, track_id: effectiveData.track_id || '' },
       }
     : null
-  const state = data?.status === 'Playing' ? 'playing' : data?.status === 'Paused' ? 'paused' : 'stopped'
-  const artist = Array.isArray(data?.artists) ? data.artists.filter(value => typeof value === 'string').join(', ') : ''
-  const metadata = typeof data?.album === 'string' && data.album.trim()
-    ? [{ label: 'Album', value: data.album }]
-    : []
+
+  const previousAction = makeAction('previous')
+  const toggleAction = makeAction(playing ? 'pause' : 'play')
+  const nextAction = makeAction('next')
 
   return {
-    layout,
-    surfaces: Object.fromEntries(
-      Object.entries(design.surfaces).map(([key, value]) => [key, resolve(value, theme)]),
-    ),
-    progressAccent: resolve(design.progressAccent, theme),
-    labels: design.labels,
-    stateLabels: design.stateLabels,
-    playback: {
-      hasTrack: track,
-      title: track ? data.title : '',
-      artist,
-      state,
-      elapsedSeconds: Number.isFinite(data?.position) && data.position >= 0 ? data.position : null,
-      durationSeconds: Number.isFinite(data?.duration) && data.duration > 0 ? data.duration : null,
-      previousAction: action('previous'),
-      playAction: action('play'),
-      pauseAction: action('pause'),
-      nextAction: action('next'),
-      metadata,
-    },
+    activeDesign,
+    size,
+    hasTrack,
+    image,
+    immersiveBg,
+    title,
+    artist,
+    album,
+    shortAlbum,
+    year,
+    elapsed,
+    duration,
+    elapsedStr,
+    remainingStr,
+    durationStr,
+    playing,
+    device,
+    previousAction,
+    toggleAction,
+    nextAction,
   }
 }
 
-export default function Music({ data, refresh, full = false, size = 'm', design }) {
+export default function Music({ data, refresh, size = 'm', design, preview = false }) {
   const [theme, setTheme] = useState(() =>
     typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light',
   )
@@ -99,8 +197,7 @@ export default function Music({ data, refresh, full = false, size = 'm', design 
     }
   }
 
-  const layout = full || size === 'l' ? 'large' : size === 's' ? 'small' : 'medium'
-  const widgetData = useMemo(() => adaptMusic(data, layout, theme), [data, layout, theme])
+  const widgetData = useMemo(() => adaptMusic(data, size, design, preview), [data, size, design, preview])
 
   return (
     <div className="music-widget" data-music-size={size} data-variation={variationNumber(design)}>

@@ -86,7 +86,7 @@ async def provide(widget_id):
     params.update(
         current="temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,is_day",
         hourly="temperature_2m,precipitation_probability,weather_code",
-        daily="temperature_2m_max,temperature_2m_min,weather_code",
+        daily="temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,precipitation_sum,uv_index_max",
         forecast_hours=12,
         forecast_days=7,
     )
@@ -113,6 +113,10 @@ async def provide(widget_id):
             strict=True,
         )
     ]
+    sunrise = daily.get("sunrise", [])
+    sunset = daily.get("sunset", [])
+    precipitation_sum = daily.get("precipitation_sum", [])
+    uv_index = daily.get("uv_index_max", [])
     res = {
         "temperature": raw["current"]["temperature_2m"],
         "humidity": raw["current"].get("relative_humidity_2m"),
@@ -125,6 +129,10 @@ async def provide(widget_id):
         "daily": days,
         "rain_alert": any(h["rain"] is not None and h["rain"] >= 50 for h in hours),
         "timezone": raw["timezone"],
+        "sunrise": sunrise[0] if sunrise else None,
+        "sunset": sunset[0] if sunset else None,
+        "precipitation_today": precipitation_sum[0] if precipitation_sum else None,
+        "uv_index": uv_index[0] if uv_index else None,
     }
     if isinstance(location, dict) and location.get("name"):
         res["location_name"] = location["name"]

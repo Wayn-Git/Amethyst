@@ -1,1 +1,416 @@
-<Scope values={{ controls: [{ id: 'previous', icon: 'skip-back', label: labels.previous, action: playback.previousAction, primary: false }, { id: 'toggle', icon: playback.state === 'playing' ? 'pause' : 'play', label: playback.state === 'playing' ? labels.pause : labels.play, action: playback.state === 'playing' ? playback.pauseAction : playback.playAction, primary: true }, { id: 'next', icon: 'skip-forward', label: labels.next, action: playback.nextAction, primary: false }].filter(control => has(control.action)), timed: playback.elapsedSeconds !== null && playback.elapsedSeconds >= 0 && playback.durationSeconds !== null && playback.durationSeconds > 0 }}><Basic align="start" gap={0}><Box width={layout === 'small' ? 160 : 340} maxWidth="100%" height={layout === 'large' ? 340 : 160} padding={layout === 'small' ? 4 : 5} gap={3} radius="2xl" background={surfaces.outer}><Show when={playback.hasTrack}><Col gap={0} minWidth={0}><Text value={playback.title || labels.titleUnavailable} size={layout === 'large' ? 'lg' : 'md'} weight="semibold" color="emphasis" maxLines={layout === 'medium' ? 1 : 2} /><Row gap={2} minWidth={0}><Col flex={1} minWidth={0}><Show when={has(playback.artist)}><Text value={playback.artist} size="xs" color="secondary" truncate /></Show></Col><Show when={layout !== 'small' && has(read(stateLabels, playback.state, ''))}><Text value={read(stateLabels, playback.state, '')} size="xs" color="secondary" /></Show></Row></Col><Show when={layout === 'small'}><Spacer /><Show when={has(read(stateLabels, playback.state, ''))}><Row background={surfaces.inset} radius="lg" padding={2} gap={2}><Icon name={playback.state === 'playing' ? 'play' : playback.state === 'paused' ? 'pause' : 'music'} size="sm" color="secondary" /><Text value={read(stateLabels, playback.state, '')} size="xs" color="secondary" /></Row></Show></Show><Show when={layout === 'large'}><Spacer /><Show when={size(playback.metadata) > 0}><Col gap={1}><Each of={playback.metadata.slice(0, 2)} item="entry"><Text key={entry.label} value={entry.label + ': ' + entry.value} size="xs" color="secondary" maxLines={1} /></Each></Col></Show></Show><Show when={layout !== 'small' && timed}><Row gap={2} align="center"><Text value={String(floor(playback.elapsedSeconds / 60)) + ':' + String(floor(playback.elapsedSeconds % 60)).padStart(2, '0')} size="xs" color="secondary" tabularNums /><Col flex={1} minWidth={0}><Progress value={clamp(playback.elapsedSeconds, 0, playback.durationSeconds)} max={playback.durationSeconds} showValue={false} size="sm" color={progressAccent} label={labels.progress} /></Col><Text value={String(floor(playback.durationSeconds / 60)) + ':' + String(floor(playback.durationSeconds % 60)).padStart(2, '0')} size="xs" color="secondary" tabularNums /></Row></Show><Show when={layout !== 'small' && size(controls) > 0}><Row justify="center" gap={2} background={surfaces.inset} radius="lg"><Each of={controls} item="control"><Button key={control.id} iconStart={control.icon} ariaLabel={control.label} uniform size="lg" variant={control.primary ? 'solid' : 'ghost'} color="primary" onClickAction={control.action} /></Each></Row></Show><Show.Else><Col flex={1} align="center" justify="center" gap={2} background={surfaces.inset} radius="lg" padding={2}><Icon name="music" size="xl" color="secondary" /><Text value={labels.nothingPlaying} size="sm" color="secondary" textAlign="center" /></Col></Show.Else></Show></Box></Basic></Scope>
+<Basic align="center" gap={0}>
+  <Show when={size === "s" && activeDesign === "minimal"}>
+    <Card size="full" height={170} padding={3} gap={0} justify="between">
+      <Show when={hasTrack}>
+        <Row justify="between" align="start" width="100%">
+          <Image src={image} size={48} radius="md" fit="cover" />
+          <Button uniform pill size="xl" variant="soft" color="primary" iconStart={playing ? "pause" : "play"} ariaLabel={playing ? "Pause" : "Play"} onClickAction={toggleAction} />
+        </Row>
+        <Col gap={1} width="100%">
+          <Text value={title} size="md" weight="semibold" maxLines={1} />
+          <Text value={artist} size="xs" color="secondary" maxLines={1} />
+        </Col>
+        <Show.Else>
+          <Col height="100%" align="center" justify="center" gap={2}>
+            <Icon name="music" size="xl" color="secondary" />
+            <Text value="Nothing playing" size="sm" weight="medium" color="secondary" />
+          </Col>
+        </Show.Else>
+      </Show>
+    </Card>
+  </Show>
+
+  <Show when={size === "s" && activeDesign === "immersive"}>
+    <Card size="full" height={170} theme="dark" padding={0} gap={0} background={immersiveBg}>
+      <Show when={hasTrack}>
+        <Box width="100%" height={170} padding={3} justify="between" gap={2}>
+          <Row justify="end" width="100%">
+            <Button uniform pill size="lg" variant="solid" color="primary" iconStart={playing ? "pause" : "play"} ariaLabel={playing ? "Pause" : "Play"} onClickAction={toggleAction} />
+          </Row>
+          <Col gap={1} width="100%">
+            <Text value={title} size="md" weight="bold" color="white" maxLines={1} />
+            <Text value={artist} size="xs" color="#d0d0d0" maxLines={1} />
+          </Col>
+        </Box>
+        <Show.Else>
+          <Col height="100%" align="center" justify="center" gap={2} padding={3}>
+            <Icon name="music" size="xl" color="secondary" />
+            <Text value="Nothing playing" size="sm" color="secondary" />
+          </Col>
+        </Show.Else>
+      </Show>
+    </Card>
+  </Show>
+
+  <Show when={size === "s" && activeDesign === "rich"}>
+    <Card size="full" height={170} padding={3} gap={2} justify="between">
+      <Show when={hasTrack}>
+        <Row gap={2} align="center" width="100%">
+          <Image src={image} size={42} radius="sm" fit="cover" />
+          <Col flex={1} minWidth={0} gap={0}>
+            <Text value={title} size="sm" weight="semibold" maxLines={1} />
+            <Text value={artist} size="xs" color="secondary" maxLines={1} />
+          </Col>
+        </Row>
+        <Col gap={1} width="100%">
+          <Progress value={elapsed} max={duration} showValue={false} size="sm" color="accent" />
+          <Row justify="between" gap={1}>
+            <Caption value={elapsedStr} size="sm" tabularNums />
+            <Caption value={remainingStr} size="sm" tabularNums />
+          </Row>
+        </Col>
+        <Row justify="center" align="center" gap={2} width="100%">
+          <Button uniform size="lg" iconStart="skip-back" ariaLabel="Previous" variant="ghost" color="primary" onClickAction={previousAction} />
+          <Button uniform pill size="xl" iconStart={playing ? "pause" : "play"} ariaLabel={playing ? "Pause" : "Play"} variant="soft" color="primary" onClickAction={toggleAction} />
+          <Button uniform size="lg" iconStart="skip-forward" ariaLabel="Next" variant="ghost" color="primary" onClickAction={nextAction} />
+        </Row>
+        <Show.Else>
+          <Col height="100%" align="center" justify="center" gap={2}>
+            <Icon name="music" size="xl" color="secondary" />
+            <Text value="Nothing playing" size="sm" color="secondary" />
+          </Col>
+        </Show.Else>
+      </Show>
+    </Card>
+  </Show>
+
+  <Show when={size === "s" && activeDesign === "editorial"}>
+    <Card size="full" height={170} padding={3} gap={2} justify="between">
+      <Show when={hasTrack}>
+        <Row justify="between" align="start" width="100%">
+          <Col gap={0} flex={1} minWidth={0}>
+            <Caption value="NOW PLAYING" size="sm" />
+            <Text value={title} size="md" weight="medium" maxLines={1} />
+            <Text value={artist} size="xs" color="secondary" maxLines={1} />
+          </Col>
+          <Image src={image} size={38} radius="xs" fit="cover" />
+        </Row>
+        <Divider color="subtle" />
+        <Row justify="between" align="center" width="100%">
+          <Caption value={shortAlbum} size="sm" />
+          <Button uniform pill size="lg" iconStart={playing ? "pause" : "play"} ariaLabel={playing ? "Pause" : "Play"} variant="solid" color="primary" onClickAction={toggleAction} />
+        </Row>
+        <Show.Else>
+          <Col height="100%" align="center" justify="center" gap={2}>
+            <Icon name="music" size="xl" color="secondary" />
+            <Text value="Nothing playing" size="sm" color="secondary" />
+          </Col>
+        </Show.Else>
+      </Show>
+    </Card>
+  </Show>
+
+  <Show when={size === "m" && activeDesign === "minimal"}>
+    <Card size="full" height={170} padding={3} gap={0}>
+      <Show when={hasTrack}>
+        <Row gap={3} align="center" height="100%" width="100%">
+          <Image src={image} size={110} radius="md" fit="cover" />
+          <Col flex={1} minWidth={0} justify="between" height="100%">
+            <Col gap={1} minWidth={0}>
+              <Title value={title} size="sm" maxLines={1} />
+              <Text value={artist} size="xs" color="secondary" maxLines={1} />
+              <Caption value={album} size="sm" maxLines={1} />
+            </Col>
+            <Row justify="between" align="center" width="100%">
+              <Caption value={elapsedStr} size="sm" tabularNums />
+              <Row gap={1}>
+                <Button uniform size="xl" iconStart="skip-back" ariaLabel="Previous" variant="ghost" color="primary" onClickAction={previousAction} />
+                <Button uniform pill size="2xl" iconStart={playing ? "pause" : "play"} ariaLabel={playing ? "Pause" : "Play"} variant="soft" color="primary" onClickAction={toggleAction} />
+                <Button uniform size="xl" iconStart="skip-forward" ariaLabel="Next" variant="ghost" color="primary" onClickAction={nextAction} />
+              </Row>
+            </Row>
+          </Col>
+        </Row>
+        <Show.Else>
+          <Row gap={3} align="center" height="100%" width="100%" justify="center">
+            <Icon name="music" size="2xl" color="secondary" />
+            <Col gap={1}>
+              <Title value="Nothing playing" size="sm" />
+              <Text value="No active audio session" size="xs" color="secondary" />
+            </Col>
+          </Row>
+        </Show.Else>
+      </Show>
+    </Card>
+  </Show>
+
+  <Show when={size === "m" && activeDesign === "immersive"}>
+    <Card size="full" height={170} theme="dark" padding={0} gap={0} background={immersiveBg}>
+      <Show when={hasTrack}>
+        <Box width="100%" height={170} padding={3} justify="between">
+          <Row gap={3} align="center" width="100%">
+            <Col flex={1} minWidth={0} gap={1}>
+              <Title value={title} size="sm" color="white" maxLines={1} />
+              <Text value={artist} size="xs" color="#d0d0d0" maxLines={1} />
+            </Col>
+            <Row align="center" gap={1} padding={1} radius="full" background="rgba(0, 0, 0, 0.35)">
+              <Button uniform pill size="lg" variant="ghost" color="primary" iconStart="skip-back" ariaLabel="Previous" onClickAction={previousAction} />
+              <Button uniform pill size="xl" variant="soft" color="primary" iconStart={playing ? "pause" : "play"} ariaLabel={playing ? "Pause" : "Play"} onClickAction={toggleAction} />
+              <Button uniform pill size="lg" variant="ghost" color="primary" iconStart="skip-forward" ariaLabel="Next" onClickAction={nextAction} />
+            </Row>
+          </Row>
+          <Col gap={1} width="100%">
+            <Progress value={elapsed} max={duration} showValue={false} size="sm" color="accent" />
+            <Row justify="between" gap={2}>
+              <Caption value={elapsedStr} size="sm" tabularNums />
+              <Caption value={remainingStr} size="sm" tabularNums />
+            </Row>
+          </Col>
+        </Box>
+        <Show.Else>
+          <Col height="100%" align="center" justify="center" gap={2} padding={3}>
+            <Icon name="music" size="2xl" color="secondary" />
+            <Text value="Nothing playing" size="sm" color="secondary" />
+          </Col>
+        </Show.Else>
+      </Show>
+    </Card>
+  </Show>
+
+  <Show when={size === "m" && activeDesign === "rich"}>
+    <Card size="full" height={170} padding={3} gap={0}>
+      <Show when={hasTrack}>
+        <Row gap={3} align="center" height="100%" width="100%">
+          <Image src={image} size={104} radius="md" fit="cover" />
+          <Col flex={1} minWidth={0} justify="between" height="100%">
+            <Row justify="between" align="start" width="100%">
+              <Col flex={1} minWidth={0} gap={0}>
+                <Title value={title} size="sm" maxLines={1} />
+                <Text value={artist} size="xs" color="secondary" maxLines={1} />
+              </Col>
+              <Row gap={1} align="center" background="surface-secondary" radius="full" padding={1}>
+                <Icon name="desktop" size="xs" color="secondary" />
+                <Caption value={device} size="sm" />
+              </Row>
+            </Row>
+            <Col gap={1} width="100%">
+              <Progress value={elapsed} max={duration} showValue={false} size="sm" color="accent" />
+              <Row justify="between" gap={1}>
+                <Caption value={elapsedStr} size="sm" tabularNums />
+                <Caption value={remainingStr} size="sm" tabularNums />
+              </Row>
+            </Col>
+            <Row justify="center" align="center" gap={3} width="100%">
+              <Button uniform size="xl" iconStart="skip-back" ariaLabel="Previous" variant="ghost" color="primary" onClickAction={previousAction} />
+              <Button uniform pill size="2xl" iconStart={playing ? "pause" : "play"} ariaLabel={playing ? "Pause" : "Play"} variant="solid" color="primary" onClickAction={toggleAction} />
+              <Button uniform size="xl" iconStart="skip-forward" ariaLabel="Next" variant="ghost" color="primary" onClickAction={nextAction} />
+            </Row>
+          </Col>
+        </Row>
+        <Show.Else>
+          <Col height="100%" align="center" justify="center" gap={2}>
+            <Icon name="music" size="2xl" color="secondary" />
+            <Title value="Nothing playing" size="sm" />
+            <Text value="No active audio session" size="xs" color="secondary" />
+          </Col>
+        </Show.Else>
+      </Show>
+    </Card>
+  </Show>
+
+  <Show when={size === "m" && activeDesign === "editorial"}>
+    <Card size="full" height={170} padding={0} gap={0}>
+      <Show when={hasTrack}>
+        <Row align="stretch" height="100%" width="100%">
+          <Image src={image} width={138} height="100%" fit="cover" radius="none" flush />
+          <Col flex={1} minWidth={0} padding={3} justify="between">
+            <Col gap={0} minWidth={0}>
+              <Caption value="NOW PLAYING" size="sm" />
+              <Title value={title} size="md" weight="medium" maxLines={1} />
+              <Text value={artist} size="xs" color="secondary" maxLines={1} />
+            </Col>
+            <Col gap={1} width="100%">
+              <Progress value={elapsed} max={duration} showValue={false} size="sm" color="accent" />
+              <Row justify="between" gap={1}>
+                <Caption value={elapsedStr} size="sm" tabularNums />
+                <Caption value={remainingStr} size="sm" tabularNums />
+              </Row>
+            </Col>
+            <Row justify="between" align="center" width="100%">
+              <Row gap={1}>
+                <Button uniform size="lg" iconStart="skip-back" ariaLabel="Previous" variant="ghost" color="primary" onClickAction={previousAction} />
+                <Button uniform pill size="xl" iconStart={playing ? "pause" : "play"} ariaLabel={playing ? "Pause" : "Play"} variant="soft" color="primary" onClickAction={toggleAction} />
+                <Button uniform size="lg" iconStart="skip-forward" ariaLabel="Next" variant="ghost" color="primary" onClickAction={nextAction} />
+              </Row>
+              <Caption value={shortAlbum} size="sm" />
+            </Row>
+          </Col>
+        </Row>
+        <Show.Else>
+          <Col height="100%" align="center" justify="center" gap={2} padding={3}>
+            <Icon name="music" size="2xl" color="secondary" />
+            <Title value="Nothing playing" size="sm" />
+          </Col>
+        </Show.Else>
+      </Show>
+    </Card>
+  </Show>
+
+  <Show when={size === "l" && activeDesign === "minimal"}>
+    <Card size="full" height={356} padding={4} gap={3} justify="between">
+      <Show when={hasTrack}>
+        <Col align="center" gap={3} width="100%">
+          <Image src={image} size={150} radius="lg" fit="cover" />
+          <Col align="center" gap={1} minWidth={0}>
+            <Title value={title} size="lg" weight="semibold" maxLines={1} textAlign="center" />
+            <Text value={artist} size="sm" color="secondary" maxLines={1} textAlign="center" />
+            <Caption value={album} size="sm" maxLines={1} />
+          </Col>
+        </Col>
+        <Col gap={3} width="100%">
+          <Col gap={1} width="100%">
+            <Progress value={elapsed} max={duration} showValue={false} size="sm" color="accent" />
+            <Row justify="between" gap={2}>
+              <Caption value={elapsedStr} size="sm" tabularNums />
+              <Caption value={remainingStr} size="sm" tabularNums />
+            </Row>
+          </Col>
+          <Row justify="center" align="center" gap={3} width="100%">
+            <Button uniform size="2xl" iconStart="skip-back" ariaLabel="Previous" variant="ghost" color="primary" onClickAction={previousAction} />
+            <Button uniform pill size="3xl" iconStart={playing ? "pause" : "play"} ariaLabel={playing ? "Pause" : "Play"} variant="solid" color="primary" onClickAction={toggleAction} />
+            <Button uniform size="2xl" iconStart="skip-forward" ariaLabel="Next" variant="ghost" color="primary" onClickAction={nextAction} />
+          </Row>
+        </Col>
+        <Show.Else>
+          <Col height="100%" align="center" justify="center" gap={3}>
+            <Icon name="music" size="3xl" color="secondary" />
+            <Title value="Nothing playing" size="md" />
+            <Text value="Play audio in any desktop application to see it here." size="xs" color="secondary" textAlign="center" />
+          </Col>
+        </Show.Else>
+      </Show>
+    </Card>
+  </Show>
+
+  <Show when={size === "l" && activeDesign === "immersive"}>
+    <Card size="full" height={356} theme="dark" padding={0} gap={0} background={immersiveBg}>
+      <Show when={hasTrack}>
+        <Box width="100%" height={356} padding={4} justify="between">
+          <Row gap={3} align="start" width="100%">
+            <Image src={image} size={90} radius="md" fit="cover" />
+            <Col flex={1} minWidth={0} gap={1}>
+              <Caption value="NOW PLAYING" size="sm" color="#a0a0a0" />
+              <Title value={title} size="md" color="white" maxLines={2} />
+              <Text value={artist} size="sm" color="#d0d0d0" maxLines={1} />
+              <Caption value={album} size="sm" color="#808080" maxLines={1} />
+            </Col>
+          </Row>
+          <Col gap={3} width="100%">
+            <Col gap={1} width="100%">
+              <Progress value={elapsed} max={duration} showValue={false} size="sm" color="accent" />
+              <Row justify="between" gap={2}>
+                <Caption value={elapsedStr} size="sm" tabularNums />
+                <Caption value={remainingStr} size="sm" tabularNums />
+              </Row>
+            </Col>
+            <Row justify="center" align="center" gap={3} width="100%" padding={1} radius="full" background="rgba(0, 0, 0, 0.4)">
+              <Button uniform pill size="xl" iconStart="skip-back" ariaLabel="Previous" variant="ghost" color="primary" onClickAction={previousAction} />
+              <Button uniform pill size="2xl" iconStart={playing ? "pause" : "play"} ariaLabel={playing ? "Pause" : "Play"} variant="soft" color="primary" onClickAction={toggleAction} />
+              <Button uniform pill size="xl" iconStart="skip-forward" ariaLabel="Next" variant="ghost" color="primary" onClickAction={nextAction} />
+            </Row>
+          </Col>
+        </Box>
+        <Show.Else>
+          <Col height="100%" align="center" justify="center" gap={3} padding={4}>
+            <Icon name="music" size="3xl" color="secondary" />
+            <Title value="Nothing playing" size="md" />
+            <Text value="A little quiet, until the next track." size="xs" color="secondary" textAlign="center" />
+          </Col>
+        </Show.Else>
+      </Show>
+    </Card>
+  </Show>
+
+  <Show when={size === "l" && activeDesign === "rich"}>
+    <Card size="full" height={356} padding={4} gap={2} justify="between">
+      <Show when={hasTrack}>
+        <Row gap={3} align="start" width="100%">
+          <Image src={image} size={76} radius="md" fit="cover" />
+          <Col flex={1} minWidth={0} gap={1}>
+            <Title value={title} size="md" maxLines={1} />
+            <Text value={artist} size="xs" color="secondary" maxLines={1} />
+            <Row gap={1} align="center">
+              <Icon name="desktop" size="xs" color="secondary" />
+              <Caption value={device} size="sm" />
+            </Row>
+          </Col>
+        </Row>
+        <Col gap={1} width="100%">
+          <Progress value={elapsed} max={duration} showValue={false} size="sm" color="accent" />
+          <Row justify="between" gap={2}>
+            <Caption value={elapsedStr} size="sm" tabularNums />
+            <Caption value={remainingStr} size="sm" tabularNums />
+          </Row>
+        </Col>
+        <Row justify="center" align="center" gap={4} width="100%">
+          <Button uniform size="2xl" iconStart="skip-back" ariaLabel="Previous" variant="ghost" color="primary" onClickAction={previousAction} />
+          <Button uniform pill size="3xl" iconStart={playing ? "pause" : "play"} ariaLabel={playing ? "Pause" : "Play"} variant="solid" color="primary" onClickAction={toggleAction} />
+          <Button uniform size="2xl" iconStart="skip-forward" ariaLabel="Next" variant="ghost" color="primary" onClickAction={nextAction} />
+        </Row>
+        <Divider color="subtle" />
+        <Col gap={1} width="100%">
+          <Caption value="UP NEXT" size="sm" />
+          <Row justify="between" align="center" width="100%">
+            <Text value={album} size="xs" weight="medium" maxLines={1} />
+            <Caption value={year} size="sm" />
+          </Row>
+        </Col>
+        <Show.Else>
+          <Col height="100%" align="center" justify="center" gap={3}>
+            <Icon name="music" size="3xl" color="tertiary" />
+            <Title value="Nothing playing" size="md" />
+            <Text value="A little quiet, until the next track." size="xs" color="secondary" textAlign="center" />
+          </Col>
+        </Show.Else>
+      </Show>
+    </Card>
+  </Show>
+
+  <Show when={size === "l" && activeDesign === "editorial"}>
+    <Card size="full" height={356} padding={0} gap={0}>
+      <Show when={hasTrack}>
+        <Col height="100%" width="100%" justify="between">
+          <Row align="stretch" height={178} width="100%">
+            <Image src={image} width="44%" height={178} fit="cover" radius="none" flush />
+            <Col flex={1} minWidth={0} padding={4} justify="between">
+              <Caption value="NOW PLAYING" size="sm" />
+              <Col gap={1} minWidth={0}>
+                <Title value={title} size="lg" weight="medium" maxLines={2} />
+                <Text value={artist} size="xs" color="secondary" maxLines={1} />
+              </Col>
+              <Caption value={album} size="sm" maxLines={1} />
+            </Col>
+          </Row>
+          <Col padding={4} gap={2} height={178} justify="between">
+            <Col gap={1} width="100%">
+              <Progress value={elapsed} max={duration} showValue={false} size="sm" color="accent" />
+              <Row justify="between" gap={2}>
+                <Caption value={elapsedStr} size="sm" tabularNums />
+                <Caption value={remainingStr} size="sm" tabularNums />
+              </Row>
+            </Col>
+            <Row justify="between" align="center" width="100%">
+              <Row gap={2}>
+                <Button uniform size="2xl" iconStart="skip-back" ariaLabel="Previous" variant="ghost" color="primary" onClickAction={previousAction} />
+                <Button uniform pill size="2xl" iconStart={playing ? "pause" : "play"} ariaLabel={playing ? "Pause" : "Play"} variant="soft" color="primary" onClickAction={toggleAction} />
+                <Button uniform size="2xl" iconStart="skip-forward" ariaLabel="Next" variant="ghost" color="primary" onClickAction={nextAction} />
+              </Row>
+              <Caption value={durationStr} size="sm" tabularNums />
+            </Row>
+            <Divider color="subtle" />
+            <Row justify="between" align="baseline" gap={2}>
+              <Text value={shortAlbum} size="xs" weight="medium" />
+              <Caption value={year} size="sm" />
+            </Row>
+          </Col>
+        </Col>
+        <Show.Else>
+          <Col height="100%" align="center" justify="center" gap={3} padding={4}>
+            <Icon name="music" size="3xl" color="tertiary" />
+            <Title value="Nothing playing" size="md" />
+          </Col>
+        </Show.Else>
+      </Show>
+    </Card>
+  </Show>
+</Basic>

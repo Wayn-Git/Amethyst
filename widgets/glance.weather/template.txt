@@ -1,1 +1,217 @@
-<Scope values={{ spec: layouts[layout] || layouts.large, compact: layout === 'small', expanded: layout === 'large' }}><Basic gap={0}><Box width={spec.width} height={spec.height} maxWidth="100%" padding={spec.padding} radius="2xl" background={colors.canvas} gap={3}><Row height={compact ? 128 : 120} gap={3} align="stretch"><Col width={compact ? 128 : 108} minWidth={0} height="100%" justify="between" gap={0}><Text value={weather.location || labels.locationUnavailable} size="xs" weight="semibold" color={colors.text} /><Row gap={2} align="center"><Title value={weather.current.temperatureLabel || labels.missingValue} size="4xl" weight="normal" color={colors.text} tabularNums /><Icon name={weatherIcons.includes(weather.current.icon) ? weather.current.icon : 'circle-question'} size="sm" color={colors.icon} /></Row><Text value={weather.current.condition || labels.conditionUnavailable} size="xs" color={colors.text} /><Text value={labels.humidity + ' ' + (weather.current.humidityLabel || labels.missingValue)} size="xs" color={colors.secondary} /></Col><Show when={!compact}><Box flex={1} minWidth={0} height={120} padding={2} radius="lg" background={colors.forecast} gap={3}><Text value={labels.hourly} size="xs" weight="semibold" color={colors.secondary} /><Show when={size(weather.hourly) >= 5}><Grid columns="repeat(5, minmax(0, 1fr))" gap={0}><Each of={weather.hourly.slice(0, 5)} item="hour" index="i"><Col key={i} align="center" gap={2} minWidth={0}><Text value={hour.timeLabel || labels.missingValue} size="xs" textAlign="center" color={colors.secondary} /><Icon name={weatherIcons.includes(hour.icon) ? hour.icon : 'circle-question'} size="sm" color={colors.icon} /><Text value={hour.temperatureLabel || labels.missingValue} size="xs" weight="semibold" textAlign="center" color={colors.text} tabularNums /></Col></Each></Grid><Show.Else><Col flex={1} justify="center"><Text value={labels.hourlyUnavailable} size="xs" color={colors.secondary} /></Col></Show.Else></Show></Box></Show></Row><Show when={expanded}><Box height={168} padding={2} radius="lg" background={colors.forecast} gap={3}><Text value={labels.daily} size="xs" weight="semibold" color={colors.secondary} /><Show when={size(weather.daily) >= 5}><Col gap={0}><Each of={weather.daily.slice(0, 5)} item="day" index="i"><Row key={i} height={24} gap={2}><Text value={day.dayLabel || labels.missingValue} size="xs" width="100%" color={colors.text} /><Icon name={weatherIcons.includes(day.icon) ? day.icon : 'circle-question'} size="sm" color={colors.icon} /><Text value={day.lowLabel || labels.missingValue} size="xs" width={44} textAlign="end" color={colors.secondary} tabularNums /><Text value={day.highLabel || labels.missingValue} size="xs" width={44} textAlign="end" weight="semibold" color={colors.text} tabularNums /></Row></Each></Col><Show.Else><Col flex={1} justify="center" gap={2}><Text value={labels.dailyUnavailable} size="sm" color={colors.text} /><Text value={labels.dataNote} size="xs" color={colors.secondary} /></Col></Show.Else></Show></Box></Show></Box></Basic></Scope>
+<Basic align="center" gap={0}>
+  <Show when={activeDesign === "air"}>
+    <Card size="full" height="100%" padding={4} gap={0} theme="dark" background={background}>
+      <Col height="100%" justify="between" gap={2}>
+        <Row justify="between" align="start" gap={2}>
+          <Text value={place} size="sm" weight="medium" />
+          <Icon name={icon} size="xl" color="white" />
+        </Row>
+        <Col gap={0}>
+          <Title value={temperature + "°"} size="5xl" weight="normal" />
+          <Text value={condition} size="sm" />
+          <Text value={range} size="xs" />
+        </Col>
+      </Col>
+    </Card>
+  </Show>
+
+  <Show when={activeDesign === "coast"}>
+    <Card size="full" height="100%" padding={0} gap={0} theme="light" background="#eeede8">
+      <Col flex={1} padding={3} gap={1} justify="between">
+        <Row justify="between" gap={2}>
+          <Text value={place} size="sm" weight="semibold" />
+          <Icon name={icon} color="secondary" size="lg" />
+        </Row>
+        <Row align="end" justify="between" gap={2}>
+          <Title value={temperature + "°"} size="3xl" weight="normal" />
+          <Col gap={0} align="end">
+            <Text value={condition} size="xs" />
+            <Caption value={range} size="sm" />
+          </Col>
+        </Row>
+      </Col>
+      <Image src={images.coast} alt="A quiet coastal landscape beneath a broad sky." width="100%" height={68} fit="cover" radius="none" flush />
+    </Card>
+  </Show>
+
+  <Show when={activeDesign === "alpine"}>
+    <Card size="full" height="100%" padding={3} gap={1} theme="dark" background={background}>
+      <Row align="start" justify="between" gap={3}>
+        <Col gap={0}>
+          <Text value={place} size="sm" weight="medium" />
+          <Title value={temperature + "°"} size="3xl" weight="normal" />
+        </Col>
+        <Col gap={0} align="end">
+          <Icon name={icon} size="xl" color="white" />
+          <Text value={condition} size="xs" />
+          <Text value={range} size="xs" />
+        </Col>
+      </Row>
+      <Row gap={1} justify="between">
+        <Each of={hours} item="hour">
+          <Col flex={1} minWidth={0} align="center" gap={1}>
+            <Text value={hour.time} size="xs" />
+            <Icon name={hour.icon} size="sm" color="white" />
+            <Text value={String(hour.temp) + "°"} size="xs" weight="medium" />
+          </Col>
+        </Each>
+      </Row>
+      <Divider color="alpha-10" />
+      <Row justify="between" gap={3}>
+        <Each of={solar} item="event">
+          <Row gap={2}>
+            <Icon name={event.icon} size="sm" color="white" />
+            <Text value={event.label + " " + event.time} size="xs" />
+          </Row>
+        </Each>
+      </Row>
+    </Card>
+  </Show>
+
+  <Show when={activeDesign === "dusk"}>
+    <Card size="full" height="100%" padding={3} gap={1} theme="dark" background={background}>
+      <Row align="stretch" gap={3}>
+        <Col flex={1} minWidth={0} gap={1} justify="between">
+          <Text value={place} size="sm" weight="medium" />
+          <Col gap={0}>
+            <Icon name={icon} size="xl" color="white" />
+            <Title value={temperature + "°"} size="3xl" weight="normal" />
+            <Text value={condition} size="xs" />
+            <Text value={range} size="xs" />
+          </Col>
+        </Col>
+        <Box flex={1} minWidth={0} background="rgba(25,24,45,.48)" radius="lg" padding={2} gap={1}>
+          <Each of={hours} item="hour">
+            <Row justify="between" gap={1}>
+              <Text value={hour.time} size="xs" />
+              <Icon name={hour.icon} size="xs" color="white" />
+              <Text value={String(hour.temp) + "°"} size="xs" tabularNums />
+            </Row>
+          </Each>
+        </Box>
+      </Row>
+      <Divider color="alpha-10" />
+      <Row justify="between" gap={2}>
+        <Each of={solar} item="event">
+          <Row gap={2}>
+            <Icon name={event.icon} size="sm" color="white" />
+            <Text value={event.label + " " + event.time} size="xs" />
+          </Row>
+        </Each>
+      </Row>
+    </Card>
+  </Show>
+
+  <Show when={activeDesign === "sunrise"}>
+    <Card size="full" height="100%" padding={0} gap={0} theme="light" background="#f5f1e8">
+      <Col padding={3} gap={0}>
+        <Box height={130} radius="xl" padding={3} justify="between" background={heroBackground}>
+          <Row justify="between" gap={2}>
+            <Text value={place} size="sm" weight="medium" color="white" />
+            <Icon name={icon} size="xl" color="white" />
+          </Row>
+          <Col gap={0}>
+            <Title value={temperature + "°"} size="4xl" weight="normal" color="white" />
+            <Text value={condition + " · " + range} size="sm" color="white" />
+          </Col>
+        </Box>
+      </Col>
+      <Col padding={{ x: 3, bottom: 3 }} gap={2}>
+        <Col gap={1}>
+          <Text value={summary} size="xs" weight="medium" />
+          <Row gap={1} justify="between">
+            <Each of={hours} item="hour">
+              <Col flex={1} minWidth={0} align="center" gap={1}>
+                <Caption value={hour.time} size="sm" />
+                <Icon name={hour.icon} size="sm" color="#a56e27" />
+                <Text value={String(hour.temp) + "°"} size="sm" weight="medium" />
+              </Col>
+            </Each>
+          </Row>
+        </Col>
+        <Divider color="subtle" />
+        <Grid columns={2} columnGap={3} rowGap={2}>
+          <Each of={metrics} item="metric">
+            <Row gap={2} align="start">
+              <Icon name={metric.icon} size="md" color="secondary" />
+              <Col gap={0} minWidth={0}>
+                <Caption value={metric.label} size="sm" />
+                <Text value={metric.value} size="sm" weight="semibold" />
+              </Col>
+            </Row>
+          </Each>
+        </Grid>
+        <Divider color="subtle" />
+        <Row justify="between" gap={2}>
+          <Each of={solar} item="event">
+            <Row gap={2}>
+              <Icon name={event.icon} size="md" color="#a56e27" />
+              <Col gap={0}>
+                <Caption value={event.label} size="sm" />
+                <Text value={event.time} size="sm" weight="medium" />
+              </Col>
+            </Row>
+          </Each>
+        </Row>
+      </Col>
+    </Card>
+  </Show>
+
+  <Show when={activeDesign === "storm"}>
+    <Card size="full" height="100%" padding={3} gap={2} theme="dark" background={background}>
+      <Row justify="between" align="start" gap={3}>
+        <Col gap={0}>
+          <Text value={place} size="sm" weight="medium" />
+          <Title value={temperature + "°"} size="4xl" weight="normal" />
+          <Text value={condition} size="sm" />
+          <Text value={range} size="xs" />
+        </Col>
+        <Col align="end" gap={1}>
+          <Icon name={icon} size="2xl" color="white" />
+          <Col gap={0} align="end">
+            <Caption value={labels.rainToday} />
+            <Text value={rainTotal} size="lg" weight="medium" />
+          </Col>
+        </Col>
+      </Row>
+      <Text value={summary} size="xs" />
+      <Col gap={1}>
+        <Row gap={1}>
+          <Each of={hours} item="hour">
+            <Col flex={1} minWidth={0} align="center" gap={1}>
+              <Text value={hour.time} size="xs" />
+              <Icon name={hour.icon} size="sm" color="white" />
+              <Text value={String(hour.temp) + "°"} size="xs" weight="medium" />
+              <Text value={String(hour.rain) + "%"} size="xs" color="#a6cce8" />
+            </Col>
+          </Each>
+        </Row>
+        <Caption value={labels.rainChance} size="sm" />
+      </Col>
+      <Divider color="alpha-10" />
+      <Grid columns={2} columnGap={3} rowGap={2}>
+        <Each of={metrics} item="metric">
+          <Row gap={2} align="start">
+            <Icon name={metric.icon} size="md" color="secondary" />
+            <Col gap={0} minWidth={0}>
+              <Caption value={metric.label} size="sm" />
+              <Text value={metric.value} size="sm" weight="semibold" />
+            </Col>
+          </Row>
+        </Each>
+      </Grid>
+      <Divider color="alpha-10" />
+      <Row justify="between" gap={3}>
+        <Each of={solar} item="event">
+          <Row gap={2}>
+            <Icon name={event.icon} size="md" color="secondary" />
+            <Col gap={0}>
+              <Caption value={event.label} size="sm" />
+              <Text value={event.time} size="sm" />
+            </Col>
+          </Row>
+        </Each>
+      </Row>
+    </Card>
+  </Show>
+</Basic>

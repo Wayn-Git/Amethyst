@@ -1,15 +1,18 @@
 /* Native clock surface. Three sizes, strict dimensions, Apple-inspired. */
-.home-layout-grid .today-widget-slot[data-slot-id='glance.clock'] {
+.home-layout-grid .today-widget-slot[data-slot-id='glance.clock'],
+.today-widgets-canvas .today-widget-slot[data-slot-id='glance.clock'] {
   border: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
   padding: 0 !important;
   box-sizing: border-box;
 }
-.home-layout-grid .today-widget-slot[data-slot-id='glance.clock']:hover {
+.home-layout-grid .today-widget-slot[data-slot-id='glance.clock']:hover,
+.today-widgets-canvas .today-widget-slot[data-slot-id='glance.clock']:hover {
   box-shadow: none !important;
 }
-.home-layout-grid .today-widget-slot[data-slot-id='glance.clock'] > .today-slot-body {
+.home-layout-grid .today-widget-slot[data-slot-id='glance.clock'] > .today-slot-body,
+.today-widgets-canvas .today-widget-slot[data-slot-id='glance.clock'] > .today-slot-body {
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -18,6 +21,22 @@
   margin: 0;
   border: 0;
   box-sizing: border-box;
+}
+
+.clock-widget--tugan {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  box-sizing: border-box;
+}
+
+.clock-widget--tugan .widget-root {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
 }
 
 /* Responsive slot dimensions */
@@ -350,6 +369,63 @@
 .clock-medium--grid {
   display: block;
 }
+.clock-medium--minimal {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  height: 100% !important;
+}
+.clock-minimal-m,
+.clock-minimal-l {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.clock-minimal-m .clock-city,
+.clock-minimal-l .clock-city {
+  margin: 0;
+}
+.clock-minimal-m-center,
+.clock-minimal-l-center {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.clock-minimal-m .clock-time {
+  font-size: 56px;
+  line-height: 1;
+}
+.clock-minimal-m .clock-time-row.is-long .clock-time {
+  font-size: 46px;
+}
+.clock-minimal-m .clock-date {
+  font-size: 14px;
+  color: var(--clock-ink-dim);
+  margin: 4px 0 0;
+}
+.clock-large--minimal {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  height: 100% !important;
+}
+.clock-minimal-l .clock-time {
+  font-size: 84px;
+  line-height: 1;
+  font-weight: 300;
+  letter-spacing: -0.04em;
+}
+.clock-minimal-l .clock-time-row.is-long .clock-time {
+  font-size: 68px;
+}
+.clock-minimal-l .clock-date {
+  font-size: 18px;
+  color: var(--clock-ink-dim);
+  margin: 8px 0 0;
+}
 
 /* Large: 356x356 */
 .clock-large {
@@ -680,3 +756,222 @@
     transition: none;
   }
 }
+
+/* Clock small face variations */
+.clock-small-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+.clock-precision-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--clock-accent, #ff9f0a);
+  background: rgba(255, 159, 10, 0.12);
+  padding: 1px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+}
+
+/* Split face small */
+.clock-small--split {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+}
+.clock-small--split .clock-split-dial .clock-dial {
+  width: 78px;
+  height: 78px;
+}
+.clock-small--split .clock-split-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.clock-small--split .clock-split-info .clock-time {
+  font-size: 24px;
+}
+.clock-small--split .clock-split-info .clock-period {
+  font-size: 11px;
+}
+.clock-small--split .clock-split-info .clock-city {
+  font-size: 11px;
+}
+
+/* Editorial face small */
+.clock-small--editorial {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+}
+.clock-editorial-sm-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+.clock-editorial-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--clock-accent, #ff9f0a);
+  background: rgba(255, 159, 10, 0.12);
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.04em;
+}
+.clock-editorial-sm-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.clock-tile-sm {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--clock-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.clock-tile-sm-num {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--clock-fg);
+}
+
+/* World pair small */
+.clock-small--pair {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+}
+.clock-pair-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.clock-pair-row.is-secondary {
+  opacity: 0.85;
+}
+.clock-pair-row .clock-time {
+  font-size: 32px;
+}
+.clock-pair-row.is-secondary .clock-time {
+  font-size: 26px;
+}
+.clock-pair-rule {
+  height: 1px;
+  background: var(--clock-hairline);
+  margin: 4px 0;
+}
+
+/* World grid small */
+.clock-small--grid {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+.clock-grid-4 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+.clock-grid-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  border: 1px solid var(--clock-hairline);
+  min-width: 0;
+}
+.clock-grid-city {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--clock-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.clock-grid-time {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--clock-fg);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.clock-grid-period {
+  font-size: 9px;
+  color: var(--clock-muted);
+  font-weight: 600;
+}
+
+/* World ledger small */
+.clock-small--ledger {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+.clock-ledger-items {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 8px;
+}
+.clock-ledger-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--clock-hairline);
+}
+.clock-ledger-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.clock-ledger-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.clock-ledger-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--clock-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.clock-ledger-offset {
+  font-size: 10px;
+  color: var(--clock-muted);
+}
+.clock-ledger-time {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--clock-fg);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.clock-ledger-time small {
+  font-size: 10px;
+  color: var(--clock-muted);
+}
+

@@ -226,13 +226,16 @@ async def refresh(widget_id):
                 widget_id,
                 payload,
                 "empty"
-                if payload is None
-                or payload == []
-                or payload == {}
-                or (
-                    isinstance(payload, dict)
-                    and payload.get("items") == []
-                    and not payload.get("history")
+                if widget_id != "glance.music"
+                and (
+                    payload is None
+                    or payload == []
+                    or payload == {}
+                    or (
+                        isinstance(payload, dict)
+                        and payload.get("items") == []
+                        and not payload.get("history")
+                    )
                 )
                 else "ok",
                 synced_at=stamp(),

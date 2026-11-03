@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-export const DEFAULT_WORLD_ZONES = ['Europe/London', 'America/New_York', 'Asia/Tokyo']
+export const DEFAULT_WORLD_ZONES = ['Europe/London', 'America/New_York', 'Asia/Tokyo', 'Europe/Paris']
 
 const CITY_ALIASES = {
   Calcutta: 'Kolkata',

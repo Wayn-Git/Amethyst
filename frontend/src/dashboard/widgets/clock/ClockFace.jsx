@@ -1,6 +1,6 @@
 import AnalogDial from './AnalogDial.jsx'
 import WorldClocks from './WorldClocks.jsx'
-import { formatDate, formatTime, timeLabel } from './helpers.js'
+import { cityName, formatDate, formatTime, offsetLabel, relativeOffset, timeLabel } from './helpers.js'
 
 function ClockTime({ now, time, seconds, second }) {
   return <p className={`clock-time-row${time.text.length > 4 ? ' is-long' : ''}`}>
@@ -22,6 +22,17 @@ export default function ClockFace({ now, face, size, city, zones, reducedMotion,
   if (face?.family === 'analog') {
     const variant = face.number === 4 ? 'roman' : face.number === 5 ? 'index' : 'split'
     if (size === 's') {
+      if (variant === 'split') {
+        return <div className="clock-layout clock-small clock-small--split">
+          <div className="clock-split-dial">
+            <AnalogDial now={now} label={timeLabel(time)} variant="split" seconds={seconds} reducedMotion={reducedMotion} />
+          </div>
+          <div className="clock-split-info">
+            <p className="clock-city">{city}</p>
+            <ClockTime now={now} time={time} />
+          </div>
+        </div>
+      }
       return <div className="clock-layout clock-small clock-small--analog">
         <AnalogDial now={now} label={timeLabel(time)} variant={variant} seconds={seconds} reducedMotion={reducedMotion} />
       </div>
@@ -32,7 +43,17 @@ export default function ClockFace({ now, face, size, city, zones, reducedMotion,
           <AnalogDial now={now} label={timeLabel(time)} variant={variant} seconds={seconds} reducedMotion={reducedMotion} />
         </div>
         <span className="clock-medium-rule" aria-hidden="true" />
-        <WorldClocks now={now} zones={zones} variant="medium" />
+        {zones.length > 0 && variant !== 'split' ? (
+          <WorldClocks now={now} zones={zones} variant="medium" />
+        ) : (
+          <div className="clock-medium-left">
+            <p className="clock-city">{city}</p>
+            <div className="clock-medium-bottom">
+              <ClockTime now={now} time={time} seconds={seconds} second={second} />
+              <p className="clock-date">{date}</p>
+            </div>
+          </div>
+        )}
       </div>
     }
     return <div className="clock-layout clock-large">
@@ -57,9 +78,18 @@ export default function ClockFace({ now, face, size, city, zones, reducedMotion,
       <div className="clock-tile"><span className="clock-tile-label">Zone</span><strong>{city}</strong><small>Local</small></div>
     </div>
     if (size === 's') {
-      return <div className="clock-layout clock-small">
-        <p className="clock-city">{city}</p>
-        <ClockTime now={now} time={time} />
+      return <div className="clock-layout clock-small clock-small--editorial">
+        <div className="clock-editorial-sm-top">
+          <p className="clock-city">{city}</p>
+          <span className="clock-editorial-badge">{weekdayShort}</span>
+        </div>
+        <div className="clock-editorial-sm-bottom">
+          <div className="clock-tile-sm">
+            <span className="clock-tile-sm-num">{now.getDate()}</span>
+            <span className="clock-tile-sm-month">{month}</span>
+          </div>
+          <ClockTime now={now} time={time} />
+        </div>
       </div>
     }
     if (size === 'm') {
@@ -92,10 +122,57 @@ export default function ClockFace({ now, face, size, city, zones, reducedMotion,
   if (face?.family === 'world') {
     const worldVariant = face.number === 8 ? 'grid' : face.number === 9 ? 'ledger' : 'medium'
     if (size === 's') {
-      return <div className="clock-layout clock-small">
-        <p className="clock-city">{city}</p>
-        <ClockTime now={now} time={time} />
-      </div>
+      if (face.number === 7) {
+        const otherZone = zones[0] || 'Europe/London'
+        const otherTime = formatTime(now, otherZone)
+        return <div className="clock-layout clock-small clock-small--pair">
+          <div className="clock-pair-row">
+            <p className="clock-city">{city}</p>
+            <ClockTime now={now} time={time} />
+          </div>
+          <span className="clock-pair-rule" aria-hidden="true" />
+          <div className="clock-pair-row is-secondary">
+            <p className="clock-city">{cityName(otherZone)}</p>
+            {otherTime && <ClockTime now={now} time={otherTime} />}
+          </div>
+        </div>
+      }
+      if (face.number === 8) {
+        const gridZones = [
+          { name: city, time: time },
+          ...zones.slice(0, 3).map(z => ({ name: cityName(z), time: formatTime(now, z) })),
+        ].slice(0, 4)
+        return <div className="clock-layout clock-small clock-small--grid">
+          <div className="clock-grid-4">
+            {gridZones.map((g, i) => (
+              <div key={i} className="clock-grid-item">
+                <span className="clock-grid-city">{g.name}</span>
+                <span className="clock-grid-time">{g.time.text}</span>
+                {g.time.period && <small className="clock-grid-period">{g.time.period}</small>}
+              </div>
+            ))}
+          </div>
+        </div>
+      }
+      if (face.number === 9) {
+        const ledgerZones = [
+          { name: city, time: time, offset: 'Local' },
+          ...zones.slice(0, 3).map(z => ({ name: cityName(z), time: formatTime(now, z), offset: offsetLabel(relativeOffset(now, z)) })),
+        ].slice(0, 3)
+        return <div className="clock-layout clock-small clock-small--ledger">
+          <div className="clock-ledger-items">
+            {ledgerZones.map((l, i) => (
+              <div key={i} className="clock-ledger-row">
+                <div className="clock-ledger-info">
+                  <span className="clock-ledger-name">{l.name}</span>
+                  <span className="clock-ledger-offset">{l.offset}</span>
+                </div>
+                <span className="clock-ledger-time">{l.time.text} <small>{l.time.period}</small></span>
+              </div>
+            ))}
+          </div>
+        </div>
+      }
     }
     if (size === 'm') {
       if (face.number === 8) {
@@ -131,22 +208,50 @@ export default function ClockFace({ now, face, size, city, zones, reducedMotion,
 
   // 4. Precision (clock-sm-02) & Minimal (clock-sm-01 default)
   const isPrecision = face?.number === 2
-  if (size === 's') return <div className="clock-layout clock-small">
-    <p className="clock-city">{city}</p>
+  if (size === 's') return <div className={`clock-layout clock-small${isPrecision ? ' clock-small--precision' : ''}`}>
+    <div className="clock-small-header">
+      <p className="clock-city">{city}</p>
+      {isPrecision && <span className="clock-precision-badge">SEC</span>}
+    </div>
     <ClockTime now={now} time={time} seconds={isPrecision && seconds} second={second} />
   </div>
 
-  if (size === 'm') return <div className="clock-layout clock-medium">
-    <div className="clock-medium-left">
-      <p className="clock-city">{city}</p>
-      <div className="clock-medium-bottom">
-        <ClockTime now={now} time={time} seconds={isPrecision && seconds} second={second} />
-        <p className="clock-date">{date}</p>
+  if (size === 'm') {
+    if (face?.number === 1) {
+      return <div className="clock-layout clock-medium clock-medium--minimal">
+        <div className="clock-minimal-m">
+          <p className="clock-city">{city}</p>
+          <div className="clock-minimal-m-center">
+            <ClockTime now={now} time={time} />
+            <p className="clock-date">{date}</p>
+          </div>
+        </div>
+      </div>
+    }
+    return <div className="clock-layout clock-medium">
+      <div className="clock-medium-left">
+        <p className="clock-city">{city}</p>
+        <div className="clock-medium-bottom">
+          <ClockTime now={now} time={time} seconds={isPrecision && seconds} second={second} />
+          <p className="clock-date">{date}</p>
+        </div>
+      </div>
+      <span className="clock-medium-rule" aria-hidden="true" />
+      <WorldClocks now={now} zones={zones} variant="medium" />
+    </div>
+  }
+
+  if (face?.number === 1) {
+    return <div className="clock-layout clock-large clock-large--minimal">
+      <div className="clock-minimal-l">
+        <p className="clock-city">{city}</p>
+        <div className="clock-minimal-l-center">
+          <ClockTime now={now} time={time} />
+          <p className="clock-date">{date}</p>
+        </div>
       </div>
     </div>
-    <span className="clock-medium-rule" aria-hidden="true" />
-    <WorldClocks now={now} zones={zones} variant="medium" />
-  </div>
+  }
 
   return <div className="clock-layout clock-large">
     <div className="clock-large-top">

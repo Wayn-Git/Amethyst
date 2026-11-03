@@ -20,14 +20,14 @@ export function clockFace(design) {
 }
 
 export function worldLimit(face, size) {
-  if (size === 's') return 0
-  if (face.number === 7) return 2
+  if (face.number === 1) return 0
+  if (face.number === 7) return size === 's' ? 1 : 2
   if (face.number === 8 || face.number === 9) return 4
   if (face.family === 'analog') return size === 'l' ? 4 : 0
-  return size === 'l' ? 4 : 2
+  return size === 'l' ? 4 : size === 's' ? 0 : 2
 }
 
-export function showSeconds(face, size) {
-  if (face.number === 2) return size !== 's'
+export function showSeconds(face, _size) {
+  if (face.number === 2) return true
   return face.number >= 4 && face.number <= 6
 }
