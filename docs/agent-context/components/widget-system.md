@@ -1,10 +1,10 @@
 # Widget System
 
 The Home dashboard contract: 80 validated widget manifests, a lazy frontend
-renderer registry, a SQLite cache, per-widget refresh, and a persisted 12-column
-bento layout.
+renderer registry, a SQLite cache, per-widget refresh, and a persisted
+coordinate-based widget grid.
 
-**Verified 2026-11-02 · commit `ba6b9f3` · dirty working tree.**
+**Updated 2026-11-03 · dirty working tree.**
 
 Related: [sections/today.md](../sections/today.md), [FRONTEND.md](../FRONTEND.md),
 [BACKEND.md](../BACKEND.md), [DATABASE.md](../DATABASE.md),
@@ -23,6 +23,7 @@ backend/dashboard/connectors.py     connector access, backoff, READ_TOOLS
 frontend/src/dashboard/Home.jsx     grid, edit mode, drawers, drag/resize
 frontend/src/dashboard/registry.js  widget id -> lazy React component
 frontend/src/dashboard/useWidget.js cache-first fetch, polling, invalidation
+frontend/src/dashboard/grid.js      coordinate geometry, layout validation, placement
 frontend/src/dashboard/WidgetFrame.jsx  frame, states, actions, boundary
 frontend/src/dashboard/WidgetSlot.jsx   grid slot, collapse, edit controls
 frontend/src/dashboard/primitives.jsx   WidgetCard, WidgetHeader, WidgetState
@@ -57,8 +58,9 @@ entries are disabled with an error, not allowed to crash startup.
 The shipped registry contains **80 widgets**. The count is verified by
 `len(MANIFESTS)` and by the parity script. `wide` and `tall` are accepted by the
 model and the bento CSS, but no shipped manifest currently advertises them.
-`Position.height` is 2–8; `Layout.widgets` is capped at 50 and ids must be
-unique.
+`Position.height` remains a compatibility field (bounded to 1–10000);
+`Position.h` is the coordinated grid row span. `Layout.widgets` is capped at 50
+and ids must be unique.
 
 `CATALOG` supplies `description` and `icon` for every shipped id. A legacy custom
 manifest without those fields remains valid because the model supplies defaults.
@@ -114,7 +116,8 @@ Widget-specific generation work (briefs, summaries, Library answers) has a
 
 Quiet hours come from `dash.quiet` settings: `enabled`, `start`, `end`,
 `timezone`, `snoozed_until`. `quiet_active()` uses the configured zone, not the
-browser clock. `Alt+Q` snoozes refresh for one hour.
+browser clock. Today supports `Alt+R` to refresh, `Alt+A` to open Add widget,
+`Alt+E` to toggle layout editing, and `Alt+Q` to snooze refresh for one hour.
 
 ## Frontend render pipeline
 
@@ -160,9 +163,21 @@ read after 500ms.
 
 ## Layout and editing
 
-`layout.js` defines the 12-column spans: `s = 3`, `m = 6`, `l = 12`. The bento
-CSS narrows those spans at container breakpoints. `Home.jsx` also supports
-`wide` and `tall` display sizes when a manifest advertises them.
+`frontend/src/dashboard/grid.js` owns Today's fixed-cell geometry and pure
+placement rules. Saved items may include integer `x`, `y`, `w`, and `h`; `h` is
+the occupied row count. Small, Medium, Large, Wide, and Tall occupy 1×1, 2×1,
+2×2, 2×1, and 1×2 cells. Cell width, row height, gap, positions, and footprints
+come from the shared geometry module. The visible grid grows to contain saved
+coordinates and scrolls horizontally when needed; viewport changes do not
+rewrite coordinates. Legacy `height` remains accepted for compatibility but
+does not determine grid geometry.
+
+Layouts saved before coordinates were introduced are normalized in stable
+widget order before rendering, retaining ids, sizes, designs, and legacy height.
+The next successful layout save stores coordinates in the existing JSON layout
+record. The backend accepts fully legacy layouts for older callers and validates
+coordinated layouts for complete coordinates, matching footprints, and
+non-overlap.
 
 Editing supports:
 
@@ -174,11 +189,11 @@ Editing supports:
 - remove from the widget menu;
 - “Fit widgets” to preferred manifest sizes.
 
-Glance widget settings and the add catalog show live previews for each design at
-Small, Medium and Large. Adding a preview stores both its selected size and
-design id; applying a design to an existing widget preserves its slot size.
-Widget renderers receive the active variation and continue to use live provider
-data. The size tabs control preview size only until an Add action is chosen.
+The add catalog previews supported sizes using the grid's exact pixel geometry.
+Adding a design stores its selected size and design id. Existing-widget design
+choices preview the current slot size; applying one preserves that size, while
+resizing stays in Edit layout. Widget renderers receive the active variation and
+continue to use live provider data.
 
 Saves are serialized through a promise queue so an earlier slow request cannot
 overwrite the latest layout. The client writes optimistically, caches locally
@@ -235,4 +250,4 @@ call declared actions; it should not invent a second data path.
 - [BACKEND.md](../BACKEND.md) — router and service conventions
 - [DEVELOPMENT-GUIDE.md](../DEVELOPMENT-GUIDE.md) — verification commands
 
-_Last verified: 2026-10-31 · commit `3c363b7` · dirty working tree._
+_Last verified: 2026-11-03 · dirty working tree._

@@ -1,5 +1,11 @@
 # Dashboard changelog
 
+- 2026-11-04 · Today shell redesign: replaced the dashboard header, utility row, workspace, drawers, settings navigation, catalog surfaces, and slot controls with a responsive token-based interface guided by the WidgetKit report. Kept widget renderers and live payload contracts intact, preserved fixed grid coordinates, exposed Add widget and refresh from the page header, restored all saved enabled widgets to the canvas, and added a visible remove action in edit mode. Production build passes; browser visual review could not run because no browser surface is available in this session.
+
+- 2026-11-03 · Today add/edit consistency: catalog and existing-widget design previews now use exact grid footprint dimensions. The add picker uses one selected size for previews and insertion; existing-widget design choices match the current slot size and explicitly preserve it. The editor browser test verifies Large preview geometry and design switching without resizing.
+
+- 2026-11-03 · Today grid foundation: added deterministic fixed-cell coordinates, legacy layout normalization, atomic move/resize/insert/remove placement, horizontal overflow for saved coordinates, and serialized saves with rollback through the existing layout API. Backend validates complete footprints and rejects overlap. Grid engine and mocked Chromium interactions pass; focused backend size validation (2 tests) and production build pass. Dashboard shell route tests stalled during lifespan setup; build reports existing theme and chunk warnings.
+
 - 2026-11-02 · Glance design picker: added Small/Medium/Large live previews to widget settings and the add catalog. Adding from a preview persists its size and design; applying a design to an existing widget keeps its slot size.
 
 - 2026-11-02 · Glance feedback: retained adopted-widget boundary suppression through setup/error states, exposed Glance options without hover, removed redundant refresh chrome from Glance cards, and added a direct Appearance & theme shortcut to app settings. Missing location/calendar readings remain explicit and can now be configured from the visible widget options.

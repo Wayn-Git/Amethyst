@@ -215,6 +215,9 @@ relay/.wrangler/
 /nothing/
 /info/
 ,*
+today-*.zip
+today-section/
+
 
 # Wrangler state at the root, as distinct from relay/.wrangler/ below.
 /.wrangler/
