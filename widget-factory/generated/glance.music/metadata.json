@@ -1,16 +1,29 @@
 {
   "widgetId": "glance.music",
-  "prompt": "Design an expressive macOS Music widget using all attached images as visual references. Generate one coherent composition with Small (160x160), Medium (340x160), and Large (340x340) layouts for light and dark themes. Use the provided ideas as composition options: synced lyrics, obsidian cover art, inset audio cards, full-bleed artwork scrim, or terracotta vinyl. Select one family and adapt it consistently to all sizes. Small: live current track title, artist, and available playback state; never make up cover art. Medium: small content plus live elapsed/total progress and supported previous/play/pause/next controls. Large: medium content plus only data the playback provider supplies; do not invent lyrics, queue, album art, or track history. Include a quiet Nothing playing state. Keep text at least 11px except the hero, use 24px outer corners, 16px small/20px other padding, 8px spacing grid and 12px group gaps, accessible light/dark contrast, and no clipping. No gallery or selector.",
-  "generatedAt": "2026-11-02T15:29:20+00:00",
+  "prompt": "Create a premium collection of native Apple-style Now Playing Music widgets for a macOS desktop dashboard based on the attached visual reference. Generate 4 genuinely different compositions across Small (160x160), Medium (340x160), and Large (340x340).\n\nDESIGN PHILOSOPHY:\nApple Music native design language. Natural materials, 24px squircles, thoughtful spacing, beautiful typography, balanced compositions.\n\nCOMPOSITIONS:\n1. Minimal: Restrained whitespace, focus on track metadata, discreet playback badge.\n2. Artwork-Immersive: Dominant artwork presence, subtle dark scrim or tinted wash, floating transport.\n3. Control-Rich: Refined transport controls (skip-back, play/pause, skip-forward), progress scrubber bar with timestamps, volume or device pill.\n4. Editorial: Elegant asymmetric layout, flush artwork, refined typographic hierarchy.\n\nCONTENT LIMITS:\nSmall (160x160): Cover art, track title, artist, playback control. No scrubber.\nMedium (340x160): Small content plus progress bar, elapsed/remaining time, full playback controls.\nLarge (340x340): Medium content plus queue preview snippet or rich track info, quiet \"Nothing playing\" fallback.\n\nAll text >= 11px, 24px corners, 16px padding on Small, 20px on Medium/Large. Accessible contrast.",
+  "generatedAt": "2026-11-03T09:51:58+00:00",
   "generationStatus": "generated",
   "imageStatus": "available",
   "theme": "light",
-  "designSpec": "One inset audio-card family supports host-selected Small (160×160), Medium (340×160), and Large (340×340) layouts without a gallery or selector, using 24px corners and theme-aware warm-white/charcoal surfaces. The playback provider must supply current content, live timing updates, metadata, and supported action objects; reference images are not used as album art. With no playback supplied, the composition quietly displays “Nothing playing.”",
+  "designSpec": "Four vertically stacked studies preserve the requested dimensions, with 24px outer corners, 16/20px content insets, and distinct metadata-led, immersive, control-rich, and asymmetric editorial compositions. Local transport simulations, editable timeline positions, queue previews, and switchable empty states make the collection interactive without claiming audio playback. Supplied imagery is explicitly illustrative, and all supporting text is at least 12px.",
   "stages": [
     "Reading reference image",
     "Planning the widget",
     "Planning complete. Gathering supporting context",
-    "Searching for real image URLs",
+    "Searching for real image URLs from 4 queries",
+    "Generating the widget interface",
+    "Needing more time",
+    "Shaping the layout",
+    "Choosing the right structure",
+    "Fitting the data into the widget",
+    "Balancing the content",
+    "Arranging the sections",
+    "Tuning the visual hierarchy",
+    "Checking the preview",
+    "Reviewing the widget data",
+    "Polishing the details",
+    "Keeping the widget compact",
+    "Preparing the final widget",
     "Generating the widget interface",
     "Needing more time",
     "Shaping the layout",
@@ -27,9 +40,9 @@
     "Widget ready"
   ],
   "contentHashes": {
-    "template.jsx": "72fce447ac06b316846664b1c903cced52e0517427c661aaf8ca0051840c1a09",
-    "data.json": "e91e61151ebe028b013daaf5389ec403a66a00e6a8bf5cafa39373617139f6d4",
-    "reference.jpg": "ce6682218da84fb4f7f7d4070a4b3b292500bc6f8450f96f844884f1904a6927"
+    "template.jsx": "85c66606395b46d6481e93025acfc03ac4b12bbe0f4945bf3c66f15ee6aa9c8a",
+    "data.json": "afbb607cac17a66c41924db3d4c232900df6c20192563b3b5166b4d6bfa20f4a",
+    "reference.jpg": "42f6224c0c142345b1eb631b93dfdd890db7ae350ca2133fd4bc7f5e4b950f00"
   },
   "imageFile": "reference.jpg"
 }

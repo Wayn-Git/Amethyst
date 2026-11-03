@@ -34,7 +34,7 @@ def cli(argv: list[str] | None = None) -> int:
     gen = sub.add_parser("generate")
     gen.add_argument("widget_id")
     gen.add_argument("--prompt")
-    gen.add_argument("--reference-image", type=Path)
+    gen.add_argument("--reference-image", type=Path, action="append")
     sub.add_parser("generate-batch")
     img = sub.add_parser("register-image")
     img.add_argument("widget_id")
@@ -84,8 +84,9 @@ def cli(argv: list[str] | None = None) -> int:
             prompt = args.prompt or read_prompts().get(args.widget_id)
             if prompt is None:
                 raise ValueError("Supply --prompt or define this ID in prompts/widgets.md")
-            reference_image = args.reference_image.expanduser().resolve() if args.reference_image else None
-            result = generate(args.widget_id, prompt, reference_image=reference_image)
+            ref_imgs = [p.expanduser().resolve() for p in args.reference_image] if args.reference_image else None
+            reference_arg = ref_imgs if ref_imgs and len(ref_imgs) > 1 else (ref_imgs[0] if ref_imgs else None)
+            result = generate(args.widget_id, prompt, reference_image=reference_arg)
         elif args.command == "generate-batch":
             result = generate_batch()
         elif args.command == "register-image":

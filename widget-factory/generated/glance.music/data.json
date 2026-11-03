@@ -1,44 +1,122 @@
 {
-  "layout": "medium",
-  "surfaces": {
-    "outer": {
-      "light": "#FAF8F5",
-      "dark": "#242323"
-    },
-    "inset": {
-      "light": "#EEECE8",
-      "dark": "#302E2D"
-    }
-  },
-  "progressAccent": {
-    "light": "#865342",
-    "dark": "#D6A18C"
-  },
   "labels": {
-    "nothingPlaying": "Nothing playing",
-    "titleUnavailable": "Title unavailable",
-    "previous": "Previous track",
-    "play": "Play",
-    "pause": "Pause",
-    "next": "Next track",
-    "progress": "Playback progress"
+    "title": "Now Playing",
+    "demo": "Four interactive UI studies · no audio playback",
+    "minimal": "01 / Minimal",
+    "immersive": "02 / Artwork-immersive",
+    "rich": "03 / Control-rich",
+    "editorial": "04 / Editorial",
+    "smallSize": "Small · 160 × 160",
+    "mediumSize": "Medium · 340 × 160",
+    "largeSize": "Large · 340 × 340",
+    "play": "Start playback simulation",
+    "pause": "Pause playback simulation",
+    "previous": "Previous sample track",
+    "next": "Next sample track",
+    "seek": "Seek",
+    "position": "Playback position (seconds)",
+    "rangePrefix": "Enter 0–",
+    "rangeSuffix": " seconds. Changes stay in this demo.",
+    "device": "Mac speakers · demo",
+    "upNext": "Up Next",
+    "nowPlaying": "NOW PLAYING",
+    "emptyPreview": "Empty state",
+    "restore": "Load sample",
+    "emptyTitle": "Nothing playing",
+    "emptyHint": "A little quiet, until the next track.",
+    "artNote": "Fictional tracks and artists. Supplied imagery is illustrative, not official artwork for these tracks."
   },
-  "stateLabels": {
-    "playing": "Playing",
-    "paused": "Paused",
-    "stopped": "Stopped"
+  "editorialSurface": {
+    "light": "#f5f2ec",
+    "dark": "#25231f"
   },
-  "playback": {
-    "hasTrack": false,
-    "title": "",
-    "artist": "",
-    "state": "idle",
-    "elapsedSeconds": null,
-    "durationSeconds": null,
-    "previousAction": null,
-    "playAction": null,
-    "pauseAction": null,
-    "nextAction": null,
-    "metadata": []
-  }
+  "small": {
+    "index": 0,
+    "playing": false
+  },
+  "immersive": {
+    "index": 1,
+    "playing": false,
+    "position": 84
+  },
+  "rich": {
+    "index": 2,
+    "playing": false,
+    "position": 102,
+    "hasTrack": true
+  },
+  "editorial": {
+    "index": 3,
+    "playing": false,
+    "position": 76,
+    "hasTrack": true
+  },
+  "tracks": [
+    {
+      "id": "quiet-form",
+      "title": "Quiet Form",
+      "artist": "Mono Field",
+      "album": "Still Studies",
+      "detail": "2026 · Piano",
+      "duration": 216,
+      "durationLabel": "3:36",
+      "art": 0,
+      "artAlt": "Illustrative cover image paired with the fictional track Quiet Form."
+    },
+    {
+      "id": "afterglow",
+      "title": "Afterglow",
+      "artist": "June Harbor",
+      "album": "The Long Way Home",
+      "detail": "2026 · Indie",
+      "duration": 248,
+      "durationLabel": "4:08",
+      "art": 1,
+      "artAlt": "Illustrative cover image paired with the fictional track Afterglow."
+    },
+    {
+      "id": "blue-current",
+      "title": "Blue Current",
+      "artist": "Aster Lines",
+      "album": "Between Waves",
+      "detail": "2026 · Electronic",
+      "duration": 264,
+      "durationLabel": "4:24",
+      "art": 2,
+      "artAlt": "Blue abstract imagery paired with the fictional track Blue Current."
+    },
+    {
+      "id": "soft-geometry",
+      "title": "Soft Geometry",
+      "artist": "Linen Atlas",
+      "album": "Rooms for Light",
+      "detail": "2026 · Ambient",
+      "duration": 231,
+      "durationLabel": "3:51",
+      "art": 3,
+      "artAlt": "Architectural photography paired with the fictional track Soft Geometry."
+    }
+  ],
+  "availableImages": [
+    {
+      "url": "https://f4.bcbits.com/img/a3309701101_16.jpg",
+      "title": "For Piano | Richard Skelton | Aeolian",
+      "source": "https://aeolian.bandcamp.com/album/for-piano"
+    },
+    {
+      "url": "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/cc/0d/a7/cc0da7d8-e73c-ca80-d3d9-347a99254c7f/cover.jpg/1200x1200bf-60.jpg",
+      "title": "Everything's Gonna Be Alright — Jay Ocean",
+      "source": "https://music.apple.com/us/album/everythings-gonna-be-alright-single/1539874176"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/5e7eaf7501b2e061b53d2525/b934c07c-79d1-4616-b67e-4fac6ace23ee/abstract_emotional_connection_blue_hues.png?format=1000w",
+      "title": "Abstract blue imagery — The Branded Agency",
+      "source": "https://www.brandedagency.com/blog/mastering-branding-strategies"
+    },
+    {
+      "url": "https://media.revistaad.es/photos/669a37a2cfdb86d7ff97ed1a/master/w_1600%2Cc_limit/salvalopez_sv_ampolla_148.jpg",
+      "title": "Mediterranean architecture — Architectural Digest España",
+      "source": "https://www.revistaad.es/articulos/casa-mediterranea-austera-y-calida-actualiza-tradicion-tarragona"
+    }
+  ]
 }

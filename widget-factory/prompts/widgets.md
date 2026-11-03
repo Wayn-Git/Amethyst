@@ -10,7 +10,23 @@ Design an expressive macOS Clock widget using all attached images as visual refe
 
 ## glance.music
 ```prompt
-Design an expressive macOS Music widget using all attached images as visual references. Generate one coherent composition with Small (160x160), Medium (340x160), and Large (340x340) layouts for light and dark themes. Use the provided ideas as composition options: synced lyrics, obsidian cover art, inset audio cards, full-bleed artwork scrim, or terracotta vinyl. Select one family and adapt it consistently to all sizes. Small: live current track title, artist, and available playback state; never make up cover art. Medium: small content plus live elapsed/total progress and supported previous/play/pause/next controls. Large: medium content plus only data the playback provider supplies; do not invent lyrics, queue, album art, or track history. Include a quiet Nothing playing state. Keep text at least 11px except the hero, use 24px outer corners, 16px small/20px other padding, 8px spacing grid and 12px group gaps, accessible light/dark contrast, and no clipping. No gallery or selector.
+Create a premium collection of native Apple-style Now Playing Music widgets for a macOS desktop dashboard based on the attached visual reference. Generate 4 genuinely different compositions across Small (160x160), Medium (340x160), and Large (340x340).
+
+DESIGN PHILOSOPHY:
+Apple Music native design language. Natural materials, 24px squircles, thoughtful spacing, beautiful typography, balanced compositions.
+
+COMPOSITIONS:
+1. Minimal: Restrained whitespace, focus on track metadata, discreet playback badge.
+2. Artwork-Immersive: Dominant artwork presence, subtle dark scrim or tinted wash, floating transport.
+3. Control-Rich: Refined transport controls (skip-back, play/pause, skip-forward), progress scrubber bar with timestamps, volume or device pill.
+4. Editorial: Elegant asymmetric layout, flush artwork, refined typographic hierarchy.
+
+CONTENT LIMITS:
+Small (160x160): Cover art, track title, artist, playback control. No scrubber.
+Medium (340x160): Small content plus progress bar, elapsed/remaining time, full playback controls.
+Large (340x340): Medium content plus queue preview snippet or rich track info, quiet "Nothing playing" fallback.
+
+All text >= 11px, 24px corners, 16px padding on Small, 20px on Medium/Large. Accessible contrast.
 ```
 
 ## glance.next-event

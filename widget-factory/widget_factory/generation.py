@@ -83,8 +83,29 @@ def generate(
         raise ValueError("Prompt must not be empty")
     if retries < 0 or retries > 5:
         raise ValueError("retries must be between 0 and 5")
-    image_path = reference_image or _existing_reference_image(widget_id)
-    image_ext, image_bytes = _read_reference_image(image_path) if image_path else (None, None)
+    images_to_process: list[Path] = []
+    if reference_image:
+        if isinstance(reference_image, (list, tuple)):
+            images_to_process.extend(reference_image)
+        else:
+            images_to_process.append(reference_image)
+    else:
+        existing = _existing_reference_image(widget_id)
+        if existing:
+            images_to_process.append(existing)
+
+    reference_images = []
+    first_ext = None
+    first_bytes = None
+    for p in images_to_process:
+        ext, raw = _read_reference_image(p)
+        if first_ext is None:
+            first_ext, first_bytes = ext, raw
+        mime_type = "image/png" if ext == ".png" else "image/jpeg"
+        reference_images.append(
+            {"dataUrl": f"data:{mime_type};base64,{base64.b64encode(raw).decode('ascii')}"}
+        )
+
     endpoint = endpoint or os.environ.get("WIDGET_FACTORY_ENDPOINT", DEFAULT_ENDPOINT)
     db = connect()
     try:
@@ -110,14 +131,8 @@ def generate(
         db.commit()
     finally:
         db.close()
-    if reference_image and image_ext and image_bytes:
-        _store_reference_image(widget_id, image_ext, image_bytes)
-    mime_type = "image/png" if image_ext == ".png" else "image/jpeg"
-    reference_images = (
-        [{"dataUrl": f"data:{mime_type};base64,{base64.b64encode(image_bytes).decode('ascii')}"}]
-        if image_bytes
-        else []
-    )
+    if first_ext and first_bytes:
+        _store_reference_image(widget_id, first_ext, first_bytes)
     body = json.dumps({"prompt": prompt, "referenceImages": reference_images}).encode()
     last_error = "generation failed"
     response_data: dict[str, Any] | None = None
