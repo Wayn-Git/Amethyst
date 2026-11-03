@@ -1,5 +1,9 @@
 # Dashboard changelog
 
+## 2026-10-25 — Today Bento Dashboard Redesign
+
+- Redesigned Home view into 4-section Bento layout with FocusTimer, ProgressGauge, and tactile squircle cards.
+
 ## 2026-10-24 — Day 1 shell
 
 - `dash.gallery`: lazy widget registry, startup JSON Schema validation, disabled invalid manifests, drag/reorder and discrete resize, keyboard controls, SQLite layouts by mode.
