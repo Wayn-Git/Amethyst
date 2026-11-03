@@ -1085,6 +1085,7 @@ def build_default_registry(
         memory,
         sharing,
         shell,
+        skills,
         social,
         task,
         tasks,
@@ -1101,6 +1102,7 @@ def build_default_registry(
     registry.register_all(today.tools())
     registry.register_all(mail.tools())
     registry.register_all(memory.tools())
+    registry.register_all(skills.tools())
     registry.register_all(conversations.tools())
     registry.register_all(automations.tools())
     registry.register_all(documents.tools())
