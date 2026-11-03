@@ -235,7 +235,7 @@ def test_layout_validation_and_restart_persistence(client):
     for bad in [
         {"widgets": layout["widgets"] * 2},
         {"widgets": [{"id": "dash.gallery", "size": "s", "height": 3}]},
-        {"widgets": [{"id": "glance.clock", "size": "m", "height": 100}]},
+        {"widgets": [{"id": "glance.clock", "size": "m", "height": 10001}]},
     ]:
         assert client.put("/api/layout", json=bad).status_code == 422
     assert client.get("/api/layout?mode=../../private").status_code == 422

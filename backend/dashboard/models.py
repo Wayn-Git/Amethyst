@@ -65,7 +65,23 @@ class Position(StrictModel):
     id: str
     design: str | None = Field(default=None, max_length=64, pattern=r"^[a-z]+-(?:sm|md|lg)-[0-9]{2}$")
     size: Literal["s", "m", "l", "wide", "tall"]
-    height: int = Field(default=3, ge=2, le=8)
+    height: int = Field(default=3, ge=1, le=10000)  # Legacy pixel height; grid geometry uses h.
+    x: int | None = Field(default=None, ge=0, le=10000, strict=True)
+    y: int | None = Field(default=None, ge=0, le=10000, strict=True)
+    w: int | None = Field(default=None, ge=1, le=2, strict=True)
+    h: int | None = Field(default=None, ge=1, le=2, strict=True)
+
+    @model_validator(mode="after")
+    def grid_footprint(self):
+        values = (self.x, self.y, self.w, self.h)
+        if all(value is None for value in values):
+            return self
+        if any(value is None for value in values):
+            raise ValueError("Grid coordinates x, y, w, and h must be provided together")
+        expected = {"s": (1, 1), "m": (2, 1), "l": (2, 2), "wide": (2, 1), "tall": (1, 2)}[self.size]
+        if (self.w, self.h) != expected:
+            raise ValueError("Grid footprint does not match widget size")
+        return self
 
     @field_validator("design", mode="before")
     @classmethod
@@ -123,6 +139,13 @@ class Layout(StrictModel):
         ids = [item.id for item in self.widgets]
         if len(ids) != len(set(ids)):
             raise ValueError("Duplicate widget id")
+        if any(item.x is not None for item in self.widgets):
+            if any(item.x is None for item in self.widgets):
+                raise ValueError("All widgets must have grid coordinates when any are provided")
+            for index, item in enumerate(self.widgets):
+                for other in self.widgets[:index]:
+                    if item.x < other.x + other.w and item.x + item.w > other.x and item.y < other.y + other.h and item.y + item.h > other.y:
+                        raise ValueError("Widget placements overlap")
         return self
 
 
