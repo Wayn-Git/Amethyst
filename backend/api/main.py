@@ -9983,23 +9983,15 @@ def _format_tok_cnt(cnt: int) -> str:
         return str(cnt)
 
 
-def _calc_model_cost(raw_model: str, in_tokens: int, out_tokens: int) -> float:
-    m = (raw_model or "").lower()
-    if ":free" in m or "local" in m or "ollama" in m:
-        return 0.0
-    cost = (in_tokens * 0.0000003) + (out_tokens * 0.000001)
-    return round(cost, 5)
-
-
 @app.get("/api/analytics/activity")
 @app.get("/api/activity")
 def get_analytics_activity(days: int = 30) -> dict[str, Any]:
-    """Real activity metrics queried directly from the local SQLite database.
+    """Activity metrics queried from the local SQLite database.
 
-    Reports actual turns taken, completion/failure rates, per-model distribution,
-    daily activity timeline, tool execution frequencies, token transfer estimates,
-    and recent execution runs with exact input/output tokens and durations.
-    Zero mock data.
+    Reports turns taken, completion/failure rates, per-model distribution,
+    daily activity, tool frequencies, and per-turn token counts. Token figures
+    come from the providers' reported usage, stored on `agent_runs`; nothing
+    here is estimated from a character count or a per-turn average.
     """
     import json
     import sqlite3
@@ -10016,12 +10008,16 @@ def get_analytics_activity(days: int = 30) -> dict[str, Any]:
             "tools": [],
             "recent_runs": [],
             "days": days,
-            "tokens": {"total": 0, "input": 0, "output": 0, "is_estimated": True},
+            "tokens": {
+                "total": 0, "input": 0, "output": 0,
+                "cache_read": 0, "cache_write": 0, "is_estimated": False,
+            },
             "messages_count": 0,
             "avg_active_day_requests": 0,
             "avg_active_day_tokens_display": "0",
             "total_spend": 0.0,
-            "total_spend_formatted": "$0.00",
+            "total_spend_formatted": "unknown",
+            "cost_status": "unknown",
         }
 
     try:
@@ -10045,24 +10041,33 @@ def get_analytics_activity(days: int = 30) -> dict[str, Any]:
             + runs_by_phase.get("interrupted", 0)
         )
 
+        totals = conn.execute(
+            f"SELECT coalesce(sum(input_tokens), 0) as input_tokens,"
+            f" coalesce(sum(output_tokens), 0) as output_tokens,"
+            f" coalesce(sum(cache_read_tokens), 0) as cache_read_tokens,"
+            f" coalesce(sum(cache_write_tokens), 0) as cache_write_tokens,"
+            f" coalesce(sum(tool_call_count), 0) as tool_call_count,"
+            f" coalesce(avg(duration_ms), 0) as avg_duration_ms"
+            f" FROM agent_runs {time_filter}"
+        ).fetchone()
+
         models_raw = conn.execute(
             f"SELECT COALESCE(link, 'unknown') as model, count(*) as cnt,"
-            f" sum(case when phase in ('failed', 'cancelled', 'interrupted') then 1 else 0 end) as failed_cnt"
+            f" sum(case when phase in ('failed', 'cancelled', 'interrupted') then 1 else 0 end) as failed_cnt,"
+            f" coalesce(sum(input_tokens), 0) as input_tokens,"
+            f" coalesce(sum(output_tokens), 0) as output_tokens,"
+            f" coalesce(sum(cache_read_tokens), 0) as cache_read_tokens,"
+            f" coalesce(sum(cache_write_tokens), 0) as cache_write_tokens"
             f" FROM agent_runs {time_filter} AND link IS NOT NULL GROUP BY link ORDER BY cnt DESC"
         ).fetchall()
 
         models = []
-        total_spend = 0.0
         for idx, r in enumerate(models_raw):
             cnt = r["cnt"]
             m_name = r["model"]
             pct = round((cnt / total_runs * 100), 1) if total_runs else 0.0
             display_name, family = _format_model_info(m_name)
-            
-            # Approximate tokens for this model from turn averages
-            est_tokens = cnt * 1450
-            cost = _calc_model_cost(m_name, in_tokens=cnt * 300, out_tokens=cnt * 1150)
-            total_spend += cost
+            tokens_used = (r["input_tokens"] or 0) + (r["output_tokens"] or 0)
 
             models.append({
                 "rank": idx + 1,
@@ -10072,10 +10077,17 @@ def get_analytics_activity(days: int = 30) -> dict[str, Any]:
                 "count": cnt,
                 "percentage": pct,
                 "failed": r["failed_cnt"],
-                "tokens": est_tokens,
-                "tokens_formatted": _format_tok_cnt(est_tokens),
-                "spend": cost,
-                "spend_formatted": f"${cost:.2f}" if cost > 0 else "$0.00",
+                "tokens": tokens_used,
+                "tokens_formatted": _format_tok_cnt(tokens_used),
+                "input_tokens": r["input_tokens"] or 0,
+                "output_tokens": r["output_tokens"] or 0,
+                "cache_read_tokens": r["cache_read_tokens"] or 0,
+                "cache_write_tokens": r["cache_write_tokens"] or 0,
+                # No price table is shipped. A made-up per-model rate is worse
+                # than an honest "unknown": it reads as a bill.
+                "cost_status": "unknown",
+                "spend": 0.0,
+                "spend_formatted": "unknown",
             })
 
         daily_models_raw = conn.execute(
@@ -10091,13 +10103,17 @@ def get_analytics_activity(days: int = 30) -> dict[str, Any]:
 
         daily_raw = conn.execute(
             f"SELECT substr(created_at, 1, 10) as day, count(*) as cnt,"
-            f" sum(case when phase in ('failed', 'cancelled', 'interrupted') then 1 else 0 end) as failed_cnt"
+            f" sum(case when phase in ('failed', 'cancelled', 'interrupted') then 1 else 0 end) as failed_cnt,"
+            f" coalesce(sum(input_tokens), 0) as input_tokens,"
+            f" coalesce(sum(output_tokens), 0) as output_tokens,"
+            f" coalesce(sum(cache_read_tokens), 0) as cache_read_tokens"
             f" FROM agent_runs {time_filter} GROUP BY day ORDER BY day ASC LIMIT 90"
         ).fetchall()
         daily = []
         for r in daily_raw:
             d_dict = dict(r)
             d_dict["models"] = daily_model_map.get(r["day"], {})
+            d_dict["tokens"] = (r["input_tokens"] or 0) + (r["output_tokens"] or 0)
             daily.append(d_dict)
 
         tools_raw = conn.execute(
@@ -10108,57 +10124,21 @@ def get_analytics_activity(days: int = 30) -> dict[str, Any]:
 
         # Fetch recent real runs from agent_runs table with state and messages joined
         recent_raw = conn.execute(
-            "SELECT id, conversation_id, phase, link, created_at, updated_at, error, state"
+            "SELECT id, conversation_id, phase, link, created_at, updated_at, error, state,"
+            " input_tokens, output_tokens, cache_read_tokens, tool_call_count, duration_ms"
             " FROM agent_runs ORDER BY created_at DESC LIMIT 50"
         ).fetchall()
 
         recent_runs = []
         for r in recent_raw:
-            d_sec = 2
-            if r["created_at"] and r["updated_at"]:
-                try:
-                    from datetime import datetime as dt
-                    c_dt = dt.fromisoformat(r["created_at"].replace(" ", "T"))
-                    u_dt = dt.fromisoformat(r["updated_at"].replace(" ", "T"))
-                    raw_sec = (u_dt - c_dt).total_seconds()
-                    if 18000 <= raw_sec <= 22000:
-                        raw_sec = abs(raw_sec - 19800)
-                    d_sec = max(1, int(raw_sec))
-                except Exception:
-                    d_sec = 2
+            d_sec = 0
+            if r["duration_ms"]:
+                d_sec = max(0, int(round(r["duration_ms"] / 1000.0)))
 
             m_link = r["link"] or "standard"
             display_name, family = _format_model_info(m_link)
-
-            # Query real input and output tokens for this run's turn
-            in_tok = 240
-            out_tok = 980
-            st = json.loads(r["state"]) if r["state"] else {}
-            req_msg_id = st.get("request_message_id")
-            cid = r["conversation_id"]
-
-            if req_msg_id and cid:
-                m_rows = conn.execute(
-                    "SELECT role, length(content) as c_len, token_count FROM messages"
-                    " WHERE conversation_id = ? AND id >= ? AND id <= ? + 5",
-                    (cid, req_msg_id, req_msg_id),
-                ).fetchall()
-                in_c = sum(
-                    (m["token_count"] or (m["c_len"] or 0) // 4)
-                    for m in m_rows
-                    if m["role"] == "user"
-                )
-                out_c = sum(
-                    (m["token_count"] or (m["c_len"] or 0) // 4)
-                    for m in m_rows
-                    if m["role"] in ("assistant", "tool")
-                )
-                if in_c > 0:
-                    in_tok = in_c
-                if out_c > 0:
-                    out_tok = out_c
-
-            cost = _calc_model_cost(m_link, in_tok, out_tok)
+            in_tok = r["input_tokens"] or 0
+            out_tok = r["output_tokens"] or 0
             c_at = r["created_at"] or ""
             # Extract HH:MM
             time_str = c_at[11:16] if len(c_at) >= 16 else "00:00"
@@ -10175,33 +10155,28 @@ def get_analytics_activity(days: int = 30) -> dict[str, Any]:
                 "duration_display": _format_dur(d_sec),
                 "input_tokens": in_tok,
                 "output_tokens": out_tok,
+                "cache_read_tokens": r["cache_read_tokens"] or 0,
+                "tool_call_count": r["tool_call_count"] or 0,
                 "input_tokens_display": _format_tok_cnt(in_tok),
                 "output_tokens_display": _format_tok_cnt(out_tok),
-                "cost": cost,
-                "cost_display": f"${cost:.4f}",
+                "cost_status": "unknown",
+                "cost": 0.0,
+                "cost_display": "unknown",
                 "error": r["error"],
             })
 
-        msg_row = conn.execute(
-            "SELECT count(*) as total, sum(length(content)) as total_chars,"
-            " sum(case when role = 'user' then length(content) else 0 end) as user_chars,"
-            " sum(case when role = 'assistant' then length(content) else 0 end) as asst_chars"
-            " FROM messages"
-        ).fetchone()
+        msg_row = conn.execute("SELECT count(*) as total FROM messages").fetchone()
 
         conn.close()
 
-        total_chars = (msg_row["total_chars"] if msg_row else 0) or 0
-        user_chars = (msg_row["user_chars"] if msg_row else 0) or 0
-        asst_chars = (msg_row["asst_chars"] if msg_row else 0) or 0
-
-        est_input_tokens = round(user_chars / 4)
-        est_output_tokens = round(asst_chars / 4)
-        est_total_tokens = est_input_tokens + est_output_tokens
+        total_input = totals["input_tokens"] or 0
+        total_output = totals["output_tokens"] or 0
+        total_cache_read = totals["cache_read_tokens"] or 0
+        total_cache_write = totals["cache_write_tokens"] or 0
 
         active_days_cnt = max(1, len([d for d in daily if d["cnt"] > 0]))
         avg_active_day_requests = round(total_runs / active_days_cnt, 1)
-        avg_active_day_tokens = round(est_total_tokens / active_days_cnt)
+        avg_active_day_tokens = round((total_input + total_output) / active_days_cnt)
 
         return {
             "total_runs": total_runs,
@@ -10214,20 +10189,31 @@ def get_analytics_activity(days: int = 30) -> dict[str, Any]:
             "recent_runs": recent_runs,
             "days": safe_days,
             "tokens": {
-                "total": est_total_tokens,
-                "input": est_input_tokens,
-                "output": est_output_tokens,
-                "total_formatted": _format_tok_cnt(est_total_tokens),
-                "input_formatted": _format_tok_cnt(est_input_tokens),
-                "output_formatted": _format_tok_cnt(est_output_tokens),
-                "is_estimated": True,
+                "total": total_input + total_output,
+                "input": total_input,
+                "output": total_output,
+                "cache_read": total_cache_read,
+                "cache_write": total_cache_write,
+                "total_formatted": _format_tok_cnt(total_input + total_output),
+                "input_formatted": _format_tok_cnt(total_input),
+                "output_formatted": _format_tok_cnt(total_output),
+                "cache_read_formatted": _format_tok_cnt(total_cache_read),
+                # These are the provider's reported counts, not an estimate from
+                # a byte length. `is_estimated` stays for the interface, and is
+                # now false rather than a constant lie.
+                "is_estimated": False,
             },
+            "tool_call_count": totals["tool_call_count"] or 0,
+            "avg_duration_ms": round(totals["avg_duration_ms"] or 0, 1),
             "messages_count": (msg_row["total"] if msg_row else 0) or 0,
             "avg_active_day_requests": avg_active_day_requests,
             "avg_active_day_tokens": avg_active_day_tokens,
             "avg_active_day_tokens_display": _format_tok_cnt(avg_active_day_tokens),
-            "total_spend": round(total_spend, 4),
-            "total_spend_formatted": f"${total_spend:.2f}" if total_spend > 0 else "$0.00",
+            # No pricing table ships with AMETHYST. Reporting a number here
+            # would be inventing a bill, so the field says what is true.
+            "cost_status": "unknown",
+            "total_spend": 0.0,
+            "total_spend_formatted": "unknown",
         }
     except Exception as exc:
         return {
@@ -10240,26 +10226,31 @@ def get_analytics_activity(days: int = 30) -> dict[str, Any]:
             "daily": [],
             "tools": [],
             "recent_runs": [],
-            "tokens": {"total": 0, "input": 0, "output": 0, "is_estimated": True},
+            "tokens": {
+                "total": 0, "input": 0, "output": 0,
+                "cache_read": 0, "cache_write": 0, "is_estimated": False,
+            },
             "messages_count": 0,
             "avg_active_day_requests": 0,
             "avg_active_day_tokens": 0,
             "avg_active_day_tokens_display": "0",
+            "cost_status": "unknown",
             "total_spend": 0.0,
-            "total_spend_formatted": "$0.00",
+            "total_spend_formatted": "unknown",
         }
 
 
 @app.get("/api/analytics/usage-windows")
 @app.get("/api/analytics/usage")
-@app.get("/api/analytics/usage-windows")
-@app.get("/api/analytics/usage")
 @app.get("/api/usage-windows")
 def get_analytics_usage_windows() -> dict[str, Any]:
-    """Real 5-hour and 7-day usage windows for configured providers and SQLite runs.
+    """Actual 5-hour and 7-day usage per configured provider.
 
-    Calculates real remaining headroom ticks and percentages for Amethyst's configured providers.
-    Zero mock data.
+    Reports turns and provider-reported tokens over each window. It does not
+    report a percentage of a limit: AMETHYST does not know any provider's
+    account quota, and the previous version invented one (50 calls per 5 hours,
+    250 per 7 days). A headroom bar that is always wrong is worse than an
+    honest "limit unknown".
     """
     import sqlite3
     from datetime import datetime, timezone, timedelta
@@ -10291,8 +10282,7 @@ def get_analytics_usage_windows() -> dict[str, Any]:
                 "id": p_name,
                 "name": clean_name,
                 "enabled": bool(p_cfg.enabled),
-                "cap_5h": 50,
-                "cap_7d": 250,
+                "limit_status": "unknown",
             })
 
     # Also include any provider from agent_runs if not already in list
@@ -10314,8 +10304,7 @@ def get_analytics_usage_windows() -> dict[str, Any]:
                             "id": first,
                             "name": cname,
                             "enabled": True,
-                            "cap_5h": 50,
-                            "cap_7d": 250,
+                            "limit_status": "unknown",
                         })
             conn.close()
         except Exception:
@@ -10325,7 +10314,6 @@ def get_analytics_usage_windows() -> dict[str, Any]:
     families_to_track.sort(key=lambda f: (not f["enabled"], f["name"]))
 
     family_results = []
-    zero_windows_count = 0
 
     # Calculate rolling reset countdown
     # Next 5h boundary relative to current hour
@@ -10348,43 +10336,36 @@ def get_analytics_usage_windows() -> dict[str, Any]:
         fid = fam["id"]
         fname = fam["name"]
         is_enabled = fam["enabled"]
-        cap_5 = fam["cap_5h"]
-        cap_7 = fam["cap_7d"]
 
         r_5h = 0
         r_7d = 0
+        t_5h = 0
+        t_7d = 0
 
         if conn and is_enabled:
             try:
                 pat = f"%{fid.lower()}%"
                 r_5h_row = conn.execute(
-                    "SELECT count(*) as c FROM agent_runs WHERE created_at >= ? AND lower(COALESCE(link, '')) LIKE ?",
+                    "SELECT count(*) as c,"
+                    " coalesce(sum(input_tokens + output_tokens), 0) as t"
+                    " FROM agent_runs WHERE created_at >= ? AND lower(COALESCE(link, '')) LIKE ?",
                     (five_h_ago, pat),
                 ).fetchone()
                 if r_5h_row:
                     r_5h = r_5h_row["c"]
+                    t_5h = r_5h_row["t"] or 0
 
                 r_7d_row = conn.execute(
-                    "SELECT count(*) as c FROM agent_runs WHERE created_at >= ? AND lower(COALESCE(link, '')) LIKE ?",
+                    "SELECT count(*) as c,"
+                    " coalesce(sum(input_tokens + output_tokens), 0) as t"
+                    " FROM agent_runs WHERE created_at >= ? AND lower(COALESCE(link, '')) LIKE ?",
                     (seven_d_ago, pat),
                 ).fetchone()
                 if r_7d_row:
                     r_7d = r_7d_row["c"]
+                    t_7d = r_7d_row["t"] or 0
             except Exception:
                 pass
-
-        if not is_enabled:
-            left_5 = 0
-            left_7 = 0
-            ticks_5 = 0
-            ticks_7 = 0
-        else:
-            left_5 = max(0, min(100, round((1.0 - (r_5h / cap_5)) * 100)))
-            left_7 = max(0, min(100, round((1.0 - (r_7d / cap_7)) * 100)))
-            if left_5 == 0:
-                zero_windows_count += 1
-            ticks_5 = max(0, min(18, round((left_5 / 100.0) * 18)))
-            ticks_7 = max(0, min(18, round((left_7 / 100.0) * 18)))
 
         family_results.append({
             "name": fname,
@@ -10392,10 +10373,15 @@ def get_analytics_usage_windows() -> dict[str, Any]:
             "enabled": is_enabled,
             "runs_5h": r_5h,
             "runs_7d": r_7d,
-            "left_5h_pct": left_5,
-            "left_7d_pct": left_7,
-            "ticks_5h_filled": ticks_5,
-            "ticks_7d_filled": ticks_7,
+            "tokens_5h": t_5h,
+            "tokens_7d": t_7d,
+            # No account quota is known, so no percentage is claimed. The
+            # interface renders this as "—" rather than as a full bar.
+            "left_5h_pct": None,
+            "left_7d_pct": None,
+            "ticks_5h_filled": 0,
+            "ticks_7d_filled": 0,
+            "limit_status": "unknown",
             "resets_in": reset_str,
         })
 
@@ -10412,7 +10398,7 @@ def get_analytics_usage_windows() -> dict[str, Any]:
         "plan_subtitle": f"{active_count} ACTIVE · {len(family_results)} CONFIGURED",
         "access_ends": "LOCAL KEY",
         "next_reset": "ROLLING 5H",
-        "windows_at_zero": zero_windows_count,
+        "windows_at_zero": 0,
         "families_count": len(family_results),
         "families": family_results,
     }
