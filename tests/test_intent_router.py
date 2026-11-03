@@ -82,7 +82,24 @@ def test_lane_classification_agent():
     for msg in agent_messages:
         route, need_jev, need_extract = route_intent_fast(msg)
         assert route.lane == "agent", f"Expected agent for {msg!r}, got {route.lane}"
-        assert route.step_budget == 40
+        assert route.step_budget == 20
+        assert not need_jev
+        assert not need_extract
+
+
+def test_lane_classification_research():
+    research_messages = (
+        "search the web for python 3.13 features",
+        "look up documentation for react server components",
+        "google latest news on deepseek",
+        "browse the web for amethyst tutorials",
+        "research current ai models",
+    )
+    for msg in research_messages:
+        route, need_jev, need_extract = route_intent_fast(msg)
+        assert route.lane == "research", f"Expected research for {msg!r}, got {route.lane}"
+        assert route.step_budget == 8
+        assert route.tool_filter == "research"
         assert not need_jev
         assert not need_extract
 
@@ -105,7 +122,7 @@ def test_resolve_intent_route_fallthrough_invariant():
     tentative_route = IntentRoute(
         lane="widget",
         presentation="text",
-        step_budget=5,
+        step_budget=4,
         tool_filter="widget",
         reason="widget signals present",
     )
@@ -118,7 +135,7 @@ def test_resolve_intent_route_fallthrough_invariant():
         max_iterations=40,
     )
     assert fell_through.lane == "agent"
-    assert fell_through.step_budget == 40
+    assert fell_through.step_budget == 20
     assert fell_through.presentation == "text"
     assert fell_through.presentation_steer is None
 
@@ -131,7 +148,7 @@ def test_resolve_intent_route_fallthrough_invariant():
     )
     assert confirmed.lane == "widget"
     assert confirmed.presentation == "diagram"
-    assert confirmed.step_budget == 5
+    assert confirmed.step_budget == 4
     assert confirmed.presentation_steer == VISUALIZATION_STEER_INSTRUCTIONS["diagram"]
 
 

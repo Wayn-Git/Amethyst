@@ -283,9 +283,30 @@ Reply with JSON and nothing else:
 {"category": "movie|travel|food|tool|book|general",
  "summary": "...",
  "tags": ["..."],
+ "entity": {
+   "title": "Exact Title of Film, Tool, Book, Place, or Article",
+   "subtitle": "Creator/Director · Category (e.g. 'Jake Lewis · Horror Comedy' or 'Vercel · Frontend Framework')",
+   "rating": "e.g. '10.0/10 TMDB', '4.8/5 Goodreads', '4.9★ Google', or null",
+   "synopsis": "1-2 sentence compelling summary of the core work itself.",
+   "actions": [
+     {"label": "Watch trailer", "url": "https://...", "kind": "trailer"},
+     {"label": "Open details", "url": "https://...", "kind": "details"}
+   ],
+   "attributes": {
+     "Genre": "...",
+     "Rating": "...",
+     "Cast": "...",
+     "Creator": "...",
+     "Runtime": "...",
+     "Released": "..."
+   }
+ },
  "resources": [{"type": "...", "name": "...", "detail": "...", "url": "..."}]}
 
 Rules:
+- Core Subject vs Secondary References:
+  * CRITICAL: Distinguish the CORE SUBJECT (e.g. the movie, short film, tech tool, book, destination) from illustrative jokes, background memes, or passing quotes.
+  * For example, if a video is about the film "Remain Calm" (a horror-comedy short starring Pauly Shore and directed by Jake Lewis), the entity title is "Remain Calm", the creator is "Jake Lewis", cast is "Pauly Shore, ...". DO NOT set the entity or primary subject to secondary comedy references (e.g. Will Ferrell, Step Brothers).
 - category: one of movie|travel|food|tool|book|general. Pick:
   - "movie" for films, cinema, tv shows, series, anime, documentaries, streaming watchlists, clips or reels discussing movies/shows/actors/characters. NEVER mark movies, films, or series as "general" or "society".
   - "travel" for travel spots, vacation destinations, cities, sights, trip itineraries.
@@ -293,6 +314,18 @@ Rules:
   - "tool" for software, developer tools, AI apps, SaaS, hardware, tech utilities.
   - "book" for books, reading lists, literature, papers.
   - "general" for other topics only when none of the above fit.
+- entity:
+  * title: The clean, official name of the work, product, book, place, or article.
+  * subtitle: Creator and category (e.g. "Christopher Nolan · Sci-Fi", "Anthropic · AI Research").
+  * rating: Official rating or score if mentioned or known (e.g. "8.8/10 IMDb", "9.1/10 TMDB", "4.6★"), else null.
+  * synopsis: 1-2 factual sentences describing what the item actually is.
+  * actions: 1 to 2 prominent action links (e.g. trailer, official site, repository, paper, buy/read link).
+  * attributes: Key-value dictionary tailored to the category:
+    - For movie/series: Genre, Rating, Cast, Creator/Director, Runtime, Released.
+    - For tool/software: Category, Creator/Team, Platforms, License/Pricing, Released.
+    - For book/reading: Author, Genre, Publisher, Pages/Length, Published.
+    - For food/travel: Location, Cuisine/Category, Best For, Hours/Season.
+    - For general/article: Author, Publication, Topic, Read Time.
 - summary: Two to three dense, high-signal sentences stating the core thesis, actionable takeaway, technique, or valuable concepts directly.
   CRITICAL NEGATIVE CONSTRAINTS:
   * NEVER use meta-commentary: DO NOT say "This is a social media post/caption...", "The creator/author talks about...", "This video announces...", "The post features...", or "In this clip...".
@@ -310,7 +343,7 @@ recipe|tool|product|book|place|person|link|other.
   `detail` is key information in ten words or fewer. For `url`, provide the direct link from the text or the official domain (e.g. "github.com", "goodreads.com", "chatgpt.com").
 - An empty list is the right answer when the text names nothing. Do not invent entities.
 - If the text is too thin to say anything true about, reply \
-{"category": "general", "summary": null, "tags": [], "resources": []}."""
+{"category": "general", "summary": null, "tags": [], "entity": null, "resources": []}."""
 
 
 def infer_category(
@@ -379,6 +412,7 @@ class Enrichment:
     summary: str | None = None
     tags: tuple[str, ...] = ()
     resources: tuple[dict, ...] = ()
+    entity: dict | None = None
     #: Why there is nothing, when there is nothing. Never prose, always a reason.
     note: str | None = None
     provider: str | None = None
@@ -386,7 +420,7 @@ class Enrichment:
 
     @property
     def empty(self) -> bool:
-        return not (self.summary or self.tags or self.resources)
+        return not (self.summary or self.tags or self.resources or self.entity)
 
 
 def _clean_tag(value: object) -> str | None:
@@ -625,6 +659,62 @@ def _clean_resource(entry: object, text_urls: list[str] | None = None) -> dict |
     }
 
 
+def _clean_entity(raw: object, category: str = "general", text_urls: list[str] | None = None) -> dict | None:
+    if not isinstance(raw, dict):
+        return None
+    title = str(raw.get("title") or "").strip()[:140]
+    if not title:
+        return None
+    subtitle = str(raw.get("subtitle") or "").strip()[:160] or None
+    rating = str(raw.get("rating") or "").strip()[:60] or None
+    synopsis = str(raw.get("synopsis") or "").strip()[:600] or None
+
+    actions = []
+    for a in raw.get("actions") or []:
+        if not isinstance(a, dict):
+            continue
+        label = str(a.get("label") or "").strip()[:50]
+        url = normalize_url(str(a.get("url") or ""))
+        kind = str(a.get("kind") or "link").strip().lower()[:30]
+        if label:
+            if not url:
+                if kind in ("trailer", "video"):
+                    url = f"https://www.youtube.com/results?search_query={title}+trailer"
+                elif kind in ("details", "movie", "show", "film"):
+                    url = resolve_entity_url(title, "movie")
+                elif kind in ("repo", "github", "code"):
+                    url = resolve_entity_url(title, "code")
+                elif kind in ("paper", "book"):
+                    url = resolve_entity_url(title, "book")
+                else:
+                    url = resolve_entity_url(title, category)
+            actions.append({"label": label, "url": url, "kind": kind})
+            if len(actions) >= 4:
+                break
+
+    attributes = {}
+    raw_attrs = raw.get("attributes")
+    if isinstance(raw_attrs, dict):
+        for k, v in raw_attrs.items():
+            if not k or not v:
+                continue
+            k_clean = str(k).strip()[:40]
+            v_clean = str(v).strip()[:200]
+            if k_clean and v_clean:
+                attributes[k_clean] = v_clean
+            if len(attributes) >= 12:
+                break
+
+    return {
+        "title": title,
+        "subtitle": subtitle,
+        "rating": rating,
+        "synopsis": synopsis,
+        "actions": actions,
+        "attributes": attributes,
+    }
+
+
 def parse_enrichment(text: str, source_text: str = "") -> Enrichment | None:
     """Read the model's reply, keeping only what is the right shape."""
     body = (text or "").strip()
@@ -689,11 +779,15 @@ def parse_enrichment(text: str, source_text: str = "") -> Enrichment | None:
     if not canonical_tags and tags:
         canonical_tags = tags[:MAX_TAGS]
 
+    raw_entity = data.get("entity")
+    cleaned_entity = _clean_entity(raw_entity, category=category, text_urls=text_urls)
+
     return Enrichment(
         category=category,
         summary=summary,
         tags=tuple(canonical_tags[:MAX_TAGS]),
         resources=tuple(resources[:MAX_RESOURCES]),
+        entity=cleaned_entity,
     )
 
 

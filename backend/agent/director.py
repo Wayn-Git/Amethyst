@@ -35,6 +35,7 @@ from backend.agent.prompt import (
     budget_history,
     build_system_prompt,
     cap_tools,
+    compact_consumed_tool_results,
     compress_tool_schemas,
     dropped_summary,
     environment_block,
@@ -1560,25 +1561,32 @@ class Director:
         self._promoted_tools: dict[str, ToolSchema] = {}  # promoted from tool_search for live invocation
 
         base_max_iters = 1000 if (self.guards.max_iterations is None or self.guards.max_iterations <= 0) else self.guards.max_iterations
-        min_allowed_iters = (self.guards.max_continuations or 0) + 2
-        effective_budget = max(intent_route.step_budget, min_allowed_iters)
+        effective_budget = intent_route.step_budget
         max_iters = min(base_max_iters, effective_budget)
+        wall_clock_cap = min(self.guards.max_seconds, 45.0) if self.guards.max_seconds > 0 else 45.0
+        hard_timeout = max(self.guards.max_seconds, 60.0) if self.guards.max_seconds > 0 else 60.0
+        final_step_attempted = False
+
         for iteration in range(max_iters):
             if cancel is not None and cancel.is_set():
                 self._checkpoint(state, "cancelled", budget=budget)
                 yield _guard("stopped by the user", said, iteration, state.tool_calls_made, started)
                 break
-            if self.guards.max_seconds > 0 and (time.monotonic() - started > self.guards.max_seconds):
+
+            elapsed = time.monotonic() - started
+            if final_step_attempted or elapsed > hard_timeout:
                 state.error = "time limit reached"
                 self._checkpoint(state, "stopped", budget=budget)
                 yield _guard("time limit reached", said, iteration, state.tool_calls_made, started)
                 break
 
-            # The last iteration is spent forcing an answer if bounded, not another tool
-            # call: withholding the schemas below turns "iteration limit
-            # reached" -- a dead end with nothing to show -- into a real
-            # wrap-up of whatever the turn has.
-            final_step = (iteration == max_iters - 1) if (self.guards.max_iterations and self.guards.max_iterations > 0) else False
+            # The final iteration forces an answer rather than tool invocation:
+            # withholding tool schemas turns a limit into a clean final wrap-up.
+            hit_wall_clock = elapsed > wall_clock_cap
+            hit_step_limit = (iteration >= max_iters - 1)
+            final_step = hit_step_limit or hit_wall_clock
+            if final_step:
+                final_step_attempted = True
 
             # Clears what belongs to one answer rather than to the turn:
             # `state.carried`, `state.resumes`, `state.blind_noted`. It was the
@@ -1774,16 +1782,18 @@ class Director:
                     # enough" looks like from the outside.
                     if not state.warned_about_cap:
                         state.warned_about_cap = True
-                        yield Event(
-                            "warning",
-                            {
-                                "message": (
-                                    f"this turn reached its {max_iters}-step"
-                                    " limit, so the answer below is written from what it had"
-                                    " rather than by using more tools"
-                                )
-                            },
-                        )
+                        if hit_wall_clock or intent_route.lane != "chat":
+                            cap_desc = f"{int(wall_clock_cap)}s" if hit_wall_clock else f"{max_iters}-step"
+                            yield Event(
+                                "warning",
+                                {
+                                    "message": (
+                                        f"this turn reached its {cap_desc}"
+                                        " limit, so the answer below is written from what it had"
+                                        " rather than by using more tools"
+                                    )
+                                },
+                            )
                 if tool_schemas is not None and model.capabilities.max_tools:
                     tool_schemas, dropped = cap_tools(
                         tool_schemas,
@@ -1802,6 +1812,7 @@ class Director:
                         if message.id is not None and message.id > state.seen_message_id:
                             history.append(to_wire_message(message))
                             state.seen_message_id = message.id
+                    history = compact_consumed_tool_results(history)
                     # Context compression: when the conversation approaches the
                     # context window, use an auxiliary LLM to summarize middle
                     # turns before budgeting. This preserves more information
@@ -2829,10 +2840,15 @@ class Director:
                     result = ToolResult.error(f"'{call.name}' raised {type(exc).__name__}: {exc}")
                 else:
                     result = task.result()
-                    if result and result.content and f"```{FENCE}" in result.content:
-                        m = re.search(rf"```{re.escape(FENCE)}\s*\n(.*?)\n```", result.content, re.DOTALL)
-                        if m:
-                            state.sandboxed_ui_envelope = f"```{FENCE}\n{m.group(1).strip()}\n```"
+                    if result and result.content:
+                        from backend.mcp.composio_sanitizer import cap_tool_result_content
+                        result.content = cap_tool_result_content(
+                            result.content, tool_name=call.name, arguments=call.arguments
+                        )
+                        if f"```{FENCE}" in result.content:
+                            m = re.search(rf"```{re.escape(FENCE)}\s*\n(.*?)\n```", result.content, re.DOTALL)
+                            if m:
+                                state.sandboxed_ui_envelope = f"```{FENCE}\n{m.group(1).strip()}\n```"
 
                 answered = self._persist(
                     conversation_id,

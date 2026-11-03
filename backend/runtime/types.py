@@ -53,6 +53,8 @@ class Capabilities:
     #: a single word of the conversation) already exceeds by 3-4x. `None` means
     #: no such ceiling is known, not that none exists.
     tokens_per_minute: int | None = None
+    #: Explicit setting for parallel tool calling on this model/provider.
+    parallel_tool_calls: bool | None = None
 
 
 @dataclass
