@@ -1281,6 +1281,14 @@ class Director:
         # the slash menu in the interface. The marker is stripped so the model
         # sees the request, not the routing syntax.
         pinned, user_message = extract_skill_invocations(user_message)
+        if pinned:
+            try:
+                from backend.skills import usage as skill_usage
+
+                for invoked in pinned:
+                    skill_usage.bump(invoked, "use_count")
+            except Exception as exc:
+                log.debug("could not record skill invocation: %s", exc)
 
         # Written before anything that can fail.
         #
