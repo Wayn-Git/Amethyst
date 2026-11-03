@@ -311,6 +311,8 @@ class AnthropicClient:
             stop_reason=data.get("stop_reason"),
             input_tokens=usage.get("input_tokens"),
             output_tokens=usage.get("output_tokens"),
+            cache_read_tokens=usage.get("cache_read_input_tokens"),
+            cache_write_tokens=usage.get("cache_creation_input_tokens"),
             raw=data,
         )
         record_llm_call(
@@ -320,6 +322,8 @@ class AnthropicClient:
             total_ms=_total_ms,
             input_tokens=resp.input_tokens,
             output_tokens=resp.output_tokens,
+            cache_read_tokens=resp.cache_read_tokens,
+            cache_write_tokens=resp.cache_write_tokens,
         )
         return resp
 
@@ -439,6 +443,8 @@ class AnthropicClient:
             total_ms=_total_ms,
             input_tokens=usage.get("input_tokens"),
             output_tokens=usage.get("output_tokens"),
+            cache_read_tokens=usage.get("cache_read_input_tokens"),
+            cache_write_tokens=usage.get("cache_creation_input_tokens"),
         )
 
         yield StreamEvent(
@@ -450,6 +456,8 @@ class AnthropicClient:
                 stop_reason=stop_reason,
                 input_tokens=usage.get("input_tokens"),
                 output_tokens=usage.get("output_tokens"),
+                cache_read_tokens=usage.get("cache_read_input_tokens"),
+                cache_write_tokens=usage.get("cache_creation_input_tokens"),
             ),
         )
 

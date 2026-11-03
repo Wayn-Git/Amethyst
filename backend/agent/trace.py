@@ -54,6 +54,8 @@ class LLMCallRecord:
     total_ms: float
     input_tokens: int | None = None
     output_tokens: int | None = None
+    cache_read_tokens: int | None = None
+    cache_write_tokens: int | None = None
 
 
 @dataclass
@@ -143,6 +145,8 @@ class TurnTrace:
             "tokens": {
                 "input_tokens": sum((c.input_tokens or 0) for c in self.llm_calls),
                 "output_tokens": sum((c.output_tokens or 0) for c in self.llm_calls),
+                "cache_read_tokens": sum((c.cache_read_tokens or 0) for c in self.llm_calls),
+                "cache_write_tokens": sum((c.cache_write_tokens or 0) for c in self.llm_calls),
                 "total_tokens": sum(((c.input_tokens or 0) + (c.output_tokens or 0)) for c in self.llm_calls),
             },
             "provider_used": effective_provider,
@@ -272,6 +276,8 @@ def record_llm_call(
     total_ms: float,
     input_tokens: int | None = None,
     output_tokens: int | None = None,
+    cache_read_tokens: int | None = None,
+    cache_write_tokens: int | None = None,
 ) -> None:
     if not is_trace_enabled():
         return
@@ -285,6 +291,8 @@ def record_llm_call(
             total_ms=total_ms,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            cache_read_tokens=cache_read_tokens,
+            cache_write_tokens=cache_write_tokens,
         )
         trace.llm_calls.append(record)
     log.info(

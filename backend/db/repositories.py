@@ -975,6 +975,30 @@ class AgentRunRepository:
         if state.terminal:
             self.prune()
 
+    def record_usage(self, state: AgentState) -> None:
+        """Write the turn's token bill onto its row.
+
+        Separate from the state write because `state` is the loop's private
+        scratch and this is the one part of it an aggregate query reads. Called
+        once, at the terminal checkpoint, after the state itself has landed.
+        """
+        self.flush()
+        self.conn.execute(
+            "UPDATE agent_runs SET input_tokens = ?, output_tokens = ?,"
+            " cache_read_tokens = ?, cache_write_tokens = ?, tool_call_count = ?,"
+            " duration_ms = ? WHERE id = ?",
+            (
+                state.input_tokens,
+                state.output_tokens,
+                state.cache_read_tokens,
+                state.cache_write_tokens,
+                state.tool_calls_made,
+                state.duration_ms,
+                state.id,
+            ),
+        )
+        self.conn.commit()
+
     def get(self, run_id: str) -> AgentState | None:
         self.flush()
         row = self.conn.execute("SELECT * FROM agent_runs WHERE id = ?", (run_id,)).fetchone()

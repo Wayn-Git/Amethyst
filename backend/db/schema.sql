@@ -741,6 +741,19 @@ CREATE TABLE IF NOT EXISTS agent_runs (
     link            TEXT,               -- "provider/model" that answered
     error           TEXT,
     checkpoint      INTEGER NOT NULL DEFAULT 0,
+    -- What the turn actually cost. Written when the turn reaches a terminal
+    -- phase, from the provider's own reported counts. These live on the row
+    -- rather than only in the JSONL trace because the usage panel and the
+    -- routing decisions both need to aggregate them in SQL; a log file cannot
+    -- answer "which model cost the most this month" without a full scan and a
+    -- parser. `cache_read_tokens` is the prompt-cache win and the number that
+    -- says whether the cache breakpoints are working.
+    input_tokens       INTEGER NOT NULL DEFAULT 0,
+    output_tokens      INTEGER NOT NULL DEFAULT 0,
+    cache_read_tokens  INTEGER NOT NULL DEFAULT 0,
+    cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+    tool_call_count    INTEGER NOT NULL DEFAULT 0,
+    duration_ms        REAL,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
     -- Per-field HLC stamps, as a JSON object {field: stamp}. A map rather than

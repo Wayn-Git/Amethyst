@@ -21,6 +21,13 @@ class ModelResponse:
     stop_reason: str | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
+    #: Prompt tokens the provider served from its own prefix cache, and tokens
+    #: it wrote into that cache for a later call. Both are reported by Anthropic
+    #: (`cache_read_input_tokens`, `cache_creation_input_tokens`) and by most
+    #: OpenAI-compatible endpoints (`prompt_tokens_details.cached_tokens`).
+    #: `None` means the provider did not say, which is different from zero.
+    cache_read_tokens: int | None = None
+    cache_write_tokens: int | None = None
     raw: Any = None
 
 

@@ -74,6 +74,30 @@ def _reasoning_of(payload: dict) -> str | None:
     return None
 
 
+def _cache_tokens(usage: dict) -> tuple[int | None, int | None]:
+    """Prompt-cache reads and writes, across the shapes endpoints report them in.
+
+    OpenAI nests the read count under `prompt_tokens_details.cached_tokens`;
+    Anthropic-style and some gateways put it at the top level. A provider that
+    reports neither gets `None`, not zero -- "did not say" and "nothing was
+    cached" lead to different conclusions in the usage panel.
+    """
+    details = usage.get("prompt_tokens_details") or {}
+    reads = (
+        details.get("cached_tokens")
+        if isinstance(details, dict)
+        else None
+    )
+    if reads is None:
+        reads = usage.get("cache_read_input_tokens")
+    if reads is None:
+        reads = usage.get("num_cached_tokens")
+    writes = usage.get("cache_write_tokens")
+    if writes is None:
+        writes = usage.get("cache_creation_input_tokens")
+    return reads, writes
+
+
 #: OpenCode CLI header mimicking its Bun/AI-SDK environment
 OPENCODE_USER_AGENT = "opencode/1.18.35 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14"
 
@@ -528,6 +552,8 @@ class OpenAICompatClient:
                 total_ms=_total_ms,
                 input_tokens=resp.input_tokens,
                 output_tokens=resp.output_tokens,
+                cache_read_tokens=resp.cache_read_tokens,
+                cache_write_tokens=resp.cache_write_tokens,
             )
             return resp
         except BaseException as exc:
@@ -575,6 +601,7 @@ class OpenAICompatClient:
             )
 
         usage = data.get("usage") or {}
+        cache_read, cache_write = _cache_tokens(usage)
         # Reasoning models (Nemotron, DeepSeek-R1 and friends) return chain-of-thought
         # in a sibling field. It is not the answer, so it must not become the answer.
         reasoning = _reasoning_of(message)
@@ -592,6 +619,8 @@ class OpenAICompatClient:
             stop_reason=choice.get("finish_reason"),
             input_tokens=usage.get("prompt_tokens"),
             output_tokens=usage.get("completion_tokens"),
+            cache_read_tokens=cache_read,
+            cache_write_tokens=cache_write,
             raw=data,
         )
 
@@ -790,6 +819,7 @@ class OpenAICompatClient:
             _total_ms = (time.perf_counter() - _stream_start) * 1000.0
             if _ttft_ms is None:
                 _ttft_ms = _total_ms
+            _cache_read, _cache_write = _cache_tokens(usage)
             record_llm_call(
                 provider=getattr(self, "provider_name", "openai-compatible"),
                 model=self.model,
@@ -797,6 +827,8 @@ class OpenAICompatClient:
                 total_ms=_total_ms,
                 input_tokens=usage.get("prompt_tokens"),
                 output_tokens=usage.get("completion_tokens"),
+                cache_read_tokens=_cache_read,
+                cache_write_tokens=_cache_write,
             )
 
             yield StreamEvent(
@@ -808,6 +840,8 @@ class OpenAICompatClient:
                     stop_reason=finish_reason,
                     input_tokens=usage.get("prompt_tokens"),
                     output_tokens=usage.get("completion_tokens"),
+                    cache_read_tokens=_cache_read,
+                    cache_write_tokens=_cache_write,
                 ),
             )
         except BaseException as exc:

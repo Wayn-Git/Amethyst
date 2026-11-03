@@ -1142,6 +1142,7 @@ class Director:
         # conversation exists; until then this is an object nothing has stored,
         # and a checkpoint against it updates no rows.
         state = AgentState(conversation_id=conversation_id, mode=self.mode)
+        _turn_started = time.perf_counter()
         _trace, _watchdog, _trace_token = start_turn_trace(conversation_id, user_message, turn_id=state.id)
         cancel_watcher: asyncio.Task | None = None
         if cancel is not None:
@@ -1246,6 +1247,11 @@ class Director:
                 await self.runs.flush_async()
             except Exception:
                 self.runs.flush()
+            state.duration_ms = round((time.perf_counter() - _turn_started) * 1000.0, 2)
+            try:
+                self.runs.record_usage(state)
+            except Exception as exc:
+                log.warning("could not record turn usage for %s: %s", state.id, exc)
             try:
                 forget_ownership()
             except Exception:
@@ -2581,6 +2587,15 @@ class Director:
                         * TPM_SAFETY_MARGIN
                     ),
                 )
+                # The turn's own bill, from the provider's reported counts. The
+                # fallback estimate above exists to keep the rate limiter roughly
+                # honest; this is the number the usage panel is allowed to show,
+                # so a provider that reported nothing contributes nothing here
+                # rather than a guess.
+                state.input_tokens += response.input_tokens or 0
+                state.output_tokens += response.output_tokens or 0
+                state.cache_read_tokens += response.cache_read_tokens or 0
+                state.cache_write_tokens += response.cache_write_tokens or 0
                 # Update the context engine with real usage from the provider.
                 if self._context_engine is not None:
                     self._context_engine.update_from_response({
@@ -4091,6 +4106,12 @@ class Director:
         handler over it.
         """
         try:
+            # The transcript's own size accounting. `token_count` was a column
+            # nothing wrote, so every reader fell back to `len // 4`; writing it
+            # here costs one integer division per row and makes the column true.
+            if "token_count" not in kwargs and len(args) >= 3:
+                content = args[2]
+                kwargs["token_count"] = estimate_tokens(content) if content else None
             return self.messages.append(*args, **kwargs)
         except Exception as exc:
             log.warning("could not persist a message for this turn: %s", exc)

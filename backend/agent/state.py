@@ -213,6 +213,15 @@ class AgentState:
     continuations: int = 0
     resumes: int = 0
     budget_spent: int = 0
+    #: What this turn cost, summed from the provider's own reported counts and
+    #: written to `agent_runs` when the turn ends. Kept on the state rather than
+    #: only in the JSONL trace because the trace can be switched off and the
+    #: usage row must not disappear with it.
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    duration_ms: float = 0.0
     #: Incremented on every write. A turn that is making progress has a rising
     #: checkpoint; one that is wedged does not, which is the only way to tell
     #: those apart from outside the process.
