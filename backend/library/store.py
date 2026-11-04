@@ -84,6 +84,13 @@ _UPDATABLE = frozenset(
         "remind_action",
         "reminded_at",
         "private_notes",
+        # Storage & migration fields
+        "storage_provider",
+        "external_id",
+        "cached_locally",
+        "sync_state",
+        "checksum",
+        "last_synced_at",
     }
 )
 
@@ -226,6 +233,12 @@ class LibraryStore:
             ("remind_action", "TEXT DEFAULT 'revisit'"),
             ("reminded_at", "TEXT"),
             ("private_notes", "TEXT"),
+            ("storage_provider", "TEXT DEFAULT 'local'"),
+            ("external_id", "TEXT"),
+            ("cached_locally", "INTEGER DEFAULT 1"),
+            ("sync_state", "TEXT DEFAULT 'synced'"),
+            ("checksum", "TEXT"),
+            ("last_synced_at", "TEXT"),
         ):
             try:
                 self.conn.execute(f"ALTER TABLE library_items ADD COLUMN {col} {col_type}")
