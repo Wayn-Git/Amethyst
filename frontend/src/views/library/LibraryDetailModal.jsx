@@ -526,34 +526,82 @@ export default function LibraryDetailModal({
   // Video resource setup
   const videoItem = useMemo(() => {
     if (!item) return null
+
+    // 1. YouTube detection
+    const isYouTube = Boolean(item.url && /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)/i.test(item.url))
+    if (isYouTube) {
+      let ytId = ''
+      const match = item.url.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([\w-]{11})/)
+      if (match) ytId = match[1]
+      return {
+        url: item.url,
+        embedUrl: ytId ? `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&rel=0` : null,
+        fallbackUrl: item.url,
+        poster: api.thumbnailUrl ? api.thumbnailUrl(item.id) : null,
+        isYouTube: true,
+        platform: 'youtube',
+      }
+    }
+
+    // 2. Instagram Reel / Post detection
+    const isInstagram = Boolean(item.url && /instagram\.com\/(?:reel|p)\/([\w-]+)/i.test(item.url))
+    if (isInstagram) {
+      const match = item.url.match(/instagram\.com\/(?:reel|p)\/([\w-]+)/i)
+      const shortcode = match ? match[1] : ''
+      return {
+        url: item.url,
+        embedUrl: shortcode ? `https://www.instagram.com/reel/${shortcode}/embed/` : null,
+        fallbackUrl: item.url,
+        poster: api.thumbnailUrl ? api.thumbnailUrl(item.id) : null,
+        isYouTube: false,
+        platform: 'instagram',
+        isVertical: true,
+      }
+    }
+
+    // 3. TikTok detection
+    const isTikTok = Boolean(item.url && /tiktok\.com\/.*\/video\/(\d+)/i.test(item.url))
+    if (isTikTok) {
+      const match = item.url.match(/tiktok\.com\/.*\/video\/(\d+)/i)
+      const tiktokId = match ? match[1] : ''
+      return {
+        url: item.url,
+        embedUrl: tiktokId ? `https://www.tiktok.com/embed/v2/${tiktokId}` : null,
+        fallbackUrl: item.url,
+        poster: api.thumbnailUrl ? api.thumbnailUrl(item.id) : null,
+        isYouTube: false,
+        platform: 'tiktok',
+        isVertical: true,
+      }
+    }
+
+    // 4. Video resource or embed in resources list
+    const videoResource = (Array.isArray(item.resources) ? item.resources : []).find(
+      (r) => r && (r.type === 'video' || r.type === 'embed' || r.type === 'mp4' || (typeof r.url === 'string' && /\.(mp4|webm|mov)(\?|$)/i.test(r.url)))
+    )
+    if (videoResource) {
+      return {
+        url: videoResource.remote_url || videoResource.url,
+        fallbackUrl: item.url || videoResource.url,
+        embedUrl: videoResource.embed_url || null,
+        poster: api.thumbnailUrl ? api.thumbnailUrl(item.id) : null,
+        isYouTube: false,
+        platform: videoResource.platform || 'direct',
+      }
+    }
+
+    // 5. Legacy local/cloud video if media_path still exists
     const hasLocalVid = Boolean(item.media_path) && /\.(mp4|webm|mov)(\?|$)/i.test(item.media_path)
     const isCloudVideo = item.storage_provider === 'google_drive' && (item.kind === 'video' || item.is_reel)
     if (hasLocalVid || isCloudVideo) {
       return {
         url: api.mediaUrl ? api.mediaUrl(item.id) : item.media_path,
+        fallbackUrl: item.url,
         poster: api.thumbnailUrl ? api.thumbnailUrl(item.id) : null,
         isYouTube: false,
       }
     }
-    const isYouTube = Boolean(item.url && /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)/i.test(item.url))
-    if (isYouTube) {
-      return {
-        url: item.url,
-        poster: api.thumbnailUrl ? api.thumbnailUrl(item.id) : null,
-        isYouTube: true,
-      }
-    }
-    const videoResource = (Array.isArray(item.resources) ? item.resources : []).find(
-      (r) => r && (r.type === 'video' || r.type === 'mp4' || (typeof r.url === 'string' && /\.(mp4|webm|mov)(\?|$)/i.test(r.url)))
-    )
-    if (videoResource) {
-      return {
-        url: api.mediaUrl ? api.mediaUrl(item.id) : videoResource.url,
-        fallbackUrl: videoResource.url,
-        poster: api.thumbnailUrl ? api.thumbnailUrl(item.id) : null,
-        isYouTube: false,
-      }
-    }
+
     return null
   }, [item?.id, item?.media_path, item?.url, item?.resources])
 
@@ -566,10 +614,10 @@ export default function LibraryDetailModal({
 
   // Aspect ratio detection: 9:16 for reels/tiktok/shorts
   const isVertical = useMemo(() => {
-    if (item.is_reel) return true
+    if (item.is_reel || videoItem?.isVertical) return true
     const u = (item.url || '').toLowerCase()
     return u.includes('/reel/') || u.includes('/reels/') || u.includes('/shorts/') || u.includes('tiktok.com')
-  }, [item.is_reel, item.url])
+  }, [item.is_reel, item.url, videoItem?.isVertical])
 
   // Display title without forced sentence-case lowercasing
   const displayTitle = useMemo(() => {
