@@ -7,6 +7,7 @@ from typing import BinaryIO
 
 from backend.library.storage.base import (
     StorageCapabilities,
+    StorageError,
     StorageObject,
     StorageProvider,
 )

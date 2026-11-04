@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from backend.db.connection import get_connection
-from backend.library.storage.base import StorageProvider
+from backend.library.storage.base import StorageProvider, StorageUnavailableError
 from backend.library.store import LibraryStore
 
 log = logging.getLogger(__name__)
@@ -179,22 +179,23 @@ class MigrationEngine:
                 )
 
                 content = path.read_bytes()
+                actual_checksum = _compute_sha256(path)
                 obj = await provider.write(
                     name=path.name,
                     data=content,
                     mime_type=mime_type,
                     parent_folder_id=target_folder,
-                    expected_checksum=expected_checksum,
+                    expected_checksum=actual_checksum,
                 )
 
                 # Update manifest
                 conn.execute(
                     """
                     UPDATE storage_migration_manifest
-                    SET status = 'completed', external_id = ?, updated_at = datetime('now')
+                    SET status = 'completed', external_id = ?, checksum = ?, file_size = ?, updated_at = datetime('now')
                     WHERE id = ?
                     """,
-                    (obj.external_id, manifest_id),
+                    (obj.external_id, actual_checksum, len(content), manifest_id),
                 )
 
                 # Update library_items row
@@ -202,7 +203,7 @@ class MigrationEngine:
                     item_id,
                     storage_provider="google_drive",
                     external_id=obj.external_id,
-                    checksum=expected_checksum,
+                    checksum=actual_checksum,
                     cached_locally=1,
                     sync_state="synced",
                     last_synced_at=conn.execute("SELECT datetime('now')").fetchone()[0],
