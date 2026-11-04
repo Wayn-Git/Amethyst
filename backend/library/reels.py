@@ -20,6 +20,7 @@ the library gets it at once -- the paste box, the bookmarklet,
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import shutil
 import tempfile
@@ -104,17 +105,13 @@ class ReelCapture:
             raise
 
     async def _open(self, url: str, scratch: Path, settings: InstagramSettings) -> Reel:
-        """Metadata, and the video too when there is any point in having it.
+        """Metadata fast (dest=None) so the item row and card appear immediately.
 
-        The gate is checked before the step it protects: with no transcriber and
-        no reason to keep the file, a thirty-megabyte download would be fetched
-        and deleted unread.
+        Video download and speech transcription are handled in the background task.
         """
-        # Always fetch video so it can be streamed natively in the library player
-        wants_video = True
         return await self._fetch(
             url,
-            scratch / "reel" if wants_video else None,
+            None,
             cookies_from_browser=settings.cookies_from_browser or None,
         )
 
@@ -176,11 +173,21 @@ class ReelCapture:
         # 2. Populate initial resources including video streaming / direct fallback and slides
         initial_res = []
         if kind == "video" or reel.direct_video_url:
+            shortcode = ""
+            if "/reel/" in (reel.url or ""):
+                parts = reel.url.split("/reel/")[1].split("/")
+                shortcode = parts[0].split("?")[0]
+            elif "/p/" in (reel.url or ""):
+                parts = reel.url.split("/p/")[1].split("/")
+                shortcode = parts[0].split("?")[0]
+            embed_url = f"https://www.instagram.com/reel/{shortcode}/embed/" if shortcode else ""
             initial_res.append({
                 "type": "video",
                 "name": "Video",
-                "url": f"/api/library/{item_id}/media",
+                "url": reel.direct_video_url or reel.url,
                 "remote_url": reel.direct_video_url,
+                "embed_url": embed_url,
+                "platform": "instagram",
             })
         if reel.slide_urls:
             initial_res.extend([
@@ -200,7 +207,7 @@ class ReelCapture:
 
                 notes_out.append(
                     await self._process_content(
-                        item_id, reel, settings, is_music_intent=is_music_intent
+                        item_id, reel, settings, is_music_intent=is_music_intent, scratch=scratch
                     )
                 )
 
@@ -274,10 +281,11 @@ class ReelCapture:
         settings: InstagramSettings,
         *,
         is_music_intent: bool = False,
+        scratch: Path | None = None,
     ) -> str:
-        if reel.video_path is not None:
+        if reel.video_path is not None or ("/reel/" in (reel.url or "") or "/reels/" in (reel.url or "")):
             return await self._process_video(
-                item_id, reel, settings, is_music_intent=is_music_intent
+                item_id, reel, settings, is_music_intent=is_music_intent, scratch=scratch
             )
         if reel.slide_urls:
             return await self._process_slides(item_id, reel)
@@ -290,99 +298,63 @@ class ReelCapture:
         settings: InstagramSettings,
         *,
         is_music_intent: bool = False,
+        scratch: Path | None = None,
     ) -> str:
-        """The spoken words or on-screen text from video frames."""
-        if reel.video_path is None:
-            return ""
-        if missing := ffmpeg_missing():
-            return missing
-
-        video = media_path(item_id, reel.video_path.suffix or ".mp4")
-        video.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(reel.video_path), video)
-
+        """The spoken words from ephemeral audio transcription without saving video."""
         audio: Path | None = None
-        duration: float | None = None
+        duration: float | None = float(reel.duration) if reel.duration else None
         speech_text: str | None = None
         detected_music: dict | None = None
+        visual_text: str | None = None
+
+        scratch_audio = (scratch or Path(tempfile.mkdtemp(prefix="amethyst-audio-"))) / "audio.opus"
 
         try:
-            duration = await self._probe(video)
-            if duration and duration > settings.max_duration_seconds:
-                return (
-                    f"this is {int(duration // 60)} minutes long, past the"
-                    f" {settings.max_duration_seconds // 60}-minute limit for transcription"
-                )
+            if self._can_transcribe() or is_music_intent:
+                source = reel.video_path or reel.direct_video_url or reel.url
+                if source:
+                    try:
+                        audio = await self._extract_audio(source, scratch_audio)
+                    except Exception as exc:
+                        log.debug("audio extraction failed for item %s: %s", item_id, exc)
 
-            try:
-                audio = await self._extract_audio(video, media_path(item_id, ".audio"))
-            except Exception as exc:
-                log.debug("audio extraction failed for item %s: %s", item_id, exc)
+            if audio and Path(audio).is_file():
+                if duration is None:
+                    with contextlib.suppress(Exception):
+                        duration = await self._probe(audio)
 
-            if audio and self._can_transcribe():
-                try:
-                    result = await self._transcribe(audio)
-                    if result.text and result.text.strip():
-                        speech_text = result.text.strip()
-                except Exception as exc:
-                    log.info(
-                        "audio transcription not possible for item %s (silent video?): %s",
-                        item_id,
-                        exc,
+                if duration and duration > settings.max_duration_seconds:
+                    return (
+                        f"this is {int(duration // 60)} minutes long, past the"
+                        f" {settings.max_duration_seconds // 60}-minute limit for transcription"
                     )
 
-            # Detect background music / song in reel via audio fingerprinting or caption
-            try:
-                from backend.media.music import detect_music
-                detected_music = await detect_music(audio, text=reel.caption)
-            except Exception as exc:
-                log.debug("music detection failed for item %s: %s", item_id, exc)
+                if self._can_transcribe():
+                    try:
+                        result = await self._transcribe(audio)
+                        if result and result.text and result.text.strip():
+                            speech_text = result.text.strip()
+                    except Exception as exc:
+                        log.info(
+                            "audio transcription not possible for item %s (silent video?): %s",
+                            item_id,
+                            exc,
+                        )
 
-            visual_text: str | None = None
-            # Extract visual text from video frames (both for videos with speech and silent videos)
-            try:
-                from backend.media.vision import extract_frames
-                from backend.runtime.vision import extract_visual_text
-
-                frames_dir = Path(tempfile.mkdtemp(prefix="amethyst-vision-"))
                 try:
-                    frames = await extract_frames(video, frames_dir)
-                    if frames:
-                        frame_bytes = [f.read_bytes() for f in frames]
-                        visual_text = await extract_visual_text(frame_bytes)
+                    from backend.media.music import detect_music
+                    detected_music = await detect_music(audio, text=reel.caption)
                 except Exception as exc:
-                    log.warning("visual extraction failed for library item %s: %s", item_id, exc)
-                finally:
-                    shutil.rmtree(frames_dir, ignore_errors=True)
-            except Exception as exc:
-                log.debug("frame extraction setup failed for item %s: %s", item_id, exc)
+                    log.debug("music detection failed for item %s: %s", item_id, exc)
 
         except Exception as exc:
-            log.warning("video processing failed for library item %s: %s", item_id, exc)
+            log.warning("video audio processing failed for library item %s: %s", item_id, exc)
             return f"the video processing did not finish: {exc}"
         finally:
-            if audio is not None:
+            if audio is not None and Path(audio).is_file():
                 audio.unlink(missing_ok=True)
-            if video and video.is_file() and video.stat().st_size > 1000:
-                self.library.store.update(
-                    item_id,
-                    media_path=str(video),
-                    kind="video" if not is_music_intent else "music",
-                )
-                try:
-                    import json as _json
-                    row = self.library.store.get(item_id)
-                    existing_res = []
-                    if row and row["resources"]:
-                        try:
-                            existing_res = _json.loads(row["resources"])
-                        except Exception:
-                            existing_res = []
-                    if not any(isinstance(r, dict) and r.get("type") == "video" for r in existing_res):
-                        existing_res.insert(0, {"type": "video", "name": "Video", "url": f"/api/library/{item_id}/media"})
-                        self.library.store.update(item_id, resources=_json.dumps(existing_res))
-                except Exception:
-                    pass
+            if scratch_audio.is_file():
+                scratch_audio.unlink(missing_ok=True)
             if duration is not None:
                 self.library.store.update(item_id, duration_seconds=int(duration))
 
