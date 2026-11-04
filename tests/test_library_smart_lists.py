@@ -68,3 +68,38 @@ def test_harvest_and_store_links():
     urls = [l["url"] for l in links]
     assert "https://github.com/fastapi/fastapi" in urls
 
+
+def test_auto_cluster_and_lists_api():
+    from fastapi.testclient import TestClient
+    from backend.api.main import app
+    from backend.library.service import LibraryService
+
+    reset_connection()
+    store = LibraryStore()
+    svc = LibraryService(store)
+
+    id1 = store.create(title="FastAPI High Performance Web", kind="article", url="https://fastapi.tiangolo.com")
+    id2 = store.create(title="Async Python and Starlette Architecture", kind="article", url="https://starlette.io")
+    store.update(id1, tags='["#python", "#api", "#backend"]')
+    store.update(id2, tags='["#python", "#async", "#backend"]')
+
+    client = TestClient(app)
+    res = client.post("/api/library/lists/auto-cluster")
+    assert res.status_code == 200
+    data = res.json()
+    assert "clusters_created" in data
+
+    lists_res = client.get("/api/library/lists")
+    assert lists_res.status_code == 200
+    all_lists = lists_res.json()
+    assert len(all_lists) >= 1
+
+    # Verify list detail with members
+    list_id = all_lists[0]["id"]
+    detail_res = client.get(f"/api/library/lists/{list_id}")
+    assert detail_res.status_code == 200
+    detail = detail_res.json()
+    assert "items" in detail
+    assert "links" in detail
+
+

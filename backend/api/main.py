@@ -8600,6 +8600,97 @@ async def sweep_library(force: bool = True) -> dict[str, Any]:
     return {"status": "sweeping", "swept": count, "unsummarized": unsummarized}
 
 
+class CreateListBody(BaseModel):
+    title: str
+    description: str = ""
+    icon: str = "bookmark"
+    is_smart: bool = False
+
+
+class AddListMemberBody(BaseModel):
+    item_id: int | None = None
+    link_id: int | None = None
+    position: int = 0
+
+
+@app.get("/api/library/lists")
+async def get_library_lists() -> list[dict[str, Any]]:
+    from backend.library.service import LibraryService
+
+    return LibraryService().store.get_lists()
+
+
+@app.post("/api/library/lists")
+async def create_library_list(body: CreateListBody) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    store = LibraryService().store
+    list_id = store.create_list(body.title, body.description, body.icon, body.is_smart)
+    return {"id": list_id, "title": body.title}
+
+
+@app.get("/api/library/lists/{list_id}")
+async def get_library_list_detail(list_id: int) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    store = LibraryService().store
+    lst = store.get_list(list_id)
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+    members = store.get_list_members(list_id)
+    return {**lst, **members}
+
+
+@app.delete("/api/library/lists/{list_id}")
+async def delete_library_list(list_id: int) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    deleted = LibraryService().store.delete_list(list_id)
+    return {"deleted": deleted, "id": list_id}
+
+
+@app.post("/api/library/lists/{list_id}/members")
+async def add_library_list_member(list_id: int, body: AddListMemberBody) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    added = LibraryService().store.add_list_member(list_id, body.item_id, body.link_id, body.position)
+    return {"added": added, "list_id": list_id}
+
+
+@app.delete("/api/library/lists/{list_id}/members")
+async def remove_library_list_member(
+    list_id: int,
+    item_id: int | None = None,
+    link_id: int | None = None,
+) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    removed = LibraryService().store.remove_list_member(list_id, item_id, link_id)
+    return {"removed": removed, "list_id": list_id}
+
+
+@app.post("/api/library/lists/auto-cluster")
+async def auto_cluster_lists() -> dict[str, Any]:
+    from backend.library.clustering import auto_cluster_library_items
+    from backend.library.service import LibraryService
+
+    return auto_cluster_library_items(LibraryService())
+
+
+@app.get("/api/library/links")
+async def get_extracted_links(limit: int = 100) -> list[dict[str, Any]]:
+    from backend.library.service import LibraryService
+
+    return LibraryService().store.get_extracted_links(limit=limit)
+
+
+@app.post("/api/library/links/backfill")
+async def backfill_links() -> dict[str, Any]:
+    from backend.library.links import backfill_all_links
+    from backend.library.service import LibraryService
+
+    return backfill_all_links(LibraryService())
+
 
 @app.get("/api/library/{item_id}")
 def get_library_item(item_id: int) -> dict[str, Any]:
