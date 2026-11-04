@@ -32,6 +32,9 @@ export default function LibraryCloudStorage() {
       }
       if (mig) {
         setMigration(mig)
+        if (!mig.is_running && (!mig.in_progress || mig.in_progress === 0)) {
+          setMigrating(false)
+        }
       }
 
       const gd = conns?.services?.googledrive || conns?.services?.google_drive
@@ -57,19 +60,20 @@ export default function LibraryCloudStorage() {
 
   // Polling while migration is running
   useEffect(() => {
-    if (migrating || (migration && migration.in_progress > 0)) {
+    const isRunning = Boolean(migrating || migration?.is_running || (migration && migration.in_progress > 0))
+    if (isRunning) {
       pollTimerRef.current = setInterval(async () => {
         try {
           const mig = await api.migrationStatus()
           if (mig) {
             setMigration(mig)
-            if (mig.pending === 0 && mig.in_progress === 0) {
+            if (!mig.is_running && (!mig.in_progress || mig.in_progress === 0)) {
               setMigrating(false)
-              clearInterval(pollTimerRef.current)
+              if (pollTimerRef.current) clearInterval(pollTimerRef.current)
             }
           }
         } catch {
-          /* ignore */
+          setMigrating(false)
         }
       }, 2000)
     } else {
@@ -78,7 +82,7 @@ export default function LibraryCloudStorage() {
     return () => {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current)
     }
-  }, [migrating, migration])
+  }, [migrating, migration?.is_running, migration?.in_progress])
 
   const handleSelectProvider = async (next) => {
     try {
@@ -169,6 +173,7 @@ export default function LibraryCloudStorage() {
       setMigrating(true)
       loadData()
     } catch (err) {
+      setMigrating(false)
       toast(`Retry failed: ${err.message}`, 'bad')
     } finally {
       setRetrying(false)
@@ -182,6 +187,7 @@ export default function LibraryCloudStorage() {
   const percent = total > 0 ? Math.round((completed / total) * 100) : 0
   const lastError = migration?.last_error
   const isConnectivity = migration?.error_category === 'connectivity' || (lastError && /connected|re-auth|token|oauth|credential/i.test(lastError))
+  const isActivelyMigrating = Boolean(migrating || migration?.is_running || (migration && migration.in_progress > 0))
 
   return (
     <div className="codex-card">
@@ -282,7 +288,7 @@ export default function LibraryCloudStorage() {
                 type="button"
                 className="set-btn-sm"
                 onClick={handleRetryFailed}
-                disabled={retrying || migrating || !driveConnected}
+                disabled={retrying || isActivelyMigrating || !driveConnected}
                 style={{
                   padding: '5px 16px',
                   fontSize: '13px',
@@ -297,16 +303,16 @@ export default function LibraryCloudStorage() {
               type="button"
               className="set-btn-sm"
               onClick={handleStartMigration}
-              disabled={migrating || !driveConnected || (total > 0 && pending === 0 && failed === 0)}
+              disabled={isActivelyMigrating || !driveConnected || (total > 0 && pending === 0 && failed === 0)}
               style={{ padding: '5px 16px', fontSize: '13px' }}
               title={!driveConnected ? 'Connect Google Drive first' : undefined}
             >
-              {migrating
+              {isActivelyMigrating
                 ? 'Migrating…'
                 : total === 0
                 ? 'Start Migration'
                 : pending > 0
-                ? 'Resume'
+                ? 'Resume Migration'
                 : 'Up to Date'}
             </HouseButton>
           </div>

@@ -1092,6 +1092,7 @@ CREATE TABLE IF NOT EXISTS storage_migration_manifest (
 );
 CREATE INDEX IF NOT EXISTS idx_migration_status ON storage_migration_manifest(status);
 CREATE INDEX IF NOT EXISTS idx_migration_item ON storage_migration_manifest(item_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_manifest_item_file ON storage_migration_manifest(item_id, file_type);
 
 
 

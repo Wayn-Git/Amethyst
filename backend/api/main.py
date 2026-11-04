@@ -8698,6 +8698,7 @@ async def start_storage_migration(background_tasks: BackgroundTasks) -> dict[str
     queued = await engine.build_manifest()
 
     async def _drain_migration():
+        MigrationEngine._is_running = True
         try:
             while True:
                 res = await engine.step(batch_size=5)
@@ -8705,6 +8706,8 @@ async def start_storage_migration(background_tasks: BackgroundTasks) -> dict[str
                     break
         except Exception as exc:
             log.warning("Background migration step failed: %s", exc)
+        finally:
+            MigrationEngine._is_running = False
 
     background_tasks.add_task(_drain_migration)
     return {"status": "started", "queued": queued, **engine.get_status()}
@@ -8727,6 +8730,7 @@ async def retry_failed_storage_migration(background_tasks: BackgroundTasks) -> d
     retried = engine.retry_failed()
 
     async def _drain_migration():
+        MigrationEngine._is_running = True
         try:
             while True:
                 res = await engine.step(batch_size=5)
@@ -8734,6 +8738,8 @@ async def retry_failed_storage_migration(background_tasks: BackgroundTasks) -> d
                     break
         except Exception as exc:
             log.warning("Background migration step failed: %s", exc)
+        finally:
+            MigrationEngine._is_running = False
 
     background_tasks.add_task(_drain_migration)
     return {"status": "retried", "retried": retried, **engine.get_status()}

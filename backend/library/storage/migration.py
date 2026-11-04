@@ -31,6 +31,8 @@ def _compute_sha256(path: Path) -> str:
 class MigrationEngine:
     """Orchestrates persistent, resumable migration of library files to cloud storage."""
 
+    _is_running: bool = False
+
     def __init__(self, gdrive_provider: StorageProvider | None = None) -> None:
         self._provider = gdrive_provider
 
@@ -47,6 +49,11 @@ class MigrationEngine:
     async def build_manifest(self) -> int:
         """Scan all local library items and enqueue manifest rows for unmigrated files."""
         conn = get_connection()
+        existing = {
+            (r["item_id"], r["file_type"])
+            for r in conn.execute("SELECT item_id, file_type FROM storage_migration_manifest").fetchall()
+        }
+
         rows = conn.execute(
             """
             SELECT id, kind, title, text_path, media_path, thumbnail_path, storage_provider, external_id
@@ -70,7 +77,7 @@ class MigrationEngine:
                 target_folder = "notes"
 
             # 1. Check text_path
-            if r["text_path"]:
+            if (item_id, "text") not in existing and r["text_path"]:
                 tp = Path(r["text_path"]).expanduser()
                 if tp.is_file():
                     size = tp.stat().st_size
@@ -85,9 +92,10 @@ class MigrationEngine:
                     )
                     if cur.rowcount > 0:
                         inserted += 1
+                        existing.add((item_id, "text"))
 
             # 2. Check media_path
-            if r["media_path"]:
+            if (item_id, "media") not in existing and r["media_path"]:
                 mp = Path(r["media_path"]).expanduser()
                 if mp.is_file():
                     size = mp.stat().st_size
@@ -102,6 +110,7 @@ class MigrationEngine:
                     )
                     if cur.rowcount > 0:
                         inserted += 1
+                        existing.add((item_id, "media"))
 
         conn.commit()
         return inserted
@@ -260,6 +269,7 @@ class MigrationEngine:
             "failed": counts.get("failed", 0),
             "last_error": last_error,
             "error_category": error_category,
+            "is_running": MigrationEngine._is_running or counts.get("in_progress", 0) > 0,
         }
 
     def retry_failed(self) -> int:
