@@ -7,7 +7,7 @@ database server.
 Canonical schema: `backend/db/schema.sql`. Connection and migrations:
 `backend/db/connection.py`. Repositories: `backend/db/repositories.py`.
 
-**Verified 2026-10-31 · commit `3c363b7` · dirty working tree.**
+**Verified 2026-11-04 · commit `f52a7d1` · dirty working tree.**
 
 ## Connection behavior
 
@@ -25,7 +25,7 @@ model call or a network request.
 
 ## Tables
 
-`backend/db/schema.sql` creates 43 tables.
+`backend/db/schema.sql` creates 44 tables.
 
 | Group | Tables |
 |---|---|
@@ -35,8 +35,8 @@ model call or a network request.
 | Tasks and calendar | `task_lists`, `tasks`, `calendar_events` |
 | Audit and runs | `execution_logs`, `agent_runs`, `subagent_sessions` |
 | Automations and jobs | `automations`, `automation_runs`, `jobs`, `job_steps`, `worker_reports` |
-| Memory and journal | `memories`, `memory_state`, `journal_entries` |
-| Library and media | `library_items`, `instagram_events`, `brand_profile` |
+| Memory and journal | `memories`, `memory_state`, `journal_entries`, `learning_proposals` |
+| Library and media | `library_items`, `library_lists`, `library_list_members`, `library_extracted_links`, `instagram_events`, `brand_profile` |
 | Artifacts | `artifacts`, `response_artifacts`, `artifact_versions` |
 | Sync and devices | `devices`, `sync_ops`, `sync_seen`, `sync_intents` |
 | Integrations | `composio_state`, `provider_fallbacks` |
@@ -68,6 +68,13 @@ disabled and search degrades to keywords; callers can observe the degradation.
   ordered op log; `sync_seen` deduplicates; `sync_intents` holds control-device
   intents for the host.
 - `memories` supersedes rather than deletes. `superseded_at` marks retirement.
+- `learning_proposals` holds what the post-turn review suggested, with `status`
+  in `pending`, `approved`, `rejected` or `failed`. It stores the proposed body
+  rather than pointing at the conversation, so a deleted chat cannot turn a
+  pending proposal into an unreadable row.
+- `agent_runs` carries measured usage columns (`input_tokens`, `output_tokens`,
+  `cache_read_tokens`, `cache_write_tokens`, `tool_call_count`,
+  `duration_ms`). Analytics reads them directly.
 - `library_items` indexes captured material; the text itself lives under
   `~/.amethyst/library/`.
 - `widget_cache` stores per-widget payloads and state; `layouts` stores per-mode
@@ -84,8 +91,8 @@ Nothing above `backend/db/repositories.py` issues SQL. Repositories include:
 `SubagentSessionRepository`, `ConversationSummaryRepository`.
 
 Some domain modules have their own stores for subsystem-local tables:
-`backend/jobs/store.py`, `backend/library/store.py`,
-`backend/dashboard/store.py`, `backend/sync/ops.py`,
+`backend/jobs/store.py`, `backend/learning/store.py`,
+`backend/library/store.py`, `backend/dashboard/store.py`, `backend/sync/ops.py`,
 `backend/retrieval/store.py`. Follow the existing split; do not add a new SQL
 path to a route.
 
@@ -131,4 +138,4 @@ SQLite requires a table rebuild, and existing user data must survive.
 - [../architecture/decisions/0002-primary-database-engine.md](../architecture/decisions/0002-primary-database-engine.md)
 - [../architecture/decisions/0004-storage-architecture-multi-store-split.md](../architecture/decisions/0004-storage-architecture-multi-store-split.md)
 
-_Last verified: 2026-10-31 · commit `3c363b7` · dirty working tree._
+_Last verified: 2026-11-04 · commit `f52a7d1` · dirty working tree._

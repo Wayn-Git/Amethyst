@@ -8654,7 +8654,7 @@ async def add_library_list_member(list_id: int, body: AddListMemberBody) -> dict
     from backend.library.service import LibraryService
 
     added = LibraryService().store.add_list_member(list_id, body.item_id, body.link_id, body.position)
-    return {"added": added, "list_id": list_id}
+    return {"status": "added" if added else "already_exists", "added": added, "list_id": list_id}
 
 
 @app.delete("/api/library/lists/{list_id}/members")
@@ -8678,10 +8678,10 @@ async def auto_cluster_lists() -> dict[str, Any]:
 
 
 @app.get("/api/library/links")
-async def get_extracted_links(limit: int = 100) -> list[dict[str, Any]]:
+async def get_extracted_links(item_id: int | None = None, limit: int = 100) -> list[dict[str, Any]]:
     from backend.library.service import LibraryService
 
-    return LibraryService().store.get_extracted_links(limit=limit)
+    return LibraryService().store.get_extracted_links(item_id=item_id, limit=limit)
 
 
 @app.post("/api/library/links/backfill")

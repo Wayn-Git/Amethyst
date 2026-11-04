@@ -11,6 +11,7 @@ import ErrorState from '../components/ui/ErrorState.jsx'
 
 import LibraryToolbar from './library/LibraryToolbar.jsx'
 import LibraryFilterBar from './library/LibraryFilterBar.jsx'
+import LibraryListsShelf from './library/LibraryListsShelf.jsx'
 import LibraryTagRail from './library/LibraryTagRail.jsx'
 import LibraryGrid from './library/LibraryGrid.jsx'
 import LibraryListView from './library/LibraryListView.jsx'
@@ -68,6 +69,11 @@ export default function Library() {
   const [exportItems, setExportItems] = useState([])
   const [activeModalItem, setActiveModalItem] = useState(null)
   const [busyId, setBusyId] = useState(null)
+
+  // Smart & Curated Lists state
+  const [lists, setLists] = useState([])
+  const [selectedListId, setSelectedListId] = useState(null)
+  const [selectedListDetail, setSelectedListDetail] = useState(null)
 
   // Polling tracking refs
   const loadToken = useRef(0)
@@ -233,6 +239,39 @@ export default function Library() {
     load()
   }, [load])
 
+  // Fetch lists
+  const loadLists = useCallback(async () => {
+    try {
+      const data = await api.getLibraryLists()
+      setLists(data.lists || [])
+    } catch {
+      // keep existing
+    }
+  }, [])
+
+  useEffect(() => {
+    loadLists()
+  }, [loadLists])
+
+  // Fetch selected list details and member items/links
+  useEffect(() => {
+    if (!selectedListId) {
+      setSelectedListDetail(null)
+      return
+    }
+    let cancelled = false
+    api.getLibraryListDetail(selectedListId)
+      .then((detail) => {
+        if (!cancelled) setSelectedListDetail(detail)
+      })
+      .catch((err) => {
+        toast?.(err.message || 'Failed to load list details', 'bad')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedListId, toast])
+
   // Global keyboard shortcuts (Cmd+K / Ctrl+K to open add modal, Cmd+/ for search)
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -279,6 +318,9 @@ export default function Library() {
             setItems((prev) =>
               prev.map((it) => (it.id === id ? { ...updated, isProcessing: false } : it))
             )
+            setActiveModalItem((curr) =>
+              curr?.id === id ? { ...updated, isProcessing: false } : curr
+            )
             if (updated.status !== 'failed') {
               toast(`Ready: ${updated.title}`, 'ok')
             }
@@ -291,12 +333,15 @@ export default function Library() {
             setItems((prev) =>
               prev.map((it) => (it.id === id ? { ...updated, isProcessing: true } : it))
             )
+            setActiveModalItem((curr) =>
+              curr?.id === id ? { ...updated, isProcessing: true } : curr
+            )
           }
         } catch {
           activeProcessingIds.current.delete(id)
         }
       }
-    }, 1800)
+    }, 1000)
 
     return () => {
       cancelled = true
@@ -588,6 +633,7 @@ export default function Library() {
     setSelectedTags([])
     setSelectedRatings([])
     setSelectedProgress('all')
+    setSelectedListId(null)
     setQuery('')
     setDebouncedQuery('')
   }, [])
@@ -632,6 +678,10 @@ export default function Library() {
   // Filter items reactively by selectedProgress, selectedRating and order
   const displayedItems = useMemo(() => {
     let result = items
+    if (selectedListId && selectedListDetail) {
+      const memberItemIds = new Set((selectedListDetail.items || []).map((m) => m.id))
+      result = result.filter((it) => memberItemIds.has(it.id))
+    }
     if (selectedProgress && selectedProgress !== 'all') {
       result = result.filter((it) => (it.progress || 'unstarted') === selectedProgress)
     }
@@ -648,7 +698,7 @@ export default function Library() {
     // Always prioritize pinned items on top
     result = [...result].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0))
     return result
-  }, [items, selectedProgress, selectedRatings, order])
+  }, [items, selectedListId, selectedListDetail, selectedProgress, selectedRatings, order])
 
   const appCounts = useMemo(() => {
     const known = ['pinterest', 'youtube', 'instagram', 'x', 'github', 'reddit', 'spotify', 'threads']
@@ -777,6 +827,76 @@ export default function Library() {
               onSelectProgress={setSelectedProgress}
               shelfCounts={shelfCounts}
             />
+
+            {/* Smart & Curated Lists Shelf */}
+            <LibraryListsShelf
+              lists={lists}
+              selectedListId={selectedListId}
+              onSelectList={setSelectedListId}
+              totalItems={total}
+              onRefreshLists={loadLists}
+              toast={toast}
+            />
+
+            {/* Selected List Banner */}
+            {selectedListDetail && (
+              <div className="lib-selected-list-banner">
+                <div className="lib-selected-list-info">
+                  <div className="lib-selected-list-title-row">
+                    <Icon
+                      name={selectedListDetail.list?.is_smart ? 'spark' : 'folder'}
+                      size={16}
+                      className={selectedListDetail.list?.is_smart ? 'text-amber-400' : ''}
+                    />
+                    <h2 className="lib-selected-list-title">{selectedListDetail.list?.title}</h2>
+                    {Boolean(selectedListDetail.list?.is_smart) && (
+                      <span className="lib-smart-badge">Smart Clustered</span>
+                    )}
+                  </div>
+                  {selectedListDetail.list?.description && (
+                    <p className="lib-selected-list-desc">{selectedListDetail.list.description}</p>
+                  )}
+                </div>
+                <div className="lib-selected-list-stats">
+                  <span>{selectedListDetail.items?.length || 0} items</span>
+                  <span>•</span>
+                  <span>{selectedListDetail.links?.length || 0} links</span>
+                  <button
+                    type="button"
+                    className="lib-selected-list-clear-btn"
+                    onClick={() => setSelectedListId(null)}
+                  >
+                    View all items
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Extracted Outbound Links within Selected List */}
+            {selectedListDetail?.links?.length > 0 && (
+              <div className="lib-list-links-shelf">
+                <div className="lib-list-links-shelf-title">
+                  <Icon name="link" size={12} />
+                  <span>Harvested Outbound Links in List ({selectedListDetail.links.length})</span>
+                </div>
+                <div className="lib-list-links-shelf-scroll">
+                  {selectedListDetail.links.map((link) => (
+                    <a
+                      key={link.id}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="lib-list-link-pill"
+                      title={link.url}
+                    >
+                      <span className="lib-list-link-domain">{link.domain}</span>
+                      <span className="lib-list-link-text">{link.title || link.url}</span>
+                      <Icon name="external-link" size={11} />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Layout Area: Active Filter Strip (when active) + Content Canvas */}
             <div className="lib-layout w-full flex flex-col gap-4">

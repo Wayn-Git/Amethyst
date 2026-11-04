@@ -103,3 +103,85 @@ def test_auto_cluster_and_lists_api():
     assert "links" in detail
 
 
+def test_smart_lists_and_extracted_links_end_to_end():
+    from fastapi.testclient import TestClient
+    from backend.api.main import app
+    from backend.library.service import LibraryService
+
+    reset_connection()
+    store = LibraryStore()
+    svc = LibraryService(store)
+    client = TestClient(app)
+
+    # 1. Create items with text containing embedded markdown and raw links
+    item_id = store.create(
+        title="Modern Frontend State Architecture",
+        kind="article",
+        url="https://frontend-dev.org/state",
+    )
+    from backend.library.links import harvest_and_store_links
+    content = (
+        "Read more on [Zustand](https://github.com/pmndrs/zustand?utm_source=docs) "
+        "and [Jotai](https://jotai.org?ref=reddit). Also see https://github.com/pmndrs/zustand."
+    )
+    harvest_and_store_links(store, item_id, content)
+
+    # 2. Query extracted links for this item
+    links_res = client.get(f"/api/library/links?item_id={item_id}")
+    assert links_res.status_code == 200
+    item_links = links_res.json()
+    assert len(item_links) == 2, "Normalized links should deduplicate Zustand"
+    zustand_link = next(l for l in item_links if l["domain"] == "github.com")
+    assert zustand_link["normalized_url"] == "https://github.com/pmndrs/zustand"
+
+    # 3. Create a custom list via API
+    create_res = client.post(
+        "/api/library/lists",
+        json={"title": "Frontend Tooling", "description": "State management tools", "icon": "folder"},
+    )
+    assert create_res.status_code == 200
+    custom_list_id = create_res.json()["id"]
+
+    # 4. Add item and link to list
+    add_item_res = client.post(
+        f"/api/library/lists/{custom_list_id}/members",
+        json={"item_id": item_id},
+    )
+    assert add_item_res.status_code == 200
+    assert add_item_res.json()["status"] == "added"
+
+    add_link_res = client.post(
+        f"/api/library/lists/{custom_list_id}/members",
+        json={"link_id": zustand_link["id"]},
+    )
+    assert add_link_res.status_code == 200
+    assert add_link_res.json()["status"] == "added"
+
+    # 5. Verify deduplication - adding duplicate returns already_exists
+    dup_res = client.post(
+        f"/api/library/lists/{custom_list_id}/members",
+        json={"item_id": item_id},
+    )
+    assert dup_res.status_code == 200
+    assert dup_res.json()["status"] == "already_exists"
+
+    # 6. Verify list detail
+    detail_res = client.get(f"/api/library/lists/{custom_list_id}")
+    assert detail_res.status_code == 200
+    data = detail_res.json()
+    assert len(data["items"]) == 1
+    assert len(data["links"]) == 1
+    assert data["items"][0]["id"] == item_id
+    assert data["links"][0]["id"] == zustand_link["id"]
+
+    # 7. Delete list - item remains in library
+    del_res = client.delete(f"/api/library/lists/{custom_list_id}")
+    assert del_res.status_code == 200
+    assert store.get(item_id) is not None
+
+    # 8. Deleting item cascades to extracted links
+    store.delete(item_id)
+    links_after = client.get(f"/api/library/links?item_id={item_id}").json()
+    assert len(links_after) == 0
+
+

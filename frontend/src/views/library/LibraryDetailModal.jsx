@@ -369,6 +369,10 @@ export default function LibraryDetailModal({
   const [savedSongs, setSavedSongs] = useState(() => new Set())
   const [savingSong, setSavingSong] = useState(null)
 
+  // Smart lists and extracted outbound links
+  const [extractedLinks, setExtractedLinks] = useState([])
+  const [availableLists, setAvailableLists] = useState([])
+
   const bodyRef = useRef(null)
   const notesTextareaRef = useRef(null)
   const titleInputRef = useRef(null)
@@ -468,6 +472,59 @@ export default function LibraryDetailModal({
     window.addEventListener('mousedown', handleClick, true)
     return () => window.removeEventListener('mousedown', handleClick, true)
   }, [showActionsMenu])
+
+  // Fetch extracted outbound links and available lists
+  useEffect(() => {
+    if (!item?.id) {
+      setExtractedLinks([])
+      return
+    }
+    let cancelled = false
+    api.getLibraryLinks({ item_id: item.id })
+      .then((res) => {
+        if (!cancelled && Array.isArray(res)) {
+          setExtractedLinks(res)
+        }
+      })
+      .catch(() => {})
+
+    api.getLibraryLists()
+      .then((res) => {
+        if (!cancelled && res?.lists) {
+          setAvailableLists(res.lists)
+        }
+      })
+      .catch(() => {})
+
+    return () => {
+      cancelled = true
+    }
+  }, [item?.id])
+
+  const handleAddLinkToList = useCallback(
+    async (linkId, listId) => {
+      try {
+        await api.addLibraryListMember(listId, { link_id: linkId })
+        toast?.('Added outbound link to list', 'ok')
+      } catch (err) {
+        toast?.(err.message || 'Failed to add link to list', 'bad')
+      }
+    },
+    [toast]
+  )
+
+  const handleAddItemToList = useCallback(
+    async (listId) => {
+      if (!item?.id) return
+      try {
+        await api.addLibraryListMember(listId, { item_id: item.id })
+        toast?.('Added item to list', 'ok')
+      } catch (err) {
+        toast?.(err.message || 'Failed to add item to list', 'bad')
+      }
+    },
+    [item?.id, toast]
+  )
 
   // Pager index and handlers
   const currentIndex = useMemo(() => {
@@ -1375,15 +1432,35 @@ export default function LibraryDetailModal({
                       size="medium"
                       className="lib-page-cta-pill lib-page-cta-pill--secondary"
                       onClick={() => {
-                        const colName = window.prompt('Collection name:')
-                        if (colName && colName.trim()) {
-                          handleAddTag(`collection:${colName.trim()}`)
+                        if (availableLists.length > 0) {
+                          const options = availableLists.map((l, idx) => `${idx + 1}. ${l.title}`).join('\n')
+                          const choice = window.prompt(`Choose a list to add this item to:\n${options}\n\nOr enter a new list name:`)
+                          if (!choice) return
+                          const num = parseInt(choice, 10)
+                          if (!isNaN(num) && num >= 1 && num <= availableLists.length) {
+                            handleAddItemToList(availableLists[num - 1].id)
+                            return
+                          }
+                          api.createLibraryList({ title: choice.trim() }).then((newList) => {
+                            if (newList?.id) {
+                              handleAddItemToList(newList.id)
+                            }
+                          })
+                        } else {
+                          const name = window.prompt('Create new list name for this item:')
+                          if (name && name.trim()) {
+                            api.createLibraryList({ title: name.trim() }).then((newList) => {
+                              if (newList?.id) {
+                                handleAddItemToList(newList.id)
+                              }
+                            })
+                          }
                         }
                       }}
-                      title="Add item to a collection"
+                      title="Add item to a smart or curated list"
                       icon={<Icon name="folder-plus" size={14} />}
                     >
-                      Add to collection
+                      Add to list
                     </AppButton>
 
                     {item.url && (
@@ -1531,6 +1608,58 @@ export default function LibraryDetailModal({
                         onSaveSong={handleSaveSong}
                         onExportPlaylist={handleExportPlaylistTrigger}
                       />
+
+                      {/* Harvested Outbound Links Section */}
+                      {extractedLinks.length > 0 && (
+                        <div className="lib-extracted-links-card">
+                          <div className="lib-extracted-links-header">
+                            <div className="lib-extracted-links-title">
+                              <Icon name="link" size={14} className="text-accent" />
+                              <span>Referenced Outbound Links ({extractedLinks.length})</span>
+                            </div>
+                            <span className="lib-extracted-links-sub">
+                              Deduplicated & normalized
+                            </span>
+                          </div>
+                          <div className="lib-extracted-links-list">
+                            {extractedLinks.map((link) => (
+                              <div key={link.id} className="lib-extracted-link-row">
+                                <span className="lib-extracted-link-domain">{link.domain}</span>
+                                <a
+                                  href={link.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="lib-extracted-link-anchor"
+                                  title={link.url}
+                                >
+                                  <span>{link.title || link.url}</span>
+                                  <Icon name="external-link" size={12} />
+                                </a>
+                                {availableLists.length > 0 && (
+                                  <select
+                                    className="lib-extracted-link-select"
+                                    defaultValue=""
+                                    onChange={(e) => {
+                                      if (e.target.value) {
+                                        handleAddLinkToList(link.id, Number(e.target.value))
+                                        e.target.value = ''
+                                      }
+                                    }}
+                                    title="Add this outbound link to a list"
+                                  >
+                                    <option value="" disabled>+ Add to list...</option>
+                                    {availableLists.map((l) => (
+                                      <option key={l.id} value={l.id}>
+                                        {l.is_smart ? '✦ ' : ''}{l.title}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 

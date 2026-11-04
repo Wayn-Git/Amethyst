@@ -975,6 +975,23 @@ export const api = {
   mergeLibraryLists: (source, destination, type = 'tag') =>
     j('/library/merge-lists', json('POST', { source, destination, type })),
 
+  // Smart lists and extracted outbound links
+  getLibraryLists: () => j('/library/lists'),
+  createLibraryList: (body) => j('/library/lists', json('POST', body)),
+  getLibraryListDetail: (id) => j(`/library/lists/${id}`),
+  deleteLibraryList: (id) => j(`/library/lists/${id}`, json('DELETE')),
+  addLibraryListMember: (listId, body) => j(`/library/lists/${listId}/members`, json('POST', body)),
+  removeLibraryListMember: (listId, params = {}) => {
+    const q = new URLSearchParams(params).toString()
+    return j(`/library/lists/${listId}/members${q ? `?${q}` : ''}`, json('DELETE'))
+  },
+  autoClusterLibraryLists: () => j('/library/lists/auto-cluster', json('POST')),
+  getLibraryLinks: (params = 100) => {
+    const q = typeof params === 'object' && params !== null ? new URLSearchParams(params).toString() : `limit=${params}`
+    return j(`/library/links${q ? `?${q}` : ''}`)
+  },
+  backfillLibraryLinks: () => j('/library/links/backfill', json('POST')),
+
   // Library cloud storage and Google Drive migration
   storageConfig: () => j('/storage/config'),
   updateStorageConfig: (patch) => j('/storage/config', json('PATCH', patch)),
