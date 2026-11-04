@@ -8773,6 +8773,11 @@ async def library_thumbnail(item_id: int) -> FileResponse:
                 if alt.is_file():
                     path = alt
                     break
+        if not path:
+            from backend.config import paths
+            cache_thumb = paths().home / "cache" / "library" / f"{item_id:06d}-thumb.jpg"
+            if cache_thumb.is_file():
+                path = cache_thumb
 
     # If missing or not yet downloaded, try on-demand fetch once with a short timeout
     if not path and row["url"]:
@@ -8866,6 +8871,14 @@ def library_media(item_id: int) -> FileResponse:
                 conn.commit()
             mime_type, _ = mimetypes.guess_type(str(candidate))
             return FileResponse(candidate, media_type=mime_type or "video/mp4")
+
+    # Check cache directory for cloud-backed or migrated media
+    from backend.config import paths
+    cache_dir = paths().home / "cache" / "library"
+    for cand in cache_dir.glob(f"{item_id:06d}-media.*"):
+        if cand.is_file() and cand.stat().st_size > 1000:
+            mime_type, _ = mimetypes.guess_type(str(cand))
+            return FileResponse(cand, media_type=mime_type or "video/mp4")
         
     # On-demand download for videos / reels (Instagram, TikTok, Twitter/X, Reddit, etc.)
     # 1. First check if a direct video URL exists in resources

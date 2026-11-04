@@ -216,6 +216,13 @@ def as_dict(row, *, include_content: bool = True) -> dict:
                         text_p = match
                         break
 
+        # Fallback to local cache for cloud-backed or migrated items
+        if not text_p or not text_p.is_file():
+            from backend.config import paths
+            cache_cand = paths().home / "cache" / "library" / f"{item_id:06d}-text.md"
+            if cache_cand.is_file():
+                text_p = cache_cand
+
     if text_p and text_p.is_file():
         data["text_path"] = str(text_p)
         if include_content:
@@ -260,6 +267,11 @@ def as_dict(row, *, include_content: bool = True) -> dict:
                 if alt_cand.is_file():
                     thumb_p = alt_cand
                     break
+        if (not thumb_p or not thumb_p.is_file()):
+            from backend.config import paths
+            cache_thumb = paths().home / "cache" / "library" / f"{item_id:06d}-thumb.jpg"
+            if cache_thumb.is_file():
+                thumb_p = cache_thumb
     if thumb_p and thumb_p.is_file():
         data["thumbnail_path"] = str(thumb_p)
 
@@ -281,6 +293,12 @@ def as_dict(row, *, include_content: bool = True) -> dict:
             if cand.is_file() and cand.stat().st_size > 1000:
                 media_p = cand
                 break
+        if not media_p or not media_p.is_file():
+            from backend.config import paths
+            for cache_med in (paths().home / "cache" / "library").glob(f"{item_id:06d}-media.*"):
+                if cache_med.is_file():
+                    media_p = cache_med
+                    break
     if media_p and media_p.is_file():
         data["media_path"] = str(media_p)
 
