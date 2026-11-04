@@ -8673,6 +8673,45 @@ def update_storage_config(body: StorageConfigPatch) -> dict[str, Any]:
     return StorageConfigStore().update_config(**data)
 
 
+@app.get("/api/storage/migration/status")
+def get_storage_migration_status() -> dict[str, Any]:
+    """Get statistics on library cloud storage migration."""
+    from backend.library.storage.migration import MigrationEngine
+
+    return MigrationEngine().get_status()
+
+
+@app.post("/api/storage/migration/start")
+async def start_storage_migration(background_tasks: BackgroundTasks) -> dict[str, Any]:
+    """Discover unmigrated items, populate manifest, and start background migration."""
+    from backend.library.storage.migration import MigrationEngine
+
+    engine = MigrationEngine()
+    queued = await engine.build_manifest()
+
+    async def _drain_migration():
+        try:
+            while True:
+                res = await engine.step(batch_size=5)
+                if res["completed"] == 0 and res["failed"] == 0:
+                    break
+        except Exception as exc:
+            log.warning("Background migration step failed: %s", exc)
+
+    background_tasks.add_task(_drain_migration)
+    return {"status": "started", "queued": queued, **engine.get_status()}
+
+
+@app.post("/api/storage/migration/retry")
+def retry_failed_storage_migration() -> dict[str, Any]:
+    """Reset failed items in migration manifest back to pending."""
+    from backend.library.storage.migration import MigrationEngine
+
+    retried = MigrationEngine().retry_failed()
+    return {"status": "retried", "retried": retried}
+
+
+
 @app.post("/api/library/{item_id}/enrich")
 async def enrich_library_item(
     item_id: int,
