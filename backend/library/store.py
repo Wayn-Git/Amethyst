@@ -269,6 +269,56 @@ class LibraryStore:
             pass
 
         self.recover_stale_items()
+        self._ensure_tables()
+
+    def _ensure_tables(self) -> None:
+        try:
+            self.conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS library_extracted_links (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source_item_id INTEGER NOT NULL REFERENCES library_items(id) ON DELETE CASCADE,
+                    url TEXT NOT NULL,
+                    normalized_url TEXT NOT NULL,
+                    domain TEXT NOT NULL,
+                    title TEXT,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    UNIQUE(source_item_id, normalized_url)
+                );
+                CREATE INDEX IF NOT EXISTS idx_extracted_links_norm ON library_extracted_links(normalized_url);
+                CREATE INDEX IF NOT EXISTS idx_extracted_links_source ON library_extracted_links(source_item_id);
+                CREATE INDEX IF NOT EXISTS idx_extracted_links_domain ON library_extracted_links(domain);
+
+                CREATE TABLE IF NOT EXISTS library_lists (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    description TEXT DEFAULT '',
+                    icon TEXT DEFAULT 'bookmark',
+                    is_smart BOOLEAN DEFAULT 0,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now'))
+                );
+                CREATE INDEX IF NOT EXISTS idx_library_lists_title ON library_lists(title);
+
+                CREATE TABLE IF NOT EXISTS library_list_members (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    list_id INTEGER NOT NULL REFERENCES library_lists(id) ON DELETE CASCADE,
+                    item_id INTEGER REFERENCES library_items(id) ON DELETE CASCADE,
+                    link_id INTEGER REFERENCES library_extracted_links(id) ON DELETE CASCADE,
+                    position INTEGER DEFAULT 0,
+                    added_at TEXT DEFAULT (datetime('now')),
+                    CHECK ((item_id IS NOT NULL AND link_id IS NULL) OR (item_id IS NULL AND link_id IS NOT NULL)),
+                    UNIQUE(list_id, item_id),
+                    UNIQUE(list_id, link_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_list_members_list ON library_list_members(list_id);
+                CREATE INDEX IF NOT EXISTS idx_list_members_item ON library_list_members(item_id);
+                CREATE INDEX IF NOT EXISTS idx_list_members_link ON library_list_members(link_id);
+                """
+            )
+            self.conn.commit()
+        except Exception:
+            pass
 
     def recover_stale_items(self, max_age_seconds: int = 180) -> list[int]:
         """Reset items left in 'enriching', 'processing' or 'received' by a killed or interrupted process."""
@@ -548,3 +598,153 @@ class LibraryStore:
             """,
             (term, term, term, term, term, term, term, term, term, limit),
         ).fetchall()
+
+    def save_extracted_link(
+        self,
+        source_item_id: int,
+        url: str,
+        normalized_url: str,
+        domain: str,
+        title: str | None = None,
+    ) -> int | None:
+        """Insert or return an extracted link for a source item."""
+        cursor = self.conn.execute(
+            """
+            INSERT INTO library_extracted_links (source_item_id, url, normalized_url, domain, title)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(source_item_id, normalized_url) DO UPDATE SET
+                url = excluded.url,
+                title = COALESCE(excluded.title, library_extracted_links.title)
+            RETURNING id
+            """,
+            (source_item_id, url, normalized_url, domain, title),
+        )
+        row = cursor.fetchone()
+        self.conn.commit()
+        return row[0] if row else None
+
+    def get_extracted_links(self, item_id: int | None = None, limit: int = 100) -> list[dict]:
+        """Fetch extracted outbound links."""
+        if item_id is not None:
+            rows = self.conn.execute(
+                "SELECT * FROM library_extracted_links WHERE source_item_id = ? ORDER BY id DESC LIMIT ?",
+                (item_id, limit),
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT * FROM library_extracted_links ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def create_list(
+        self,
+        title: str,
+        description: str = "",
+        icon: str = "bookmark",
+        is_smart: bool = False,
+    ) -> int:
+        """Create a new library list."""
+        cursor = self.conn.execute(
+            "INSERT INTO library_lists (title, description, icon, is_smart) VALUES (?, ?, ?, ?)",
+            (title.strip(), description.strip(), icon.strip(), 1 if is_smart else 0),
+        )
+        self.conn.commit()
+        return cursor.lastrowid
+
+    def get_lists(self) -> list[dict]:
+        """Fetch all lists with member counts."""
+        rows = self.conn.execute(
+            """
+            SELECT l.*,
+                   COUNT(DISTINCT m.item_id) as item_count,
+                   COUNT(DISTINCT m.link_id) as link_count
+            FROM library_lists l
+            LEFT JOIN library_list_members m ON l.id = m.list_id
+            GROUP BY l.id
+            ORDER BY l.is_smart DESC, l.title ASC
+            """
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_list(self, list_id: int) -> dict | None:
+        """Fetch a single list by ID."""
+        row = self.conn.execute("SELECT * FROM library_lists WHERE id = ?", (list_id,)).fetchone()
+        return dict(row) if row else None
+
+    def delete_list(self, list_id: int) -> bool:
+        """Delete a list and its member relations."""
+        cursor = self.conn.execute("DELETE FROM library_lists WHERE id = ?", (list_id,))
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def add_list_member(
+        self,
+        list_id: int,
+        item_id: int | None = None,
+        link_id: int | None = None,
+        position: int = 0,
+    ) -> bool:
+        """Add an item or extracted link to a list. Returns False if already in list."""
+        if (item_id is None and link_id is None) or (item_id is not None and link_id is not None):
+            return False
+        cursor = self.conn.execute(
+            """
+            INSERT OR IGNORE INTO library_list_members (list_id, item_id, link_id, position)
+            VALUES (?, ?, ?, ?)
+            """,
+            (list_id, item_id, link_id, position),
+        )
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def remove_list_member(
+        self,
+        list_id: int,
+        item_id: int | None = None,
+        link_id: int | None = None,
+    ) -> bool:
+        """Remove a member from a list."""
+        if item_id is not None:
+            cursor = self.conn.execute(
+                "DELETE FROM library_list_members WHERE list_id = ? AND item_id = ?",
+                (list_id, item_id),
+            )
+        elif link_id is not None:
+            cursor = self.conn.execute(
+                "DELETE FROM library_list_members WHERE list_id = ? AND link_id = ?",
+                (list_id, link_id),
+            )
+        else:
+            return False
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def get_list_members(self, list_id: int) -> dict[str, list]:
+        """Fetch all items and extracted links belonging to a list."""
+        item_rows = self.conn.execute(
+            """
+            SELECT i.*, m.position as member_position, m.added_at as member_added_at
+            FROM library_items i
+            JOIN library_list_members m ON i.id = m.item_id
+            WHERE m.list_id = ?
+            ORDER BY m.position ASC, m.added_at DESC
+            """,
+            (list_id,),
+        ).fetchall()
+
+        link_rows = self.conn.execute(
+            """
+            SELECT l.*, m.position as member_position, m.added_at as member_added_at
+            FROM library_extracted_links l
+            JOIN library_list_members m ON l.id = m.link_id
+            WHERE m.list_id = ?
+            ORDER BY m.position ASC, m.added_at DESC
+            """,
+            (list_id,),
+        ).fetchall()
+
+        return {
+            "items": [dict(r) for r in item_rows],
+            "links": [dict(r) for r in link_rows],
+        }

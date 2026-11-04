@@ -612,6 +612,46 @@ CREATE INDEX IF NOT EXISTS idx_library_sync_state
 CREATE INDEX IF NOT EXISTS idx_library_url ON library_items(url) WHERE url IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_library_consumed ON library_items(consumed_on DESC, id DESC);
 
+CREATE TABLE IF NOT EXISTS library_extracted_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_item_id INTEGER NOT NULL REFERENCES library_items(id) ON DELETE CASCADE,
+    url TEXT NOT NULL,
+    normalized_url TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    title TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(source_item_id, normalized_url)
+);
+CREATE INDEX IF NOT EXISTS idx_extracted_links_norm ON library_extracted_links(normalized_url);
+CREATE INDEX IF NOT EXISTS idx_extracted_links_source ON library_extracted_links(source_item_id);
+CREATE INDEX IF NOT EXISTS idx_extracted_links_domain ON library_extracted_links(domain);
+
+CREATE TABLE IF NOT EXISTS library_lists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    icon TEXT DEFAULT 'bookmark',
+    is_smart BOOLEAN DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_library_lists_title ON library_lists(title);
+
+CREATE TABLE IF NOT EXISTS library_list_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    list_id INTEGER NOT NULL REFERENCES library_lists(id) ON DELETE CASCADE,
+    item_id INTEGER REFERENCES library_items(id) ON DELETE CASCADE,
+    link_id INTEGER REFERENCES library_extracted_links(id) ON DELETE CASCADE,
+    position INTEGER DEFAULT 0,
+    added_at TEXT DEFAULT (datetime('now')),
+    CHECK ((item_id IS NOT NULL AND link_id IS NULL) OR (item_id IS NULL AND link_id IS NOT NULL)),
+    UNIQUE(list_id, item_id),
+    UNIQUE(list_id, link_id)
+);
+CREATE INDEX IF NOT EXISTS idx_list_members_list ON library_list_members(list_id);
+CREATE INDEX IF NOT EXISTS idx_list_members_item ON library_list_members(item_id);
+CREATE INDEX IF NOT EXISTS idx_list_members_link ON library_list_members(link_id);
+
 -- How AMETHYST writes when it writes *for* the user rather than *to* them.
 --
 -- Exactly one row, pinned by the CHECK, because a person has one voice here. A
