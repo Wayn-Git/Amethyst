@@ -45,3 +45,26 @@ def test_lists_and_extracted_links_store():
     assert len(members["links"]) == 1
     assert members["items"][0]["id"] == item_id
     assert members["links"][0]["id"] == link_id
+
+
+def test_harvest_and_store_links():
+    reset_connection()
+    store = LibraryStore()
+    from backend.library.links import harvest_and_store_links
+
+    item_id = store.create(title="Tech Article", kind="article", url="https://news.ycombinator.com/item?id=123")
+    sample_markdown = """
+    Check out this [FastAPI Repo](https://github.com/fastapi/fastapi?utm_source=twitter) for web APIs.
+    Also read https://anthropic.com/research/overview?ref=hackernews and duplicate https://github.com/fastapi/fastapi.
+    """
+
+    links = harvest_and_store_links(store, item_id, sample_markdown)
+    assert len(links) == 2
+    domains = {l["domain"] for l in links}
+    assert "github.com" in domains
+    assert "anthropic.com" in domains
+
+    # Verify tracking parameter was removed
+    urls = [l["url"] for l in links]
+    assert "https://github.com/fastapi/fastapi" in urls
+

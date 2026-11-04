@@ -1375,6 +1375,18 @@ class LibraryService:
             text_path=str(path),
             word_count=len(text.split()),
         )
+        with contextlib.suppress(Exception):
+            from backend.library.links import harvest_and_store_links
+            import json as _json
+            res_list = None
+            row = self.store.get(item_id)
+            if row and row["resources"]:
+                try:
+                    res_list = _json.loads(row["resources"])
+                except Exception:
+                    res_list = None
+            harvest_and_store_links(self.store, item_id, text, res_list)
+
         if report == 0 and document is None:
             return note or "the text could not be indexed"
         return note
