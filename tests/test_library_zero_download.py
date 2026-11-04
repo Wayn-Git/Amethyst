@@ -129,5 +129,96 @@ def test_purge_legacy_video_files(tmp_path: Path):
     assert row["media_path"] is None
 
 
+@pytest.mark.asyncio
+async def test_full_capture_enrich_lifecycle_zero_download(tmp_path: Path):
+    reset_connection()
+    store = LibraryStore()
+    svc = LibraryService(store)
+
+    dummy_reel = Reel(
+        url="https://www.instagram.com/reel/lifecycle456/",
+        title="Lifecycle Reel",
+        caption="Tutorial caption with details",
+        author="creator",
+        duration=20.0,
+        thumbnail_url="https://example.com/thumb.jpg",
+        direct_video_url="https://cdn.example.com/stream.mp4",
+        video_path=None,
+    )
+
+    fake_fetch = AsyncMock(return_value=dummy_reel)
+    temp_audio = tmp_path / "audio.wav"
+    temp_audio.write_bytes(b"audio payload")
+    fake_extract = AsyncMock(return_value=temp_audio)
+    fake_transcribe = AsyncMock(return_value=MagicMock(text="Lifecycle speech transcription"))
+
+    rc = ReelCapture(
+        svc,
+        fetcher=fake_fetch,
+        extractor=fake_extract,
+        transcriber=fake_transcribe,
+    )
+
+    captured = await rc.capture("https://www.instagram.com/reel/lifecycle456/")
+    item_id = captured.item["id"]
+
+    from backend.config import load_instagram
+    settings = load_instagram()
+    scratch = tmp_path / "scratch"
+    scratch.mkdir(exist_ok=True)
+
+    await rc._process_video(item_id, dummy_reel, settings, scratch=scratch)
+
+    # Verify no mp4 file was ever created
+    mp4_file = media_path(item_id, ".mp4")
+    assert not mp4_file.exists()
+
+    # Verify database media_path is None
+    row = svc.store.get(item_id)
+    assert row["media_path"] is None
+
+    # Verify resources contain embed
+    import json
+    resources = json.loads(row["resources"])
+    assert any(r.get("platform") == "instagram" for r in resources)
+
+    # Verify transcript in body
+    text_content = Path(row["text_path"]).read_text(encoding="utf-8")
+    assert "Lifecycle speech transcription" in text_content
+
+
+def test_purge_api_endpoint(tmp_path: Path):
+    from fastapi.testclient import TestClient
+    from backend.api.main import app
+    from unittest.mock import patch
+
+    reset_connection()
+    store = LibraryStore()
+    svc = LibraryService(store)
+
+    item_id = store.create(title="Legacy Video 2", kind="video", url="https://example.com/vid2")
+    fake_vid = tmp_path / f"{item_id:06d}.mp4"
+    fake_vid.write_bytes(b"dummy video data")
+    store.update(item_id, media_path=str(fake_vid))
+
+    client = TestClient(app)
+    with patch("backend.config.paths") as mock_paths:
+        mock_paths.return_value.home = tmp_path
+        (tmp_path / "library" / "media").mkdir(parents=True, exist_ok=True)
+        vid_in_dir = tmp_path / "library" / "media" / f"{item_id:06d}.mp4"
+        vid_in_dir.write_bytes(b"dummy video data")
+
+        res = client.post("/api/library/purge-media")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["deleted_files"] >= 1
+        assert data["cleared_rows"] >= 1
+        assert not vid_in_dir.exists()
+
+    row = store.get(item_id)
+    assert row["media_path"] is None
+
+
+
 
 
