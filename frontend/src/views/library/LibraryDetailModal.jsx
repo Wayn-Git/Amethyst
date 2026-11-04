@@ -1239,6 +1239,26 @@ export default function LibraryDetailModal({
                       {item.kind || 'Resource'}
                     </span>
 
+                    {item.storage_provider === 'google_drive' ? (
+                      <span
+                        className="lib-meta-chip lib-meta-chip--cloud"
+                        title={item.cached_locally ? "Stored in Google Drive (Cached locally)" : "Stored in Google Drive"}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--accent, #6366f1)' }}
+                      >
+                        <Icon name="cloud" size={11} />
+                        <span>Drive</span>
+                      </span>
+                    ) : (
+                      <span
+                        className="lib-meta-chip lib-meta-chip--local"
+                        title="Stored locally on this device"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <Icon name="hard-drive" size={11} />
+                        <span>Local</span>
+                      </span>
+                    )}
+
                     {dateRelative && (
                       <div className="lib-meta-item" title={dateAbsolute || dateRelative}>
                         <Icon name="calendar" size={12} />
