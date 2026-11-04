@@ -56,11 +56,12 @@ explanation is indistinguishable from a bug.
 
 ## Storage model
 
-- Text: `~/.amethyst/library/{id}-{slug}.md`.
-- Media: `~/.amethyst/library/media/`.
-- Metadata: `library_items` row.
-- Index: `chunks_fts` and `chunk_vectors`, created in
-  `backend/retrieval/store.py`.
+- Text: Local `~/.amethyst/library/{id}-{slug}.md` or Google Drive (`Amethyst/Library/articles/`, etc.).
+- Media: Local `~/.amethyst/library/media/` or Google Drive (`Amethyst/Library/media/`).
+- Cache: `~/.amethyst/cache/library/` for on-demand cloud caching and offline access.
+- Metadata: `library_items` row with `storage_provider` (`local` | `google_drive`), `external_id`, `cached_locally`, `sync_state`.
+- Provider layer: `backend/library/storage/` (`StorageProvider`, `LocalStorageProvider`, `GoogleDriveProvider`, `FileContentAccessor`, `MigrationEngine`).
+- Index: `chunks_fts` and `chunk_vectors`, created in `backend/retrieval/store.py`.
 - Status: `received`, `processing`, `enriching`, `ready`, `failed`.
 
 The filesystem is the source of truth for text (ADR-0004). Re-indexing can

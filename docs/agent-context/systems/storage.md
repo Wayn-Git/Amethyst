@@ -31,6 +31,7 @@ $AMETHYST_HOME  or  ~/.amethyst
 | `skills/` | Installed skills |
 | `library/` | Captured text as Markdown files |
 | `library/media/` | Thumbnails, slides and downloaded media |
+| `cache/library/` | On-demand cache for cloud-backed Google Drive items |
 | `attachments/<12-hex>/<name>` | Composer uploads |
 | `converter/uploads/<file_id>/` | Converter originals and outputs |
 | `logs/amethyst.log` | Rotating application log |
