@@ -8684,7 +8684,15 @@ def get_storage_migration_status() -> dict[str, Any]:
 @app.post("/api/storage/migration/start")
 async def start_storage_migration(background_tasks: BackgroundTasks) -> dict[str, Any]:
     """Discover unmigrated items, populate manifest, and start background migration."""
+    from backend.library.storage.gdrive_bridge import GoogleDriveBridge
     from backend.library.storage.migration import MigrationEngine
+
+    bridge = GoogleDriveBridge()
+    if not bridge.is_connected():
+        raise HTTPException(
+            status_code=400,
+            detail="Google Drive is not connected or requires re-authentication. Connect Google Drive in Settings before migrating.",
+        )
 
     engine = MigrationEngine()
     queued = await engine.build_manifest()
@@ -8693,7 +8701,7 @@ async def start_storage_migration(background_tasks: BackgroundTasks) -> dict[str
         try:
             while True:
                 res = await engine.step(batch_size=5)
-                if res["completed"] == 0 and res["failed"] == 0:
+                if res.get("error") or (res["completed"] == 0 and res["failed"] == 0):
                     break
         except Exception as exc:
             log.warning("Background migration step failed: %s", exc)
@@ -8703,12 +8711,32 @@ async def start_storage_migration(background_tasks: BackgroundTasks) -> dict[str
 
 
 @app.post("/api/storage/migration/retry")
-def retry_failed_storage_migration() -> dict[str, Any]:
-    """Reset failed items in migration manifest back to pending."""
+async def retry_failed_storage_migration(background_tasks: BackgroundTasks) -> dict[str, Any]:
+    """Reset failed items in migration manifest back to pending and resume migration."""
+    from backend.library.storage.gdrive_bridge import GoogleDriveBridge
     from backend.library.storage.migration import MigrationEngine
 
-    retried = MigrationEngine().retry_failed()
-    return {"status": "retried", "retried": retried}
+    bridge = GoogleDriveBridge()
+    if not bridge.is_connected():
+        raise HTTPException(
+            status_code=400,
+            detail="Google Drive is not connected or requires re-authentication. Connect Google Drive in Settings before retrying.",
+        )
+
+    engine = MigrationEngine()
+    retried = engine.retry_failed()
+
+    async def _drain_migration():
+        try:
+            while True:
+                res = await engine.step(batch_size=5)
+                if res.get("error") or (res["completed"] == 0 and res["failed"] == 0):
+                    break
+        except Exception as exc:
+            log.warning("Background migration step failed: %s", exc)
+
+    background_tasks.add_task(_drain_migration)
+    return {"status": "retried", "retried": retried, **engine.get_status()}
 
 
 

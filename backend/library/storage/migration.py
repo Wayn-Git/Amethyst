@@ -7,6 +7,7 @@ and uploads files to Google Drive in verified batches.
 from __future__ import annotations
 
 import hashlib
+import inspect
 import logging
 import mimetypes
 from pathlib import Path
@@ -105,8 +106,19 @@ class MigrationEngine:
         conn.commit()
         return inserted
 
-    async def step(self, batch_size: int = 5) -> dict[str, int]:
+    async def step(self, batch_size: int = 5) -> dict[str, Any]:
         """Process up to batch_size pending items from the manifest."""
+        provider = self._get_provider()
+        bridge = getattr(provider, "bridge", None)
+        if bridge and hasattr(bridge, "is_connected"):
+            res = bridge.is_connected()
+            if not inspect.iscoroutine(res) and not res:
+                return {
+                    "completed": 0,
+                    "failed": 0,
+                    "error": "Google Drive is not connected or requires re-authentication.",
+                }
+
         conn = get_connection()
         pending = conn.execute(
             """
@@ -122,7 +134,6 @@ class MigrationEngine:
         completed = 0
         failed = 0
         store = LibraryStore(conn)
-        provider = self._get_provider()
 
         for entry in pending:
             manifest_id = entry["id"]
@@ -201,11 +212,14 @@ class MigrationEngine:
                 )
                 conn.commit()
                 failed += 1
+                if isinstance(exc, StorageUnavailableError) or "not connected" in str(exc).lower():
+                    # Stop processing rest of batch when provider is disconnected
+                    break
 
         return {"completed": completed, "failed": failed}
 
     def get_status(self) -> dict[str, Any]:
-        """Aggregate migration status counts."""
+        """Aggregate migration status counts and failure diagnostics."""
         conn = get_connection()
         rows = conn.execute(
             """
@@ -217,12 +231,35 @@ class MigrationEngine:
         counts = {r["status"]: r["cnt"] for r in rows}
         total = sum(counts.values())
 
+        last_err_row = conn.execute(
+            """
+            SELECT error_message
+            FROM storage_migration_manifest
+            WHERE status = 'failed' AND error_message IS NOT NULL AND error_message != ''
+            ORDER BY updated_at DESC, id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+
+        last_error = last_err_row["error_message"] if last_err_row else None
+        error_category = None
+        if last_error:
+            lowered = last_error.lower()
+            if any(k in lowered for k in ("not connected", "re-authentication", "oauth", "token", "credentials", "unauthorized")):
+                error_category = "connectivity"
+            elif "missing on local disk" in lowered:
+                error_category = "missing_file"
+            else:
+                error_category = "upload_failed"
+
         return {
             "total": total,
             "completed": counts.get("completed", 0),
             "pending": counts.get("pending", 0),
             "in_progress": counts.get("in_progress", 0),
             "failed": counts.get("failed", 0),
+            "last_error": last_error,
+            "error_category": error_category,
         }
 
     def retry_failed(self) -> int:
