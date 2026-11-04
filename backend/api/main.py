@@ -4186,6 +4186,8 @@ async def run_turn(
                     yield ": keepalive\n\n"
                     yield _frame("ping", **({"waiting_on": waiting} if waiting else {}))
                     continue
+                if settled and event.type == "error":
+                    continue
                 # default=str so one unexpected value in a tool argument degrades
                 # to a string instead of killing the response mid-stream.
                 payload = json.dumps({"type": event.type, **event.data}, default=str)
@@ -9068,6 +9070,13 @@ async def merge_library_lists(body: MergeListsBody) -> dict[str, Any]:
         "destination": body.destination,
         "type": body.type,
     }
+
+
+@app.post("/api/library/purge-media")
+async def purge_library_media() -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    return LibraryService().purge_legacy_video_files()
 
 
 class ExportPlaylistBody(BaseModel):

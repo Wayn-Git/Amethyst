@@ -109,4 +109,25 @@ async def test_ephemeral_audio_cleans_up_scratch_audio(tmp_path: Path):
     assert "Spoken words transcribed" in text_content
 
 
+def test_purge_legacy_video_files(tmp_path: Path):
+    reset_connection()
+    store = LibraryStore()
+    svc = LibraryService(store)
+
+    item_id = store.create(title="Legacy Video", kind="video", url="https://example.com/vid")
+    fake_vid = tmp_path / f"{item_id:06d}.mp4"
+    fake_vid.write_bytes(b"dummy video data")
+    store.update(item_id, media_path=str(fake_vid))
+
+    result = svc.purge_legacy_video_files(media_dir=tmp_path)
+
+    assert result["deleted_files"] >= 1
+    assert result["cleared_rows"] >= 1
+    assert not fake_vid.exists()
+
+    row = store.get(item_id)
+    assert row["media_path"] is None
+
+
+
 
