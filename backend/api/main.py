@@ -285,6 +285,101 @@ _worker_lane = jobs.JobRunner([worker_batch.KIND], name="workers")
 worker_batch.lane = _worker_lane
 
 
+# Skill curation (`backend/skills/curator.py`). Its own lane because a pass is
+# file work, not a model turn: queueing it behind a three-minute automation
+# would make "curated daily" mean "curated whenever the scheduler gets to it".
+#
+# Deterministic and single-threaded, so a reclaimed pass is safe to repeat: the
+# sidecar state is read before every move, and a skill already archived is
+# skipped rather than moved twice.
+def curator_kind() -> str:
+    from backend.skills.curator import JOB_KIND
+
+    return JOB_KIND
+
+
+async def _run_skill_curator(job, store) -> dict:
+    from backend.skills import curator
+
+    return await asyncio.to_thread(curator.run)
+
+
+jobs.register(
+    jobs.Handler(
+        kind=curator_kind(),
+        run=_run_skill_curator,
+        backoff_base=300.0,
+        backoff_cap=3600.0,
+        max_attempts=2,
+        auto_retry_after_crash=True,
+    )
+)
+_curator_lane = jobs.JobRunner([curator_kind()], name="skills-curator")
+
+
+# Post-turn learning review (`backend/learning/review.py`). One review is one
+# small model call, so it gets its own lane rather than sharing with the
+# curator: a stuck provider must not stop the catalog from being tidied, and a
+# curation pass must not delay the review that was enqueued by a turn.
+#
+# Not replay-safe after a crash: the review inserts proposals, and a reclaimed
+# attempt that got halfway through would propose some of them twice. A lost
+# review costs one suggestion; a duplicated one costs a person's attention.
+async def _run_learning_review(job, store) -> dict:
+    from backend.learning.review import review_turn
+
+    result = await review_turn(
+        conversation_id=job.payload.get("conversation_id"),
+        run_id=job.payload.get("run_id"),
+        user_message=job.payload.get("user_message") or "",
+        answer=job.payload.get("answer") or "",
+        tool_calls=int(job.payload.get("tool_calls") or 0),
+        tool_names=list(job.payload.get("tool_names") or []),
+        answered_provider=job.payload.get("provider"),
+        answered_model=job.payload.get("model"),
+    )
+    return result.as_dict()
+
+
+def learning_kind() -> str:
+    return "learning_review"
+
+
+jobs.register(
+    jobs.Handler(
+        kind=learning_kind(),
+        run=_run_learning_review,
+        backoff_base=120.0,
+        backoff_cap=900.0,
+        max_attempts=2,
+        auto_retry_after_crash=False,
+    )
+)
+_learning_lane = jobs.JobRunner([learning_kind()], name="learning")
+
+
+async def _curator_loop() -> None:
+    """Enqueue one pass a day, using the date as the idempotency key.
+
+    The lane's own job store already refuses a second job for the same key, so
+    a restart in the same day does not archive twice, and a process that was
+    down over midnight catches up on its first tick.
+    """
+    from datetime import UTC, datetime
+
+    from backend.skills import curator
+
+    while True:
+        try:
+            if curator.should_run():
+                key = f"{curator.JOB_KIND}:{datetime.now(UTC):%Y%m%d}"
+                jobs.enqueue(curator.JOB_KIND, key)
+                _curator_lane.nudge()
+        except Exception:
+            log.exception("could not enqueue the skill curation pass")
+        await asyncio.sleep(3600.0)
+
+
 async def _live_manager():
     """The running MCP manager, building one if no turn has needed it yet.
 
@@ -638,6 +733,11 @@ async def _lifespan(_: FastAPI):
     # The fan-out lane. Separate from the one above so a batch a scheduled turn
     # asked for cannot queue behind the turn that is waiting for it.
     _worker_lane.start()
+    # The curation lane. Started with the others so the first daily pass does
+    # not wait for a restart, and driven by its own enqueue loop below.
+    _curator_lane.start()
+    _curator_task = asyncio.create_task(_curator_loop())
+    _learning_lane.start()
     # Reminders take the same rule, for the same reason. Deliberately a second
     # runner rather than another job on the first: the automation loop
     # serializes model turns that can take five minutes, and a reminder queued
@@ -709,6 +809,11 @@ async def _lifespan(_: FastAPI):
     await _automation_lane.stop()
     await mobile_capture_lane.stop()
     await _worker_lane.stop()
+    _curator_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await _curator_task
+    await _curator_lane.stop()
+    await _learning_lane.stop()
     with contextlib.suppress(asyncio.CancelledError):
         _boot_connectors.cancel()
         await _boot_connectors
@@ -6334,17 +6439,32 @@ def skill_autocomplete(q: str = "", conversation_id: str | None = None) -> list[
 
 @app.get("/api/skills")
 def list_skills() -> dict[str, Any]:
+    from backend.skills import usage as skill_usage
+
     skills, errors = scan()
+    records = skill_usage.load()
+    rows = []
+    for s in skills:
+        record = records.get(s.name, {})
+        rows.append({
+            "name": s.name,
+            "description": s.description,
+            "path": str(s.path),
+            "version": s.version,
+            # Shipped builtins carry `.seeded`; the curator never touches them
+            # and the interface says where a skill came from.
+            "builtin": (s.path.parent / ".seeded").is_file(),
+            "created_by": record.get("created_by") or "user",
+            "state": record.get("state") or skill_usage.ACTIVE,
+            "pinned": bool(record.get("pinned")),
+            "locked": bool(record.get("locked")),
+            "use_count": int(record.get("use_count") or 0),
+            "view_count": int(record.get("view_count") or 0),
+            "patch_count": int(record.get("patch_count") or 0),
+            "last_activity_at": record.get("last_activity_at"),
+        })
     return {
-        "skills": [
-            {
-                "name": s.name,
-                "description": s.description,
-                "path": str(s.path),
-                "version": s.version,
-            }
-            for s in skills
-        ],
+        "skills": rows,
         "errors": [{"path": str(e.path), "error": e.error} for e in errors],
     }
 
@@ -6450,6 +6570,182 @@ def create_skill(body: CreateSkill) -> dict[str, Any]:
         "path": str(skill.path),
         "version": skill.version,
     }
+
+
+@app.get("/api/skills/curator")
+def skill_curator_status() -> dict[str, Any]:
+    """The last curation pass, and whether one is due.
+
+    Read-only: the interface needs to show what the curator did and offer a
+    "run now". The pass itself is a job, not a request, because it moves files.
+    """
+    from backend.skills import curator
+
+    return {
+        "due": curator.should_run(),
+        "interval_hours": curator.INTERVAL_HOURS,
+        "thresholds": {
+            "stale_after_days": curator.STALE_AFTER_DAYS,
+            "archive_after_days": curator.ARCHIVE_AFTER_DAYS,
+            "grace_days": curator.GRACE_DAYS,
+        },
+        "latest": curator.latest_report(),
+    }
+
+
+@app.post("/api/skills/curator/run")
+async def run_skill_curator() -> dict[str, Any]:
+    """Run a pass now. Returns when the pass is done, because it takes seconds."""
+    from backend.skills import curator
+
+    return await asyncio.to_thread(curator.run, force=True)
+
+
+@app.get("/api/skills/archived")
+def list_archived_skills() -> dict[str, Any]:
+    from backend.skills import manage
+
+    return {"archived": manage.archived()}
+
+
+class SkillState(BaseModel):
+    state: str
+
+
+@app.post("/api/skills/{name}/state")
+def set_skill_state(name: str, body: SkillState) -> dict[str, Any]:
+    """Move a skill between active, stale and archived.
+
+    `archived` also moves the directory into `skills/.archive/`, and `active`
+    restores it if it is in the archive. The sidecar state and the directory are
+    kept in step here rather than by the caller, because a state that disagrees
+    with the filesystem is a badge pointing at a skill the loader cannot see.
+    """
+    from backend.skills import manage
+    from backend.skills import usage as skill_usage
+
+    if body.state not in skill_usage.STATES:
+        raise HTTPException(400, f"state must be one of: {', '.join(skill_usage.STATES)}")
+    installed = {s.name for s in scan()[0]}
+    try:
+        if body.state == skill_usage.ARCHIVED:
+            if name in installed:
+                manage.archive(name, reason="archived from Capabilities")
+            elif not any(item["name"] == name for item in manage.archived()):
+                raise HTTPException(404, f"no skill named '{name}'")
+        elif body.state == skill_usage.ACTIVE and name not in installed:
+            manage.restore(name)
+        elif name not in installed:
+            raise HTTPException(404, f"no skill named '{name}'")
+        record = skill_usage.mark(name, state=body.state)
+    except manage.SkillManageError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"name": name, **record}
+
+
+class SkillFlags(BaseModel):
+    pinned: bool | None = None
+    locked: bool | None = None
+
+
+@app.post("/api/skills/{name}/flags")
+def set_skill_flags(name: str, body: SkillFlags) -> dict[str, Any]:
+    from backend.skills import usage as skill_usage
+
+    if name not in {s.name for s in scan()[0]}:
+        raise HTTPException(404, f"no skill named '{name}'")
+    record: dict[str, Any] = {}
+    try:
+        if body.pinned is not None:
+            record = skill_usage.set_flag(name, "pinned", body.pinned)
+        if body.locked is not None:
+            record = skill_usage.set_flag(name, "locked", body.locked)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"name": name, **record}
+
+
+@app.post("/api/skills/{name}/restore")
+def restore_skill(name: str) -> dict[str, Any]:
+    from backend.skills import manage
+    from backend.skills import usage as skill_usage
+
+    try:
+        target = manage.restore(name)
+    except manage.SkillManageError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    skill_usage.mark(name, state=skill_usage.ACTIVE)
+    return {"status": "restored", "name": name, "path": str(target)}
+
+
+class LearningSettingsBody(BaseModel):
+    enabled: bool
+    provider: str | None = None
+    model: str | None = None
+
+
+@app.get("/api/learning")
+def learning_state(status: str = "pending") -> dict[str, Any]:
+    """Settings, pending proposals, and counts in one read.
+
+    One call because the Skills tab shows all three together, and three separate
+    requests would let the badge disagree with the list it sits above.
+    """
+    from backend.config import load_learning_settings
+    from backend.learning.service import summary
+    from backend.learning.store import LearningStore
+
+    store = LearningStore()
+    return {
+        "settings": load_learning_settings().as_dict(),
+        "proposals": [p.as_dict() for p in store.list(status=status if status else None)],
+        **summary(store),
+    }
+
+
+@app.post("/api/learning/settings")
+def update_learning_settings(body: LearningSettingsBody) -> dict[str, Any]:
+    """Switch the review on or off, and name the model that runs it.
+
+    A provider and model are both optional: without them the review uses the
+    memory model, then the fast tier, then the model that answered the turn.
+    """
+    from backend.config import LearningSettings, load_providers, save_learning_settings
+
+    provider = (body.provider or "").strip() or None
+    model = (body.model or "").strip() or None
+    if bool(provider) != bool(model):
+        raise HTTPException(400, "name both a provider and a model, or neither")
+    if provider and provider not in load_providers():
+        raise HTTPException(400, f"'{provider}' is not a configured provider")
+    saved = save_learning_settings(
+        LearningSettings(enabled=body.enabled, provider=provider, model=model)
+    )
+    return saved.as_dict()
+
+
+@app.post("/api/learning/proposals/{proposal_id}/approve")
+async def approve_learning_proposal(proposal_id: int) -> dict[str, Any]:
+    from backend.learning.service import ApplyError, approve
+
+    try:
+        proposal = await approve(proposal_id)
+    except ApplyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    if proposal.status == "failed":
+        raise HTTPException(400, proposal.error or "the proposal could not be applied")
+    return proposal.as_dict()
+
+
+@app.post("/api/learning/proposals/{proposal_id}/reject")
+def reject_learning_proposal(proposal_id: int) -> dict[str, Any]:
+    from backend.learning.service import ApplyError, reject
+
+    try:
+        proposal = reject(proposal_id)
+    except ApplyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return proposal.as_dict()
 
 
 @app.delete("/api/skills/{name}")
@@ -8351,6 +8647,30 @@ def update_library_settings(body: dict[str, Any]) -> dict[str, Any]:
     """Update library settings."""
     from backend.config import save_library
     return save_library(body).as_dict()
+
+
+class StorageConfigPatch(BaseModel):
+    active_provider: str | None = None
+    gdrive_root_id: str | None = None
+    gdrive_root_name: str | None = None
+    auto_upload_new: int | None = None
+
+
+@app.get("/api/storage/config")
+def get_storage_config() -> dict[str, Any]:
+    """Library cloud storage configuration (local vs google_drive)."""
+    from backend.library.storage.config import StorageConfigStore
+
+    return StorageConfigStore().get_config()
+
+
+@app.patch("/api/storage/config")
+def update_storage_config(body: StorageConfigPatch) -> dict[str, Any]:
+    """Update storage provider or root folder configuration."""
+    from backend.library.storage.config import StorageConfigStore
+
+    data = body.model_dump(exclude_unset=True)
+    return StorageConfigStore().update_config(**data)
 
 
 @app.post("/api/library/{item_id}/enrich")
