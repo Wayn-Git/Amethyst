@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 from backend.config import paths
+from backend.db.connection import get_connection
 from backend.library.storage.base import (
     StorageError,
     StorageNotFoundError,
@@ -76,6 +77,17 @@ class FileContentAccessor:
 
         # 3. Cloud fetch via external_id
         if not external_id:
+            # Check manifest for explicit text external_id
+            with get_connection() as conn:
+                m_row = conn.execute(
+                    "SELECT external_id FROM storage_migration_manifest WHERE item_id = ? AND file_type = 'text' AND status = 'completed'",
+                    (item_id,),
+                ).fetchone()
+            if m_row and m_row["external_id"]:
+                provider_name = "google_drive"
+                external_id = m_row["external_id"]
+
+        if not external_id:
             # Fall back to text_path if local file still exists
             if text_path_str and Path(text_path_str).is_file():
                 return Path(text_path_str).read_text(encoding="utf-8", errors="replace")
@@ -98,30 +110,62 @@ class FileContentAccessor:
         if row is None:
             return None
 
+        # 1. Check media_path on local disk
         media_path_str = row["media_path"]
         if media_path_str:
             p = Path(media_path_str).expanduser()
-            if p.is_file():
+            if p.is_file() and p.stat().st_size > 1000:
                 return p
 
-        # Check cache
-        cache_pattern = list(self.cache_dir.glob(f"{item_id:06d}-media.*"))
-        if cache_pattern and cache_pattern[0].is_file():
+        # 2. Check standard media_dir for files matching item_id
+        from backend.library.store import media_path
+        for ext in (".mp4", ".webm", ".mov", ".mkv"):
+            candidate = media_path(item_id, ext)
+            if candidate.is_file() and candidate.stat().st_size > 1000:
+                store.update(item_id, media_path=str(candidate))
+                return candidate
+
+        # 3. Check cache directory
+        cache_pattern = [
+            f for f in self.cache_dir.glob(f"{item_id:06d}-media.*")
+            if f.is_file() and f.stat().st_size > 1000
+        ]
+        if cache_pattern:
             return cache_pattern[0]
 
-        # On-demand cloud download if external_id exists
-        provider_name = row["storage_provider"] or "local"
-        external_id = row["external_id"]
-        if provider_name == "google_drive" and external_id:
+        # 4. Check storage_migration_manifest for existing local_path or external_id
+        m_row = None
+        with get_connection() as conn:
+            m_row = conn.execute(
+                "SELECT external_id, local_path, status FROM storage_migration_manifest WHERE item_id = ? AND file_type = 'media'",
+                (item_id,),
+            ).fetchone()
+
+        if m_row and m_row["local_path"]:
+            p = Path(m_row["local_path"]).expanduser()
+            if p.is_file() and p.stat().st_size > 1000:
+                store.update(item_id, media_path=str(p))
+                return p
+
+        # 5. On-demand cloud download if external_id exists (in manifest or library_items)
+        external_id = m_row["external_id"] if (m_row and m_row["external_id"]) else None
+        provider_name = row["storage_provider"] or ("google_drive" if external_id else "local")
+        if not external_id and provider_name == "google_drive":
+            external_id = row["external_id"]
+
+        if external_id and provider_name == "google_drive":
             try:
                 provider = self._get_provider_for_name(provider_name)
                 content = await provider.read(external_id)
                 ext = ".mp4"
                 if media_path_str and Path(media_path_str).suffix:
                     ext = Path(media_path_str).suffix
+                elif m_row and m_row["local_path"] and Path(m_row["local_path"]).suffix:
+                    ext = Path(m_row["local_path"]).suffix
+                self.cache_dir.mkdir(parents=True, exist_ok=True)
                 target = self.cache_dir / f"{item_id:06d}-media{ext}"
                 target.write_bytes(content)
-                store.update(item_id, cached_locally=1)
+                store.update(item_id, cached_locally=1, media_path=str(target))
                 return target
             except Exception as exc:
                 log.warning("Failed to fetch cloud media for item %s: %s", item_id, exc)

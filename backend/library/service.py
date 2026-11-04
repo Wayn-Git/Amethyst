@@ -625,6 +625,9 @@ class LibraryService:
                     await self._save_thumb(item_id, thumb_url)
                 if initial_status == "enriching":
                     self._enrich_later(item_id)
+                with contextlib.suppress(Exception):
+                    from backend.library.storage.sync import trigger_auto_sync
+                    trigger_auto_sync(item_id)
                 return Captured(as_dict(self.store.get(item_id)))
             # Rung 3: the note names whichever rung was the last one tried.
             if x_note:
@@ -831,6 +834,9 @@ class LibraryService:
 
         if initial_status == "enriching":
             self._enrich_later(item_id)
+        with contextlib.suppress(Exception):
+            from backend.library.storage.sync import trigger_auto_sync
+            trigger_auto_sync(item_id)
         return Captured(as_dict(self.store.get(item_id)))
 
     def _enrich_later(self, item_id: int) -> None:
@@ -935,6 +941,9 @@ class LibraryService:
         self.store.update(item_id, capture_note=note or None, text_source=text_source, status=initial_status)
         if initial_status == "enriching":
             self._enrich_later(item_id)
+        with contextlib.suppress(Exception):
+            from backend.library.storage.sync import trigger_auto_sync
+            trigger_auto_sync(item_id)
         return Captured(as_dict(self.store.get(item_id)))
 
     async def capture_media_file(
@@ -1083,6 +1092,10 @@ class LibraryService:
 
         if initial_status == "enriching":
             self._enrich_later(item_id)
+
+        with contextlib.suppress(Exception):
+            from backend.library.storage.sync import trigger_auto_sync
+            trigger_auto_sync(item_id)
 
         return Captured(as_dict(self.store.get(item_id)))
 
@@ -1457,6 +1470,9 @@ class LibraryService:
         if app_tag:
             updates["tags"] = json.dumps([app_tag])
         self.store.update(item_id, **updates)
+        with contextlib.suppress(Exception):
+            from backend.library.storage.sync import trigger_auto_sync
+            trigger_auto_sync(item_id)
         return Captured(as_dict(self.store.get(item_id)))
 
     async def replace_text(

@@ -527,7 +527,8 @@ export default function LibraryDetailModal({
   const videoItem = useMemo(() => {
     if (!item) return null
     const hasLocalVid = Boolean(item.media_path) && /\.(mp4|webm|mov)(\?|$)/i.test(item.media_path)
-    if (hasLocalVid) {
+    const isCloudVideo = item.storage_provider === 'google_drive' && (item.kind === 'video' || item.is_reel)
+    if (hasLocalVid || isCloudVideo) {
       return {
         url: api.mediaUrl ? api.mediaUrl(item.id) : item.media_path,
         poster: api.thumbnailUrl ? api.thumbnailUrl(item.id) : null,

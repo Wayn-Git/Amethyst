@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Icon from '../../components/Icon.jsx'
 import AnimatedSelect from '../../components/ui/AnimatedSelect.jsx'
+import Switch from '../../components/ui/Switch.jsx'
 import { Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import { api } from '../../api.js'
 import { useApp } from '../../store.jsx'
@@ -105,6 +106,16 @@ export default function LibraryCloudStorage() {
       toast(`Failed to save root: ${err.message}`, 'bad')
     } finally {
       setSavingRoot(false)
+    }
+  }
+
+  const handleToggleAutoUpload = async (next) => {
+    try {
+      const updated = await api.updateStorageConfig({ auto_upload_new: next ? 1 : 0 })
+      setConfig(updated)
+      toast(`Auto-sync to Google Drive ${next ? 'enabled' : 'disabled'}`, 'ok')
+    } catch (err) {
+      toast(`Failed to update auto-sync: ${err.message}`, 'bad')
     }
   }
 
@@ -271,6 +282,22 @@ export default function LibraryCloudStorage() {
             {savingRoot ? 'Saving…' : 'Save'}
           </HouseButton>
         </div>
+      </div>
+
+      {/* Row 4: Auto-sync newly added content */}
+      <div className="codex-row" style={{ padding: '16px 20px' }}>
+        <div className="codex-row-info">
+          <span className="codex-row-title">Auto-sync new content</span>
+          <span className="codex-row-desc">
+            Automatically upload newly added articles, books, and media files to Google Drive
+          </span>
+        </div>
+        <Switch
+          on={Boolean(config?.auto_upload_new === 1)}
+          onChange={handleToggleAutoUpload}
+          label="Auto-sync new content"
+          disabled={!driveConnected}
+        />
       </div>
 
       {/* Row 4: Cloud Migration */}

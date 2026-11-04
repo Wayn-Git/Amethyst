@@ -8578,6 +8578,10 @@ async def add_library_item(body: LibraryBody) -> dict[str, Any]:
         raise HTTPException(500, f"Failed to capture item: {exc}") from exc
     with contextlib.suppress(Exception):
         _library.nudge()
+    if captured and captured.item and captured.item.get("id"):
+        with contextlib.suppress(Exception):
+            from backend.library.storage.sync import trigger_auto_sync
+            trigger_auto_sync(captured.item["id"])
     return {**captured.item, "already_logged": captured.already_logged}
 
 
@@ -8876,12 +8880,13 @@ async def library_slide(item_id: int, index: int) -> FileResponse:
 
 
 @app.api_route("/api/library/{item_id}/media", methods=["GET", "HEAD"])
-def library_media(item_id: int) -> FileResponse:
-    """Stream raw media content, downloading on-demand if needed."""
+async def library_media(item_id: int) -> FileResponse:
+    """Stream raw media content from local disk, cache, or Google Drive, downloading on-demand if needed."""
     import mimetypes
     from pathlib import Path
 
     from backend.library.store import LibraryStore
+    from backend.library.storage.accessor import FileContentAccessor
 
     with get_connection() as conn:
         row = LibraryStore(conn).get(item_id)
@@ -8889,33 +8894,19 @@ def library_media(item_id: int) -> FileResponse:
     if row is None:
         raise HTTPException(404, f"no library item {item_id}")
     row = dict(row)
-        
-    path = Path(row["media_path"]) if row.get("media_path") else None
-    if path and path.is_file() and path.stat().st_size > 1000:
-        mime_type, _ = mimetypes.guess_type(str(path))
-        return FileResponse(path, media_type=mime_type or "video/mp4")
 
-    # Check if a media file for this item already exists on disk
-    from backend.library.store import media_path
-    for ext in (".mp4", ".webm", ".mov", ".mkv"):
-        candidate = media_path(item_id, ext)
-        if candidate.is_file() and candidate.stat().st_size > 1000:
-            with get_connection() as conn:
-                conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(candidate), item_id))
-                conn.commit()
-            mime_type, _ = mimetypes.guess_type(str(candidate))
-            return FileResponse(candidate, media_type=mime_type or "video/mp4")
+    # 1. Resolve from stored source (local disk, media_dir, cache, or Google Drive cloud)
+    accessor = FileContentAccessor()
+    stored_path = await accessor.get_media_path(item_id)
+    if stored_path and stored_path.is_file() and stored_path.stat().st_size > 1000:
+        mime_type, _ = mimetypes.guess_type(str(stored_path))
+        return FileResponse(stored_path, media_type=mime_type or "video/mp4")
 
-    # Check cache directory for cloud-backed or migrated media
-    from backend.config import paths
-    cache_dir = paths().home / "cache" / "library"
-    for cand in cache_dir.glob(f"{item_id:06d}-media.*"):
-        if cand.is_file() and cand.stat().st_size > 1000:
-            mime_type, _ = mimetypes.guess_type(str(cand))
-            return FileResponse(cand, media_type=mime_type or "video/mp4")
-        
-    # On-demand download for videos / reels (Instagram, TikTok, Twitter/X, Reddit, etc.)
-    # 1. First check if a direct video URL exists in resources
+    # 2. On-demand download for videos / reels (Instagram, TikTok, Twitter/X, Reddit, etc.)
+    from backend.library.store import media_path, media_dir
+    from backend.library.storage.sync import trigger_auto_sync
+
+    # Check if a direct video URL exists in resources
     if row.get("resources"):
         try:
             import json as _json
@@ -8936,12 +8927,13 @@ def library_media(item_id: int) -> FileResponse:
                             with get_connection() as conn:
                                 conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(target), item_id))
                                 conn.commit()
+                            trigger_auto_sync(item_id)
                             mime_type, _ = mimetypes.guess_type(str(target))
                             return FileResponse(target, media_type=mime_type or "video/mp4")
         except Exception:
             pass
 
-    # 2. General yt-dlp on-demand extractor (for video, audio, or social media links)
+    # General yt-dlp on-demand extractor (for video, audio, or social media links)
     url = row.get("url")
     url_lower = (url or "").lower()
     is_social_or_video = (
@@ -8950,9 +8942,7 @@ def library_media(item_id: int) -> FileResponse:
     )
     if url and is_social_or_video:
         try:
-            from backend.library.store import media_dir
             m_dir = media_dir()
-            # Check if any video file for this item_id already exists in media_dir
             for existing in m_dir.glob(f"{item_id:06d}.*"):
                 if existing.is_file() and existing.stat().st_size > 1000 and not existing.name.endswith("-thumb.jpg"):
                     if existing.name.endswith(".mp4.mp4"):
@@ -8963,6 +8953,7 @@ def library_media(item_id: int) -> FileResponse:
                     with get_connection() as conn:
                         conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(existing), item_id))
                         conn.commit()
+                    trigger_auto_sync(item_id)
                     mime_type, _ = mimetypes.guess_type(str(existing))
                     return FileResponse(existing, media_type=mime_type or "video/mp4")
 
@@ -8997,6 +8988,7 @@ def library_media(item_id: int) -> FileResponse:
                     with get_connection() as conn:
                         conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(cand), item_id))
                         conn.commit()
+                    trigger_auto_sync(item_id)
                     mime_type, _ = mimetypes.guess_type(str(cand))
                     return FileResponse(cand, media_type=mime_type or "video/mp4")
         except Exception:

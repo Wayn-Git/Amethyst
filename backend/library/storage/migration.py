@@ -115,6 +115,181 @@ class MigrationEngine:
         conn.commit()
         return inserted
 
+    async def build_manifest_for_item(self, item_id: int) -> int:
+        """Scan a specific library item and enqueue manifest rows for unmigrated files."""
+        conn = get_connection()
+        existing = {
+            r["file_type"]
+            for r in conn.execute(
+                "SELECT file_type FROM storage_migration_manifest WHERE item_id = ?",
+                (item_id,),
+            ).fetchall()
+        }
+
+        row = conn.execute(
+            """
+            SELECT id, kind, title, text_path, media_path, storage_provider, external_id
+            FROM library_items
+            WHERE id = ?
+            """,
+            (item_id,),
+        ).fetchone()
+
+        if not row:
+            return 0
+
+        kind = row["kind"] or "article"
+        target_folder = "articles"
+        if kind in ("video", "podcast", "music"):
+            target_folder = "media"
+        elif kind == "book":
+            target_folder = "books"
+        elif kind in ("note", "idea"):
+            target_folder = "notes"
+
+        inserted = 0
+        # 1. Text path
+        if "text" not in existing and row["text_path"]:
+            tp = Path(row["text_path"]).expanduser()
+            if tp.is_file():
+                size = tp.stat().st_size
+                checksum = _compute_sha256(tp)
+                cur = conn.execute(
+                    """
+                    INSERT OR IGNORE INTO storage_migration_manifest (
+                        item_id, file_type, local_path, file_size, checksum, target_folder, status
+                    ) VALUES (?, 'text', ?, ?, ?, ?, 'pending')
+                    """,
+                    (item_id, str(tp), size, checksum, target_folder),
+                )
+                if cur.rowcount > 0:
+                    inserted += 1
+
+        # 2. Media path
+        mp_cand = None
+        if row["media_path"]:
+            p = Path(row["media_path"]).expanduser()
+            if p.is_file():
+                mp_cand = p
+        if not mp_cand:
+            from backend.library.store import media_path
+            for ext in (".mp4", ".webm", ".mov", ".mkv"):
+                cand = media_path(item_id, ext)
+                if cand.is_file() and cand.stat().st_size > 1000:
+                    mp_cand = cand
+                    break
+
+        if "media" not in existing and mp_cand and mp_cand.is_file():
+            size = mp_cand.stat().st_size
+            checksum = _compute_sha256(mp_cand)
+            cur = conn.execute(
+                """
+                INSERT OR IGNORE INTO storage_migration_manifest (
+                    item_id, file_type, local_path, file_size, checksum, target_folder, status
+                ) VALUES (?, 'media', ?, ?, ?, 'media', 'pending')
+                """,
+                (item_id, str(mp_cand), size, checksum),
+            )
+            if cur.rowcount > 0:
+                inserted += 1
+
+        conn.commit()
+        return inserted
+
+    async def sync_item(self, item_id: int) -> dict[str, Any]:
+        """Synchronize all unmigrated files for an item to Google Drive."""
+        await self.build_manifest_for_item(item_id)
+        provider = self._get_provider()
+        bridge = getattr(provider, "bridge", None)
+        if bridge and hasattr(bridge, "is_connected"):
+            res = bridge.is_connected()
+            if not inspect.iscoroutine(res) and not res:
+                return {
+                    "synced": False,
+                    "error": "Google Drive is not connected or requires re-authentication.",
+                }
+
+        conn = get_connection()
+        pending = conn.execute(
+            """
+            SELECT id, item_id, file_type, local_path, file_size, checksum, target_folder
+            FROM storage_migration_manifest
+            WHERE item_id = ? AND status = 'pending'
+            ORDER BY id ASC
+            """,
+            (item_id,),
+        ).fetchall()
+
+        if not pending:
+            return {"synced": True, "uploaded": 0}
+
+        store = LibraryStore(conn)
+        uploaded = 0
+        for entry in pending:
+            manifest_id = entry["id"]
+            file_type = entry["file_type"]
+            path = Path(entry["local_path"])
+            target_folder = entry["target_folder"]
+
+            if not path.is_file():
+                conn.execute(
+                    "UPDATE storage_migration_manifest SET status = 'failed', error_message = 'File missing on local disk', updated_at = datetime('now') WHERE id = ?",
+                    (manifest_id,),
+                )
+                conn.commit()
+                continue
+
+            conn.execute(
+                "UPDATE storage_migration_manifest SET status = 'in_progress' WHERE id = ?",
+                (manifest_id,),
+            )
+            conn.commit()
+
+            try:
+                mime_type, _ = mimetypes.guess_type(path.name)
+                mime_type = mime_type or (
+                    "text/markdown" if file_type == "text" else "application/octet-stream"
+                )
+                content = path.read_bytes()
+                actual_checksum = _compute_sha256(path)
+                obj = await provider.write(
+                    name=path.name,
+                    data=content,
+                    mime_type=mime_type,
+                    parent_folder_id=target_folder,
+                    expected_checksum=actual_checksum,
+                )
+
+                conn.execute(
+                    """
+                    UPDATE storage_migration_manifest
+                    SET status = 'completed', external_id = ?, checksum = ?, file_size = ?, updated_at = datetime('now')
+                    WHERE id = ?
+                    """,
+                    (obj.external_id, actual_checksum, len(content), manifest_id),
+                )
+
+                store.update(
+                    item_id,
+                    storage_provider="google_drive",
+                    external_id=obj.external_id,
+                    checksum=actual_checksum,
+                    cached_locally=1,
+                    sync_state="synced",
+                    last_synced_at=conn.execute("SELECT datetime('now')").fetchone()[0],
+                )
+                conn.commit()
+                uploaded += 1
+            except Exception as exc:
+                log.exception("Auto-sync failed for item %s file %s: %s", item_id, path, exc)
+                conn.execute(
+                    "UPDATE storage_migration_manifest SET status = 'failed', error_message = ?, attempt_count = attempt_count + 1, updated_at = datetime('now') WHERE id = ?",
+                    (str(exc), manifest_id),
+                )
+                conn.commit()
+
+        return {"synced": True, "uploaded": uploaded}
+
     async def step(self, batch_size: int = 5) -> dict[str, Any]:
         """Process up to batch_size pending items from the manifest."""
         provider = self._get_provider()
