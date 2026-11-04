@@ -71,9 +71,9 @@ rebuild the database from files. The reverse is not true.
 
 ```mermaid
 flowchart LR
-  CAP[capture] --> FILE[write Markdown file]
-  FILE --> ROW[library_items row]
-  ROW --> ENR[enrich: summary, tags, resources, category]
+  CAP[capture: fast metadata & thumbnail] --> ROW[library_items card]
+  ROW --> BG[background: ephemeral audio transcription]
+  ROW --> ENR[enrich: exhaustive summary, tags, grounded resources]
   ROW --> CHUNK[chunk Markdown]
   CHUNK --> FTS[chunks_fts]
   CHUNK --> VEC[chunk_vectors]
@@ -86,8 +86,15 @@ flowchart LR
   `backend/mcp/ssrf.py`.
 - It tries Instagram, X, YouTube, Pinterest, Reddit and Threads handlers, then
   plain readable text.
-- `backend/library/enrich.py` makes a model call. Enrichment is best-effort; a
-  failed enrichment leaves a usable item.
+- Video and reel captures use zero video download (`dest=None`), immediately creating
+  the item card and thumbnail within ~1 second while deferring ephemeral audio transcription
+  to background workers (with no persistent `.mp4` video downloads or Google Drive video sync).
+- Playback uses responsive platform iframe embeds (YouTube nocookie, Instagram, TikTok) or remote streaming URLs.
+- Legacy video files can be cleaned up using `POST /api/library/purge-media`.
+- `backend/library/enrich.py` generates exhaustive, technically dense summaries and
+  grounds resource links against `<known_links>` to avoid hallucinated URLs.
+- Polling in `Library.jsx` simultaneously updates grid cards and any open detail modal
+  the moment background processing finishes.
 - `backend/library/runner.py` sweeps unsummarized items in the background.
 - `backend/retrieval/indexer.py` chunks and indexes. `search.py` combines
   keyword and vector candidates.
