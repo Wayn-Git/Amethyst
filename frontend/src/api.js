@@ -755,6 +755,19 @@ export const api = {
   createSkill: ({ name, description, instruction, overwrite = false }) =>
     j('/skills/create', json('POST', { name, description, instruction, overwrite })),
   removeSkill: (name) => j(`/skills/${encodeURIComponent(name)}`, json('DELETE')),
+  skillArchived: () => j('/skills/archived'),
+  skillCurator: () => j('/skills/curator'),
+  runSkillCurator: () => j('/skills/curator/run', { method: 'POST' }),
+  setSkillState: (name, state) =>
+    j(`/skills/${encodeURIComponent(name)}/state`, json('POST', { state })),
+  setSkillFlags: (name, flags) =>
+    j(`/skills/${encodeURIComponent(name)}/flags`, json('POST', flags)),
+  restoreSkill: (name) =>
+    j(`/skills/${encodeURIComponent(name)}/restore`, { method: 'POST' }),
+  learning: () => j('/learning'),
+  saveLearningSettings: (settings) => j('/learning/settings', json('POST', settings)),
+  approveLearning: (id) => j(`/learning/proposals/${id}/approve`, { method: 'POST' }),
+  rejectLearning: (id) => j(`/learning/proposals/${id}/reject`, { method: 'POST' }),
 
   tools: () => j('/tools'),
   tasks: ({ bucket = 'all', listId = null, limit = 200 } = {}) =>
@@ -961,6 +974,13 @@ export const api = {
   reorderLibrary: (itemIds) => j('/library/reorder', json('POST', { item_ids: itemIds })),
   mergeLibraryLists: (source, destination, type = 'tag') =>
     j('/library/merge-lists', json('POST', { source, destination, type })),
+
+  // Library cloud storage and Google Drive migration
+  storageConfig: () => j('/storage/config'),
+  updateStorageConfig: (patch) => j('/storage/config', json('PATCH', patch)),
+  migrationStatus: () => j('/storage/migration/status'),
+  startMigration: () => j('/storage/migration/start', json('POST', {})),
+  retryMigration: () => j('/storage/migration/retry', json('POST', {})),
 
   // Instagram capture. Credentials go one way only — set and delete; the status
   // reports whether each is present, never what it is.

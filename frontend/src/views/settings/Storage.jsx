@@ -5,6 +5,7 @@ import { Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import Icon from '../../components/Icon.jsx'
 import { api, copyText } from '../../api.js'
 import { useApp } from '../../store.jsx'
+import LibraryCloudStorage from './LibraryCloudStorage.jsx'
 
 export default function Storage() {
   const { toast, setView } = useApp()
@@ -232,7 +233,10 @@ export default function Storage() {
           </div>
         </div>
 
-        {/* Card 2: Manage worktrees & Archived chats */}
+        {/* Card 3: Cloud-Backed Knowledge Repository & Migration */}
+        <LibraryCloudStorage />
+
+        {/* Card 4: Manage worktrees & Archived chats */}
         <div className="codex-card">
           <div className="codex-row" style={{ padding: '16px 20px' }}>
             <div className="codex-row-info">
