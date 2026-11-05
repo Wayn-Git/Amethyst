@@ -57,8 +57,8 @@ The response is `text/event-stream`. Frames are JSON with an event name and
 data. `status` is emitted before any slow work so the browser has bytes
 immediately. Heartbeat `ping` frames cover connector startup.
 
-Terminal frames are `done`, `error` and `guard`. The memory extraction call
-happens after `done` and is not part of the turn.
+Terminal frames are `done`, `error` and `guard`. The memory extraction call and
+the learning-review enqueue happen after `done` and are not part of the turn.
 
 Event types currently emitted:
 

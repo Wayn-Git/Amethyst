@@ -210,6 +210,15 @@ The provider's full error body goes to the audit log, not the transcript.
   reject fields they claim to support.
 - `ProviderHTTPError` carries a `FailureKind`, status and body.
 
+Config knobs that were previously code-only are settable by env now
+(`backend/agent/config.py::from_env`): `AMETHYST_MAX_ITERATIONS`,
+`AMETHYST_MAX_CONTINUATIONS`, `AMETHYST_MAX_RESUMES`,
+`AMETHYST_MAX_NETWORK_RETRIES`, `AMETHYST_RETRY_BASE_DELAY`,
+`AMETHYST_RETRY_MAX_DELAY`, and `AMETHYST_FINAL_ANSWER_TIMEOUT`. Note the
+network knobs are read once at process import (`MAX_RETRIES` is a module-level
+constant in `http.py`; `AttemptBudget` in `chain.py` derives from it), so a new
+env value needs a backend restart, not a reload mid-turn.
+
 Availability is cached in `backend/runtime/availability.py` so routing and
 health checks do not probe on every turn. `clears_in()` gives the router a
 human-readable wait.

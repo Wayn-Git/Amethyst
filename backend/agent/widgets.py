@@ -992,6 +992,7 @@ def _build_default_california_itinerary() -> dict[str, Any]:
 _CONNECTOR_SIGNALS: set[str] = {
     "email", "gmail", "mail", "inbox",
     "calendar", "event", "events", "meeting", "meetings", "schedule", "appointment",
+    "reminder", "reminders", "remind", "todo", "todos", "task", "tasks",
     "github", "slack", "notion", "linear", "jira", "asana", "trello",
     "composio", "salesforce", "hubspot",
 }
@@ -1003,10 +1004,17 @@ def is_connected_service_intent(message: str) -> bool:
     return bool(tokens & _CONNECTOR_SIGNALS)
 
 
+_WIDGET_SIGS_ESCAPED = [re.escape(s.strip()) for s in _WIDGET_SIGNALS if not s.startswith(("@", "/")) and s.strip()]
+_WIDGET_REGEX = re.compile(
+    r"(?:^|\s)(?:@images?|/images?)(?:\s|$)|"
+    + r"\b(?:" + "|".join(_WIDGET_SIGS_ESCAPED) + r")\b",
+    re.IGNORECASE,
+)
+
+
 def has_widget_signals(message: str) -> bool:
     """Whether the message contains any widget signal tokens."""
-    lowered_padded = f" {message.lower()} "
-    return any(signal in lowered_padded for signal in _WIDGET_SIGNALS)
+    return bool(_WIDGET_REGEX.search(message))
 
 
 

@@ -11,6 +11,7 @@ import asyncio
 import base64
 import contextlib
 import hashlib
+import httpx
 import json
 import logging
 import os
@@ -1184,7 +1185,7 @@ class Director:
             # `error` is the terminal frame and stays the only one -- the API
             # closes the stream on it. It carries the partial answer so the
             # reader has the work as well as the reason.
-            yield Event("error", {"message": message, "text": partial})
+            yield Event("error", {"message": message, "text": partial, "resumable": True})
         except GeneratorExit:
             # The reader is gone and there is nobody to yield to.
             #
@@ -1198,13 +1199,12 @@ class Director:
             # proceed, and leave the clean-up to `finally`.
             raise
         except BaseException as exc:
-            # `except Exception` does not catch CancelledError, which is what a
-            # server shutdown, a reload, or Starlette dropping the task raises
-            # here -- and a generator that raises out of an already-open SSE
-            # response ends a 200 body with no terminal frame. To a browser that
-            # is indistinguishable from a truncated download, so the interface
-            # sat on "Thinking" forever. Say what happened, then let it
-            # propagate: swallowing cancellation would keep the loop alive.
+            # If the turn already completed successfully (yielded done and checkpointed completed),
+            # any subsequent cancellation (e.g. client disconnect during post-turn memory/learning)
+            # must NOT overwrite state.error or yield an error frame.
+            if state.phase == "completed" or state.terminal:
+                log.debug("turn generator ended after completion (%s)", exc)
+                return
             state.error = f"the turn was interrupted: {type(exc).__name__}"
             state.carried = "".join(shown).strip()
             yield Event(
@@ -1707,7 +1707,7 @@ class Director:
         )
         effective_budget = (
             intent_route.step_budget
-            if intent_route.lane in ("chat", "widget")
+            if intent_route.step_budget and intent_route.lane in ("chat", "widget", "connector", "research")
             else agent_config.default_step_budget
         )
         effective_budget = min(base_max_iters, effective_budget)
@@ -2297,10 +2297,24 @@ class Director:
                     kind = getattr(exc, "kind", None)
                     if kind is None:
                         exc_str = f"{type(exc).__name__} {exc}".lower()
-                        if isinstance(exc, (TimeoutError, asyncio.TimeoutError)) or "timeout" in exc_str:
+                        if (
+                            isinstance(exc, (TimeoutError, asyncio.TimeoutError, httpx.TimeoutException))
+                            or "timeout" in exc_str
+                        ):
                             kind = FailureKind.UNREACHABLE
-                        elif isinstance(exc, (ConnectionError, OSError)) or "connection" in exc_str or "connect" in exc_str:
-                            kind = FailureKind.UNREACHABLE
+                        elif (
+                            isinstance(exc, (ConnectionError, OSError, httpx.TransportError))
+                            or any(term in exc_str for term in (
+                                "connection", "connect", "readerror", "remoteprotocolerror",
+                                "peer closed", "broken pipe", "stream", "reset by peer",
+                                "incomplete chunked read", "input stream"
+                            ))
+                        ):
+                            kind = (
+                                FailureKind.UPSTREAM_UNHEALTHY
+                                if (streamed_text or streamed_reasoning or state.tool_calls_made > 0)
+                                else FailureKind.UNREACHABLE
+                            )
                         else:
                             status_code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
                             if status_code:
@@ -2358,16 +2372,16 @@ class Director:
                     is_stream_interruption = (
                         (
                             "input stream" in str(raw_message).lower()
-                            or "stream" in str(raw_message).lower()
-                            or "connection" in str(raw_message).lower()
-                            or "timeout" in str(raw_message).lower()
+                            or "readerror" in str(raw_message).lower()
+                            or "remoteprotocolerror" in str(raw_message).lower()
                             or "peer closed" in str(raw_message).lower()
                             or "remote disconnected" in str(raw_message).lower()
-                            or "stream" in type(exc).__name__.lower()
-                            or isinstance(exc, ProviderStreamError)
-                            or kind == FailureKind.RATE_LIMITED
+                            or "stream failed" in str(raw_message).lower()
+                            or "error in input stream" in str(raw_message).lower()
+                            or isinstance(exc, (ProviderStreamError, httpx.ReadError, httpx.RemoteProtocolError))
+                            or kind == FailureKind.UPSTREAM_UNHEALTHY
                             or bool(streamed_reasoning)
-                            or (iteration > 0 and state.tool_calls_made > 0)
+                            or (iteration > 0 and state.tool_calls_made > 0 and bool(streamed_text or state.carried))
                         )
                         and (should_retry(kind) or kind in (FailureKind.UPSTREAM_UNHEALTHY, FailureKind.RETRYABLE, FailureKind.RATE_LIMITED))
                         and kind != FailureKind.NON_RETRYABLE_RATE_LIMIT
@@ -2748,11 +2762,22 @@ class Director:
                         conversation_id, user_message, answer, chain[state.active]
                     ):
                         yield event
+                    # Learning review: a proposal pass, enqueued rather than run
+                    # here. It is a second model call that can take as long as
+                    # one, and the answer is already on screen.
+                    await asyncio.to_thread(
+                        self._enqueue_learning_review,
+                        conversation_id,
+                        state,
+                        user_message,
+                        answer,
+                        chain[state.active],
+                    )
                     # Conversation summary refresh: deterministic SQLite write, no
                     # LLM, no embed. Keeps recent-conversations block fresh.
                     await asyncio.to_thread(self._refresh_summary, conversation_id)
-                except Exception as exc:
-                    log.warning("post-turn memory/summary background task failed: %s", exc)
+                except (Exception, asyncio.CancelledError, GeneratorExit) as exc:
+                    log.debug("post-turn memory/summary ended: %s", exc)
                 return
 
             if response.tool_calls and agent_config.enable_tool_repair:
@@ -2887,6 +2912,8 @@ class Director:
                             self.conversations.touch(conversation_id)
                             return
                         state.tool_calls_made += 1
+                        if call.name not in state.tools_used:
+                            state.tools_used.append(call.name)
 
                         fingerprint = _fingerprint(call)
                         seen = state.call_fingerprints.get(fingerprint, 0) + 1
@@ -3023,7 +3050,9 @@ class Director:
                                 else:
                                     batch_inflight_reads[cache_key] = task
                         else:
-                            task = self._spawn(self._execute(call, context))
+                            task = self._spawn(
+                                self._execute(call, context, deadline=started + hard_timeout)
+                            )
                             if not val_err:
                                 if is_write:
                                     batch_inflight_writes[idem_key] = task
@@ -3107,6 +3136,8 @@ class Director:
                             self.conversations.touch(conversation_id)
                             return
                         state.tool_calls_made += 1
+                        if call.name not in state.tools_used:
+                            state.tools_used.append(call.name)
 
                         fingerprint = _fingerprint(call)
                         seen = state.call_fingerprints.get(fingerprint, 0) + 1
@@ -3196,7 +3227,9 @@ class Director:
                             task = self._spawn(_cached_future())
                         else:
                             # Execute sequentially and drain events inline
-                            task = self._spawn(self._execute(call, context))
+                            task = self._spawn(
+                                self._execute(call, context, deadline=started + hard_timeout)
+                            )
                         dispatch_tasks.append((call, task))
                         token = object()
                         def _seq_done(_result, s=token):
@@ -3443,15 +3476,37 @@ class Director:
         if model is not None and model not in candidates:
             candidates.append(model)
 
-        for cand in candidates:
+        # One synthesis call runs at the exact moment this turn is already out
+        # of budget, so it must not inherit the provider's full 300s read
+        # timeout as its worst case: a hung endpoint used to be able to hold
+        # the failing turn open for minutes past the reason it was invoked.
+        # Bounded here, candidate by candidate, so one bad link costs
+        # `final_answer_timeout_seconds` and no more.
+        timeout_s = max(1.0, agent_config.final_answer_timeout_seconds)
+
+        async def _synthesis_response(client: Any):
             try:
-                try:
-                    final_resp = await cand.client.complete(wire, tools=None, params=ModelParameters(tool_choice="none"))
-                except TypeError as t_err:
-                    if "params" in str(t_err):
-                        final_resp = await cand.client.complete(wire, tools=None)
-                    else:
-                        raise
+                task = asyncio.ensure_future(
+                    client.complete(wire, tools=None, params=ModelParameters(tool_choice="none"))
+                )
+            except TypeError as t_err:
+                if "params" in str(t_err):
+                    return await client.complete(wire, tools=None)
+                raise
+            try:
+                return await asyncio.wait_for(task, timeout=timeout_s)
+            except (TimeoutError, asyncio.TimeoutError):
+                task.cancel()
+                raise
+
+        for cand in candidates:
+            # A provider the circuit breaker has already darkened is a
+            # synthesis candidate only by name: its candidates list is built
+            # from "who failed into here", not from any evidence it works.
+            if availability.is_circuit_open(getattr(cand, "provider", "")):
+                continue
+            try:
+                final_resp = await _synthesis_response(cand.client)
                 text = (final_resp.text or "").strip()
                 if text:
                     said.append(text)
@@ -3459,8 +3514,18 @@ class Director:
                     yield Event("assistant_delta", {"content": text})
                     yield Event("done", {"text": text})
                     return
+            except (TimeoutError, asyncio.TimeoutError):
+                log.warning(
+                    "Final answer synthesis on %s exceeded %.0fs; trying the next candidate",
+                    getattr(cand, "name", "candidate"),
+                    timeout_s,
+                )
             except Exception as exc:
-                log.warning("Final answer synthesis call failed on %s: %s", getattr(cand, "name", "candidate"), exc)
+                log.warning(
+                    "Final answer synthesis call failed on %s: %s",
+                    getattr(cand, "name", "candidate"),
+                    exc,
+                )
 
         # Fallback chain for synthesis: try remaining healthy links if primary failed
         if chain:
@@ -3471,13 +3536,7 @@ class Director:
                     continue
                 try:
                     fb_model = await asyncio.to_thread(resolve, link.provider, link.model)
-                    try:
-                        final_resp = await fb_model.client.complete(wire, tools=None, params=ModelParameters(tool_choice="none"))
-                    except TypeError as t_err:
-                        if "params" in str(t_err):
-                            final_resp = await fb_model.client.complete(wire, tools=None)
-                        else:
-                            raise
+                    final_resp = await _synthesis_response(fb_model.client)
                     text = (final_resp.text or "").strip()
                     if text:
                         said.append(text)
@@ -3485,6 +3544,12 @@ class Director:
                         yield Event("assistant_delta", {"content": text})
                         yield Event("done", {"text": text})
                         return
+                except (TimeoutError, asyncio.TimeoutError):
+                    log.warning(
+                        "Fallback synthesis on %s exceeded %.0fs and was stopped",
+                        link,
+                        timeout_s,
+                    )
                 except Exception as fb_exc:
                     log.warning("Fallback synthesis failed on %s: %s", link, fb_exc)
 
@@ -3701,6 +3766,51 @@ class Director:
             convo_summaries.refresh_conversation_summary(conversation_id)
         except Exception as exc:
             log.debug("conversation summary refresh failed: %s", exc)
+
+    def _enqueue_learning_review(
+        self,
+        conversation_id: str,
+        state: AgentState,
+        user_message: str,
+        answer: str,
+        answered_with: Link | None,
+    ) -> None:
+        """Put the post-turn review on the job board, if it is switched on.
+
+        Checked here rather than inside the job so the off state costs nothing:
+        a feature nobody enabled should not write a row per turn.
+
+        The exchange travels in the payload. The job may run minutes later, or in
+        a process started after a restart, and neither can be trusted to still
+        have this turn in memory -- but the row it reads is the transcript, which
+        the user can edit or delete. A bounded copy is the honest middle.
+        """
+        from backend.config import load_learning_settings
+
+        try:
+            settings = load_learning_settings()
+        except Exception:
+            return
+        if not settings.enabled:
+            return
+
+        from backend.jobs import enqueue
+        from backend.learning.review import MAX_EXCHANGE_CHARS
+
+        enqueue(
+            "learning_review",
+            f"learning:{state.id}",
+            payload={
+                "conversation_id": conversation_id,
+                "run_id": state.id,
+                "user_message": user_message[:MAX_EXCHANGE_CHARS],
+                "answer": answer[:MAX_EXCHANGE_CHARS],
+                "tool_calls": state.tool_calls_made,
+                "tool_names": list(state.tools_used),
+                "provider": answered_with.provider if answered_with else None,
+                "model": answered_with.model if answered_with else None,
+            },
+        )
 
     async def _recall(self, conversation_id: str, user_message: str) -> list[str]:
         """Standing facts about the user, for the top of the prompt.
@@ -4127,8 +4237,24 @@ class Director:
             # there is no row to point at, which is what a failed write leaves.
             return None
 
-    async def _execute(self, call: ToolCall, context: ToolContext) -> ToolResult:
+    async def _execute(
+        self,
+        call: ToolCall,
+        context: ToolContext,
+        *,
+        deadline: float | None = None,
+    ) -> ToolResult:
         """Dispatch, converting anything it raises into a result (ADR-0016).
+
+        `deadline` is the turn's own hard limit as an absolute `time.monotonic()`
+        reading. The turn checks that limit only at the top of the next
+        iteration, so a long tool batch used to run to completion before anything
+        looked at it -- ten sequential 45s calls spent 450s past a 120s cap
+        without a check in between. Clamping each call here makes the limit bite
+        on the window that starts the call: a window expiring with a *gate* still
+        live re-arms through `_bounded_dispatch` exactly as before, so approvals
+        and questions keep their human-time budget; only ungated work is cut.
+        `None` means no turn limit applies (the direct, non-turn callers).
 
         Bridge tools (tool_search, tool_describe, tool_call) are intercepted
         here and dispatched through the tool search module instead of the
@@ -4165,6 +4291,23 @@ class Director:
             timeout = tool_timeout
         else:
             timeout = agent_config.tool_timeout_seconds
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0.0:
+                # The turn's limit expired while earlier calls in this batch
+                # were still running. Fail this call without starting its
+                # handler rather than letting it, too, run to the end of
+                # the batch window: the model reads one error per call either
+                # way, and the turn's next iteration notices the limit at its
+                # top as usual.
+                log.warning("tool %s not started: turn time limit reached", call.name)
+                return ToolResult.error(
+                    f"'{call.name}' was not run: the turn reached its time limit"
+                    " while working on earlier steps, so nothing about this call"
+                    " was attempted. Say what was not done."
+                )
+            if timeout is not None and remaining < timeout:
+                timeout = remaining
 
         idem_key = getattr(context, "idempotency_key", None) or compute_idempotency_key(
             context.turn_id, call.name, call.arguments if isinstance(call.arguments, dict) else {}

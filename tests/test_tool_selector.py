@@ -94,7 +94,7 @@ def test_image_request_requires_images_tag():
 
 
 def test_discovery_fallback_tools_and_bounding():
-    """Verify discovery tools are always kept and tool count is bounded to <= 15."""
+    """Verify discovery tools are always kept and tool count is bounded to <= 30."""
     discovery_schemas = [
         _S("COMPOSIO_SEARCH_TOOLS"),
         _S("COMPOSIO_MULTI_EXECUTE_TOOL"),
@@ -102,13 +102,13 @@ def test_discovery_fallback_tools_and_bounding():
         _S("GOOGLECALENDAR_FIND_EVENT"),
         _S("GMAIL_FETCH_EMAILS"),
     ]
-    # Add 30 other schemas
-    other_schemas = [_S(f"extra_tool_{i}") for i in range(30)]
+    # Add 40 other schemas
+    other_schemas = [_S(f"extra_tool_{i}") for i in range(40)]
     all_schemas = _schemas() + discovery_schemas + other_schemas
 
     kept, _ = select_tools(all_schemas, "check my calendar and search all emails related to github")
     names = _names(kept)
-    assert len(kept) <= 15
+    assert len(kept) <= 30
     # Discovery tools must be preserved
     assert "COMPOSIO_SEARCH_TOOLS" in names
     assert "COMPOSIO_MULTI_EXECUTE_TOOL" in names
@@ -116,6 +116,22 @@ def test_discovery_fallback_tools_and_bounding():
     # Fast lane / intent tools
     assert "GOOGLECALENDAR_FIND_EVENT" in names
     assert "GMAIL_FETCH_EMAILS" in names
+
+
+def test_todo_and_calendar_phrasing_routes_tools_directly():
+    schemas = [
+        _S("create_task"),
+        _S("list_upcoming"),
+        _S("list_calendar"),
+        _S("create_calendar_event"),
+        _S("read_social"),
+    ] + [_S(c) for c in CORE]
+
+    # Query with night, study, time -> calendar & task tools offered directly
+    kept, _ = select_tools(schemas, "random times do night both and just say study OSY")
+    names = _names(kept)
+    assert "create_task" in names or "list_calendar" in names
+    assert "read_social" not in names
 
 
 # ------------------------------------------------- system prompt is built once

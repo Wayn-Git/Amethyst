@@ -183,3 +183,14 @@ def test_tool_selector_lane_filtering():
     names_agent = {s.name for s in kept_agent}
     assert "edit_file" in names_agent
     assert "run_shell_command" in names_agent
+
+
+def test_multiple_reminders_does_not_misclassify_as_calculator():
+    msg = "set reminders multiple like 5 random timing from current time"
+    route, need_jev, need_extract = route_intent_fast(msg)
+    assert route.lane == "connector"
+    assert route.presentation == "text"
+    assert route.step_budget >= 12
+    assert not need_jev
+    assert not need_extract
+

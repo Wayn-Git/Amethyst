@@ -4057,6 +4057,10 @@ async def run_turn(
         # already refuse for exactly this reason; the turn endpoint must too.
         raise HTTPException(409, "a turn is already running for this conversation")
     cancel = asyncio.Event()
+    # Whoever cancels the turn sets `cancel_source` first. A cancel with no
+    # annotation is exactly the diagnosis gap this Instrumentation exists to
+    # close: the finally block logs it as unknown.
+    cancel.cancel_source = None
     _active_turns[conversation_id] = cancel
 
     disconnect_watcher: asyncio.Task | None = None
@@ -4065,6 +4069,7 @@ async def run_turn(
             try:
                 while not cancel.is_set():
                     if await request.is_disconnected():
+                        cancel.cancel_source = "disconnect-watcher: request.is_disconnected()"
                         log.info("client disconnected for conversation %s; cancelling turn", conversation_id)
                         cancel.set()
                         break
@@ -4086,6 +4091,9 @@ async def run_turn(
         global _connectors_warm
         # Whether the reader has been told how the turn ended.
         settled = False
+        # Set once the turn's own clock starts (below). A cancel arriving before
+        # that -- during manifest/build/startup -- still wants an elapsed time.
+        began: float | None = None
         try:
             # The first frame goes out before anything that can be slow.
             #
@@ -4214,7 +4222,23 @@ async def run_turn(
         except asyncio.CancelledError:
             # A shutdown, a reload, or Starlette dropping the task. The reader
             # is still there for one more frame.
-            cancel.set()
+            #
+            # [CANCEL DIAGNOSTIC] This is the path a mid-stream client disconnect
+            # and an external task-kill both take. It eventually surfaces as
+            # state.error "the turn was cancelled" and no other log line, so it
+            # is logged here with everything a diagnosis wants: elapsed time
+            # since the turn started and whether the cancel event was *already*
+            # set by a named caller (Stop endpoint, device intent, watcher)
+            # before the task itself was dropped.
+            if not cancel.is_set():
+                cancel.cancel_source = "self: stream-task cancelled by Starlette (client TCP drop or server shutdown)"
+                cancel.set()
+            log.warning(
+                "[CANCEL SOURCE] turn task for %s dropped after %s (cancel source: %r)",
+                conversation_id,
+                f"{time.monotonic() - began:.1f}s" if began is not None else "startup (turn clock not started)",
+                cancel.cancel_source,
+            )
             if not settled:
                 yield _frame("error", message="the server stopped this turn")
             raise
@@ -4226,6 +4250,15 @@ async def run_turn(
         finally:
             if disconnect_watcher and not disconnect_watcher.done():
                 disconnect_watcher.cancel()
+            if cancel.is_set() and cancel.cancel_source is None:
+                # A setter without an annotation: the sync/intents control-device
+                # path and anything else that grabs the event out of
+                # `_active_turns` directly. Known-unknown, and now it says so.
+                log.warning(
+                    "[CANCEL SOURCE] cancel event for %s was set by an unannotated caller "
+                    "(sync device intent, integration, or direct _active_turns access)",
+                    conversation_id,
+                )
             cancel.set()
             # A backstop for the stream that ends without a terminal frame at
             # all -- a client that hangs up, or a generator closed early.
@@ -4256,6 +4289,11 @@ async def stop_turn(conversation_id: str) -> dict[str, str]:
     cancel = _active_turns.get(conversation_id)
     if cancel is None:
         raise HTTPException(404, "no turn is running for this conversation")
+    # Stop is silent by design; the one thing it must never be is *invisible* --
+    # a diagnostics pass that finds "the turn was cancelled" with no setter
+    # named reads exactly like the provider or transport failing.
+    cancel.cancel_source = "stop endpoint: POST /turn/stop"
+    log.info("[CANCEL SOURCE] stop endpoint fired for conversation %s", conversation_id)
     cancel.set()
     return {"status": "stopping"}
 
@@ -8607,6 +8645,12 @@ class CreateListBody(BaseModel):
     is_smart: bool = False
 
 
+class UpdateListBody(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    icon: str | None = None
+
+
 class AddListMemberBody(BaseModel):
     item_id: int | None = None
     link_id: int | None = None
@@ -8627,6 +8671,21 @@ async def create_library_list(body: CreateListBody) -> dict[str, Any]:
     store = LibraryService().store
     list_id = store.create_list(body.title, body.description, body.icon, body.is_smart)
     return {"id": list_id, "title": body.title}
+
+
+@app.patch("/api/library/lists/{list_id}")
+async def update_library_list(list_id: int, body: UpdateListBody) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    updated = LibraryService().store.update_list(
+        list_id=list_id,
+        title=body.title,
+        description=body.description,
+        icon=body.icon,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="List not found or nothing updated")
+    return {"updated": True, "id": list_id}
 
 
 @app.get("/api/library/lists/{list_id}")
@@ -9006,9 +9065,10 @@ async def library_media(item_id: int) -> FileResponse:
             import httpx
             res_list = _json.loads(row["resources"])
             for r in res_list:
-                if isinstance(r, dict) and r.get("type") == "video" and r.get("url"):
-                    v_url = r["url"]
-                    if v_url.startswith("http"):
+                if isinstance(r, dict):
+                    v_url = r.get("url") or ""
+                    is_vid = r.get("type") in ("video", "mp4") or (".mp4" in v_url or ".webm" in v_url or ".mov" in v_url)
+                    if is_vid and v_url.startswith("http"):
                         target = media_path(item_id, ".mp4")
                         if not target.is_file() or target.stat().st_size < 1000:
                             with httpx.Client(timeout=45.0, follow_redirects=True) as client:

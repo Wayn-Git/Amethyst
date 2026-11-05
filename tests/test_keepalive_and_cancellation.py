@@ -201,3 +201,47 @@ async def test_director_run_cleans_up_inflight_tools_on_task_cancel(db, patched_
 
     assert tool_was_cancelled
     assert len(director._inflight) == 0
+
+
+@pytest.mark.asyncio
+async def test_director_run_does_not_fail_completed_turn_when_cancelled_post_done(db, patched_resolve, monkeypatch):
+    patched_resolve([
+        ModelResponse(text="Here is your answer"),
+    ])
+    remember_started = asyncio.Event()
+
+    async def hanging_remember(*args, **kwargs):
+        remember_started.set()
+        await asyncio.sleep(10.0)
+        if False:
+            yield
+
+    registry = ToolRegistry(ConfirmationService(auto_approve))
+    cid = ConversationRepository().create("fake", "fake-1")
+    director = Director(registry=registry, mode="chat")
+    monkeypatch.setattr(director, "_remember", hanging_remember)
+
+    events = []
+    async def run_turn():
+        async for ev in director.run(cid, "Hi there"):
+            events.append(ev)
+
+    turn_task = asyncio.create_task(run_turn())
+    await remember_started.wait()
+
+    # Verify done was already yielded
+    assert any(ev.type == "done" for ev in events)
+
+    # Now cancel the task mid-remember (e.g. user sent next message, browser aborted)
+    turn_task.cancel()
+    await turn_task
+
+    # Must NOT have yielded an error event
+    assert not any(ev.type == "error" for ev in events), "Error frame must not be yielded for completed turn!"
+
+    # State in database must be completed, not failed or cancelled
+    state = director.runs.latest(cid)
+    assert state is not None
+    assert state.phase == "completed"
+    assert not state.error
+

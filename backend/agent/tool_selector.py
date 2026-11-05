@@ -79,6 +79,10 @@ TOOLKIT_INTENT_WORDS: dict[str, tuple[str, ...]] = {
         "calendar", "calendars", "event", "events", "meeting", "meetings",
         "schedule", "schedules", "appointment", "appointments", "invite", "invites",
         "tomorrow", "today", "slot", "slots", "free slot", "book", "agenda",
+        "time", "times", "night", "morning", "afternoon", "evening", "tonight",
+        "reminder", "remind", "alarm", "day", "days", "week", "month", "year",
+        "date", "dates", "when", "clock", "block", "entry", "entries", "due",
+        "study", "routine",
     ),
     "gmail": (
         "email", "emails", "mail", "mails", "gmail", "inbox", "message", "messages",
@@ -93,6 +97,15 @@ TOOLKIT_INTENT_WORDS: dict[str, tuple[str, ...]] = {
     ),
     "notion": (
         "notion", "page", "pages", "database", "databases", "doc", "docs", "workspace",
+    ),
+    "microsofttodo": (
+        "todo", "todos", "to-do", "to-dos", "task", "tasks", "tasklist", "task list",
+        "checklist", "check list", "due", "backlog", "study", "reminder", "remind",
+        "night", "tonight", "work", "action", "item", "items",
+    ),
+    "googledrive": (
+        "drive", "google drive", "gdrive", "upload", "download", "folder", "folders",
+        "sheet", "sheets", "doc", "docs", "presentation", "slides",
     ),
 }
 
@@ -379,9 +392,19 @@ def select_tools(
                 if tk_name in FAST_LANE_CONFIG:
                     wanted.update(FAST_LANE_CONFIG[tk_name].keys())
                 if tk_name == "googlecalendar":
-                    wanted.update({"list_calendar", "create_calendar_event"})
+                    wanted.update({"list_calendar", "create_calendar_event", "find_free_slot"})
                 elif tk_name == "gmail":
-                    wanted.update({"search_email", "read_email", "send_email"})
+                    wanted.update({"search_email", "read_email", "send_email", "reply_email", "draft_email"})
+                elif tk_name == "microsofttodo":
+                    wanted.update({
+                        "create_task", "create_tasks", "update_task", "list_task_lists", "list_upcoming",
+                        "MICROSOFTTODO_LIST_TODO_TASK_LISTS", "MICROSOFTTODO_CREATE_TODO_TASK",
+                        "MICROSOFTTODO_LIST_TASKS_IN_TASKLIST", "MICROSOFTTODO_UPDATE_TODO_TASK",
+                    })
+                elif tk_name == "googledrive":
+                    wanted.update({
+                        "GOOGLE_DRIVE_LIST_FILES", "GOOGLE_DRIVE_GET_FILE_METADATA", "GOOGLE_DRIVE_SEARCH_FILES",
+                    })
 
         # Phase 2: Task-intent matching using word boundaries
         for pat, tools in _TASK_INTENT_PATTERNS:
@@ -470,6 +493,10 @@ def select_tools(
         kept = [s for s in schemas if _match_tool_name(s)]
 
         if not kept:
+            # If no lane-specific restrictions are active, return original schemas directly
+            if not lane_denied and allowed_cats == set(CATEGORIES.keys()):
+                return schemas, 0
+
             # Fail-open: return schemas that are not lane-denied and not from a category
             # that this lane explicitly excludes.  Pure fail-open (return schemas, 0) would
             # bypass the lane restrictions set above, so we filter here.
@@ -486,19 +513,28 @@ def select_tools(
             allowed = [s for s in schemas if not _is_denied(s)]
             return allowed, len(schemas) - len(allowed)
 
-        # Cap to target ~10-15 tools if the selected set grew too large
-        if len(kept) > 15:
+        # Cap to target ~25-30 tools if the selected set grew too large
+        if len(kept) > 30:
             def _tool_priority(s: Any) -> int:
                 b = _bare(getattr(s, "name", ""))
-                if b in ("COMPOSIO_SEARCH_TOOLS", "COMPOSIO_MULTI_EXECUTE_TOOL", "tool_search", "ask_user"):
+                # Specific execution tools matched by intent or fast-lane
+                if b in ALL_FAST_LANE_SLUGS or b in (
+                    "GOOGLECALENDAR_FIND_EVENT", "GOOGLECALENDAR_CREATE_EVENT", "GOOGLECALENDAR_UPDATE_EVENT",
+                    "GMAIL_FETCH_EMAILS", "GMAIL_SEND_EMAIL", "list_calendar", "create_calendar_event",
+                    "create_task", "create_tasks", "update_task", "list_task_lists", "list_upcoming",
+                    "MICROSOFTTODO_LIST_TODO_TASK_LISTS", "MICROSOFTTODO_CREATE_TODO_TASK",
+                    "ask_user",
+                ):
                     return 3
-                if b in ALL_FAST_LANE_SLUGS or b in ("GOOGLECALENDAR_FIND_EVENT", "GMAIL_FETCH_EMAILS"):
+                # Concrete core tools
+                if b in CORE and b not in ("COMPOSIO_SEARCH_TOOLS", "COMPOSIO_MULTI_EXECUTE_TOOL", "COMPOSIO_GET_TOOL_SCHEMAS", "tool_search", "read_scratch_payload"):
                     return 2
-                if b in CORE:
+                # Fallback discovery meta-tools
+                if b in ("COMPOSIO_SEARCH_TOOLS", "COMPOSIO_MULTI_EXECUTE_TOOL", "COMPOSIO_GET_TOOL_SCHEMAS", "tool_search"):
                     return 1
                 return 0
 
-            kept = sorted(kept, key=_tool_priority, reverse=True)[:15]
+            kept = sorted(kept, key=_tool_priority, reverse=True)[:30]
 
         return kept, len(schemas) - len(kept)
     except Exception:  # noqa: BLE001 - selection must never take the turn down

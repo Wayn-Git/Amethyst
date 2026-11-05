@@ -222,6 +222,10 @@ class AgentState:
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
     duration_ms: float = 0.0
+    #: Names of the tools this turn actually dispatched, in order. The learning
+    #: review reads them to tell "did something" from "answered a question"; a
+    #: count alone cannot say whether the work was a procedure.
+    tools_used: list[str] = field(default_factory=list)
     #: Incremented on every write. A turn that is making progress has a rising
     #: checkpoint; one that is wedged does not, which is the only way to tell
     #: those apart from outside the process.

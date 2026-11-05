@@ -344,9 +344,9 @@ def restore(name: str, *, skills_dir: Path | None = None) -> Path:
     return target
 
 
-def archived() -> list[dict[str, str]]:
+def archived(skills_dir: Path | None = None) -> list[dict[str, str]]:
     """What is in the archive, newest first."""
-    archive_root = _root() / ".archive"
+    archive_root = _root(skills_dir) / ".archive"
     if not archive_root.is_dir():
         return []
     found: list[dict[str, str]] = []

@@ -4,7 +4,7 @@ How AMETHYST reaches external tools: local MCP servers, the hosted Composio
 gateway, and filesystem skills. These are three different mechanisms with
 different trust and lifecycle rules. Do not treat them as one system.
 
-**Verified 2026-10-31 · commit `3c363b7` · dirty working tree.**
+**Verified 2026-11-04 · commit `f52a7d1` · dirty working tree.**
 
 Related: [AGENT-SYSTEM.md](AGENT-SYSTEM.md) for how tools enter a turn,
 [systems/tool-execution.md](systems/tool-execution.md) for the dispatch path,
@@ -20,9 +20,9 @@ Related: [AGENT-SYSTEM.md](AGENT-SYSTEM.md) for how tools enter a turn,
 | Skills | Directories with `SKILL.md`, read on demand | Filesystem | `backend/skills/` |
 
 The first two register tools in the same flat `ToolRegistry`. Skills do not
-register tools: the model reads a skill body with the ordinary `view_file` tool
-when it decides the skill applies. There is no `invoke_skill` tool by design
-(`backend/skills/loader.py`).
+register tools: the model reads a skill body with `skill_view` (or the ordinary
+`view_file` tool) when it decides the skill applies. There is no `invoke_skill`
+tool by design (`backend/skills/loader.py`).
 
 ## Local MCP servers
 
@@ -229,12 +229,30 @@ path only; the body is read on demand (progressive disclosure).
   `agents/skills/`, and the user's `~/.amethyst/skills/`.
 - `NAME_RE` requires lowercase alphanumeric with hyphens, 1–64 characters.
 - Frontmatter is YAML between `---` fences.
-- `SCAN_TTL_SECONDS = 5.0`; install and remove call `forget_scan_cache()`.
+- `SCAN_TTL_SECONDS = 5.0`; install, remove and agent writes call
+  `forget_scan_cache()`.
 - `backend/skills/install.py` handles installation; `catalogue.py` lists
   available skills.
+- `backend/skills/manage.py` handles agent and in-app writes: create, patch,
+  replace, support files, archive, restore. Removes archive to
+  `skills/.archive/`; never hard-delete.
+- `backend/skills/usage.py` keeps the `.usage.json` sidecar (`use_count`,
+  `view_count`, `patch_count`, `state`, `pinned`, `locked`, `created_by`).
+- `backend/skills/curator.py` ages agent-created skills: stale at 14 days
+  unused, archived at 30. Deterministic, no model, protected by pin, lock,
+  `.seeded`, age and automation references.
 - Routes: `GET /api/skills`, `/api/skills/search`, `/api/skills/catalogue`,
+  `/api/skills/archived`, `/api/skills/curator`,
   `POST /api/skills/install`, `POST /api/skills/create`,
-  `DELETE /api/skills/{name}`.
+  `POST /api/skills/curator/run`, `POST /api/skills/{name}/state`,
+  `POST /api/skills/{name}/flags`, `POST /api/skills/{name}/restore`,
+  `DELETE /api/skills/{name}` (archives).
+- Agent tools: `skills_list`, `skill_view`, `skill_manage`. A patch requires a
+  read in the same turn; locked skills refuse writes.
+
+The post-turn review proposes new skills in `learning_proposals`; approval
+writes through `manage.create`. See
+[sections/capabilities.md](sections/capabilities.md#learning-proposals).
 
 Skills grant no execution authority by themselves. Anything a skill tells the
 model to do still passes the ordinary tool registry and permission gate.
@@ -275,4 +293,4 @@ Rules:
 - `mcp.yaml` is read at reconcile time. Editing it by hand while the app runs
   requires `POST /api/mcp/reconcile` or a restart to take effect.
 
-_Last verified: 2026-10-31 · commit `3c363b7` · dirty working tree._
+_Last verified: 2026-11-04 · commit `f52a7d1` · dirty working tree._

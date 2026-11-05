@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import Any
 
 import httpx
@@ -67,65 +68,73 @@ def _format_context(messages: list[dict[str, Any]] | str) -> str:
     return joined[-MAX_CONTEXT_CHARS:] if len(joined) > MAX_CONTEXT_CHARS else joined
 
 
+def _compile_keywords(keywords: tuple[str, ...]) -> re.Pattern:
+    escaped = [re.escape(k.strip()) for k in keywords if k.strip()]
+    return re.compile(r"\b(?:" + "|".join(escaped) + r")\b", re.IGNORECASE)
+
+
+_HEURISTIC_PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
+    ("quiz", _compile_keywords(("quiz", "quizzes", "trivia", "flashcard", "flashcards", "test my knowledge"))),
+    ("recipe", _compile_keywords(("recipe", "recipes", "ingredients", "cook time", "prep time", "sourdough bread", "culinary"))),
+    ("step_guide", _compile_keywords(("step by step", "step-by-step", "how-to guide", "how to install", "installation guide", "tutorial guide", "guide to"))),
+    ("calculator", _compile_keywords(("calculator", "calculators", "calc", "splitter", "split the bill", "split bill", "mortgage", "mortgages", "tip", "tips", "counter", "counters", "converter", "converters", "unit conversion"))),
+    ("chart", _compile_keywords(("chart", "charts", "graph", "graphs", "plot", "plots", "histogram", "histograms", "trends", "bar chart", "line chart", "pie chart"))),
+    ("comparison", _compile_keywords(("compare", "comparison", "comparisons", "vs", "versus", "pros and cons", "differences between"))),
+    ("simulation", _compile_keywords(("3d", "simulation", "simulations", "simulator", "simulators", "pitch", "roll", "yaw", "physics", "canvas"))),
+    ("diagram", _compile_keywords(("diagram", "diagrams", "flowchart", "flowcharts", "wireframe", "wireframes", "architecture diagram"))),
+    ("itinerary", _compile_keywords(("itinerary", "itineraries", "road trip", "travel route", "trip plan", "coastal map", "coastal trip", "coastil", "coastal road", "sf to la", "highway 1"))),
+    ("table", _compile_keywords(("table", "tables", "matrix", "spreadsheet", "spreadsheets"))),
+)
+
+
 def _local_heuristic(text: str) -> str:
     """Fast local heuristic classifier when Jev API is unreachable, times out, or unauthorized."""
-    lower = text.lower()
-    if any(k in lower for k in ("quiz", "trivia", "flashcard", "test my knowledge")):
-        return "quiz"
-    if any(k in lower for k in ("recipe", "ingredients", "cook time", "prep time", "sourdough bread", "culinary")):
-        return "recipe"
-    if any(k in lower for k in ("step by step", "step-by-step", "how-to guide", "how to install", "installation guide", "tutorial guide", "guide to")):
-        return "step_guide"
-    if any(k in lower for k in ("calculator", "calc", "splitter", "split the bill", "split bill", "mortgage", "tip", "counter", "converter", "unit conversion")):
-        return "calculator"
-    if any(k in lower for k in ("chart", "graph", "plot", "histogram", "trends", "bar chart", "line chart", "pie chart")):
-        return "chart"
-    if any(k in lower for k in ("compare", "comparison", " vs ", "versus", "pros and cons", "differences between")):
-        return "comparison"
-    if any(k in lower for k in ("3d", "simulation", "simulator", "pitch", "roll", "yaw", "physics", "canvas")):
-        return "simulation"
-    if any(k in lower for k in ("diagram", "flowchart", "wireframe", "architecture diagram")):
-        return "diagram"
-    if any(k in lower for k in ("itinerary", "road trip", "travel route", "trip plan", "coastal map", "coastal trip", "coastil", "coastal road", "sf to la", "highway 1")):
-        return "itinerary"
-    if any(k in lower for k in ("table", "matrix", "spreadsheet")):
-        return "table"
+    for category, pattern in _HEURISTIC_PATTERNS:
+        if pattern.search(text):
+            return category
     return "text"
 
 
 WIDGET_SIGNALS = (
     # interactive tools & presentations
-    "calculator", "calc", "splitter", "split bill", "mortgage", "tip", "counter", "converter",
-    "diagram", "flowchart", "wireframe", "architecture diagram",
+    "calculator", "calculators", "calc", "splitter", "split bill", "mortgage", "tip", "tips", "counter", "converter",
+    "diagram", "diagrams", "flowchart", "wireframe", "architecture diagram",
     "3d", "simulation", "simulator", "pitch", "roll", "yaw", "physics", "canvas",
-    "table", "matrix", "spreadsheet",
+    "table", "tables", "matrix", "spreadsheet",
     # recipe / step_guide
-    "recipe", "cook", "bake", "ingredient", "how do i", "how to", "how can i",
+    "recipe", "recipes", "cook", "bake", "ingredient", "ingredients", "how do i", "how to", "how can i",
     "teach me", "teach", "steps", "step by step", "guide", "walk me through", "instructions", "set up",
     "install", "tutorial",
     # quiz
-    "quiz", "test me", "flashcard", "practice question", "exam", "revise", "trivia",
+    "quiz", "quizzes", "test me", "flashcard", "flashcards", "practice question", "exam", "revise", "trivia",
     # comparison
-    "compare", "comparison", " vs ", " versus ", "difference between", "which is better",
+    "compare", "comparison", " vs ", " versus ", "difference between", "differences between", "which is better",
     "pros and cons", "trade-off", "tradeoff",
     # itinerary
-    "itinerary", "trip", "travel", "visit", "days in", "plan a", "holiday", "vacation", "sf to la", "highway 1",
+    "itinerary", "itineraries", "trip", "travel", "visit", "days in", "plan a", "holiday", "vacation", "sf to la", "highway 1",
     # translation
     "translate", "translation", "in spanish", "in french", "in german", "in japanese",
     "in italian", "say in", "how do you say",
     # chart
-    "chart", "graph", "plot", "visualise", "visualize", "bar chart", "line chart", "pie chart", "histogram", "trends",
+    "chart", "charts", "graph", "graphs", "plot", "plots", "visualise", "visualize", "bar chart", "line chart", "pie chart", "histogram", "trends",
     # options
     "options", "choose", "pick one", "suggest", "recommend", "ideas for", "alternatives",
     # image_gallery (strictly opt-in via @images or /images)
     "@images", "@image", "/images", "/image",
 )
 
+_IMAGE_SIGS = {"@images", "@image", "/images", "/image"}
+_WIDGET_SIGS_ESCAPED = [re.escape(s.strip()) for s in WIDGET_SIGNALS if s not in _IMAGE_SIGS and s.strip()]
+_WIDGET_PATTERN = re.compile(
+    r"(?:^|\s)(?:@images?|/images?)(?:\s|$)|"
+    + r"\b(?:" + "|".join(_WIDGET_SIGS_ESCAPED) + r")\b",
+    re.IGNORECASE,
+)
+
 
 def has_widget_signals(text: str) -> bool:
     """Check if the text contains any signals for widget or presentation formats."""
-    lower = f" {text.lower()} "
-    return any(sig in lower for sig in WIDGET_SIGNALS)
+    return bool(_WIDGET_PATTERN.search(text))
 
 
 _INVALID_TYPESAFE_KEYS: set[str] = set()
