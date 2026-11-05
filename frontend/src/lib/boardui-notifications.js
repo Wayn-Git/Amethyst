@@ -1,65 +1,40 @@
-import { useState, useEffect, useCallback } from "react";
-
-export const NOTIFICATION_VARIANTS = {
-  information: {
-    status: "information",
-    title: "New version available",
-    description: "Refresh to start using the latest dashboard updates.",
-    autoDismissDuration: 3500,
-  },
-  success: {
-    status: "success",
-    title: "Changes saved",
-    description: "Your workspace settings have been updated.",
-    autoDismissDuration: 3500,
-  },
-  error: {
-    status: "error",
-    title: "Upload failed",
-    description: "Check the file size and try again.",
-    autoDismissDuration: 4000,
-  },
-  avatar: {
-    avatar: {
-      src: "/icon.png",
-      alt: "Livia Saris",
-      presence: "busy",
-    },
-    title: "Livia Saris",
-    timestamp: "just now",
-    description: "Mentioned you in the launch checklist.",
-    autoDismissDuration: 4000,
-  },
-  actions: {
-    status: "information",
-    title: "Backup ready",
-    description: "Your latest workspace backup is ready to download.",
-    actions: [
-      { label: "Not now", variant: "secondary" },
-      { label: "Download", variant: "primary" },
-    ],
-    autoDismissDuration: 5000,
-  },
-};
+import { useCallback, useEffect, useState } from "react";
 
 const listeners = new Set();
 
-export function showBoardUINotification(variantOrProps) {
-  const item =
-    typeof variantOrProps === "string"
-      ? {
-          id: crypto.randomUUID(),
-          ...(NOTIFICATION_VARIANTS[variantOrProps] || {
-            title: variantOrProps,
-            status: "neutral",
-            autoDismissDuration: 3500,
-          }),
-        }
-      : {
-          id: variantOrProps.id || crypto.randomUUID(),
-          autoDismissDuration: 3500,
-          ...variantOrProps,
-        };
+function parseMessage(message) {
+  const text = message.trim().replace(/^\d{3}:\s*/, "");
+  const separator = text.includes(" — ") ? " — " : text.includes(" · ") ? " · " : null;
+  if (separator) {
+    const [title, ...rest] = text.split(separator);
+    return { title: title.trim(), description: rest.join(separator).trim() };
+  }
+  const dot = text.indexOf(". ");
+  if (dot > 8 && dot < text.length - 2) {
+    return { title: text.slice(0, dot).trim(), description: text.slice(dot + 2).trim() };
+  }
+  if (text.includes(": ")) {
+    const [title, ...rest] = text.split(": ");
+    return { title: title.trim(), description: rest.join(": ").trim() };
+  }
+  return { title: text };
+}
+
+export function showBoardUINotification(payload, tone = "info") {
+  const content = typeof payload === "string"
+    ? parseMessage(payload)
+    : payload.title || payload.description
+      ? payload
+      : parseMessage(payload.message || "");
+  const item = {
+    id: payload.id || crypto.randomUUID(),
+    ...content,
+    status: payload.status,
+    type: payload.type || payload.tone || tone,
+    action: payload.action,
+    actions: payload.actions,
+    autoDismissDuration: payload.duration ?? payload.autoDismissDuration ?? 3500,
+  };
 
   listeners.forEach((fn) => fn(item));
   return item.id;
@@ -70,7 +45,7 @@ export function useBoardUINotifications() {
 
   useEffect(() => {
     const handler = (item) => {
-      setNotifications((prev) => [...prev, item]);
+      setNotifications((prev) => [...prev.filter((n) => n.id !== item.id), item]);
     };
     listeners.add(handler);
     return () => listeners.delete(handler);
@@ -80,9 +55,5 @@ export function useBoardUINotifications() {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   }, []);
 
-  const show = useCallback((variantOrProps) => {
-    return showBoardUINotification(variantOrProps);
-  }, []);
-
-  return { notifications, showNotification: show, dismissNotification: dismiss };
+  return { notifications, dismissNotification: dismiss };
 }
