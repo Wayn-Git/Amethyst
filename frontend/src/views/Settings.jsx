@@ -16,7 +16,6 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { safeStorage } from '../lib/storage.js'
 import * as syncClient from '../lib/sync/client.js'
 import PairingApprovalModal from '../components/PairingApprovalModal.jsx'
-import { showBoardUINotification } from '../lib/boardui-notifications.js'
 import { triggerConfetti } from '../components/ConfettiCannon.jsx'
 import Integrations from './settings/Integrations.jsx'
 import Configuration from './settings/Configuration.jsx'
@@ -157,7 +156,7 @@ export function CodexAvatar({ name = 'User', shape = 'circle', photoUrl = null, 
           fill="#ffffff"
           fontWeight="600"
           fontSize={size > 60 ? 32 : 36}
-          fontFamily="var(--font-sans, system-ui, -apple-system, sans-serif)"
+          fontFamily="var(--font-sans)"
         >
           {initials}
         </text>
@@ -1680,34 +1679,6 @@ function Notifications({ onNavigateSection }) {
         </div>
       </div>
 
-      {/* Interactive Toast Tester */}
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-dim)', marginBottom: 8 }}>
-          Notification Preview
-        </div>
-        <div className="codex-card" style={{ padding: '16px 20px' }}>
-          <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 12 }}>
-            Interactive preview of BoardUI Notification alerts:
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification('information')} style={{ borderRadius: 10 }}>
-              Information
-            </HouseButton>
-            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification('success')} style={{ borderRadius: 10 }}>
-              Success
-            </HouseButton>
-            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification('error')} style={{ borderRadius: 10 }}>
-              Error
-            </HouseButton>
-            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification('avatar')} style={{ borderRadius: 10 }}>
-              With avatar
-            </HouseButton>
-            <HouseButton type="button" className="set-btn-sm" onClick={() => showBoardUINotification('actions')} style={{ borderRadius: 10 }}>
-              With buttons
-            </HouseButton>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
@@ -2171,63 +2142,52 @@ function Appearance() {
   return (
     <div className="codex-settings-container">
       {/* Title */}
-      <div style={{ marginBottom: 26 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 600, color: 'var(--text)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>
+      <div style={{ marginBottom: 14 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 600, color: 'var(--text)', margin: '0 0 2px', letterSpacing: '-0.02em' }}>
           Appearance
         </h1>
         <div style={{ fontSize: 13, color: 'var(--text-dim)', fontWeight: 500 }}>
-          Visual style
+          Visual style & interface themes
         </div>
       </div>
 
-      {/* Card 1: Mode */}
-      <div className="codex-card" style={{ marginBottom: 16 }}>
+      {/* Card 1: Mode Segmented Control */}
+      <div className="codex-card">
         <div className="codex-row">
-          <span className="codex-row-title">Mode</span>
+          <div className="codex-row-info">
+            <span className="codex-row-title">Mode</span>
+            <span className="codex-row-desc">Interface appearance theme</span>
+          </div>
 
-          <div className="codex-mode-grid">
-            {/* Auto (System) */}
-            <HouseButton
-              type="button"
-              className={`codex-mode-thumbnail${theme === 'system' ? ' is-active' : ''}`}
-              onClick={() => setTheme('system')}
-              title="System Mode (Follows OS)"
-            >
-              <ThemeMiniWindow config={THEMES_CONFIG[0]} compact={true} />
-            </HouseButton>
-
-            {/* Light */}
-            <HouseButton
-              type="button"
-              className={`codex-mode-thumbnail${LIGHT_THEMES.includes(theme) ? ' is-active' : ''}`}
-              onClick={() => setTheme(preferredLightTheme || 'paper')}
-              title="Light Mode"
-            >
-              <ThemeMiniWindow
-                config={THEMES_CONFIG.find((t) => t.id === 'paper') || THEMES_CONFIG[5]}
-                compact={true}
-              />
-            </HouseButton>
-
-            {/* Dark */}
-            <HouseButton
-              type="button"
-              className={`codex-mode-thumbnail${DARK_THEMES.includes(theme) ? ' is-active' : ''}`}
-              onClick={() => setTheme(preferredDarkTheme || 'graphite')}
-              title="Dark Mode"
-            >
-              <ThemeMiniWindow
-                config={THEMES_CONFIG.find((t) => t.id === 'graphite') || THEMES_CONFIG[1]}
-                compact={true}
-              />
-            </HouseButton>
+          <div className="set-seg-ctrl" style={{ padding: 2, borderRadius: 8 }}>
+            {[
+              { id: 'system', label: 'System', icon: 'monitor' },
+              { id: 'light', label: 'Light', icon: 'sun', pick: preferredLightTheme || 'paper' },
+              { id: 'dark', label: 'Dark', icon: 'moon', pick: preferredDarkTheme || 'graphite' },
+            ].map((m) => {
+              const isSel = m.id === 'system'
+                ? theme === 'system'
+                : (m.id === 'light' ? LIGHT_THEMES.includes(theme) : DARK_THEMES.includes(theme))
+              return (
+                <HouseButton
+                  key={m.id}
+                  type="button"
+                  className={`set-seg-item${isSel ? ' is-active' : ''}`}
+                  onClick={() => setTheme(m.id === 'system' ? 'system' : m.pick)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', fontSize: '12px' }}
+                >
+                  <Icon name={m.icon} size={12} />
+                  <span>{m.label}</span>
+                </HouseButton>
+              )
+            })}
           </div>
         </div>
       </div>
 
       {/* Theme Visual Previews */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Theme Previews</span>
           <span style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>Select a palette preview</span>
         </div>
@@ -2297,7 +2257,7 @@ function Appearance() {
       </div>
 
       {/* Card 2: Visual Style Tokens */}
-      <div className="codex-card" style={{ marginBottom: 16 }}>
+      <div className="codex-card">
         {/* Row 1: Theme */}
         <div className="codex-row">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -3083,30 +3043,8 @@ function Models() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <LatencyTag latency={latencies[activeProvider.name]} />
-
-              {/* Primary Route Picker */}
-              {providers.length > 1 && (
-                <div style={{ minWidth: 160 }}>
-                  <AnimatedSelect
-                    value={activeProvider.name}
-                    onChange={handleSetPrimary}
-                    options={providers.filter((p) => p.enabled).map((p) => ({
-                      value: p.name,
-                      label: p.name.charAt(0).toUpperCase() + p.name.slice(1),
-                    }))}
-                    renderIcon={(opt) => (
-                      <div style={{ width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <AiProviderIcon provider={opt.value} size={14} />
-                      </div>
-                    )}
-                    placeholder="Switch Primary…"
-                    minWidth={170}
-                    align="right"
-                  />
-                </div>
-              )}
 
               <HouseButton
                 type="button"
@@ -3196,7 +3134,7 @@ function Models() {
                           e.stopPropagation()
                           handleSetPrimary(p.name)
                         }}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 9px', fontSize: 11.5 }}
                         title="Set this provider as the primary route"
                       >
                         <Icon name="star" size={11} />
@@ -3211,25 +3149,32 @@ function Models() {
                         e.stopPropagation()
                         setEditProvider(p)
                       }}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 9px', fontSize: 11.5 }}
+                      title="Edit credentials and base URL"
                     >
                       <Icon name="key" size={11} />
-                      <span>Edit Key</span>
+                      <span>Key</span>
                     </HouseButton>
+
                     <HouseButton
                       type="button"
-                      className="set-btn-sm is-danger"
+                      className="set-btn-icon-subtle"
                       onClick={(e) => handleRemove(p.name, e)}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      title={`Remove ${p.name}`}
+                      aria-label={`Remove ${p.name}`}
                     >
-                      <Icon name="trash" size={11} />
-                      <span>Remove</span>
+                      <Icon name="trash" size={12} />
                     </HouseButton>
+
                     <div style={{
+                      width: 24,
+                      height: 24,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                       transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
                       transition: 'transform 0.18s ease',
                       color: 'var(--text-dim)',
-                      marginLeft: 4,
                     }}>
                       <Icon name="chevron-down" size={12} />
                     </div>
@@ -3310,6 +3255,12 @@ function Models() {
       <div className="set-section-label">Cognitive Tier Assignments</div>
       <div style={{ marginBottom: 24 }}>
         <RolesEditor providers={providers.map((p) => p.name)} />
+      </div>
+
+      {/* Category: Post-turn learning */}
+      <div className="set-section-label">Post-turn Learning</div>
+      <div style={{ marginBottom: 24 }}>
+        <LearningEditor />
       </div>
 
       {/* Category: Routing Decisions Ladder */}
@@ -3833,6 +3784,114 @@ function RolesEditor({ providers = [] }) {
   )
 }
 
+/* Post-turn learning review. Off by default, and staged when on: the review
+   proposes skills and memories from a finished turn, and a person approves each
+   one in Capabilities → Skills. A model can be named, but leaving it blank uses
+   the memory model, then the fast tier, then the model that answered. */
+function LearningEditor() {
+  const { toast } = useApp()
+  const [settings, setSettings] = useState({ enabled: false, provider: '', model: '' })
+  const [counts, setCounts] = useState({})
+  const [busy, setBusy] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    try {
+      const data = await api.learning()
+      setSettings({
+        enabled: !!data.settings?.enabled,
+        provider: data.settings?.provider || '',
+        model: data.settings?.model || '',
+      })
+      setCounts(data.counts || {})
+    } catch (err) {
+      toast(err.message, 'bad')
+    } finally {
+      setLoading(false)
+    }
+  }, [toast])
+
+  useEffect(() => { load() }, [load])
+
+  const save = async (next) => {
+    setBusy(true)
+    try {
+      const saved = await api.saveLearningSettings({
+        enabled: next.enabled,
+        provider: next.provider?.trim() || null,
+        model: next.model?.trim() || null,
+      })
+      setSettings({
+        enabled: !!saved.enabled,
+        provider: saved.provider || '',
+        model: saved.model || '',
+      })
+      toast(saved.enabled ? 'Learning review on' : 'Learning review off', 'ok')
+    } catch (err) {
+      toast(err.message, 'bad')
+      load()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (loading) return null
+
+  return (
+    <div className="set-box">
+      <div className="set-box-row" style={{ alignItems: 'center' }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Post-turn learning review</div>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 3 }}>
+            After an eligible turn, ask a small model whether the work produced a reusable skill.
+            Proposals wait for approval in Capabilities → Skills. Nothing is saved automatically.
+          </div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 6, fontFamily: 'var(--font-mono)' }}>
+            {counts.pending || 0} pending · {counts.approved || 0} approved · {counts.rejected || 0} rejected
+          </div>
+        </div>
+        <Switch
+          on={settings.enabled}
+          disabled={busy}
+          onChange={(val) => save({ ...settings, enabled: val })}
+          tone="default"
+        />
+      </div>
+      {settings.enabled && (
+        <div className="set-box-row" style={{ display: 'grid', gap: 8 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+            Reviewer model (optional — blank uses the memory model, then the fast tier)
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <input
+              className="set-input"
+              placeholder="provider, e.g. ollama"
+              value={settings.provider}
+              onChange={(e) => setSettings((s) => ({ ...s, provider: e.target.value }))}
+              aria-label="Learning reviewer provider"
+            />
+            <input
+              className="set-input"
+              placeholder="model, e.g. qwen2.5:7b"
+              value={settings.model}
+              onChange={(e) => setSettings((s) => ({ ...s, model: e.target.value }))}
+              aria-label="Learning reviewer model"
+            />
+            <button
+              type="button"
+              className="btn btn--ghost btn--small"
+              disabled={busy || Boolean(settings.provider.trim()) !== Boolean(settings.model.trim())}
+              onClick={() => save(settings)}
+            >
+              Save model
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function RoleRow({ role, current, providers = [], configuredProviders = [], busy, onSave, onClear }) {
   const currentProvider = current?.provider || ''
   const currentModel = current?.model || ''
@@ -3928,11 +3987,11 @@ function RoleRow({ role, current, providers = [], configuredProviders = [], busy
   }, [providers, configuredProviders])
 
   return (
-    <div className="set-box-row" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: 12, padding: '16px 18px' }}>
+    <div className="set-box-row set-col" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10, padding: '14px 18px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div className="set-row-icon-box" style={{ width: 30, height: 30, borderRadius: 8 }}>
-            <Icon name={role.icon || 'cpu'} size={15} style={{ color: 'var(--accent)' }} />
+          <div className="set-row-icon-box" style={{ width: 28, height: 28, borderRadius: 8 }}>
+            <Icon name={role.icon || 'cpu'} size={14} style={{ color: 'var(--accent)' }} />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -3951,7 +4010,7 @@ function RoleRow({ role, current, providers = [], configuredProviders = [], busy
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', flexWrap: 'wrap' }}>
         {/* Provider Searchable Dropdown */}
-        <div style={{ minWidth: 170 }}>
+        <div style={{ minWidth: 160 }}>
           <AnimatedSelect
             value={provider}
             onChange={handleProviderSelect}
@@ -3964,13 +4023,13 @@ function RoleRow({ role, current, providers = [], configuredProviders = [], busy
                 <AiProviderIcon provider={opt.value} size={14} />
               </div>
             )}
-            minWidth={170}
+            minWidth={160}
             align="left"
           />
         </div>
 
         {/* Model Searchable Dropdown */}
-        <div style={{ flex: 1, minWidth: 220 }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
           <AnimatedSelect
             value={model}
             onChange={(val) => setModel(val)}
@@ -3984,7 +4043,7 @@ function RoleRow({ role, current, providers = [], configuredProviders = [], busy
                 <AiProviderIcon provider={provider} model={opt.value} size={14} />
               </div>
             )}
-            minWidth={240}
+            minWidth={220}
             align="left"
           />
         </div>
@@ -3994,9 +4053,9 @@ function RoleRow({ role, current, providers = [], configuredProviders = [], busy
           className={`set-btn-sm${dirty ? ' is-primary' : ''}`}
           disabled={busy || !dirty || !model?.trim()}
           onClick={() => onSave(role.id, provider, model)}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', fontSize: 12 }}
         >
-          <Icon name="check" size={13} />
+          <Icon name="check" size={12} />
           <span>{busy ? 'Saving…' : 'Save'}</span>
         </HouseButton>
 
@@ -4006,9 +4065,9 @@ function RoleRow({ role, current, providers = [], configuredProviders = [], busy
             className="set-btn-sm"
             disabled={busy}
             onClick={() => onClear(role.id)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', color: 'var(--text-dim)' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', fontSize: 12, color: 'var(--text-dim)' }}
           >
-            <Icon name="trash" size={12} />
+            <Icon name="trash" size={11} />
             <span>Clear</span>
           </HouseButton>
         )}
@@ -4350,7 +4409,7 @@ function Usage() {
   const activeHover = hoveredFamily ? families.find((f) => f.name === hoveredFamily) : null
 
   return (
-    <div className="set-panel" style={{ width: '100%', maxWidth: 1080, margin: '0 auto' }}>
+    <div className="set-panel" style={{ width: '100%', margin: '0 auto' }}>
       {/* Top Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <h2 style={{ margin: 0, fontSize: '26px', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.02em' }}>
@@ -4712,7 +4771,7 @@ function Activity() {
   })
 
   return (
-    <div className="set-panel" style={{ width: '100%', maxWidth: 1080, margin: '0 auto' }}>
+    <div className="set-panel" style={{ width: '100%', margin: '0 auto' }}>
       {/* Top Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <h2 style={{ margin: 0, fontSize: '26px', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.02em' }}>
@@ -6362,12 +6421,12 @@ function Shortcuts() {
           </div>
         </div>
 
-        <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+        <div className="set-box-row set-col" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
           <div className="set-row-text">
             <span className="set-row-title">Quick Presets</span>
             <span className="set-row-desc">Standard chords for system-wide spotlight launchers:</span>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: '100%', justifyContent: 'flex-start' }}>
             {[
               { label: 'Ctrl+Alt+Space (Default)', chord: '<ctrl>+<alt>+<space>' },
               { label: 'Ctrl+Space', chord: '<ctrl>+<space>' },
@@ -6393,12 +6452,12 @@ function Shortcuts() {
       {/* 2. Launcher Navigation & Actions */}
       <div className="set-section-label">Damon Launcher & Action Panel</div>
       <div className="set-box">
-        <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+        <div className="set-box-row set-col" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
           <div className="set-row-text">
             <span className="set-row-title">Auto-Assigned Launcher Shortcuts</span>
             <span className="set-row-desc">These shortcuts are automatically assigned and active while Damon is open:</span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10, width: '100%' }}>
             {[
               { name: 'Primary Action (Open / Focus / Run)', key: '↵ Enter' },
               { name: 'Toggle Action Panel', key: '⌘K / Ctrl+K' },
@@ -6433,12 +6492,12 @@ function Shortcuts() {
       {/* 3. Global App Shortcuts Catalog */}
       <div className="set-section-label">Application Navigation Shortcuts</div>
       <div className="set-box">
-        <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+        <div className="set-box-row set-col" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
           <div className="set-row-text">
             <span className="set-row-title">Workspace Hotkeys</span>
             <span className="set-row-desc">Quick navigation chords across views and composer:</span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10, width: '100%' }}>
             {[
               { name: 'Open Command Palette', key: '⌘K / Ctrl+K' },
               { name: 'Start New Conversation', key: '⌘⇧O / Ctrl+Shift+O' },
@@ -6564,11 +6623,13 @@ export default function Settings() {
                 width: '100%',
                 paddingLeft: 30,
                 paddingRight: searchQuery ? 28 : 10,
-                height: 32,
-                fontSize: 12,
-                borderRadius: 10,
-                background: 'var(--surface-2)',
-                border: '1px solid var(--border-subtle, rgba(0,0,0,0.06))',
+                height: 34,
+                fontSize: 13,
+                fontFamily: 'var(--font-body)',
+                borderRadius: 9999,
+                background: 'var(--canvas)',
+                border: '1px solid var(--hairline)',
+                color: 'var(--text)',
               }}
             />
             {searchQuery && (
@@ -6577,25 +6638,25 @@ export default function Settings() {
                 onClick={() => setSearchQuery('')}
                 style={{
                   position: 'absolute',
-                  right: 6,
+                  right: 8,
                   padding: 3,
                   background: 'transparent',
                   border: 'none',
-                  color: 'var(--text-dim)',
+                  color: 'var(--text-faint)',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                 }}
                 title="Clear search"
               >
-                <Icon name="x" size={11} />
+                <Icon name="x" size={12} />
               </HouseButton>
             )}
           </div>
         </div>
 
         {filteredSections.length === 0 ? (
-          <div style={{ padding: '16px 12px', fontSize: 13, color: 'var(--text-dim)', textAlign: 'center' }}>
+          <div style={{ padding: '16px 12px', fontSize: 13, color: 'var(--text-dim)', textAlign: 'center', fontFamily: 'var(--font-body)' }}>
             No matching settings
           </div>
         ) : (
@@ -6620,14 +6681,17 @@ export default function Settings() {
                     onClick={() => setSection(item.id)}
                     style={{
                       position: 'relative',
-                      borderRadius: 12,
+                      borderRadius: 10,
                       display: 'flex',
                       alignItems: 'center',
                       gap: 10,
+                      fontFamily: 'var(--font-body)',
+                      fontWeight: isSel ? 600 : 400,
+                      opacity: 1,
                     }}
                   >
                     <Icon name={item.icon} size={15} />
-                    <span className="set-nav-label">{item.label}</span>
+                    <span className="set-nav-label" style={{ opacity: 1, color: isSel ? 'var(--accent)' : 'var(--text)' }}>{item.label}</span>
                   </HouseButton>
                 )
               })}

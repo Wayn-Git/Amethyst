@@ -6,7 +6,7 @@ import { useCompact, usePhone } from './hooks/useMediaQuery.js'
 
 import { safeStorage } from './lib/storage.js'
 import { useSync } from './lib/sync/useSync.js'
-import { notify as toastNotify } from './components/application/notifications'
+import { showBoardUINotification } from './lib/boardui-notifications.js'
 
 function pathToId(pathname) {
   if (pathname === '/') return 'today'
@@ -291,16 +291,23 @@ export function applyAppearanceSettings(prefs = {}) {
   }
   if (prefs.fontFamily && prefs.fontFamily !== 'system') {
     const familyMap = {
-      inter: "'Inter', system-ui, sans-serif",
-      'plus-jakarta': "'Plus Jakarta Sans', system-ui, sans-serif",
-      geist: "'Geist', system-ui, sans-serif",
+      inter: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+      'plus-jakarta': "'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif",
+      geist: "'Geist', 'Inter', -apple-system, sans-serif",
       serif: "Charter, 'Bitstream Charter', 'Sitka Text', Cambria, serif",
     }
     if (familyMap[prefs.fontFamily]) {
-      root.style.setProperty('--font-sans', familyMap[prefs.fontFamily])
+      const fam = familyMap[prefs.fontFamily]
+      root.style.setProperty('--font-sans', fam)
+      root.style.setProperty('--font-body', fam)
+      root.style.setProperty('--font-display', fam)
+      root.style.setProperty('--font-openai-sans', fam)
     }
   } else if (prefs.fontFamily === 'system') {
     root.style.removeProperty('--font-sans')
+    root.style.removeProperty('--font-body')
+    root.style.removeProperty('--font-display')
+    root.style.removeProperty('--font-openai-sans')
   }
 
   if (prefs.codeFont && prefs.codeFont !== 'system') {
@@ -319,8 +326,8 @@ export function applyAppearanceSettings(prefs = {}) {
 
   if (prefs.contentFont && prefs.contentFont !== 'same') {
     const contentMap = {
-      inter: "'Inter', system-ui, sans-serif",
-      system: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      inter: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+      system: "-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif",
       serif: "Charter, 'Bitstream Charter', 'Sitka Text', Cambria, serif",
     }
     if (contentMap[prefs.contentFont]) {
@@ -392,7 +399,6 @@ export function AppProvider({ children }) {
   const [server, setServer] = useState(serverState)
   const [health, setHealth] = useState(null)
   const [healthError, setHealthError] = useState(null)
-  const [toasts, setToasts] = useState([])
   const [overlay, setOverlay] = useState(null) // 'palette' | 'shortcuts' | null
 
   const [conversations, setConversations] = useState([])
@@ -894,29 +900,8 @@ export function AppProvider({ children }) {
     return () => watch.removeEventListener('change', relay)
   }, [theme])
 
-  const dismissToast = useCallback((id) => {
-    try {
-      toastNotify?.dismiss?.(id)
-    } catch { /* no-op */ }
-    setToasts((t) => t.filter((x) => x.id !== id))
-  }, [])
-
   const toast = useCallback((payload, tone = 'info') => {
-    let id = null
-    try {
-      id = toastNotify?.show?.(payload, tone)
-    } catch (err) {
-      console.warn('Toast notification failed:', err)
-    }
-    const toastObj = typeof payload === 'string'
-      ? { id: id || Math.random().toString(36).slice(2), message: payload, tone }
-      : { id: id || Math.random().toString(36).slice(2), tone: payload?.tone || tone, ...payload }
-
-    setToasts((t) => [
-      ...t.filter((x) => (id ? x.id !== id : true) && (toastObj.message ? x.message !== toastObj.message : true)),
-      toastObj,
-    ])
-    return id
+    return showBoardUINotification(payload, tone)
   }, [])
 
   const refreshHealth = useCallback(async () => {
@@ -1301,7 +1286,7 @@ export function AppProvider({ children }) {
     view, setView,
     server, retryServer: wakeBackend,
     health, healthError, refreshHealth,
-    toasts, toast, dismissToast,
+    toast,
     overlay, setOverlay,
     conversations, refreshConvs, updateConversationOptimistic,
     activeId, setActiveId,
@@ -1357,7 +1342,7 @@ export function AppProvider({ children }) {
     chat: chatRef.current,
     registerChat: (actions) => Object.assign(chatRef.current, actions),
   }), [
-    view, setView, server, health, healthError, refreshHealth, toasts, toast, dismissToast, overlay,
+    view, setView, server, health, healthError, refreshHealth, toast, overlay,
     conversations, refreshConvs, updateConversationOptimistic, activeId, setActiveId, caps, refreshCaps,
     setCapEnabled, busyCap, workspace, setWorkspace, sidebar, setSidebar,
     compact, railOpen, toggleRail, closeRail, panel, setPanel, togglePanel,

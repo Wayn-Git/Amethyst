@@ -17,7 +17,7 @@
   gap: 14px !important;
   box-sizing: border-box !important;
   color: var(--text, #f1f5f9) !important;
-  font-family: var(--font-sans, system-ui) !important;
+  font-family: var(--font-sans) !important;
 }
 
 /* Header */

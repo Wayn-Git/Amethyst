@@ -665,14 +665,14 @@ function QuestionOption({
           <span
             data-slot="question-option-label"
             className={cn(
-              "truncate text-sm text-foreground transition-all group-hover/row:text-primary",
+              "truncate text-body-regular text-foreground transition-all group-hover/row:text-primary",
               isSelected && "text-primary font-medium",
             )}
           >
             {children}
           </span>
           {description && (
-            <span data-slot="question-option-desc" className="truncate text-xs text-muted-foreground mt-0.5">
+            <span data-slot="question-option-desc" className="truncate text-caption-1-regular text-muted-foreground mt-0.5">
               {description}
             </span>
           )}
@@ -709,7 +709,7 @@ function QuestionOption({
       >
         <span
           className={cn(
-            "text-xs font-mono transition-all text-muted-foreground group-hover/row:text-foreground",
+            "text-caption-1-regular font-mono transition-all text-muted-foreground group-hover/row:text-foreground",
             isSelected && "text-accent-foreground font-semibold",
           )}
         >
@@ -720,14 +720,14 @@ function QuestionOption({
         <span
           data-slot="question-option-label"
           className={cn(
-            "truncate text-sm text-foreground transition-all group-hover/row:text-primary",
+            "truncate text-body-regular text-foreground transition-all group-hover/row:text-primary",
             isSelected && "text-primary font-medium",
           )}
         >
           {children}
         </span>
         {description && (
-          <span data-slot="question-option-desc" className="truncate text-xs text-muted-foreground mt-0.5">
+          <span data-slot="question-option-desc" className="truncate text-caption-1-regular text-muted-foreground mt-0.5">
             {description}
           </span>
         )}
@@ -817,7 +817,7 @@ function QuestionOther({
           placeholder={placeholder}
           onChange={handleChange}
           onKeyDown={onKeyDown}
-          className="text-foreground h-full min-w-0 flex-1 truncate text-sm transition-all outline-none placeholder:text-muted-foreground/60 bg-transparent border-none focus:outline-none"
+          className="text-foreground h-full min-w-0 flex-1 truncate text-body-regular transition-all outline-none placeholder:text-muted-foreground/60 bg-transparent border-none focus:outline-none"
           {...props}
         />
       </label>
@@ -858,7 +858,7 @@ function QuestionOther({
         onChange={handleChange}
         onKeyDown={onKeyDown}
         className={cn(
-          "text-foreground h-full min-w-0 flex-1 truncate text-sm transition-all outline-none placeholder:text-muted-foreground/60 bg-transparent border-none focus:outline-none",
+          "text-foreground h-full min-w-0 flex-1 truncate text-body-regular transition-all outline-none placeholder:text-muted-foreground/60 bg-transparent border-none focus:outline-none",
           isOtherSelected && "text-foreground font-medium",
         )}
         {...props}
@@ -878,7 +878,7 @@ function QuestionsTitle({ className, children, ...props }: QuestionsTitleProps) 
       {current?.header && (
         <span
           data-slot="questions-header-tag"
-          className="inline-flex items-center gap-1.5 self-start text-[11px] font-medium tracking-wide uppercase text-muted-foreground"
+          className="inline-flex items-center gap-1.5 self-start text-caption-2-medium tracking-wide uppercase text-muted-foreground"
         >
           <span className="size-1.5 rounded-full bg-accent" />
           {current.header}
@@ -886,7 +886,7 @@ function QuestionsTitle({ className, children, ...props }: QuestionsTitleProps) 
       )}
       <CardTitle
         data-slot="questions-title"
-        className={cn("text-sm font-medium leading-snug text-foreground", className)}
+        className={cn("text-body-medium text-foreground", className)}
         {...props}
       >
         {children ?? current?.prompt}
@@ -907,7 +907,7 @@ function QuestionsDismiss({ className, onClick, ...props }: QuestionsDismissProp
       variant="ghost"
       data-slot="questions-dismiss"
       className={cn(
-        "cursor-pointer rounded-full bg-transparent text-[13px] text-muted-foreground hover:bg-muted active:scale-97",
+        "cursor-pointer rounded-full bg-transparent text-body-2-regular text-muted-foreground hover:bg-muted active:scale-97",
         className,
       )}
       onClick={(event) => {
@@ -1219,7 +1219,7 @@ function QuestionsCarouselIndex({
     <span
       data-slot="questions-carousel-index"
       className={cn(
-        "text-xs leading-none font-mono text-muted-foreground tabular-nums px-1",
+        "text-caption-1-regular font-mono text-muted-foreground tabular-nums px-1",
         className,
       )}
       {...props}

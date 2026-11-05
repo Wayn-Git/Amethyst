@@ -1808,6 +1808,13 @@ export default function Chat() {
 
   const openTurn = useCallback(async (cid, message, mode = 'chat', files = [], opts = {}) => {
     const token = ++turnTokenRef.current
+    /* The one signal the rest of the interface needs before it is allowed to
+       throw the page away: view chunk loads fail in rebuild windows, and the
+       auto-reload that recovers them would kill this turn's own SSE fetch
+       with it -- logged server-side as a client disconnect and then blamed on
+       a provider that never failed. Set while a turn owns the page; the
+       chunk-retry reload in views/registry.js defers until it clears. */
+    window.__AMETHYST_TURN_ACTIVE = true
     runningRef.current = cid
     settledRef.current = false
     liveRef.current.turnEvents = []
@@ -1868,15 +1875,19 @@ export default function Chat() {
         signal: controller.signal,
       })
     } catch (err) {
+      if (turnTokenRef.current !== token) return
       // An abort after the answer landed is this interface letting go of a
       // stream it no longer needs, not a turn someone interrupted.
       if (err.name === 'AbortError') {
         if (!settledRef.current) pushNote('warning', 'Stopped.')
       } else {
         let errMsg = err.message || ''
-        if (typeof errMsg === 'string' && errMsg.toLowerCase().includes('input stream')) {
+        if (typeof errMsg === 'string' && (errMsg.toLowerCase().includes('input stream') || errMsg.toLowerCase().includes('network error'))) {
           errMsg = 'The model stream was interrupted by the provider. Please try again.'
-          pushNote('error', errMsg, { resumable: true })
+          pushNote('error', errMsg, {
+            resumable: true,
+            hasPartial: Boolean(liveRef.current.buffer || (liveRef.current.turnEvents && liveRef.current.turnEvents.length > 0)),
+          })
         } else {
           pushNote('error', errMsg)
         }
@@ -1889,6 +1900,11 @@ export default function Chat() {
       settledRef.current = true
     } finally {
       clearTimeout(watchdog)
+      window.__AMETHYST_TURN_ACTIVE = false
+      // The chunk-retry reload parked on this exact signal reads the turn as
+      // over only when the page itself has ownership clear -- otherwise a
+      // fast follow-up turn races the pending reload into the same trap.
+      window.dispatchEvent(new Event('amethyst:turn-settled'))
       if (turnTokenRef.current === token) {
         /* A clean close with no terminal frame used to push nothing at all:
            the composer re-enabled, the thinking indicator vanished, and if
@@ -1958,12 +1974,12 @@ export default function Chat() {
     if (turnState !== 'idle' || !activeId) return
     try {
       abortRef.current?.abort()
-      await openTurn(activeId, 'continue', 'chat')
+      await openTurn(activeId, 'continue', mode)
     } catch (err) {
       toast(err.message, 'bad')
       setTurnState('idle')
     }
-  }, [turnState, activeId, openTurn, toast])
+  }, [turnState, activeId, openTurn, toast, mode])
 
   const editPlanStep = useCallback((itemId, index, title) => {
     setItems((prev) => prev.map((it) => (

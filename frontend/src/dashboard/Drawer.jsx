@@ -1,6 +1,5 @@
 import { useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Toaster } from 'sonner'
 import Button from '../components/ui/AppButton.jsx'
 import Icon from '../components/Icon.jsx'
 import './home-shell.css'
@@ -50,6 +49,6 @@ export default function Drawer({ title, description, onClose, className = '', ch
     } else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close() }
     else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') close(true)
   }
-  const dialog = <dialog ref={ref} role={inline && !open ? 'region' : undefined} className={`today-drawer home-shell bento-foundation ${inline && !open ? 'is-inline' : ''} ${className}`} aria-labelledby={id} aria-describedby={description ? `${id}-description` : undefined} onKeyDown={keyDown} onCancel={event => { event.preventDefault(); close() }} onClick={event => { if (!open) return; const box = event.currentTarget.getBoundingClientRect(); if (event.target === event.currentTarget && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom)) close() }}><header className="today-drawer-heading"><div><h2 id={id}>{title}</h2>{description && <p id={`${id}-description`}>{description}</p>}</div><Button variant="ghost" size="icon" autoFocus={open} disabled={closeDisabled} onClick={() => close()} aria-label={`Close ${title}`}><Icon name="x" size={18} /></Button></header><div className="today-drawer-body">{children}</div>{open && <Toaster id="home-drawer" />}</dialog>
+  const dialog = <dialog ref={ref} role={inline && !open ? 'region' : undefined} className={`today-drawer home-shell bento-foundation ${inline && !open ? 'is-inline' : ''} ${className}`} aria-labelledby={id} aria-describedby={description ? `${id}-description` : undefined} onKeyDown={keyDown} onCancel={event => { event.preventDefault(); close() }} onClick={event => { if (!open) return; const box = event.currentTarget.getBoundingClientRect(); if (event.target === event.currentTarget && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom)) close() }}><header className="today-drawer-heading"><div><h2 id={id}>{title}</h2>{description && <p id={`${id}-description`}>{description}</p>}</div><Button variant="ghost" size="icon" autoFocus={open} disabled={closeDisabled} onClick={() => close()} aria-label={`Close ${title}`}><Icon name="x" size={18} /></Button></header><div className="today-drawer-body">{children}</div></dialog>
   return portal ? createPortal(dialog, document.body) : dialog
 }

@@ -936,7 +936,7 @@ export const api = {
 
   // With `q`, a hybrid search over captured text; without it, the most recent
   // items. Both come back as items rather than passages.
-  library: ({ q = '', kind = '', category = '', tag = '', order = 'desc', limit = 300, offset = 0, signal } = {}) =>
+  library: ({ q = '', kind = '', category = '', tag = '', order = 'desc', limit = 500, offset = 0, signal } = {}) =>
     j(`/library?limit=${limit}&offset=${offset}`
       + (q ? `&q=${encodeURIComponent(q)}` : '')
       + (kind ? `&kind=${encodeURIComponent(kind)}` : '')
@@ -978,6 +978,7 @@ export const api = {
   // Smart lists and extracted outbound links
   getLibraryLists: () => j('/library/lists'),
   createLibraryList: (body) => j('/library/lists', json('POST', body)),
+  updateLibraryList: (id, body) => j(`/library/lists/${id}`, json('PATCH', body)),
   getLibraryListDetail: (id) => j(`/library/lists/${id}`),
   deleteLibraryList: (id) => j(`/library/lists/${id}`, json('DELETE')),
   addLibraryListMember: (listId, body) => j(`/library/lists/${listId}/members`, json('POST', body)),

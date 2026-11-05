@@ -237,3 +237,6 @@ benchmark_results.json
 
 # Local visual review artifacts
 /ui-review/
+
+# Local UI design inspirations (kept locally, not in git)
+/UIInspirations/

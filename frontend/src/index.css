@@ -35,68 +35,74 @@
    at all on the things a person hits a hundred times a day. */
 
 :root {
-  /* ---- the Kraken scale, raw ------------------------------------------
-     Named here once so the semantic layer below can be re-pointed without
-     hunting hex through 12,000 lines, and so a reviewer can check this block
-     against DESIGN-kraken.md line by line. Nothing outside this file's token
-     blocks should reference a --k- name; use the semantic token. */
-  --k-purple: #7132f5;        /* primary CTA, brand accent, links */
-  --k-purple-dark: #5741d8;   /* outlined-button borders */
-  --k-purple-deep: #5b1ecf;   /* deepest — pressed and hover fills */
-  --k-purple-lift: #855bfb;   /* the base of the 16% subtle fill */
-  --k-ink: #101114;           /* primary text */
-  --k-gray: #374151;          /* primary neutral - high contrast */
-  --k-silver: #64748b;        /* secondary text - crisp WCAG AA */
-  --k-border: #dedee5;        /* divider borders */
-  --k-green: #149e61;         /* positive */
-  --k-green-deep: #026b3f;    /* badge text on a green wash */
+  /* ---- Apple System Scale (DESIGN-apple.md) -----------------------------
+     Action Blue (#0066cc) carries every interactive element. No second brand color exists.
+     Surfaces alternate pure white (#ffffff) and signature parchment (#f5f5f7).
+     Typography pairs SF Pro Display/Text (system-ui / -apple-system / Inter) with negative
+     tracking at display sizes. UI chrome recedes with zero shadows on cards/buttons. */
+  --apple-blue: #0066cc;        /* Action Blue: primary interactive color */
+  --apple-blue-focus: #0071e3;  /* Focus ring blue */
+  --apple-blue-dark: #2997ff;   /* Sky link blue on dark tiles */
+  --apple-ink: #1d1d1f;         /* Primary text / near-black ink */
+  --apple-body-muted: #cccccc;  /* Body muted on dark surfaces */
+  --apple-ink-muted-80: #333333;/* Secondary body text */
+  --apple-ink-muted-48: #7a7a7a;/* Disabled / fine print */
+  --apple-divider: #f0f0f0;     /* Soft ring divider */
+  --apple-hairline: #e0e0e0;    /* Card and chip border */
+  --apple-canvas: #ffffff;      /* Pure white canvas */
+  --apple-parchment: #f5f5f7;   /* Signature Apple parchment canvas */
+  --apple-pearl: #fafafc;       /* Pearl button fill */
+  --apple-tile-1: #272729;      /* Dark tile 1 */
+  --apple-tile-2: #2a2a2c;      /* Dark tile 2 */
+  --apple-tile-3: #252527;      /* Dark tile 3 */
+  --apple-black: #000000;       /* Surface black */
 
-  /* ---- grounds ---------------------------------------------------------
-     Two, not five. `--canvas` is what a card is made of; `--canvas-deep` is
-     the page it sits on. Everything else is a mix of the two and exists only
-     because some component asked for a third step. */
-  --canvas: #ffffff;
-  --canvas-deep: #f6f6f9;
+  /* Backward-compatible aliases for legacy token consumers */
+  --k-purple: var(--apple-blue);
+  --k-purple-dark: #0055b3;
+  --k-purple-deep: #004c99;
+  --k-purple-lift: var(--apple-blue-focus);
+  --k-ink: var(--apple-ink);
+  --k-gray: var(--apple-ink-muted-80);
+  --k-silver: var(--apple-ink-muted-48);
+  --k-border: var(--apple-hairline);
+  --k-green: #149e61;
+  --k-green-deep: #026b3f;
+
+  /* ---- Grounds & Surfaces ------------------------------------------------ */
+  --canvas: var(--apple-canvas);
+  --canvas-deep: var(--apple-parchment);
   --raised: #ffffff;
-  --surface: #f2f2f6;
-  --surface-2: #f8f8fb;
-  --surface-3: #ebebf1;
+  --surface: #ffffff;
+  --surface-2: var(--apple-parchment);
+  --surface-3: #eeeeef;
 
-  /* Aliases for the handful of selectors that reached for these names before
-     anything defined them. Without these they resolved to nothing (an invalid
-     `background: var(--bg)`) or to a hardcoded dark fallback that lit up in
-     light mode — which is most of what "dark mode is unstable" meant. */
   --bg: var(--canvas);
   --surface-raised: var(--raised);
   --surface-overlay: var(--raised);
-  --surface-hover: rgb(var(--tint) / 0.05);
+  --surface-hover: rgba(0, 0, 0, 0.04);
   --border: var(--hairline);
 
-  /* Every hover, divider and wash in the file is mixed from these two, so a
-     theme flip is one pair of numbers rather than four hundred declarations. */
-  --tint: 16 17 20;
-  --shade: 16 17 20;
+  --tint: 29 29 31;
+  --shade: 29 29 31;
 
-  --hairline: var(--k-border);
-  --hairline-strong: #c5c5d1;
+  --hairline: var(--apple-hairline);
+  --hairline-strong: #d2d2d7;
 
-  --text: var(--k-ink);
-  --text-dim: var(--k-gray);
-  --text-faint: var(--k-silver);
+  --text: var(--apple-ink);
+  --text-dim: var(--apple-ink-muted-80);
+  --text-faint: var(--apple-ink-muted-48);
 
-  /* ---- the one brand colour -------------------------------------------
-     `--accent` fills things, `--ember` writes things. They are the same hue
-     in light because #7132f5 is legible both ways on white; they diverge in
-     dark, where a fill can be darker than text is allowed to be. */
-  --accent: var(--k-purple);
-  --accent-hover: var(--k-purple-deep);
-  --accent-line: var(--k-purple-dark);
-  --accent-soft: rgb(133 91 251 / 0.16);
-  --accent-wash: rgb(133 91 251 / 0.07);
+  /* ---- Apple Action Blue ------------------------------------------------ */
+  --accent: var(--apple-blue);
+  --accent-hover: var(--apple-blue-focus);
+  --accent-line: var(--apple-blue);
+  --accent-soft: rgba(0, 102, 204, 0.12);
+  --accent-wash: rgba(0, 102, 204, 0.05);
   --on-accent: #ffffff;
-  --ember: var(--k-purple);
+  --ember: var(--apple-blue);
 
-  /* ---- the three that mean something ---------------------------------- */
+  /* ---- Semantic Status -------------------------------------------------- */
   --live: var(--k-green);
   --live-ink: var(--k-green-deep);
   --confirm: #a86a12;
@@ -111,22 +117,21 @@
   --stop-line: color-mix(in srgb, var(--stop) 28%, transparent);
 
   --on-stop: #ffffff;
-  --focus-ring: color-mix(in srgb, var(--accent) 45%, transparent);
-  --glass: rgb(255 255 255 / 0.82);
-  --scrim: rgb(16 17 20 / 0.38);
+  --focus-ring: 0 0 0 2px var(--apple-blue-focus);
+  --glass: rgba(255, 255, 255, 0.85);
+  --scrim: rgba(0, 0, 0, 0.38);
   --code-literal: var(--k-green-deep);
 
-  /* ---- OpenAI Sans & Typography Tokens ---------------------------------
-     Primary typeface for all UI text: custom geometric sans with humanist warmth.
-     Used at weight 400 for body, 500 for nav/labels/headings, 600 only for largest headings.
-     Signature: -0.03em tracking at display sizes; +0.011em at 28px; -0.01em at 22px and below.
-     Font features: 'calt' and 'liga' enable contextual alternates and ligatures. */
-  --font-openai-sans: 'Satoshi', 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'Satoshi', 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-body: 'Satoshi', 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-serif: var(--font-openai-sans);
-  --font-sans: 'Satoshi', 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-chat-prose: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* ---- Apple SF Pro & Inter Typography Tokens ---------------------------
+     Display: Inter / SF Pro with signature negative letter-spacing.
+     Body: Inter / SF Pro at 1.44-1.47 line-height.
+     Ladder: 300 / 400 / 600 / 700. Weight 500 is mapped cleanly. */
+  --font-openai-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-display: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-serif: var(--font-body);
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-chat-prose: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   /* ---- Type Scale Tokens ----------------------------------------------- */
@@ -587,33 +592,33 @@
    LIGHT THEMES
    ========================================================================= */
 
-/* ---- 5. Paper: Kraken Crisp Clean Gallery White ----------------------- */
+/* ---- 5. Paper / Apple: Crisp Clean Gallery White & Parchment ---------- */
 :root[data-theme='paper'],
 :root[data-theme-mode='light'] {
   --canvas: #ffffff;
-  --canvas-deep: #f6f6f9;
+  --canvas-deep: #f5f5f7;
   --raised: #ffffff;
-  --surface: #f2f2f6;
-  --surface-2: #ededf2;
-  --surface-3: #ebebf1;
+  --surface: #ffffff;
+  --surface-2: #f5f5f7;
+  --surface-3: #eeeeef;
 
-  --tint: 16 17 20;
-  --shade: 16 17 20;
+  --tint: 29 29 31;
+  --shade: 29 29 31;
 
-  --hairline: #dedee5;
-  --hairline-strong: #c5c5d1;
+  --hairline: #e0e0e0;
+  --hairline-strong: #d2d2d7;
 
-  --text: #101114;
-  --text-dim: #686b82;
-  --text-faint: #9497a9;
+  --text: #1d1d1f;
+  --text-dim: #333333;
+  --text-faint: #7a7a7a;
 
-  --accent: #7132f5;
-  --accent-hover: #5b1ecf;
-  --accent-line: #5741d8;
-  --accent-soft: rgba(113, 50, 245, 0.14);
-  --accent-wash: rgba(113, 50, 245, 0.06);
+  --accent: #0066cc;
+  --accent-hover: #0071e3;
+  --accent-line: #0066cc;
+  --accent-soft: rgba(0, 102, 204, 0.12);
+  --accent-wash: rgba(0, 102, 204, 0.05);
   --on-accent: #ffffff;
-  --ember: #7132f5;
+  --ember: #0066cc;
 
   --live: #149e61;
   --live-ink: #026b3f;
@@ -634,7 +639,7 @@
 
   --shadow-micro: none;
   --shadow-subtle: none;
-  --lift: 0 1px 3px rgba(0, 0, 0, 0.08), 0 8px 32px -8px rgba(0, 0, 0, 0.12);
+  --lift: none;
 }
 
 /* ---- 6. Sand: ElevenLabs Warm Stone Minimal --------------------------- */
@@ -788,7 +793,9 @@
 *::before,
 *::after { box-sizing: border-box; }
 
-* { margin: 0; padding: 0; }
+@layer base {
+  * { margin: 0; padding: 0; }
+}
 
 html, body {
   height: 100%;
@@ -847,13 +854,13 @@ body {
   font-weight: 400;
   font-feature-settings: 'calt' on, 'liga' on;
   font-variant-ligatures: contextual common-ligatures;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+  text-rendering: geometricPrecision;
   color-scheme: light dark;
 }
 
-/* Headings: weight 400 for body, 500 for nav/labels/headings, 600 only for largest headings */
+/* Headings: weight 400 for body, 600 for headings, tight tracking per DESIGN-apple.md */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-display);
   font-feature-settings: 'calt' on, 'liga' on;
@@ -861,37 +868,37 @@ h1, h2, h3, h4, h5, h6 {
 
 h1 {
   font-size: var(--text-display);
-  line-height: var(--text-display-lh);
-  letter-spacing: var(--text-display-ls);
+  line-height: 1.07;
+  letter-spacing: -0.025em;
   font-weight: 600;
 }
 
 h2 {
   font-size: var(--text-heading);
-  line-height: var(--text-heading-lh);
-  letter-spacing: var(--text-heading-ls);
-  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 600;
 }
 
 h3 {
   font-size: var(--text-subheading);
-  line-height: var(--text-subheading-lh);
-  letter-spacing: var(--text-subheading-ls);
-  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  font-weight: 600;
 }
 
 h4 {
   font-size: var(--text-body-lg);
-  line-height: var(--text-body-lg-lh);
-  letter-spacing: var(--text-body-lg-ls);
-  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  font-weight: 600;
 }
 
 h5, h6 {
   font-size: var(--text-input);
-  line-height: var(--text-input-lh);
-  letter-spacing: var(--text-input-ls);
-  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  font-weight: 600;
 }
 
 button, input, select, textarea {
@@ -1335,111 +1342,20 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 .modal-close:hover { color: var(--text); }
 .modal-close:active { transform: scale(0.94); }
 
-/* --------------------------------------------------------------- toasts */
-
-.toast-wrap {
-  position: fixed;
-  right: 18px;
-  bottom: 18px;
-  z-index: 80;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  max-width: 360px;
-}
-
-/* Transition-shaped, not keyframe-shaped: toasts stack up fast and a keyframe
-   would restart from zero on every new one. */
-.toast {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  padding: 10px 14px;
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-lg);
-  background: var(--glass);
-  backdrop-filter: blur(12px);
-  box-shadow: var(--lift);
-  font-size: 12.5px;
-  color: var(--text-dim);
-  opacity: 1;
-  transform: translate3d(0, 0, 0);
-  transition: opacity var(--menu) var(--ease-out), transform var(--menu) var(--ease-out);
-}
-
-@starting-style {
-  .toast { opacity: 0; transform: translate3d(0, 12px, 0); }
-}
-
-.toast--ok { border-left: 2px solid var(--live); }
-.toast--bad { border-left: 2px solid var(--stop); }
-.toast--amber { border-left: 2px solid var(--confirm); }
-
-/* Sonner Toast Theme Overrides for Kraken Design */
-[data-sonner-toaster] {
-  font-family: var(--sans) !important;
-}
-[data-sonner-toast] {
-  --normal-bg: var(--raised, #18191e) !important;
-  --normal-border: var(--hairline-strong, rgba(255, 255, 255, 0.12)) !important;
-  --normal-text: var(--text, #f3f4f6) !important;
-  background: var(--raised, #18191e) !important;
-  border: 1px solid var(--hairline-strong, rgba(255, 255, 255, 0.12)) !important;
-  color: var(--text, #f3f4f6) !important;
-  border-radius: var(--r-md, 12px) !important;
-  box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
-  font-family: var(--sans) !important;
-  gap: 10px !important;
-  padding: 12px 14px !important;
-}
-[data-sonner-toast] [data-icon] {
-  width: auto !important;
-  height: auto !important;
-  margin: 0 !important;
-  display: flex !important;
-  align-items: flex-start !important;
-  justify-content: center !important;
-  flex-shrink: 0 !important;
-}
-[data-sonner-toast] [data-content] {
-  gap: 2px !important;
-  flex: 1 1 auto !important;
-  min-width: 0 !important;
-}
-[data-sonner-toast] [data-title] {
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  color: var(--text, #ffffff) !important;
-  line-height: 1.35 !important;
-}
-[data-sonner-toast] [data-description] {
-  font-size: 12px !important;
-  color: var(--text-dim, rgba(255, 255, 255, 0.65)) !important;
-  line-height: 1.4 !important;
-}
-[data-sonner-toast] [data-close-button] {
-  left: auto !important;
-  right: 8px !important;
-  top: 8px !important;
-  transform: none !important;
-  background: transparent !important;
-  border: none !important;
-  color: var(--text-faint, rgba(255, 255, 255, 0.4)) !important;
-  border-radius: 6px !important;
-  width: 20px !important;
-  height: 20px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  cursor: pointer !important;
-  transition: background 0.15s, color 0.15s !important;
-}
-[data-sonner-toast] [data-close-button]:hover {
-  background: rgba(255, 255, 255, 0.08) !important;
-  color: var(--text, #ffffff) !important;
-}
-
 /* ------------------------------------------------------------ chat shell */
+.amethyst-boardui-notification > button[aria-label="Dismiss notification"] {
+  border-radius: 9999px;
+  background: var(--surface-2, var(--soft));
+  color: var(--text-dim);
+}
+
+.amethyst-boardui-notification .bg-primary {
+  border: 1px solid var(--hairline);
+  background: var(--raised);
+  color: var(--text);
+  box-shadow: var(--shadow-micro);
+}
+
 .chat-main {
   flex: 1;
   min-width: 0;
@@ -5262,7 +5178,6 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
    stay legible -- they simply stop sampling everything behind them 60 times a
    second. */
 [data-native] .modal-overlay,
-[data-native] .toast,
 [data-native] .plus-menu,
 [data-native] .ac-menu,
 [data-native] .rail-peek,
@@ -13858,20 +13773,6 @@ a.text-reveal-wrap {
   transition: transform var(--menu) var(--ease-out);
 }
 
-/* ---- toast entrance: slide + fade ------------------------------------- */
-/* `@starting-style` handles modern browsers; this adds a fallback keyframe
-   for wider support. */
-.toast {
-  animation: toast-in var(--menu) var(--ease-out) both;
-}
-
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 8px, 0) scale(0.99);
-  }
-}
-
 /* ---- boot screen: softer pulse ---------------------------------------- */
 /* The boot bar's slider was a hard shuttle. This adds an ease that makes
    the indeterminate bar feel organic rather than mechanical. */
@@ -13892,18 +13793,6 @@ a.text-reveal-wrap {
   visibility: visible;
 }
 
-
-/* On a phone the toast stack sat on top of the composer's send button, which
-   is the control most likely to be pressed the moment after one appears. Full
-   width above it, and clear of the home indicator. */
-@media (max-width: 559.98px) {
-  .toast-wrap {
-    left: 10px;
-    right: 10px;
-    bottom: calc(10px + env(safe-area-inset-bottom));
-    max-width: none;
-  }
-}
 
 /* ---- today, library, brand ----
  *
@@ -14260,8 +14149,9 @@ a.text-reveal-wrap {
   position: relative;
   z-index: 20;
   user-select: none;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+  text-rendering: geometricPrecision;
   transition: margin-left 0.28s cubic-bezier(0.2, 0, 0, 1), opacity 0.2s ease, border-color 0.2s ease;
   overflow: hidden;
   box-sizing: border-box;
@@ -21090,8 +20980,20 @@ a.text-reveal-wrap {
   overflow: hidden;
   background: var(--canvas-deep);
   color: var(--text);
-  font-family: var(--font-sans);
+  font-family: var(--font-body) !important;
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+  text-rendering: geometricPrecision;
   transition: background 0.25s ease;
+}
+
+.settings-view button,
+.settings-view input,
+.settings-view select,
+.settings-view textarea,
+.settings-view .codex-card,
+.settings-view .set-box {
+  font-family: var(--font-body);
 }
 
 /* Glass Material Integration for Window Shell */
@@ -21163,10 +21065,11 @@ a.text-reveal-wrap {
 }
 
 .settings-view .set-nav-group-label {
-  font-size: 10.5px !important;
+  font-family: var(--font-body) !important;
+  font-size: 11px !important;
   font-weight: 600 !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.08em !important;
+  letter-spacing: 0.06em !important;
   color: var(--text-faint) !important;
   padding: 4px 10px 6px !important;
   margin: 0 !important;
@@ -21180,40 +21083,55 @@ a.text-reveal-wrap {
   gap: 10px !important;
   padding: 0 10px !important;
   border-radius: 8px !important;
+  font-family: var(--font-body) !important;
   font-size: 13px !important;
-  font-weight: 500 !important;
+  font-weight: 400 !important;
   color: var(--text) !important;
+  opacity: 1 !important;
   background: transparent !important;
   border: 1px solid transparent !important;
   cursor: pointer !important;
-  transition: background-color 0.16s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.16s cubic-bezier(0.16, 1, 0.3, 1), color 0.16s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.16s cubic-bezier(0.16, 1, 0.3, 1), transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.16s cubic-bezier(0.16, 1, 0.3, 1), filter 0.16s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  transition: background-color 0.16s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.16s cubic-bezier(0.16, 1, 0.3, 1), color 0.16s cubic-bezier(0.16, 1, 0.3, 1), transform 0.16s cubic-bezier(0.16, 1, 0.3, 1) !important;
   text-align: left !important;
 }
 
+.settings-view .set-nav-item .set-nav-label {
+  font-family: var(--font-body) !important;
+  font-size: 13px !important;
+  color: inherit !important;
+  opacity: 1 !important;
+}
+
 .settings-view .set-nav-item:hover {
-  background: color-mix(in srgb, var(--text) 6%, transparent) !important;
+  background: color-mix(in srgb, var(--text) 5%, transparent) !important;
   color: var(--text) !important;
 }
 
 .settings-view .set-nav-item:active {
-  transform: scale(0.98) !important;
+  transform: scale(0.96) !important;
 }
 
 .settings-view .set-nav-item.active {
-  background: color-mix(in srgb, var(--text) 8%, transparent) !important;
-  border: 1px solid var(--hairline-strong) !important;
-  color: var(--text) !important;
-  box-shadow: var(--shadow-micro) !important;
+  background: color-mix(in srgb, var(--accent) 12%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent) !important;
+  color: var(--accent) !important;
+  font-weight: 600 !important;
 }
 
 .settings-view .set-nav-item svg {
-  color: var(--text-dim) !important;
+  color: var(--text) !important;
+  opacity: 1 !important;
   transition: color 0.15s ease !important;
 }
 
-.settings-view .set-nav-item:hover svg,
-.settings-view .set-nav-item.active svg {
+.settings-view .set-nav-item:hover svg {
   color: var(--text) !important;
+  opacity: 1 !important;
+}
+
+.settings-view .set-nav-item.active svg {
+  color: var(--accent) !important;
+  opacity: 1 !important;
 }
 
 /* Codex Storage & Configuration Styles */
@@ -21304,21 +21222,23 @@ a.text-reveal-wrap {
 
 .settings-view .set-panel-frame {
   overflow: visible !important;
-  max-width: 1120px !important;
+  max-width: 880px !important;
   width: 100% !important;
   margin: 0 auto !important;
-  padding: 0 40px 120px !important;
+  padding: 0 32px 120px !important;
 }
 
 .settings-view .set-panel {
+  width: 100% !important;
+  max-width: 100% !important;
   padding-bottom: 96px !important;
 }
 
 .settings-view .set-panel-title {
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 600;
   color: var(--text);
-  margin: 0 0 24px 0;
+  margin: 0 0 20px 0;
   letter-spacing: -0.025em;
   line-height: 1.2;
   font-family: var(--font-display);
@@ -21346,19 +21266,44 @@ a.text-reveal-wrap {
 .settings-view .set-box {
   background: var(--raised) !important;
   border: 1px solid var(--hairline) !important;
-  border-radius: 8px !important;
-  overflow: visible !important;
-  box-shadow: var(--shadow-micro) !important;
+  border-radius: 18px !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
 }
 
 .settings-view .set-box-row {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  padding: 14px 18px !important;
+  padding: 13px 18px !important;
   border-bottom: 1px solid var(--hairline) !important;
   gap: 16px !important;
   transition: background-color 0.15s ease !important;
+}
+
+.settings-view .set-box-row.set-col,
+.settings-view .set-box-row[style*="column"] {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+
+.settings-view .set-box-row.set-col > *,
+.settings-view .set-box-row[style*="column"] > * {
+  width: 100% !important;
+  text-align: left !important;
+  box-sizing: border-box !important;
+}
+
+.settings-view .set-row-text {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  text-align: left !important;
+  width: 100% !important;
+  flex: 1 1 auto !important;
 }
 
 .settings-view .set-box-row:last-child {
@@ -21442,28 +21387,48 @@ a.text-reveal-wrap {
 .codex-settings-container {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
   width: 100%;
-  max-width: 820px;
+  max-width: 100%;
   margin: 0 auto;
 }
 
 .codex-card {
-  background: var(--raised, #18181b);
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
-  border-radius: 16px;
+  background: var(--canvas, #ffffff);
+  border: 1px solid var(--hairline, #e0e0e0);
+  border-radius: 18px;
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: none;
 }
 
 .codex-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--hairline, #e0e0e0);
   gap: 16px;
   transition: background-color 0.15s ease;
+}
+
+.set-btn-icon-subtle {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.set-btn-icon-subtle:hover {
+  color: var(--stop, #ef4444);
+  background: var(--stop-soft, rgba(239, 68, 68, 0.1));
+  border-color: var(--stop-line, rgba(239, 68, 68, 0.25));
 }
 
 .codex-row:last-child {
@@ -21482,16 +21447,18 @@ a.text-reveal-wrap {
 }
 
 .codex-row-title {
-  font-size: 13.5px;
-  font-weight: 500;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
   color: var(--text);
   line-height: 1.3;
 }
 
 .codex-row-desc {
-  font-size: 12.5px;
+  font-family: var(--font-body);
+  font-size: 13px;
   color: var(--text-dim);
-  line-height: 1.4;
+  line-height: 1.44;
 }
 
 .codex-row-link {
@@ -22139,7 +22106,7 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 .theme-grid-3 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  gap: 10px;
   width: 100%;
 }
 
@@ -22158,8 +22125,8 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 .theme-card-outer {
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: 12px;
-  padding: 8px 8px 10px;
+  border-radius: 10px;
+  padding: 6px 6px 8px;
   cursor: pointer;
   text-align: left;
   transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
@@ -22188,8 +22155,8 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 /* Authentic Miniature Amethyst Window */
 .theme-mini-window {
   width: 100%;
-  height: 76px;
-  border-radius: 7px;
+  height: 64px;
+  border-radius: 6px;
   overflow: hidden;
   position: relative;
   border: 1px solid var(--hairline);
@@ -22486,8 +22453,8 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 
 /* Theme Card Footer */
 .theme-card-footer {
-  margin-top: 8px;
-  padding: 0 3px;
+  margin-top: 5px;
+  padding: 0 2px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -22501,7 +22468,7 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 }
 
 .theme-card-label {
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
@@ -22916,29 +22883,29 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-size: 12px;
+  font-family: var(--font-body);
+  font-size: 13px;
   font-weight: 500;
-  padding: 5px 12px;
-  border-radius: 7px;
+  padding: 6px 14px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: background-color 0.16s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.16s cubic-bezier(0.16, 1, 0.3, 1), color 0.16s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.16s cubic-bezier(0.16, 1, 0.3, 1), transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.16s cubic-bezier(0.16, 1, 0.3, 1), filter 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.16s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.16s cubic-bezier(0.16, 1, 0.3, 1), color 0.16s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s ease-out;
   border: 1px solid var(--hairline);
-  background: var(--raised);
+  background: var(--canvas);
   color: var(--text);
-  box-shadow: var(--shadow-micro);
+  box-shadow: none;
   white-space: nowrap;
 }
 
 .set-btn:hover,
 .set-btn-sm:hover {
-  background: color-mix(in srgb, var(--text) 5%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
   border-color: var(--hairline-strong);
-  transform: translateY(-1px);
 }
 
 .set-btn:active,
 .set-btn-sm:active {
-  transform: scale(0.96);
+  transform: scale(0.95);
 }
 
 .set-btn:disabled,
@@ -24460,68 +24427,70 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
    at all on the things a person hits a hundred times a day. */
 
 :root {
-  /* ---- the Kraken scale, raw ------------------------------------------
-     Named here once so the semantic layer below can be re-pointed without
-     hunting hex through 12,000 lines, and so a reviewer can check this block
-     against DESIGN-kraken.md line by line. Nothing outside this file's token
-     blocks should reference a --k- name; use the semantic token. */
-  --k-purple: #7132f5;        /* primary CTA, brand accent, links */
-  --k-purple-dark: #5741d8;   /* outlined-button borders */
-  --k-purple-deep: #5b1ecf;   /* deepest — pressed and hover fills */
-  --k-purple-lift: #855bfb;   /* the base of the 16% subtle fill */
-  --k-ink: #101114;           /* primary text */
-  --k-gray: #374151;          /* primary neutral - high contrast */
-  --k-silver: #64748b;        /* secondary text - crisp WCAG AA */
-  --k-border: #dedee5;        /* divider borders */
-  --k-green: #149e61;         /* positive */
-  --k-green-deep: #026b3f;    /* badge text on a green wash */
+  /* ---- Apple System Scale (DESIGN-apple.md) ----------------------------- */
+  --apple-blue: #0066cc;
+  --apple-blue-focus: #0071e3;
+  --apple-blue-dark: #2997ff;
+  --apple-ink: #1d1d1f;
+  --apple-body-muted: #cccccc;
+  --apple-ink-muted-80: #333333;
+  --apple-ink-muted-48: #7a7a7a;
+  --apple-divider: #f0f0f0;
+  --apple-hairline: #e0e0e0;
+  --apple-canvas: #ffffff;
+  --apple-parchment: #f5f5f7;
+  --apple-pearl: #fafafc;
+  --apple-tile-1: #272729;
+  --apple-tile-2: #2a2a2c;
+  --apple-tile-3: #252527;
+  --apple-black: #000000;
 
-  /* ---- grounds ---------------------------------------------------------
-     Two, not five. `--canvas` is what a card is made of; `--canvas-deep` is
-     the page it sits on. Everything else is a mix of the two and exists only
-     because some component asked for a third step. */
-  --canvas: #ffffff;
-  --canvas-deep: #f6f6f9;
+  /* Backward-compatible aliases for legacy token consumers */
+  --k-purple: var(--apple-blue);
+  --k-purple-dark: #0055b3;
+  --k-purple-deep: #004c99;
+  --k-purple-lift: var(--apple-blue-focus);
+  --k-ink: var(--apple-ink);
+  --k-gray: var(--apple-ink-muted-80);
+  --k-silver: var(--apple-ink-muted-48);
+  --k-border: var(--apple-hairline);
+  --k-green: #149e61;
+  --k-green-deep: #026b3f;
+
+  /* ---- Grounds & Surfaces ------------------------------------------------ */
+  --canvas: var(--apple-canvas);
+  --canvas-deep: var(--apple-parchment);
   --raised: #ffffff;
-  --surface: #f2f2f6;
-  --surface-2: #f8f8fb;
-  --surface-3: #ebebf1;
+  --surface: #ffffff;
+  --surface-2: var(--apple-parchment);
+  --surface-3: #eeeeef;
 
-  /* Aliases for the handful of selectors that reached for these names before
-     anything defined them. Without these they resolved to nothing (an invalid
-     `background: var(--bg)`) or to a hardcoded dark fallback that lit up in
-     light mode — which is most of what "dark mode is unstable" meant. */
   --bg: var(--canvas);
   --surface-raised: var(--raised);
   --surface-overlay: var(--raised);
-  --surface-hover: rgb(var(--tint) / 0.05);
+  --surface-hover: rgba(0, 0, 0, 0.04);
   --border: var(--hairline);
 
-  /* Every hover, divider and wash in the file is mixed from these two, so a
-     theme flip is one pair of numbers rather than four hundred declarations. */
-  --tint: 16 17 20;
-  --shade: 16 17 20;
+  --tint: 29 29 31;
+  --shade: 29 29 31;
 
-  --hairline: var(--k-border);
-  --hairline-strong: #c5c5d1;
+  --hairline: var(--apple-hairline);
+  --hairline-strong: #d2d2d7;
 
-  --text: var(--k-ink);
-  --text-dim: var(--k-gray);
-  --text-faint: var(--k-silver);
+  --text: var(--apple-ink);
+  --text-dim: var(--apple-ink-muted-80);
+  --text-faint: var(--apple-ink-muted-48);
 
-  /* ---- the one brand colour -------------------------------------------
-     `--accent` fills things, `--ember` writes things. They are the same hue
-     in light because #7132f5 is legible both ways on white; they diverge in
-     dark, where a fill can be darker than text is allowed to be. */
-  --accent: var(--k-purple);
-  --accent-hover: var(--k-purple-deep);
-  --accent-line: var(--k-purple-dark);
-  --accent-soft: rgb(133 91 251 / 0.16);
-  --accent-wash: rgb(133 91 251 / 0.07);
+  /* ---- Apple Action Blue ------------------------------------------------ */
+  --accent: var(--apple-blue);
+  --accent-hover: var(--apple-blue-focus);
+  --accent-line: var(--apple-blue);
+  --accent-soft: rgba(0, 102, 204, 0.12);
+  --accent-wash: rgba(0, 102, 204, 0.05);
   --on-accent: #ffffff;
-  --ember: var(--k-purple);
+  --ember: var(--apple-blue);
 
-  /* ---- the three that mean something ---------------------------------- */
+  /* ---- Semantic Status -------------------------------------------------- */
   --live: var(--k-green);
   --live-ink: var(--k-green-deep);
   --confirm: #a86a12;
@@ -24536,21 +24505,18 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
   --stop-line: color-mix(in srgb, var(--stop) 28%, transparent);
 
   --on-stop: #ffffff;
-  --focus-ring: color-mix(in srgb, var(--accent) 45%, transparent);
-  --glass: rgb(255 255 255 / 0.82);
-  --scrim: rgb(16 17 20 / 0.38);
+  --focus-ring: 0 0 0 2px var(--apple-blue-focus);
+  --glass: rgba(255, 255, 255, 0.85);
+  --scrim: rgba(0, 0, 0, 0.38);
   --code-literal: var(--k-green-deep);
 
-  /* ---- OpenAI Sans & Typography Tokens ---------------------------------
-     Primary typeface for all UI text: custom geometric sans with humanist warmth.
-     Used at weight 400 for body, 500 for nav/labels/headings, 600 only for largest headings.
-     Signature: -0.03em tracking at display sizes; +0.011em at 28px; -0.01em at 22px and below.
-     Font features: 'calt' and 'liga' enable contextual alternates and ligatures. */
-  --font-openai-sans: 'OpenAI Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-display: var(--font-openai-sans);
-  --font-body: var(--font-openai-sans);
-  --font-serif: var(--font-openai-sans);
-  --font-sans: var(--font-openai-sans);
+  /* ---- Apple SF Pro & Inter Typography Tokens --------------------------- */
+  --font-openai-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-display: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-serif: var(--font-body);
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-chat-prose: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   /* ---- Type Scale Tokens ----------------------------------------------- */
@@ -25011,33 +24977,33 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
    LIGHT THEMES
    ========================================================================= */
 
-/* ---- 5. Paper: Kraken Crisp Clean Gallery White ----------------------- */
+/* ---- 5. Paper / Apple: Crisp Clean Gallery White & Parchment ---------- */
 :root[data-theme='paper'],
 :root[data-theme-mode='light'] {
   --canvas: #ffffff;
-  --canvas-deep: #f6f6f9;
+  --canvas-deep: #f5f5f7;
   --raised: #ffffff;
-  --surface: #f2f2f6;
-  --surface-2: #ededf2;
-  --surface-3: #ebebf1;
+  --surface: #ffffff;
+  --surface-2: #f5f5f7;
+  --surface-3: #eeeeef;
 
-  --tint: 16 17 20;
-  --shade: 16 17 20;
+  --tint: 29 29 31;
+  --shade: 29 29 31;
 
-  --hairline: #dedee5;
-  --hairline-strong: #c5c5d1;
+  --hairline: #e0e0e0;
+  --hairline-strong: #d2d2d7;
 
-  --text: #101114;
-  --text-dim: #686b82;
-  --text-faint: #9497a9;
+  --text: #1d1d1f;
+  --text-dim: #333333;
+  --text-faint: #7a7a7a;
 
-  --accent: #7132f5;
-  --accent-hover: #5b1ecf;
-  --accent-line: #5741d8;
-  --accent-soft: rgba(113, 50, 245, 0.14);
-  --accent-wash: rgba(113, 50, 245, 0.06);
+  --accent: #0066cc;
+  --accent-hover: #0071e3;
+  --accent-line: #0066cc;
+  --accent-soft: rgba(0, 102, 204, 0.12);
+  --accent-wash: rgba(0, 102, 204, 0.05);
   --on-accent: #ffffff;
-  --ember: #7132f5;
+  --ember: #0066cc;
 
   --live: #149e61;
   --live-ink: #026b3f;
@@ -25058,7 +25024,7 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 
   --shadow-micro: none;
   --shadow-subtle: none;
-  --lift: 0 1px 3px rgba(0, 0, 0, 0.08), 0 8px 32px -8px rgba(0, 0, 0, 0.12);
+  --lift: none;
 }
 
 /* ---- 6. Sand: ElevenLabs Warm Stone Minimal --------------------------- */
@@ -25212,7 +25178,9 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 *::before,
 *::after { box-sizing: border-box; }
 
-* { margin: 0; padding: 0; }
+@layer base {
+  * { margin: 0; padding: 0; }
+}
 
 html, body, #root { height: 100%; }
 
@@ -25262,13 +25230,13 @@ body {
   font-weight: 400;
   font-feature-settings: 'calt' on, 'liga' on;
   font-variant-ligatures: contextual common-ligatures;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+  text-rendering: geometricPrecision;
   color-scheme: light dark;
 }
 
-/* Headings: weight 400 for body, 500 for nav/labels/headings, 600 only for largest headings */
+/* Headings: weight 400 for body, 600 for headings, tight tracking per DESIGN-apple.md */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-display);
   font-feature-settings: 'calt' on, 'liga' on;
@@ -25276,37 +25244,37 @@ h1, h2, h3, h4, h5, h6 {
 
 h1 {
   font-size: var(--text-display);
-  line-height: var(--text-display-lh);
-  letter-spacing: var(--text-display-ls);
+  line-height: 1.07;
+  letter-spacing: -0.025em;
   font-weight: 600;
 }
 
 h2 {
   font-size: var(--text-heading);
-  line-height: var(--text-heading-lh);
-  letter-spacing: var(--text-heading-ls);
-  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 600;
 }
 
 h3 {
   font-size: var(--text-subheading);
-  line-height: var(--text-subheading-lh);
-  letter-spacing: var(--text-subheading-ls);
-  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  font-weight: 600;
 }
 
 h4 {
   font-size: var(--text-body-lg);
-  line-height: var(--text-body-lg-lh);
-  letter-spacing: var(--text-body-lg-ls);
-  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  font-weight: 600;
 }
 
 h5, h6 {
   font-size: var(--text-input);
-  line-height: var(--text-input-lh);
-  letter-spacing: var(--text-input-ls);
-  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  font-weight: 600;
 }
 
 button, input, select, textarea {
@@ -25762,46 +25730,6 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 .modal-close { color: var(--text-faint); line-height: 0; transition: color var(--press) var(--ease-out); }
 .modal-close:hover { color: var(--text); }
 .modal-close:active { transform: scale(0.94); }
-
-/* --------------------------------------------------------------- toasts */
-
-.toast-wrap {
-  position: fixed;
-  right: 18px;
-  bottom: 18px;
-  z-index: 80;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  max-width: 360px;
-}
-
-/* Transition-shaped, not keyframe-shaped: toasts stack up fast and a keyframe
-   would restart from zero on every new one. */
-.toast {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  padding: 10px 14px;
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-lg);
-  background: var(--glass);
-  backdrop-filter: blur(12px);
-  box-shadow: var(--lift);
-  font-size: 12.5px;
-  color: var(--text-dim);
-  opacity: 1;
-  transform: translate3d(0, 0, 0);
-  transition: opacity var(--menu) var(--ease-out), transform var(--menu) var(--ease-out);
-}
-
-@starting-style {
-  .toast { opacity: 0; transform: translate3d(0, 12px, 0); }
-}
-
-.toast--ok { border-left: 2px solid var(--live); }
-.toast--bad { border-left: 2px solid var(--stop); }
-.toast--amber { border-left: 2px solid var(--confirm); }
 
 /* ------------------------------------------------------------ chat shell */
 .chat-main {
@@ -29394,7 +29322,6 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
    stay legible -- they simply stop sampling everything behind them 60 times a
    second. */
 [data-native] .modal-overlay,
-[data-native] .toast,
 [data-native] .plus-menu,
 [data-native] .ac-menu,
 [data-native] .rail-peek,
@@ -38350,20 +38277,6 @@ a.text-reveal-wrap {
   transition: transform var(--menu) var(--ease-out);
 }
 
-/* ---- toast entrance: slide + fade ------------------------------------- */
-/* `@starting-style` handles modern browsers; this adds a fallback keyframe
-   for wider support. */
-.toast {
-  animation: toast-in var(--menu) var(--ease-out) both;
-}
-
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 8px, 0) scale(0.99);
-  }
-}
-
 /* ---- boot screen: softer pulse ---------------------------------------- */
 /* The boot bar's slider was a hard shuttle. This adds an ease that makes
    the indeterminate bar feel organic rather than mechanical. */
@@ -38388,18 +38301,6 @@ a.text-reveal-wrap {
   visibility: hidden !important;
 }
 
-
-/* On a phone the toast stack sat on top of the composer's send button, which
-   is the control most likely to be pressed the moment after one appears. Full
-   width above it, and clear of the home indicator. */
-@media (max-width: 559.98px) {
-  .toast-wrap {
-    left: 10px;
-    right: 10px;
-    bottom: calc(10px + env(safe-area-inset-bottom));
-    max-width: none;
-  }
-}
 
 /* ---- today, library, brand ----
  *
@@ -38756,8 +38657,9 @@ a.text-reveal-wrap {
   position: relative;
   z-index: 20;
   user-select: none;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+  text-rendering: geometricPrecision;
   transition: margin-left 0.28s cubic-bezier(0.2, 0, 0, 1), opacity 0.2s ease, border-color 0.2s ease;
   overflow: hidden;
   box-sizing: border-box;
@@ -44976,8 +44878,20 @@ a.text-reveal-wrap {
   overflow: hidden;
   background: var(--canvas-deep);
   color: var(--text);
-  font-family: var(--font-sans);
+  font-family: var(--font-body) !important;
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+  text-rendering: geometricPrecision;
   transition: background 0.25s ease;
+}
+
+.settings-view button,
+.settings-view input,
+.settings-view select,
+.settings-view textarea,
+.settings-view .codex-card,
+.settings-view .set-box {
+  font-family: var(--font-body);
 }
 
 /* Glass Material Integration for Window Shell */
@@ -45068,10 +44982,11 @@ a.text-reveal-wrap {
 }
 
 .settings-view .set-nav-group-label {
-  font-size: 10.5px !important;
+  font-family: var(--font-body) !important;
+  font-size: 11px !important;
   font-weight: 600 !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.08em !important;
+  letter-spacing: 0.06em !important;
   color: var(--text-faint) !important;
   padding: 4px 10px 6px !important;
   margin: 0 !important;
@@ -45085,34 +45000,55 @@ a.text-reveal-wrap {
   gap: 10px !important;
   padding: 0 10px !important;
   border-radius: 8px !important;
-  font-size: 12.5px !important;
-  font-weight: 500 !important;
-  color: var(--text-dim) !important;
+  font-family: var(--font-body) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  color: var(--text) !important;
+  opacity: 1 !important;
   background: transparent !important;
   border: 1px solid transparent !important;
   cursor: pointer !important;
-  transition: background-color 0.16s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.16s cubic-bezier(0.16, 1, 0.3, 1), color 0.16s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.16s cubic-bezier(0.16, 1, 0.3, 1), transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.16s cubic-bezier(0.16, 1, 0.3, 1), filter 0.16s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  transition: background-color 0.16s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.16s cubic-bezier(0.16, 1, 0.3, 1), color 0.16s cubic-bezier(0.16, 1, 0.3, 1), transform 0.16s cubic-bezier(0.16, 1, 0.3, 1) !important;
   text-align: left !important;
 }
 
+.settings-view .set-nav-item .set-nav-label {
+  font-family: var(--font-body) !important;
+  font-size: 13px !important;
+  color: inherit !important;
+  opacity: 1 !important;
+}
+
 .settings-view .set-nav-item:hover {
-  background: color-mix(in srgb, var(--text) 4%, transparent) !important;
+  background: color-mix(in srgb, var(--text) 5%, transparent) !important;
   color: var(--text) !important;
 }
 
 .settings-view .set-nav-item:active {
-  transform: scale(0.98) !important;
+  transform: scale(0.96) !important;
 }
 
 .settings-view .set-nav-item.active {
-  background: color-mix(in srgb, var(--text) 7%, transparent) !important;
-  border: 1px solid var(--hairline-strong) !important;
+  background: color-mix(in srgb, var(--accent) 12%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent) !important;
+  color: var(--accent) !important;
+  font-weight: 600 !important;
+}
+
+.settings-view .set-nav-item svg {
   color: var(--text) !important;
-  box-shadow: var(--shadow-micro) !important;
+  opacity: 1 !important;
+  transition: color 0.15s ease !important;
+}
+
+.settings-view .set-nav-item:hover svg {
+  color: var(--text) !important;
+  opacity: 1 !important;
 }
 
 .settings-view .set-nav-item.active svg {
   color: var(--accent) !important;
+  opacity: 1 !important;
 }
 
 /* Content Area */
@@ -45164,21 +45100,23 @@ a.text-reveal-wrap {
 
 .settings-view .set-panel-frame {
   overflow: visible !important;
-  max-width: 1120px !important;
+  max-width: 880px !important;
   width: 100% !important;
   margin: 0 auto !important;
-  padding: 0 40px 120px !important;
+  padding: 0 32px 120px !important;
 }
 
 .settings-view .set-panel {
+  width: 100% !important;
+  max-width: 100% !important;
   padding-bottom: 96px !important;
 }
 
 .settings-view .set-panel-title {
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 600;
   color: var(--text);
-  margin: 0 0 24px 0;
+  margin: 0 0 20px 0;
   letter-spacing: -0.025em;
   line-height: 1.2;
   font-family: var(--font-display);
@@ -45197,19 +45135,44 @@ a.text-reveal-wrap {
 .settings-view .set-box {
   background: var(--raised) !important;
   border: 1px solid var(--hairline) !important;
-  border-radius: 8px !important;
-  overflow: visible !important;
-  box-shadow: var(--shadow-micro) !important;
+  border-radius: 18px !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
 }
 
 .settings-view .set-box-row {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  padding: 14px 18px !important;
+  padding: 13px 18px !important;
   border-bottom: 1px solid var(--hairline) !important;
   gap: 16px !important;
   transition: background-color 0.15s ease !important;
+}
+
+.settings-view .set-box-row.set-col,
+.settings-view .set-box-row[style*="column"] {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+
+.settings-view .set-box-row.set-col > *,
+.settings-view .set-box-row[style*="column"] > * {
+  width: 100% !important;
+  text-align: left !important;
+  box-sizing: border-box !important;
+}
+
+.settings-view .set-row-text {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  text-align: left !important;
+  width: 100% !important;
+  flex: 1 1 auto !important;
 }
 
 .settings-view .set-box-row:last-child {
@@ -45669,29 +45632,29 @@ a.text-reveal-wrap {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-size: 12px;
+  font-family: var(--font-body);
+  font-size: 13px;
   font-weight: 500;
-  padding: 5px 12px;
-  border-radius: 7px;
+  padding: 6px 14px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: background-color 0.16s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.16s cubic-bezier(0.16, 1, 0.3, 1), color 0.16s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.16s cubic-bezier(0.16, 1, 0.3, 1), transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.16s cubic-bezier(0.16, 1, 0.3, 1), filter 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.16s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.16s cubic-bezier(0.16, 1, 0.3, 1), color 0.16s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s ease-out;
   border: 1px solid var(--hairline);
-  background: var(--raised);
+  background: var(--canvas);
   color: var(--text);
-  box-shadow: var(--shadow-micro);
+  box-shadow: none;
   white-space: nowrap;
 }
 
 .set-btn:hover,
 .set-btn-sm:hover {
-  background: color-mix(in srgb, var(--text) 5%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
   border-color: var(--hairline-strong);
-  transform: translateY(-1px);
 }
 
 .set-btn:active,
 .set-btn-sm:active {
-  transform: scale(0.96);
+  transform: scale(0.95);
 }
 
 .set-btn:disabled,
@@ -48714,7 +48677,7 @@ a.text-reveal-wrap {
   width: 100%;
   max-width: 100%;
   color: var(--text);
-  font-family: var(--font-chat-prose, 'Inter', system-ui, sans-serif);
+  font-family: var(--font-chat-prose, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
   font-size: 16px;
   line-height: 1.7;
   letter-spacing: -0.011em;
@@ -48731,7 +48694,7 @@ a.text-reveal-wrap {
 
 .chat-assistant-prose .md-p,
 .chat-assistant-prose p {
-  font-family: var(--font-chat-prose, 'Inter', system-ui, sans-serif);
+  font-family: var(--font-chat-prose, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
   font-size: 16px;
   line-height: 1.7;
   letter-spacing: -0.011em;
@@ -48743,14 +48706,14 @@ a.text-reveal-wrap {
 }
 
 .chat-assistant-prose .md-list li {
-  font-family: var(--font-chat-prose, 'Inter', system-ui, sans-serif);
+  font-family: var(--font-chat-prose, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
   font-size: 16px;
   line-height: 1.7;
   letter-spacing: -0.011em;
 }
 
 .chat-assistant-prose .md-h {
-  font-family: var(--font-display, 'Satoshi', 'Plus Jakarta Sans', system-ui, sans-serif);
+  font-family: var(--font-display, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
   letter-spacing: -0.02em;
 }
 
@@ -49235,19 +49198,32 @@ a.text-reveal-wrap {
   gap: 4px;
 }
 
-/* Inline Code: refined, subtle aesthetic without bulky borders */
+/* Inline Code: high-contrast, theme-adaptive font size and colors */
 .md-code {
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 0.86em;
   padding: 1.5px 5.5px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.055);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  color: #e2e8f0;
+  background: var(--code-bg, rgba(var(--tint) / 0.08));
+  border: 1px solid var(--border-subtle, rgba(var(--tint) / 0.12));
+  color: var(--text);
   white-space: break-spaces;
   word-break: break-word;
   vertical-align: baseline;
   letter-spacing: -0.01em;
+}
+
+:root[data-theme="light"] .md-code,
+:root:not([data-theme="dark"]) .md-code {
+  background: rgba(15, 23, 42, 0.06);
+  border-color: rgba(15, 23, 42, 0.1);
+  color: #0f172a;
+}
+
+[data-theme="dark"] .md-code {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
 }
 
 /* Clean text links with ↗ arrow (Image 1 & 2) */
@@ -49255,10 +49231,10 @@ a.text-reveal-wrap {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  color: #f1f5f9;
+  color: var(--accent, #6366f1);
   text-decoration: underline;
   text-underline-offset: 3px;
-  text-decoration-color: rgba(255, 255, 255, 0.35);
+  text-decoration-color: var(--accent, #6366f1);
   font-weight: 500;
   transition: all 0.15s ease;
 }
@@ -52562,7 +52538,7 @@ a.text-reveal-wrap {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-family: var(--font-sans, system-ui);
+  font-family: var(--font-sans);
   font-size: 11.5px;
   font-weight: 500;
   letter-spacing: 0.01em;
@@ -52763,7 +52739,7 @@ a.text-reveal-wrap {
 }
 
 .trace-artifact-sub {
-  font-family: var(--font-sans, system-ui);
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--text-faint, #64748b);
   display: flex;
@@ -52828,7 +52804,7 @@ a.text-reveal-wrap {
   cursor: pointer;
   transition: all 0.15s ease;
   user-select: none;
-  font-family: var(--font-sans, system-ui);
+  font-family: var(--font-sans);
 }
 
 .trace-worked-pill:hover {

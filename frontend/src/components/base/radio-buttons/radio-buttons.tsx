@@ -56,14 +56,14 @@ export const RadioButton = ({ label, hint, className, size = "sm", ...ariaRadioP
         sm: {
             root: "gap-2",
             textWrapper: "",
-            label: "text-sm font-medium",
-            hint: "text-sm",
+            label: "text-body-medium",
+            hint: "text-body-regular",
         },
         md: {
             root: "gap-3",
             textWrapper: "gap-0.5",
-            label: "text-md font-medium",
-            hint: "text-md",
+            label: "text-headline-medium",
+            hint: "text-headline-regular",
         },
     };
 

@@ -438,7 +438,7 @@ function ConfigTomlModal({ onClose }) {
               Loading config.toml…
             </div>
           ) : (
-            <pre style={{ margin: 0, fontSize: '12px', fontFamily: 'monospace', color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>
+            <pre style={{ margin: 0, fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>
               {toml}
             </pre>
           )}
@@ -493,7 +493,7 @@ function DiagnoseModal({ data, onClose }) {
               }}
             >
               <span style={{ fontSize: '13px', color: 'var(--text-dim)' }}>{item.label}</span>
-              <span style={{ fontSize: '13px', fontWeight: 500, color: item.ok ? 'var(--ok, #22c55e)' : 'var(--text)', fontFamily: 'monospace' }}>
+              <span style={{ fontSize: '13px', fontWeight: 500, color: item.ok ? 'var(--ok, #22c55e)' : 'var(--text)', fontFamily: 'var(--font-mono)' }}>
                 {item.val}
               </span>
             </div>

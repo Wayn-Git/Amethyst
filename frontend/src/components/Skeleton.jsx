@@ -216,36 +216,95 @@ export function SkeletonGrid({ cards = 6, variant = 'dither' }) {
   )
 }
 
-/** One bento library card: media, source line, title, excerpt lines. */
-export function SkeletonLibraryCard({ tall = false, variant = 'dither' } = {}) {
+/** One bento library card: flush media, platform/source strip, title, status pill, tags, links, and footer. */
+export function SkeletonLibraryCard({
+  tall = false,
+  variant = 'dither',
+  cardVariant: explicitCardVariant,
+  shimmerVariant: explicitShimmerVariant,
+} = {}) {
+  const isKnownCardVariant = ['portrait', 'square', 'landscape', 'standard', 'note'].includes(variant)
+  const actualCardVariant = explicitCardVariant || (isKnownCardVariant ? variant : tall ? 'portrait' : 'standard')
+  const actualShimmerVariant = explicitShimmerVariant || (isKnownCardVariant ? 'dither' : variant)
+
   return (
-    <div className={`skel-lib-card ${tall ? 'sm:row-span-2' : ''}`} aria-hidden="true">
-      <div
-        className="skel-lib-media"
-        style={tall ? { aspectRatio: '9 / 14', maxHeight: 380, overflow: 'hidden' } : { aspectRatio: '16 / 10', overflow: 'hidden' }}
-      >
-        <AsciiSkeleton variant={variant} width="100%" height="100%" rows={tall ? 8 : 5} />
-      </div>
-      <div className="skel-lib-body">
-        <div className="skel-lib-source" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Skeleton w={14} h={14} r={4} variant={variant} />
-          <Skeleton w={76} h={10} r={3} variant={variant} />
+    <div className="lib-bento-grid-item" aria-hidden="true">
+      <article className={`lib-card lib-card--${actualCardVariant} skel-lib-card-bento`}>
+        {/* Flush Media matching real card */}
+        <div className="lib-card-media-wrap">
+          <div className="lib-card-media">
+            <AsciiSkeleton
+              variant={actualShimmerVariant}
+              width="100%"
+              height="100%"
+              rows={actualCardVariant === 'portrait' ? 8 : actualCardVariant === 'square' ? 6 : 5}
+            />
+          </div>
         </div>
-        <AsciiSkeleton variant={variant} lines={3} widths={['88%', '100%', '72%']} />
-      </div>
-      <div className="skel-lib-foot">
-        <Skeleton w={64} h={11} r={3} variant={variant} />
-      </div>
+
+        {/* Card Body matching exact structure of LibraryCard */}
+        <div className="lib-card-body">
+          {/* Source strip */}
+          <div className="lib-card-source-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className="lib-card-source-left" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Skeleton w={14} h={14} r={3} variant={actualShimmerVariant} />
+              <Skeleton w={88} h={11} r={3} variant={actualShimmerVariant} />
+            </div>
+            <div className="lib-card-source-right" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Skeleton w={16} h={12} r={3} variant={actualShimmerVariant} />
+            </div>
+          </div>
+
+          {/* Title (2 lines) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 1, marginBottom: 2 }}>
+            <Skeleton w="92%" h={14} r={3} variant={actualShimmerVariant} />
+            <Skeleton w="64%" h={14} r={3} variant={actualShimmerVariant} />
+          </div>
+
+          {/* Kind-aware interactive status badge (e.g. Want to watch) */}
+          <div className="lib-card-status-row" style={{ marginTop: 2 }}>
+            <Skeleton w={92} h={22} r={4} variant={actualShimmerVariant} />
+          </div>
+
+          {/* Tags row */}
+          <div className="lib-card-tags-row" style={{ display: 'flex', gap: 5, flexWrap: 'nowrap', overflow: 'hidden', marginTop: 2 }}>
+            <Skeleton w={62} h={18} r={3} variant={actualShimmerVariant} />
+            <Skeleton w={70} h={18} r={3} variant={actualShimmerVariant} />
+            <Skeleton w={44} h={18} r={3} variant={actualShimmerVariant} />
+          </div>
+
+          {/* Outbound resources row */}
+          <div className="lib-card-resources-pills" style={{ display: 'flex', gap: 5, flexWrap: 'nowrap', overflow: 'hidden', marginTop: 2 }}>
+            <Skeleton w={84} h={18} r={3} variant={actualShimmerVariant} />
+            <Skeleton w={98} h={18} r={3} variant={actualShimmerVariant} />
+          </div>
+
+          {/* Pinned footer */}
+          <div className="lib-card-footer" style={{ marginTop: 'auto', paddingTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className="lib-card-footer-left" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Skeleton w={11} h={11} r={2} variant={actualShimmerVariant} />
+              <Skeleton w={68} h={10} r={3} variant={actualShimmerVariant} />
+              <span style={{ color: 'var(--hairline-strong)', fontSize: 10, lineHeight: 1 }}>·</span>
+              <Skeleton w={44} h={10} r={3} variant={actualShimmerVariant} />
+            </div>
+          </div>
+        </div>
+      </article>
     </div>
   )
 }
 
 /** The bento column layout the library grid is made of. */
-export function SkeletonLibraryGrid({ cards = 6, variant = 'dither' }) {
+export function SkeletonLibraryGrid({ cards = 9, variant = 'dither' }) {
+  const cardVariants = ['portrait', 'landscape', 'portrait', 'square', 'landscape', 'standard', 'portrait', 'landscape', 'square']
   return (
-    <div className="skel-lib-grid lib-bento-grid" aria-hidden="true">
+    <div className="lib-bento-grid w-full" aria-hidden="true">
       {Array.from({ length: cards }, (_, i) => (
-        <SkeletonLibraryCard key={i} tall={i % 3 === 1} variant={variant} />
+        <SkeletonLibraryCard
+          key={i}
+          cardVariant={cardVariants[i % cardVariants.length]}
+          shimmerVariant={variant}
+        />
       ))}
     </div>
   )

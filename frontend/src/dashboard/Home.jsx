@@ -13,7 +13,7 @@ import SourceItem from './SourceItem.jsx'
 import Button from '../components/ui/AppButton.jsx'
 import WidgetSlot from './WidgetSlot.jsx'
 import AddWidget from './AddWidget.jsx'
-import { toast } from 'sonner'
+import { showBoardUINotification } from '../lib/boardui-notifications.js'
 import { GRID_GEOMETRY, gridCellAt, gridPosition, insertGridWidget, moveGridWidget, normalizeLayout, removeGridWidget, resizeGridWidget } from './grid.js'
 import './home.css'
 import './home-shell.css'
@@ -142,7 +142,12 @@ export default function Home({ layoutMode = "default" }) {
 
   function persist(next, undo = true, message = 'Layout updated') {
     const previous = layoutRef.current
-    if (undo) toast(message, { id: 'home-layout', action: { label: 'Undo', onClick: () => persist(previous, false) } })
+    if (undo) showBoardUINotification({
+      id: 'home-layout',
+      title: message,
+      type: 'info',
+      action: { label: 'Undo', onClick: () => persist(previous, false) },
+    })
     dirty.current = true
     layoutRef.current = next
     setLayout(next)
