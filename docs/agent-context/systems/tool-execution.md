@@ -214,6 +214,18 @@ cover an uncontained one.
 - A timeout becomes an error result the model can reason about.
 - A parked confirmation/question/connection extends the window; it is human
   time, not a wedge.
+- `_execute` takes the turn's hard limit as an absolute `deadline`
+  (`started + hard_timeout`, evaluated per call). When a call starts after that
+  deadline it answers with a "was not run" error result without running its
+  handler; before it, the per-call window is clamped to the remaining turn
+  budget. Gate windows still re-arm beyond the clamp. The Director checks the
+  same limit between iterations, so a long tool batch no longer runs to
+  completion before the limit is looked at — see `backend/agent/director.py::_execute`.
+- One final-answer synthesis call (`_guaranteed_final_answer`) runs at the
+  moment the turn is out of budget, so it is bounded by
+  `agent_config.final_answer_timeout_seconds` (`AMETHYST_FINAL_ANSWER_TIMEOUT`,
+  default 45s) per candidate instead of the provider's 300s read timeout, and
+  skips providers with an open circuit breaker.
 
 Result cache:
 

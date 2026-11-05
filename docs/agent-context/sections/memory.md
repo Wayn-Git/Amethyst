@@ -3,7 +3,7 @@
 Long-term facts at `/memory`. Facts are extracted after a turn, recalled in
 later conversations, and superseded rather than deleted.
 
-**Verified 2026-10-31 · commit `3c363b7` · dirty working tree.**
+**Verified 2026-11-04 · commit `f52a7d1` · dirty working tree.**
 
 ## Entry points
 
@@ -16,6 +16,7 @@ later conversations, and superseded rather than deleted.
 | Store | `backend/memory/store.py` |
 | Table | `memories` |
 | Extraction | called by `backend/agent/director.py` after a turn |
+| Learning proposals | `backend/learning/`, table `learning_proposals` |
 
 ## UI structure
 
@@ -52,6 +53,28 @@ This is deliberate: “what did AMETHYST believe last week” stays answerable.
 Extraction is a second model call and is not part of the turn's terminal frame.
 A failure does not fail the turn.
 
+## Learning proposals
+
+Memory extraction records what the user said. The learning review reads what the
+finished turn *did* and proposes two things: a reusable skill, and durable facts
+worth keeping. In v1 a memory proposal is one fact, and approval writes it
+through `MemoryService.apply` — the same deduplicating path extraction uses.
+
+Proposals are rows in `learning_proposals`, never direct writes. They are
+created by the `learning_review` job after `done`, and approved or rejected in
+Capabilities → Skills. Nothing reaches `memories` without an approval.
+
+The review costs one model call and is gated: it runs only when enabled in
+Settings → Models, the answer is at least 160 characters, and the turn made a
+tool call or showed a correction. `should_review` holds the gate; `review_turn`
+does the call. Approval is idempotent: an already-decided row is returned as it
+stands. A failed apply is marked `failed` with its error, not rolled back
+silently.
+
+Skill proposals are deferred in the same way but write through
+`backend/skills/manage.py`; see
+[sections/capabilities.md](capabilities.md#learning-proposals).
+
 ## Recall flow
 
 1. Prompt assembly asks `MemoryService.recall(query, conversation_id)`.
@@ -82,6 +105,7 @@ arbitrarily.
 | Change fact parsing | `parse_diff`, `_sanitize_fact` |
 | Change recall ranking | `recall`, `_semantic_ids`, `MemoryStore.search` |
 | Change the UI | `frontend/src/views/Memory.jsx` |
+| Change learning proposals | `backend/learning/review.py`, `service.py` |
 | Change the schema | `backend/db/schema.sql`, `MemoryStore` |
 | Change memory sync | `backend/sync/registry.py` (memories are append-only and already merge) |
 
@@ -113,4 +137,4 @@ Rules:
 - [systems/model-providers.md](../systems/model-providers.md)
 - [sections/chat.md](chat.md)
 
-_Last verified: 2026-10-31 · commit `3c363b7` · dirty working tree._
+_Last verified: 2026-11-04 · commit `f52a7d1` · dirty working tree._

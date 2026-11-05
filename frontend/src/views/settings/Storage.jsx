@@ -5,6 +5,7 @@ import { Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import Icon from '../../components/Icon.jsx'
 import { api, copyText } from '../../api.js'
 import { useApp } from '../../store.jsx'
+import LibraryCloudStorage from './LibraryCloudStorage.jsx'
 
 export default function Storage() {
   const { toast, setView } = useApp()
@@ -175,10 +176,10 @@ export default function Storage() {
             style={{
               fontSize: '11px',
               color: 'var(--text-dim)',
-              fontFamily: 'monospace',
+              fontFamily: 'var(--font-mono)',
               cursor: 'pointer',
               userSelect: 'all',
-              opacity: 0.85,
+              opacity: 1,
             }}
             title="Click to copy path"
           >
@@ -232,7 +233,10 @@ export default function Storage() {
           </div>
         </div>
 
-        {/* Card 2: Manage worktrees & Archived chats */}
+        {/* Card 3: Cloud-Backed Knowledge Repository & Migration */}
+        <LibraryCloudStorage />
+
+        {/* Card 4: Manage worktrees & Archived chats */}
         <div className="codex-card">
           <div className="codex-row" style={{ padding: '16px 20px' }}>
             <div className="codex-row-info">
@@ -576,12 +580,12 @@ function ManageWorktreesModal({ onClose }) {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', fontFamily: 'monospace' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-mono)' }}>
                     {wt.branch || '(detached HEAD)'}
                   </span>
                   {wt.bare && <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>bare</span>}
                 </div>
-                <span style={{ fontSize: '11.5px', color: 'var(--text-dim)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ fontSize: '11.5px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {wt.path}
                 </span>
               </div>

@@ -106,9 +106,9 @@ const Title = (props: ComponentPropsWithRef<"h1">) => {
         <h1
             {...props}
             className={cx(
-                "text-md font-semibold text-primary",
-                size === "md" && "text-lg font-semibold",
-                size === "lg" && "text-xl font-semibold",
+                "text-headline-semibold text-primary",
+                size === "md" && "text-title-3-semibold",
+                size === "lg" && "text-title-2-semibold",
                 props.className,
             )}
         />
@@ -118,7 +118,7 @@ const Title = (props: ComponentPropsWithRef<"h1">) => {
 const Description = (props: ComponentPropsWithRef<"p">) => {
     const { size } = useContext(RootContext);
 
-    return <p {...props} className={cx("text-center text-sm text-tertiary", size === "lg" && "text-md", props.className)} />;
+    return <p {...props} className={cx("text-center text-body-regular text-tertiary", size === "lg" && "text-headline-regular", props.className)} />;
 };
 
 interface AvatarRadiusProps extends ComponentPropsWithRef<"div"> {

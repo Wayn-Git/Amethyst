@@ -234,6 +234,7 @@ def _stop(conn, clock, intent, payload) -> None:
     if cancel is None:
         settle(conn, clock, intent["id"], "done", note="nothing was running")
         return
+    cancel.cancel_source = "sync device intent: control-device stop"
     cancel.set()
     settle(conn, clock, intent["id"], "done", note="stopped")
     log.info("a control device stopped the turn in %s", conversation_id)

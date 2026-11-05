@@ -10,6 +10,11 @@ function formatTime(seconds) {
   return `${m}:${s < 10 ? '0' : ''}${s}`
 }
 
+function isPlayableDirectVideo(url) {
+  if (!url || typeof url !== 'string') return false
+  return /\.(mp4|webm|mov|mkv)(\?|$)/i.test(url) || url.startsWith('/api/library/')
+}
+
 export default function LibraryVideoPlayer({
   src,
   poster,
@@ -38,7 +43,7 @@ export default function LibraryVideoPlayer({
   const [hasStartedPlaying, setHasStartedPlaying] = useState(false)
   const [flashAction, setFlashAction] = useState(null)
   const [currentSrc, setCurrentSrc] = useState(src)
-  const [showEmbed, setShowEmbed] = useState(false)
+  const [showEmbed, setShowEmbed] = useState(() => Boolean(embedUrl && (isYouTube || !isPlayableDirectVideo(src))))
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showCaptions, setShowCaptions] = useState(true)
 
@@ -64,14 +69,15 @@ export default function LibraryVideoPlayer({
     return captionSentences[idx] || null
   }, [captionSentences, currentTime, duration])
 
-  // Sync src
+  // Sync src & embed
   useEffect(() => {
     setCurrentSrc(src)
-    setShowEmbed(false)
+    const shouldEmbed = Boolean(embedUrl && (isYouTube || !isPlayableDirectVideo(src)))
+    setShowEmbed(shouldEmbed)
     setIsPlaying(false)
     setHasStartedPlaying(false)
     setCurrentTime(0)
-  }, [src])
+  }, [src, embedUrl, isYouTube])
 
   // Auto-hide controls timer
   const resetHideTimer = useCallback(() => {
@@ -241,21 +247,23 @@ export default function LibraryVideoPlayer({
       ref={containerRef}
       className={`lib-player ${isVertical ? 'lib-player--vertical' : 'lib-player--landscape'} ${isTheater ? 'lib-player--theater' : ''} ${isFullscreen ? 'lib-player--fullscreen' : ''}`}
       onMouseMove={resetHideTimer}
-      onClick={togglePlay}
+      onClick={showEmbed ? undefined : togglePlay}
       onKeyDown={handleKeyDown}
       tabIndex={0}
       role="region"
       aria-label="Video Player"
     >
-      {/* Fallback to Web Embed if direct MP4 stream fails */}
+      {/* Fallback to Web Embed if direct MP4 stream fails or embed is primary */}
       {showEmbed && embedUrl ? (
-        <iframe
-          src={embedUrl}
-          title={title}
-          className="lib-player-embed"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-        />
+        <div className="lib-player-embed-wrap">
+          <iframe
+            src={embedUrl}
+            title={title || 'Video Player'}
+            className="lib-player-embed"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          />
+        </div>
       ) : (
         <div className="lib-player-media-wrap">
           <video

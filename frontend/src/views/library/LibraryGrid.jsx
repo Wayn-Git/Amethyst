@@ -2,6 +2,7 @@ import React, { memo, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import LibraryCard from './LibraryCard.jsx'
 import { groupItemsByDate } from './dateUtils.js'
+import LoadMoreSentinel from '../../components/damon/LoadMoreSentinel.jsx'
 
 export function getBentoItemConfig(item, index, totalInGroup) {
   const url = (item.url || '').toLowerCase()
@@ -72,6 +73,11 @@ export function getBentoItemConfig(item, index, totalInGroup) {
 
 function LibraryGridComponent({
   items = [],
+  total = 0,
+  showing = 0,
+  totalShowing = 0,
+  hasMore = false,
+  onLoadMore,
   busyId,
   onSelect,
   onReindex,
@@ -140,14 +146,21 @@ function LibraryGridComponent({
 
   return (
     <div className={`lib-grid-view w-full flex flex-col gap-10 ${className || ''}`}>
-      {groups.map((group) => {
+      {groups.map((group, groupIndex) => {
         return (
           <section key={group.dateKey} className="lib-date-group">
             <header className="lib-date-header">
-              <h2 className="lib-date-title">{group.heading}</h2>
-              <span className="lib-date-count">
-                {group.items.length} {group.items.length === 1 ? 'item' : 'items'}
-              </span>
+              <div className="flex items-center gap-2">
+                <h2 className="lib-date-title">{group.heading}</h2>
+                <span className="lib-date-count">
+                  {group.items.length} {group.items.length === 1 ? 'item' : 'items'}
+                </span>
+              </div>
+              {groupIndex === 0 && (showing || total) ? (
+                <span className="lib-date-showing">
+                  Showing {showing || items.length} of {totalShowing || total || items.length}
+                </span>
+              ) : null}
             </header>
 
             <div
@@ -200,6 +213,30 @@ function LibraryGridComponent({
           </section>
         )
       })}
+
+      {hasMore && (
+        <div className="lib-load-more-container flex flex-col items-center justify-center py-6 gap-3">
+          <LoadMoreSentinel
+            hasMore={hasMore}
+            loading={false}
+            onLoadMore={onLoadMore}
+            label="Loading more items…"
+          />
+          <button
+            type="button"
+            className="lib-btn lib-btn--secondary"
+            onClick={onLoadMore}
+            style={{
+              padding: '7px 18px',
+              fontSize: '12px',
+              borderRadius: 'var(--radius-buttons, 6px)',
+              cursor: 'pointer',
+            }}
+          >
+            Show more ({totalShowing ? Math.max(0, totalShowing - items.length) : 'more'} remaining)
+          </button>
+        </div>
+      )}
     </div>
   )
 }

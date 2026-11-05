@@ -1,0 +1,410 @@
+/**
+ * Amethyst Typography System — 1:1 Figma Type Scale
+ *
+ * 13 style families × 4 weights (Regular 400, Medium 500, Semibold 600, Bold 700).
+ * Set in Inter. Every class is a composite token setting font-size, line-height,
+ * letter-spacing, and font-weight together.
+ */
+
+@layer utilities {
+  /* =========================================================================
+     Large Title — 64px / 80px
+     Hero numerals and marketing-scale headings.
+     ========================================================================= */
+  .text-large-title-regular {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 64px;
+    line-height: 80px;
+    font-weight: 400;
+  }
+  .text-large-title-medium {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 64px;
+    line-height: 80px;
+    font-weight: 500;
+  }
+  .text-large-title-semibold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 64px;
+    line-height: 80px;
+    font-weight: 600;
+  }
+  .text-large-title-bold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 64px;
+    line-height: 80px;
+    font-weight: 700;
+  }
+
+  /* =========================================================================
+     Display 1 — 56px / 72px
+     Full-page hero headings.
+     ========================================================================= */
+  .text-display-1-regular {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 56px;
+    line-height: 72px;
+    font-weight: 400;
+  }
+  .text-display-1-medium {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 56px;
+    line-height: 72px;
+    font-weight: 500;
+  }
+  .text-display-1-semibold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 56px;
+    line-height: 72px;
+    font-weight: 600;
+  }
+  .text-display-1-bold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 56px;
+    line-height: 72px;
+    font-weight: 700;
+  }
+
+  /* =========================================================================
+     Display 2 — 48px / 64px
+     Large section heroes.
+     ========================================================================= */
+  .text-display-2-regular {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 48px;
+    line-height: 64px;
+    font-weight: 400;
+  }
+  .text-display-2-medium {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 48px;
+    line-height: 64px;
+    font-weight: 500;
+  }
+  .text-display-2-semibold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 48px;
+    line-height: 64px;
+    font-weight: 600;
+  }
+  .text-display-2-bold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 48px;
+    line-height: 64px;
+    font-weight: 700;
+  }
+
+  /* =========================================================================
+     Display 3 — 40px / 54px
+     Prominent stats and page heroes.
+     ========================================================================= */
+  .text-display-3-regular {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 40px;
+    line-height: 54px;
+    font-weight: 400;
+  }
+  .text-display-3-medium {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 40px;
+    line-height: 54px;
+    font-weight: 500;
+  }
+  .text-display-3-semibold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 40px;
+    line-height: 54px;
+    font-weight: 600;
+  }
+  .text-display-3-bold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 40px;
+    line-height: 54px;
+    font-weight: 700;
+  }
+
+  /* =========================================================================
+     Display 4 — 32px / 44px
+     Page titles; the largest style used inside the app shell.
+     ========================================================================= */
+  .text-display-4-regular {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 32px;
+    line-height: 44px;
+    font-weight: 400;
+  }
+  .text-display-4-medium {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 32px;
+    line-height: 44px;
+    font-weight: 500;
+  }
+  .text-display-4-semibold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 32px;
+    line-height: 44px;
+    font-weight: 600;
+  }
+  .text-display-4-bold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 32px;
+    line-height: 44px;
+    font-weight: 700;
+  }
+
+  /* =========================================================================
+     Title 1 — 24px / 34px
+     Card headline figures (step totals, earnings).
+     ========================================================================= */
+  .text-title-1-regular {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 24px;
+    line-height: 34px;
+    font-weight: 400;
+  }
+  .text-title-1-medium {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 24px;
+    line-height: 34px;
+    font-weight: 500;
+  }
+  .text-title-1-semibold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 24px;
+    line-height: 34px;
+    font-weight: 600;
+  }
+  .text-title-1-bold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 24px;
+    line-height: 34px;
+    font-weight: 700;
+  }
+
+  /* =========================================================================
+     Title 2 — 20px / 26px
+     Section headings inside pages and panels.
+     ========================================================================= */
+  .text-title-2-regular {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 20px;
+    line-height: 26px;
+    font-weight: 400;
+  }
+  .text-title-2-medium {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 20px;
+    line-height: 26px;
+    font-weight: 500;
+  }
+  .text-title-2-semibold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 20px;
+    line-height: 26px;
+    font-weight: 600;
+  }
+  .text-title-2-bold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 20px;
+    line-height: 26px;
+    font-weight: 700;
+  }
+
+  /* =========================================================================
+     Title 3 — 18px / 26px (24–26px)
+     Sub-section headings, calendar month titles.
+     ========================================================================= */
+  .text-title-3-regular {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 18px;
+    line-height: 26px;
+    font-weight: 400;
+  }
+  .text-title-3-medium {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 18px;
+    line-height: 26px;
+    font-weight: 500;
+  }
+  .text-title-3-semibold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 18px;
+    line-height: 26px;
+    font-weight: 600;
+  }
+  .text-title-3-bold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 18px;
+    line-height: 26px;
+    font-weight: 700;
+  }
+
+  /* =========================================================================
+     Headline — 16px / 22px
+     Emphasized body copy and lead paragraphs.
+     ========================================================================= */
+  .text-headline-regular {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 22px;
+    font-weight: 400;
+  }
+  .text-headline-medium {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 22px;
+    font-weight: 500;
+  }
+  .text-headline-semibold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 22px;
+    font-weight: 600;
+  }
+  .text-headline-bold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 22px;
+    font-weight: 700;
+  }
+
+  /* =========================================================================
+     Body — 14px / 20px
+     The default UI text: labels, table cells, nav items.
+     ========================================================================= */
+  .text-body-regular {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 400;
+  }
+  .text-body-medium {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 500;
+  }
+  .text-body-semibold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 600;
+  }
+  .text-body-bold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 700;
+  }
+
+  /* =========================================================================
+     Body 2 — 13px / 18px
+     Dense contexts: compact tables, secondary descriptions.
+     ========================================================================= */
+  .text-body-2-regular {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 400;
+  }
+  .text-body-2-medium {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 500;
+  }
+  .text-body-2-semibold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 600;
+  }
+  .text-body-2-bold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 700;
+  }
+
+  /* =========================================================================
+     Caption 1 — 12px / 16px · tracking 0.15px
+     Axis labels, unit suffixes, timestamps.
+     ========================================================================= */
+  .text-caption-1-regular {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: 0.15px;
+    font-weight: 400;
+  }
+  .text-caption-1-medium {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: 0.15px;
+    font-weight: 500;
+  }
+  .text-caption-1-semibold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: 0.15px;
+    font-weight: 600;
+  }
+  .text-caption-1-bold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: 0.15px;
+    font-weight: 700;
+  }
+
+  /* =========================================================================
+     Caption 2 — 11px / 15px · tracking 0.2px
+     The smallest legible annotations (badges, fine print).
+     ========================================================================= */
+  .text-caption-2-regular {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 11px;
+    line-height: 15px;
+    letter-spacing: 0.2px;
+    font-weight: 400;
+  }
+  .text-caption-2-medium {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 11px;
+    line-height: 15px;
+    letter-spacing: 0.2px;
+    font-weight: 500;
+  }
+  .text-caption-2-semibold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 11px;
+    line-height: 15px;
+    letter-spacing: 0.2px;
+    font-weight: 600;
+  }
+  .text-caption-2-bold {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 11px;
+    line-height: 15px;
+    letter-spacing: 0.2px;
+    font-weight: 700;
+  }
+
+  /* =========================================================================
+     Semantic Text Color Tokens
+     ========================================================================= */
+  .text-text-primary {
+    color: var(--text-primary, var(--text, #ffffff));
+  }
+  .text-text-secondary {
+    color: var(--text-secondary, var(--text-dim, rgba(255, 255, 255, 0.7)));
+  }
+  .text-text-tertiary {
+    color: var(--text-tertiary, var(--text-faint, rgba(255, 255, 255, 0.45)));
+  }
+  .text-text-quaternary {
+    color: var(--text-quaternary, var(--text-faint, rgba(255, 255, 255, 0.35)));
+  }
+}

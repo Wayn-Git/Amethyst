@@ -36,6 +36,7 @@ from backend.runtime.http import (
     ProviderError,
     ProviderHTTPError,
     ProviderStreamError,
+    evict_client,
     post_json,
     stream_backoff,
     stream_sse,
@@ -762,6 +763,10 @@ class OpenAICompatClient:
                         )
                         if exc.retry_after and exc.retry_after > self.timeout:
                             raise
+                        try:
+                            evict_client(self.timeout)
+                        except Exception:
+                            pass
                         await asyncio.sleep(min(max(stream_backoff(stream_attempt), exc.retry_after or 0), 2.0))
                         continue
                     raise

@@ -421,6 +421,74 @@ def load_memory_model(path: Path | None = None) -> tuple[str, str] | None:
     return str(provider), str(model)
 
 
+@dataclass(frozen=True)
+class LearningSettings:
+    """Whether the post-turn review runs, and which model runs it.
+
+    Off by default, and staged when on. The review is a second model call after
+    every eligible turn, which is exactly the kind of cost a feature should not
+    turn on for someone by itself -- and what it produces is a *proposal*, not a
+    write, so switching it on costs tokens but never changes the skill library
+    without a person saying yes.
+
+        learning:
+          enabled: true
+          provider: ollama
+          model: qwen2.5:7b
+    """
+
+    enabled: bool = False
+    provider: str | None = None
+    model: str | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "enabled": self.enabled,
+            "provider": self.provider,
+            "model": self.model,
+        }
+
+
+def load_learning_settings(path: Path | None = None) -> LearningSettings:
+    p = path or paths().providers_yaml
+    if not p.exists():
+        return LearningSettings()
+    try:
+        raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        log.warning("providers.yaml could not be parsed; learning stays off: %s", exc)
+        return LearningSettings()
+    entry = raw.get("learning") or {}
+    if not isinstance(entry, dict):
+        return LearningSettings()
+    provider = entry.get("provider")
+    model = entry.get("model")
+    return LearningSettings(
+        enabled=bool(entry.get("enabled")),
+        provider=str(provider).strip() if provider else None,
+        model=str(model).strip() if model else None,
+    )
+
+
+def save_learning_settings(
+    settings: LearningSettings, path: Path | None = None
+) -> LearningSettings:
+    """Write the `learning:` block, leaving providers, tiers and memory alone."""
+    p = path or paths().providers_yaml
+    p.parent.mkdir(parents=True, exist_ok=True)
+    document = (yaml.safe_load(p.read_text()) if p.exists() else None) or {}
+    entry: dict[str, Any] = {"enabled": bool(settings.enabled)}
+    if settings.provider and settings.model:
+        entry["provider"] = settings.provider
+        entry["model"] = settings.model
+    document["learning"] = entry
+    write_atomic(
+        p,
+        _PROVIDERS_HEADER + yaml.safe_dump(document, sort_keys=False, default_flow_style=False),
+    )
+    return load_learning_settings(p)
+
+
 # --- writing providers.yaml -------------------------------------------------
 #
 # Until now this file was read-only from AMETHYST's side: the Settings panel told

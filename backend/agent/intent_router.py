@@ -164,7 +164,7 @@ def route_intent_fast(
         return (
             IntentRoute(
                 lane="connector",
-                step_budget=min(max_iterations, 4),
+                step_budget=min(max_iterations, 15),
                 tool_filter="connector",
                 presentation="text",
                 reason="connected service intent detected",

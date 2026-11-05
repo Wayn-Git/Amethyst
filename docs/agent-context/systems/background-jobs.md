@@ -3,7 +3,7 @@
 What runs without a request: the lifespan runners, durable jobs, lanes, leases,
 retries, crash recovery and the replay guard.
 
-**Verified 2026-10-31 · commit `3c363b7` · dirty working tree.**
+**Verified 2026-11-04 · commit `f52a7d1` · dirty working tree.**
 
 Related: [sections/automations.md](../sections/automations.md),
 [DATABASE.md](../DATABASE.md), [AGENT-SYSTEM.md](../AGENT-SYSTEM.md),
@@ -90,6 +90,8 @@ Registered in code:
 | `worker_batch` | `backend/api/main.py` | 1 | Safe; every dispatch is a recorded step |
 | `mobile_capture` | `backend/remote/captures.py` | 3 | Safe; library capture is replayable |
 | `instagram_ingest` | `backend/instagram/runner.py` | handler default | Uses `begin`, not a lane claim |
+| `skills_curator` | `backend/api/main.py` | 2 | Safe; deterministic, state read before each move |
+| `learning_review` | `backend/api/main.py` | 2 | Not replay-safe; a reclaimed pass could duplicate proposals |
 
 `instagram_ingest` is the exception: the Instagram runner already claims
 deliveries from `instagram_events`, so it uses `JobStore.begin()` for the step
@@ -105,6 +107,8 @@ claiming only its registered kinds.
 | `automations` | `automation`, `remote_turn` | Both run a turn and take minutes |
 | `mobile-captures` | `mobile_capture` | Phone captures should not wait behind a model turn |
 | `workers` | `worker_batch` | A batch is often enqueued *by* an automation; one lane would deadlock |
+| `skills-curator` | `skills_curator` | File work, not a model turn; must not queue behind an automation |
+| `learning` | `learning_review` | One small model call; a stuck provider must not stop curation or delay a review |
 
 `TICK_SECONDS = 2.0`. `nudge()` wakes a lane immediately after an enqueue, so
 the tick is a floor for work that arrives without a nudge, not the latency of a
@@ -112,6 +116,9 @@ button.
 
 Within a lane, work is serial. That is deliberate: one person does not benefit
 from three unattended turns competing for the same machine.
+
+`_curator_loop` enqueues `skills_curator` once a day, keyed by the date, so a
+restart in the same day does not run it twice.
 
 ## Idempotency
 
@@ -250,4 +257,4 @@ Rules:
 - The relay has its own durable job layer (`relay/src/jobs/`) for work a closed
   laptop cannot do. It is a separate implementation with the same vocabulary.
 
-_Last verified: 2026-10-31 · commit `3c363b7` · dirty working tree._
+_Last verified: 2026-11-04 · commit `f52a7d1` · dirty working tree._

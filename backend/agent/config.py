@@ -31,18 +31,23 @@ class AgentConfig:
 
     # --- Timeouts (seconds) ---
     # Hard timeout per tool execution
-    tool_timeout_seconds: float = 15.0
+    tool_timeout_seconds: float = 45.0
     # Window re-armed while a dispatch is parked on a gate (an approval, a
     # question, a connection card). Those answer on human time, so the tool
     # timeout must not cut them off; each expiry re-arms for this long while
     # a gate is still live on the call.
     suspended_tool_window_seconds: float = 3600.0
     # Soft turn wall-clock cap (initiates wrap-up)
-    wall_clock_cap: float = 45.0
+    wall_clock_cap: float = 90.0
     # Hard turn timeout (forces final answer)
-    hard_timeout: float = 60.0
+    hard_timeout: float = 120.0
     # SSE keepalive/ping interval in seconds during long operations
     sse_keepalive_interval_seconds: float = 15.0
+    # Ceiling for one final-answer synthesis call (the `_guaranteed_final_answer`
+    # pass). A synthesis call happens at the exact moment a turn is already out
+    # of budget, so it must not inherit the provider's own 300s read timeout as
+    # its worst case.
+    final_answer_timeout_seconds: float = 45.0
 
     # --- Read Cache TTLs (seconds) ---
     # Short-lived read cache for calendar lookups
@@ -112,10 +117,10 @@ class AgentConfig:
 
         return cls(
             default_step_budget=_get_int("AMETHYST_STEP_BUDGET", 12),
-            tool_timeout_seconds=_get_float("AMETHYST_TOOL_TIMEOUT", 15.0),
+            tool_timeout_seconds=_get_float("AMETHYST_TOOL_TIMEOUT", 45.0),
             suspended_tool_window_seconds=_get_float("AMETHYST_SUSPENDED_TOOL_WINDOW", 3600.0),
-            wall_clock_cap=_get_float("AMETHYST_WALL_CLOCK_CAP", 45.0),
-            hard_timeout=_get_float("AMETHYST_HARD_TIMEOUT", 60.0),
+            wall_clock_cap=_get_float("AMETHYST_WALL_CLOCK_CAP", 90.0),
+            hard_timeout=_get_float("AMETHYST_HARD_TIMEOUT", 120.0),
             sse_keepalive_interval_seconds=_get_float("AMETHYST_SSE_KEEPALIVE_INTERVAL", 15.0),
             calendar_cache_ttl=_get_float("AMETHYST_CALENDAR_CACHE_TTL", 60.0),
             email_cache_ttl=_get_float("AMETHYST_EMAIL_CACHE_TTL", 180.0),
@@ -123,6 +128,13 @@ class AgentConfig:
             default_date_window_days=_get_int("AMETHYST_DATE_WINDOW_DAYS", 7),
             max_payload_chars=_get_int("AMETHYST_MAX_PAYLOAD_CHARS", 4000),
             history_verbatim_turns=_get_int("AMETHYST_HISTORY_VERBATIM_TURNS", 2),
+            max_iterations=_get_int("AMETHYST_MAX_ITERATIONS", 40),
+            max_continuations=_get_int("AMETHYST_MAX_CONTINUATIONS", 3),
+            max_resumes=_get_int("AMETHYST_MAX_RESUMES", 4),
+            max_network_retries=_get_int("AMETHYST_MAX_NETWORK_RETRIES", 3),
+            retry_base_delay=_get_float("AMETHYST_RETRY_BASE_DELAY", 1.0),
+            retry_max_delay=_get_float("AMETHYST_RETRY_MAX_DELAY", 8.0),
+            final_answer_timeout_seconds=_get_float("AMETHYST_FINAL_ANSWER_TIMEOUT", 45.0),
             circuit_breaker_failures=_get_int("AMETHYST_CIRCUIT_BREAKER_FAILURES", 3),
             circuit_breaker_cooldown=_get_float("AMETHYST_CIRCUIT_BREAKER_COOLDOWN", 180.0),
             tool_round_tier=os.environ.get("AMETHYST_TOOL_ROUND_TIER", "heavy"),

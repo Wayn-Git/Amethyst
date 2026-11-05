@@ -48,12 +48,36 @@ function lazyWithRetry(componentImport) {
         msg.includes('loading chunk') ||
         msg.includes('failed to fetch')
 
-      if (!pageHasAlreadyBeenForceRefreshed && isChunkError) {
-        window.sessionStorage.setItem('amethyst_chunk_retry', 'true')
-        window.location.reload()
-        return new Promise(() => {})
+      if (pageHasAlreadyBeenForceRefreshed || !isChunkError) throw error
+
+      /* A reload is fatal to a running turn: unloading the page drops the
+         turn fetch and the control stream in the same instant, the turn ends
+         as a client disconnect, and the interface then blames "the provider"
+         for a model that streamed 200 the whole way. Rebuild windows make
+         view chunks briefly unfetchable, so the failure usually lands
+         exactly while something is streaming. Park instead: reload once the
+         turn settles, with a ceiling so a wedged turn cannot postpone it
+         forever. */
+      if (window.__AMETHYST_TURN_ACTIVE === true) {
+        window.__AMETHYST_PENDING_CHUNK_RELOAD = true
+        await new Promise((resolve) => {
+          let settled = false
+          const leave = () => {
+            if (settled) return
+            settled = true
+            clearTimeout(ceiling)
+            window.removeEventListener('amethyst:turn-settled', leave)
+            resolve()
+          }
+          const ceiling = setTimeout(leave, 120_000)
+          window.addEventListener('amethyst:turn-settled', leave)
+        })
+        window.__AMETHYST_PENDING_CHUNK_RELOAD = false
       }
-      throw error
+
+      window.sessionStorage.setItem('amethyst_chunk_retry', 'true')
+      window.location.reload()
+      return new Promise(() => {})
     }
   })
 }

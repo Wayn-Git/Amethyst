@@ -94,6 +94,26 @@ Every size multiplies by `--text-scale`. `applyAppearanceSettings()` sets that
 from the user's UI font size (`uiFontSize / 14`). Do not hardcode a replacement
 scale in a component.
 
+### 1:1 Figma Composite Type Scale (`styles/typography.css`)
+
+Product components and UI primitives utilize composite typography classes (13 style families × 4 weights: Regular 400, Medium 500, Semibold 600, Bold 700) set in Inter, defined in `frontend/src/styles/typography.css` and registered under `theme.text` in `frontend/src/utils/cx.ts` and `frontend/src/lib/utils/cx.ts`:
+
+- `text-large-title-{weight}`: 64px / 80px (Hero numerals, marketing headings)
+- `text-display-1-{weight}`: 56px / 72px (Full-page hero headings)
+- `text-display-2-{weight}`: 48px / 64px (Large section heroes)
+- `text-display-3-{weight}`: 40px / 54px (Prominent stats, page heroes)
+- `text-display-4-{weight}`: 32px / 44px (Page titles, largest inside app shell)
+- `text-title-1-{weight}`: 24px / 34px (Card headline figures)
+- `text-title-2-{weight}`: 20px / 26px (Section headings inside panels/modals)
+- `text-title-3-{weight}`: 18px / 26px (Sub-section headings, month titles)
+- `text-headline-{weight}`: 16px / 22px (Emphasized body, leads, button lg/xl)
+- `text-body-{weight}`: 14px / 20px (Default UI text, table cells, buttons xs/sm/md)
+- `text-body-2-{weight}`: 13px / 18px (Dense contexts, secondary descriptions)
+- `text-caption-1-{weight}`: 12px / 16px · tracking 0.15px (Axis labels, timestamps)
+- `text-caption-2-{weight}`: 11px / 15px · tracking 0.2px (Badges, smallest fine print)
+
+Color is applied separately with semantic text tokens (e.g., `text-text-primary`, `text-text-secondary`, `text-text-tertiary`).
+
 Display tracking is negative (`--track-display: -0.03em`); body tracking is
 slightly negative. The bento system uses its own `--tile-title`,
 `--tile-number`, `--tile-body` and `--tile-label` shorthands.

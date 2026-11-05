@@ -201,8 +201,10 @@ export function getResourceIcon(type, url, name = '') {
   const n = (name || '').toLowerCase()
   const u = (url || '').toLowerCase()
 
+  if (t === 'streaming' || n.includes('apple tv') || n.includes('roku') || n.includes('netflix') || n.includes('hulu') || n.includes('disney') || n.includes('prime video') || n.includes('candyjar')) return 'tv'
+  if (t === 'person' || t === 'actor' || t === 'director' || t === 'author' || t === 'creator' || t === 'cast') return 'user'
   if (n.includes('notion') || u.includes('notion.so')) return 'book'
-  if (n.includes('github') || u.includes('github.com')) return 'github'
+  if (t === 'code' || t === 'repo' || t === 'library' || t === 'framework' || (u.includes('github.com') && t !== 'person' && t !== 'actor' && t !== 'show' && t !== 'movie')) return 'github'
   if (n.includes('google docs') || u.includes('docs.google.com')) return 'file'
   if (n.includes('chatgpt') || n.includes('openai') || u.includes('openai.com') || u.includes('chatgpt.com')) return 'spark'
   if (n.includes('threads') || u.includes('threads.net')) return 'threads'
@@ -211,7 +213,7 @@ export function getResourceIcon(type, url, name = '') {
   if (n.includes('youtube') || u.includes('youtube.com') || u.includes('youtu.be')) return 'youtube'
   if (n.includes('spotify') || u.includes('spotify.com')) return 'music'
 
-  if (t === 'movie' || t === 'film' || t === 'show' || t === 'video') return 'video'
+  if (t === 'movie' || t === 'film' || t === 'show' || t === 'series' || t === 'video') return 'video'
   if (t === 'code' || t === 'repo' || t === 'tool' || t === 'software' || t === 'library') return 'code'
   if (t === 'person' || t === 'creator' || t === 'author') return 'user'
   if (t === 'book' || t === 'article' || t === 'paper') return 'book'
@@ -369,6 +371,10 @@ export default function LibraryDetailModal({
   const [savedSongs, setSavedSongs] = useState(() => new Set())
   const [savingSong, setSavingSong] = useState(null)
 
+  // Smart lists and extracted outbound links
+  const [extractedLinks, setExtractedLinks] = useState([])
+  const [availableLists, setAvailableLists] = useState([])
+
   const bodyRef = useRef(null)
   const notesTextareaRef = useRef(null)
   const titleInputRef = useRef(null)
@@ -469,6 +475,59 @@ export default function LibraryDetailModal({
     return () => window.removeEventListener('mousedown', handleClick, true)
   }, [showActionsMenu])
 
+  // Fetch extracted outbound links and available lists
+  useEffect(() => {
+    if (!item?.id) {
+      setExtractedLinks([])
+      return
+    }
+    let cancelled = false
+    api.getLibraryLinks({ item_id: item.id })
+      .then((res) => {
+        if (!cancelled && Array.isArray(res)) {
+          setExtractedLinks(res)
+        }
+      })
+      .catch(() => {})
+
+    api.getLibraryLists()
+      .then((res) => {
+        if (!cancelled && res?.lists) {
+          setAvailableLists(res.lists)
+        }
+      })
+      .catch(() => {})
+
+    return () => {
+      cancelled = true
+    }
+  }, [item?.id])
+
+  const handleAddLinkToList = useCallback(
+    async (linkId, listId) => {
+      try {
+        await api.addLibraryListMember(listId, { link_id: linkId })
+        toast?.('Added outbound link to list', 'ok')
+      } catch (err) {
+        toast?.(err.message || 'Failed to add link to list', 'bad')
+      }
+    },
+    [toast]
+  )
+
+  const handleAddItemToList = useCallback(
+    async (listId) => {
+      if (!item?.id) return
+      try {
+        await api.addLibraryListMember(listId, { item_id: item.id })
+        toast?.('Added item to list', 'ok')
+      } catch (err) {
+        toast?.(err.message || 'Failed to add item to list', 'bad')
+      }
+    },
+    [item?.id, toast]
+  )
+
   // Pager index and handlers
   const currentIndex = useMemo(() => {
     if (!items || items.length === 0 || !item) return -1
@@ -523,38 +582,109 @@ export default function LibraryDetailModal({
     return list
   }, [item.resources])
 
-  // Video resource setup
+  // Video resource setup: Prioritize direct playable video over third-party iframe embeds
   const videoItem = useMemo(() => {
     if (!item) return null
+
+    // 1. Direct playable video check: local file, cloud drive, or direct MP4/video resource
     const hasLocalVid = Boolean(item.media_path) && /\.(mp4|webm|mov)(\?|$)/i.test(item.media_path)
-    if (hasLocalVid) {
+    const isCloudVideo = item.storage_provider === 'google_drive' && (item.kind === 'video' || item.is_reel)
+    const directVideoResource = (Array.isArray(item.resources) ? item.resources : []).find(
+      (r) => r && (r.type === 'video' || r.type === 'mp4' || (typeof r.url === 'string' && /\.(mp4|webm|mov)(\?|$)/i.test(r.url)))
+    )
+
+    if (hasLocalVid || isCloudVideo || directVideoResource) {
+      const directUrl = directVideoResource
+        ? (directVideoResource.remote_url || directVideoResource.url)
+        : (api.mediaUrl ? api.mediaUrl(item.id) : item.media_path)
+
       return {
-        url: api.mediaUrl ? api.mediaUrl(item.id) : item.media_path,
+        url: directUrl || (api.mediaUrl ? api.mediaUrl(item.id) : item.url),
+        fallbackUrl: item.url,
         poster: api.thumbnailUrl ? api.thumbnailUrl(item.id) : null,
         isYouTube: false,
+        platform: 'direct',
+        isVertical: Boolean(item.is_reel || item.url?.includes('/reel/') || item.url?.includes('/shorts/') || item.url?.includes('tiktok.com')),
       }
     }
+
+    // 2. YouTube detection
     const isYouTube = Boolean(item.url && /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)/i.test(item.url))
     if (isYouTube) {
+      let ytId = ''
+      const match = item.url.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([\w-]{11})/)
+      if (match) ytId = match[1]
       return {
         url: item.url,
+        embedUrl: ytId ? `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&rel=0` : null,
+        fallbackUrl: item.url,
         poster: api.thumbnailUrl ? api.thumbnailUrl(item.id) : null,
         isYouTube: true,
+        platform: 'youtube',
       }
     }
+
+    // 3. Instagram Reel / Post detection (stream directly if video, fallback to embed)
+    const isInstagram = Boolean(item.url && /instagram\.com\/(?:reel|p)\/([\w-]+)/i.test(item.url))
+    if (isInstagram) {
+      const match = item.url.match(/instagram\.com\/(?:reel|p)\/([\w-]+)/i)
+      const shortcode = match ? match[1] : ''
+      const canStream = item.kind === 'video' || item.is_reel || Boolean(item.duration_seconds)
+      return {
+        url: canStream && api.mediaUrl ? api.mediaUrl(item.id) : item.url,
+        embedUrl: shortcode ? `https://www.instagram.com/reel/${shortcode}/embed/` : null,
+        fallbackUrl: item.url,
+        poster: api.thumbnailUrl ? api.thumbnailUrl(item.id) : null,
+        isYouTube: false,
+        platform: canStream ? 'direct' : 'instagram',
+        isVertical: true,
+      }
+    }
+
+    // 4. TikTok detection
+    const isTikTok = Boolean(item.url && /tiktok\.com\/.*\/video\/(\d+)/i.test(item.url))
+    if (isTikTok) {
+      const match = item.url.match(/tiktok\.com\/.*\/video\/(\d+)/i)
+      const tiktokId = match ? match[1] : ''
+      return {
+        url: api.mediaUrl ? api.mediaUrl(item.id) : item.url,
+        embedUrl: tiktokId ? `https://www.tiktok.com/embed/v2/${tiktokId}` : null,
+        fallbackUrl: item.url,
+        poster: api.thumbnailUrl ? api.thumbnailUrl(item.id) : null,
+        isYouTube: false,
+        platform: 'tiktok',
+        isVertical: true,
+      }
+    }
+
+    // 5. Video resource or embed in resources list
     const videoResource = (Array.isArray(item.resources) ? item.resources : []).find(
-      (r) => r && (r.type === 'video' || r.type === 'mp4' || (typeof r.url === 'string' && /\.(mp4|webm|mov)(\?|$)/i.test(r.url)))
+      (r) => r && (r.type === 'video' || r.type === 'embed' || r.type === 'mp4' || (typeof r.url === 'string' && /\.(mp4|webm|mov)(\?|$)/i.test(r.url)))
     )
     if (videoResource) {
       return {
-        url: api.mediaUrl ? api.mediaUrl(item.id) : videoResource.url,
-        fallbackUrl: videoResource.url,
+        url: videoResource.remote_url || videoResource.url,
+        fallbackUrl: item.url || videoResource.url,
+        embedUrl: videoResource.embed_url || null,
         poster: api.thumbnailUrl ? api.thumbnailUrl(item.id) : null,
         isYouTube: false,
+        platform: videoResource.platform || 'direct',
       }
     }
+
+    // 6. Generic media_path fallback
+    if (item.media_path && (item.kind === 'video' || item.is_reel)) {
+      return {
+        url: api.mediaUrl ? api.mediaUrl(item.id) : item.media_path,
+        fallbackUrl: item.url,
+        poster: api.thumbnailUrl ? api.thumbnailUrl(item.id) : null,
+        isYouTube: false,
+        platform: 'direct',
+      }
+    }
+
     return null
-  }, [item?.id, item?.media_path, item?.url, item?.resources])
+  }, [item?.id, item?.media_path, item?.url, item?.resources, item?.kind, item?.is_reel, item?.storage_provider])
 
   const hasMultipleMediaModes = Boolean(videoItem && slideItems.length > 0)
   const isVideoMode = mediaMode === 'video' && Boolean(videoItem)
@@ -565,10 +695,10 @@ export default function LibraryDetailModal({
 
   // Aspect ratio detection: 9:16 for reels/tiktok/shorts
   const isVertical = useMemo(() => {
-    if (item.is_reel) return true
+    if (item.is_reel || videoItem?.isVertical) return true
     const u = (item.url || '').toLowerCase()
     return u.includes('/reel/') || u.includes('/reels/') || u.includes('/shorts/') || u.includes('tiktok.com')
-  }, [item.is_reel, item.url])
+  }, [item.is_reel, item.url, videoItem?.isVertical])
 
   // Display title without forced sentence-case lowercasing
   const displayTitle = useMemo(() => {
@@ -1239,6 +1369,26 @@ export default function LibraryDetailModal({
                       {item.kind || 'Resource'}
                     </span>
 
+                    {item.storage_provider === 'google_drive' ? (
+                      <span
+                        className="lib-meta-chip lib-meta-chip--cloud"
+                        title={item.cached_locally ? "Stored in Google Drive (Cached locally)" : "Stored in Google Drive"}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--accent, #6366f1)' }}
+                      >
+                        <Icon name="cloud" size={11} />
+                        <span>Drive</span>
+                      </span>
+                    ) : (
+                      <span
+                        className="lib-meta-chip lib-meta-chip--local"
+                        title="Stored locally on this device"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <Icon name="hard-drive" size={11} />
+                        <span>Local</span>
+                      </span>
+                    )}
+
                     {dateRelative && (
                       <div className="lib-meta-item" title={dateAbsolute || dateRelative}>
                         <Icon name="calendar" size={12} />
@@ -1306,15 +1456,35 @@ export default function LibraryDetailModal({
                       size="medium"
                       className="lib-page-cta-pill lib-page-cta-pill--secondary"
                       onClick={() => {
-                        const colName = window.prompt('Collection name:')
-                        if (colName && colName.trim()) {
-                          handleAddTag(`collection:${colName.trim()}`)
+                        if (availableLists.length > 0) {
+                          const options = availableLists.map((l, idx) => `${idx + 1}. ${l.title}`).join('\n')
+                          const choice = window.prompt(`Choose a list to add this item to:\n${options}\n\nOr enter a new list name:`)
+                          if (!choice) return
+                          const num = parseInt(choice, 10)
+                          if (!isNaN(num) && num >= 1 && num <= availableLists.length) {
+                            handleAddItemToList(availableLists[num - 1].id)
+                            return
+                          }
+                          api.createLibraryList({ title: choice.trim() }).then((newList) => {
+                            if (newList?.id) {
+                              handleAddItemToList(newList.id)
+                            }
+                          })
+                        } else {
+                          const name = window.prompt('Create new list name for this item:')
+                          if (name && name.trim()) {
+                            api.createLibraryList({ title: name.trim() }).then((newList) => {
+                              if (newList?.id) {
+                                handleAddItemToList(newList.id)
+                              }
+                            })
+                          }
                         }
                       }}
-                      title="Add item to a collection"
+                      title="Add item to a smart or curated list"
                       icon={<Icon name="folder-plus" size={14} />}
                     >
-                      Add to collection
+                      Add to list
                     </AppButton>
 
                     {item.url && (
@@ -1462,6 +1632,58 @@ export default function LibraryDetailModal({
                         onSaveSong={handleSaveSong}
                         onExportPlaylist={handleExportPlaylistTrigger}
                       />
+
+                      {/* Harvested Outbound Links Section */}
+                      {extractedLinks.length > 0 && (
+                        <div className="lib-extracted-links-card">
+                          <div className="lib-extracted-links-header">
+                            <div className="lib-extracted-links-title">
+                              <Icon name="link" size={14} className="text-accent" />
+                              <span>Referenced Outbound Links ({extractedLinks.length})</span>
+                            </div>
+                            <span className="lib-extracted-links-sub">
+                              Deduplicated & normalized
+                            </span>
+                          </div>
+                          <div className="lib-extracted-links-list">
+                            {extractedLinks.map((link) => (
+                              <div key={link.id} className="lib-extracted-link-row">
+                                <span className="lib-extracted-link-domain">{link.domain}</span>
+                                <a
+                                  href={link.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="lib-extracted-link-anchor"
+                                  title={link.url}
+                                >
+                                  <span>{link.title || link.url}</span>
+                                  <Icon name="external-link" size={12} />
+                                </a>
+                                {availableLists.length > 0 && (
+                                  <select
+                                    className="lib-extracted-link-select"
+                                    defaultValue=""
+                                    onChange={(e) => {
+                                      if (e.target.value) {
+                                        handleAddLinkToList(link.id, Number(e.target.value))
+                                        e.target.value = ''
+                                      }
+                                    }}
+                                    title="Add this outbound link to a list"
+                                  >
+                                    <option value="" disabled>+ Add to list...</option>
+                                    {availableLists.map((l) => (
+                                      <option key={l.id} value={l.id}>
+                                        {l.is_smart ? '✦ ' : ''}{l.title}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 

@@ -14,6 +14,7 @@ import { BrowserRouter } from 'react-router-dom'
    Latin subsets only: the variable Sans covers 400-700 in one file, and Mono
    is pulled at the two weights the interface actually sets. */
 import './styles/fonts.css'
+import './styles/typography.css'
 import './globals.css'
 import './index.css'
 import './styles/sidebar.css'

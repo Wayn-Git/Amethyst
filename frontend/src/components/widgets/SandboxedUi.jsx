@@ -97,7 +97,7 @@ export default function SandboxedUi({ data, pinned = false }) {
     const live = style?.getPropertyValue('--live')?.trim() || '#149e61'
     const stop = style?.getPropertyValue('--stop')?.trim() || '#ef4444'
     const confirm = style?.getPropertyValue('--confirm')?.trim() || '#f59e0b'
-    const fontSans = style?.getPropertyValue('--font-sans')?.trim() || 'Inter, system-ui, -apple-system, sans-serif'
+    const fontSans = style?.getPropertyValue('--font-sans')?.trim() || 'Inter, -apple-system, sans-serif'
     const fontMono = style?.getPropertyValue('--font-mono')?.trim() || "'Geist Mono', ui-monospace, monospace"
 
     const scriptTags = scripts

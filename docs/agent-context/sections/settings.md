@@ -4,7 +4,7 @@ The preferences and administration page at `/settings`. It is a large,
 section-based screen covering personal preferences, model providers, devices,
 permissions and integrations.
 
-**Verified 2026-10-31 · commit `3c363b7` · dirty working tree.**
+**Verified 2026-11-04 · commit `f52a7d1` · dirty working tree.**
 
 ## Entry points
 
@@ -32,7 +32,7 @@ permissions and integrations.
 | `activity` | Personal | Recent tasks, session turns, audit log |
 | `data` | Personal | Local storage, compaction, clear memories, reset preferences |
 | `integrations` | Integrations | MCP servers, Composio, search providers, notifier |
-| `models` | Integrations | Providers, API keys, tiers, Ollama |
+| `models` | Integrations | Providers, API keys, tiers, Ollama, post-turn learning |
 | `devices` | Integrations | Pairing, device permissions, sync |
 | `permissions` | Coding | Guards, shell/file/network confirmation |
 | `about` | Coding | Version, licenses, acknowledgements |
@@ -69,6 +69,21 @@ allowed names.
 
 Provider keys are stored by reference in the OS keychain. `providers.yaml`
 holds names, endpoints and model lists, not secrets.
+
+## Post-turn learning
+
+`LearningEditor` in the `models` section controls `learning:` in
+`providers.yaml`:
+
+- `GET /api/learning` — settings, pending proposals and counts.
+- `POST /api/learning/settings` — `enabled`, optional `provider` + `model`.
+- `POST /api/learning/proposals/{id}/approve` and `/reject`.
+
+The feature is off by default. When on, the reviewer model is the configured
+one, else the memory model, else the `fast` tier, else the model that answered
+the turn. Name both a provider and a model or neither; the route refuses half a
+pair. Proposals are approved in Capabilities → Skills, not here — the switch and
+the count live in Settings, the decision lives next to the skills it changes.
 
 ## Permissions
 
@@ -118,6 +133,7 @@ This is a second management surface for connectors. Keep it consistent with
 | Add a section | `SECTIONS`, render branch, nav link if needed |
 | Add a preference | `store.jsx`, `/api/settings` or `SYNCED_PREFERENCES` |
 | Add a provider field | `backend/config.py`, provider routes, `Models` section |
+| Change learning settings | `backend/config.py`, `/api/learning*`, `LearningEditor` |
 | Add a permission | `backend/security/confirmation.py`, Permissions section |
 | Change device controls | `Devices`, `/api/devices*` |
 | Change theme tokens | `frontend/src/index.css`, `globals.css`, `store.jsx` |
@@ -148,4 +164,4 @@ Rules:
 - [sections/capabilities.md](capabilities.md)
 - [sections/remote-mobile.md](remote-mobile.md)
 
-_Last verified: 2026-10-31 · commit `3c363b7` · dirty working tree._
+_Last verified: 2026-11-04 · commit `f52a7d1` · dirty working tree._

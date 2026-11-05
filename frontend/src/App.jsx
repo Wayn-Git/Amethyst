@@ -27,7 +27,7 @@ import { safeStorage } from './lib/storage.js'
 import Chat from './views/Chat.jsx'
 import MobileNav from './components/MobileNav.jsx'
 import { isNativeMobile } from './lib/credentials.js'
-import { Toaster, Notification, NotificationViewport } from './components/application/notifications'
+import { Notification, NotificationViewport } from './components/base/notification/notification'
 import { useBoardUINotifications } from './lib/boardui-notifications.js'
 
 /* The workbench.
@@ -337,12 +337,12 @@ function Toasts() {
 
   return (
     <>
-      <Toaster />
-      <NotificationViewport position="top-right">
+      <NotificationViewport position="bottom-right">
         {notifications.map((notification) => (
           <Notification
             key={notification.id}
             {...notification}
+            className="amethyst-boardui-notification"
             autoDismissDuration={notification.autoDismissDuration ?? 3500}
             introDelay={0}
             onDismiss={() => dismissNotification(notification.id)}

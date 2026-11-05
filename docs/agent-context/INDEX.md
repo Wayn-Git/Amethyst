@@ -3,8 +3,8 @@
 Navigation layer for AI coding agents working in this repository. Read this
 file first, then only the documents for the subsystem you are changing.
 
-**Verified against the working tree on 2026-10-31 at commit
-`3c363b729479cfd1bdcd1f8931740a6daff7d090`.** The working tree was dirty at
+**Verified against the working tree on 2026-11-04 at commit
+`f52a7d1db9de7bde43d6815dcb6a845023f48732`.** The working tree was dirty at
 verification time, so these documents describe the code as checked out then, not
 only the named commit. Re-check the source before relying on a detail.
 

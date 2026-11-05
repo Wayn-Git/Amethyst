@@ -285,6 +285,101 @@ _worker_lane = jobs.JobRunner([worker_batch.KIND], name="workers")
 worker_batch.lane = _worker_lane
 
 
+# Skill curation (`backend/skills/curator.py`). Its own lane because a pass is
+# file work, not a model turn: queueing it behind a three-minute automation
+# would make "curated daily" mean "curated whenever the scheduler gets to it".
+#
+# Deterministic and single-threaded, so a reclaimed pass is safe to repeat: the
+# sidecar state is read before every move, and a skill already archived is
+# skipped rather than moved twice.
+def curator_kind() -> str:
+    from backend.skills.curator import JOB_KIND
+
+    return JOB_KIND
+
+
+async def _run_skill_curator(job, store) -> dict:
+    from backend.skills import curator
+
+    return await asyncio.to_thread(curator.run)
+
+
+jobs.register(
+    jobs.Handler(
+        kind=curator_kind(),
+        run=_run_skill_curator,
+        backoff_base=300.0,
+        backoff_cap=3600.0,
+        max_attempts=2,
+        auto_retry_after_crash=True,
+    )
+)
+_curator_lane = jobs.JobRunner([curator_kind()], name="skills-curator")
+
+
+# Post-turn learning review (`backend/learning/review.py`). One review is one
+# small model call, so it gets its own lane rather than sharing with the
+# curator: a stuck provider must not stop the catalog from being tidied, and a
+# curation pass must not delay the review that was enqueued by a turn.
+#
+# Not replay-safe after a crash: the review inserts proposals, and a reclaimed
+# attempt that got halfway through would propose some of them twice. A lost
+# review costs one suggestion; a duplicated one costs a person's attention.
+async def _run_learning_review(job, store) -> dict:
+    from backend.learning.review import review_turn
+
+    result = await review_turn(
+        conversation_id=job.payload.get("conversation_id"),
+        run_id=job.payload.get("run_id"),
+        user_message=job.payload.get("user_message") or "",
+        answer=job.payload.get("answer") or "",
+        tool_calls=int(job.payload.get("tool_calls") or 0),
+        tool_names=list(job.payload.get("tool_names") or []),
+        answered_provider=job.payload.get("provider"),
+        answered_model=job.payload.get("model"),
+    )
+    return result.as_dict()
+
+
+def learning_kind() -> str:
+    return "learning_review"
+
+
+jobs.register(
+    jobs.Handler(
+        kind=learning_kind(),
+        run=_run_learning_review,
+        backoff_base=120.0,
+        backoff_cap=900.0,
+        max_attempts=2,
+        auto_retry_after_crash=False,
+    )
+)
+_learning_lane = jobs.JobRunner([learning_kind()], name="learning")
+
+
+async def _curator_loop() -> None:
+    """Enqueue one pass a day, using the date as the idempotency key.
+
+    The lane's own job store already refuses a second job for the same key, so
+    a restart in the same day does not archive twice, and a process that was
+    down over midnight catches up on its first tick.
+    """
+    from datetime import UTC, datetime
+
+    from backend.skills import curator
+
+    while True:
+        try:
+            if curator.should_run():
+                key = f"{curator.JOB_KIND}:{datetime.now(UTC):%Y%m%d}"
+                jobs.enqueue(curator.JOB_KIND, key)
+                _curator_lane.nudge()
+        except Exception:
+            log.exception("could not enqueue the skill curation pass")
+        await asyncio.sleep(3600.0)
+
+
 async def _live_manager():
     """The running MCP manager, building one if no turn has needed it yet.
 
@@ -638,6 +733,11 @@ async def _lifespan(_: FastAPI):
     # The fan-out lane. Separate from the one above so a batch a scheduled turn
     # asked for cannot queue behind the turn that is waiting for it.
     _worker_lane.start()
+    # The curation lane. Started with the others so the first daily pass does
+    # not wait for a restart, and driven by its own enqueue loop below.
+    _curator_lane.start()
+    _curator_task = asyncio.create_task(_curator_loop())
+    _learning_lane.start()
     # Reminders take the same rule, for the same reason. Deliberately a second
     # runner rather than another job on the first: the automation loop
     # serializes model turns that can take five minutes, and a reminder queued
@@ -709,6 +809,11 @@ async def _lifespan(_: FastAPI):
     await _automation_lane.stop()
     await mobile_capture_lane.stop()
     await _worker_lane.stop()
+    _curator_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await _curator_task
+    await _curator_lane.stop()
+    await _learning_lane.stop()
     with contextlib.suppress(asyncio.CancelledError):
         _boot_connectors.cancel()
         await _boot_connectors
@@ -3952,6 +4057,10 @@ async def run_turn(
         # already refuse for exactly this reason; the turn endpoint must too.
         raise HTTPException(409, "a turn is already running for this conversation")
     cancel = asyncio.Event()
+    # Whoever cancels the turn sets `cancel_source` first. A cancel with no
+    # annotation is exactly the diagnosis gap this Instrumentation exists to
+    # close: the finally block logs it as unknown.
+    cancel.cancel_source = None
     _active_turns[conversation_id] = cancel
 
     disconnect_watcher: asyncio.Task | None = None
@@ -3960,6 +4069,7 @@ async def run_turn(
             try:
                 while not cancel.is_set():
                     if await request.is_disconnected():
+                        cancel.cancel_source = "disconnect-watcher: request.is_disconnected()"
                         log.info("client disconnected for conversation %s; cancelling turn", conversation_id)
                         cancel.set()
                         break
@@ -3981,6 +4091,9 @@ async def run_turn(
         global _connectors_warm
         # Whether the reader has been told how the turn ended.
         settled = False
+        # Set once the turn's own clock starts (below). A cancel arriving before
+        # that -- during manifest/build/startup -- still wants an elapsed time.
+        began: float | None = None
         try:
             # The first frame goes out before anything that can be slow.
             #
@@ -4081,6 +4194,8 @@ async def run_turn(
                     yield ": keepalive\n\n"
                     yield _frame("ping", **({"waiting_on": waiting} if waiting else {}))
                     continue
+                if settled and event.type == "error":
+                    continue
                 # default=str so one unexpected value in a tool argument degrades
                 # to a string instead of killing the response mid-stream.
                 payload = json.dumps({"type": event.type, **event.data}, default=str)
@@ -4107,7 +4222,23 @@ async def run_turn(
         except asyncio.CancelledError:
             # A shutdown, a reload, or Starlette dropping the task. The reader
             # is still there for one more frame.
-            cancel.set()
+            #
+            # [CANCEL DIAGNOSTIC] This is the path a mid-stream client disconnect
+            # and an external task-kill both take. It eventually surfaces as
+            # state.error "the turn was cancelled" and no other log line, so it
+            # is logged here with everything a diagnosis wants: elapsed time
+            # since the turn started and whether the cancel event was *already*
+            # set by a named caller (Stop endpoint, device intent, watcher)
+            # before the task itself was dropped.
+            if not cancel.is_set():
+                cancel.cancel_source = "self: stream-task cancelled by Starlette (client TCP drop or server shutdown)"
+                cancel.set()
+            log.warning(
+                "[CANCEL SOURCE] turn task for %s dropped after %s (cancel source: %r)",
+                conversation_id,
+                f"{time.monotonic() - began:.1f}s" if began is not None else "startup (turn clock not started)",
+                cancel.cancel_source,
+            )
             if not settled:
                 yield _frame("error", message="the server stopped this turn")
             raise
@@ -4119,6 +4250,15 @@ async def run_turn(
         finally:
             if disconnect_watcher and not disconnect_watcher.done():
                 disconnect_watcher.cancel()
+            if cancel.is_set() and cancel.cancel_source is None:
+                # A setter without an annotation: the sync/intents control-device
+                # path and anything else that grabs the event out of
+                # `_active_turns` directly. Known-unknown, and now it says so.
+                log.warning(
+                    "[CANCEL SOURCE] cancel event for %s was set by an unannotated caller "
+                    "(sync device intent, integration, or direct _active_turns access)",
+                    conversation_id,
+                )
             cancel.set()
             # A backstop for the stream that ends without a terminal frame at
             # all -- a client that hangs up, or a generator closed early.
@@ -4149,6 +4289,11 @@ async def stop_turn(conversation_id: str) -> dict[str, str]:
     cancel = _active_turns.get(conversation_id)
     if cancel is None:
         raise HTTPException(404, "no turn is running for this conversation")
+    # Stop is silent by design; the one thing it must never be is *invisible* --
+    # a diagnostics pass that finds "the turn was cancelled" with no setter
+    # named reads exactly like the provider or transport failing.
+    cancel.cancel_source = "stop endpoint: POST /turn/stop"
+    log.info("[CANCEL SOURCE] stop endpoint fired for conversation %s", conversation_id)
     cancel.set()
     return {"status": "stopping"}
 
@@ -6334,17 +6479,32 @@ def skill_autocomplete(q: str = "", conversation_id: str | None = None) -> list[
 
 @app.get("/api/skills")
 def list_skills() -> dict[str, Any]:
+    from backend.skills import usage as skill_usage
+
     skills, errors = scan()
+    records = skill_usage.load()
+    rows = []
+    for s in skills:
+        record = records.get(s.name, {})
+        rows.append({
+            "name": s.name,
+            "description": s.description,
+            "path": str(s.path),
+            "version": s.version,
+            # Shipped builtins carry `.seeded`; the curator never touches them
+            # and the interface says where a skill came from.
+            "builtin": (s.path.parent / ".seeded").is_file(),
+            "created_by": record.get("created_by") or "user",
+            "state": record.get("state") or skill_usage.ACTIVE,
+            "pinned": bool(record.get("pinned")),
+            "locked": bool(record.get("locked")),
+            "use_count": int(record.get("use_count") or 0),
+            "view_count": int(record.get("view_count") or 0),
+            "patch_count": int(record.get("patch_count") or 0),
+            "last_activity_at": record.get("last_activity_at"),
+        })
     return {
-        "skills": [
-            {
-                "name": s.name,
-                "description": s.description,
-                "path": str(s.path),
-                "version": s.version,
-            }
-            for s in skills
-        ],
+        "skills": rows,
         "errors": [{"path": str(e.path), "error": e.error} for e in errors],
     }
 
@@ -6450,6 +6610,182 @@ def create_skill(body: CreateSkill) -> dict[str, Any]:
         "path": str(skill.path),
         "version": skill.version,
     }
+
+
+@app.get("/api/skills/curator")
+def skill_curator_status() -> dict[str, Any]:
+    """The last curation pass, and whether one is due.
+
+    Read-only: the interface needs to show what the curator did and offer a
+    "run now". The pass itself is a job, not a request, because it moves files.
+    """
+    from backend.skills import curator
+
+    return {
+        "due": curator.should_run(),
+        "interval_hours": curator.INTERVAL_HOURS,
+        "thresholds": {
+            "stale_after_days": curator.STALE_AFTER_DAYS,
+            "archive_after_days": curator.ARCHIVE_AFTER_DAYS,
+            "grace_days": curator.GRACE_DAYS,
+        },
+        "latest": curator.latest_report(),
+    }
+
+
+@app.post("/api/skills/curator/run")
+async def run_skill_curator() -> dict[str, Any]:
+    """Run a pass now. Returns when the pass is done, because it takes seconds."""
+    from backend.skills import curator
+
+    return await asyncio.to_thread(curator.run, force=True)
+
+
+@app.get("/api/skills/archived")
+def list_archived_skills() -> dict[str, Any]:
+    from backend.skills import manage
+
+    return {"archived": manage.archived()}
+
+
+class SkillState(BaseModel):
+    state: str
+
+
+@app.post("/api/skills/{name}/state")
+def set_skill_state(name: str, body: SkillState) -> dict[str, Any]:
+    """Move a skill between active, stale and archived.
+
+    `archived` also moves the directory into `skills/.archive/`, and `active`
+    restores it if it is in the archive. The sidecar state and the directory are
+    kept in step here rather than by the caller, because a state that disagrees
+    with the filesystem is a badge pointing at a skill the loader cannot see.
+    """
+    from backend.skills import manage
+    from backend.skills import usage as skill_usage
+
+    if body.state not in skill_usage.STATES:
+        raise HTTPException(400, f"state must be one of: {', '.join(skill_usage.STATES)}")
+    installed = {s.name for s in scan()[0]}
+    try:
+        if body.state == skill_usage.ARCHIVED:
+            if name in installed:
+                manage.archive(name, reason="archived from Capabilities")
+            elif not any(item["name"] == name for item in manage.archived()):
+                raise HTTPException(404, f"no skill named '{name}'")
+        elif body.state == skill_usage.ACTIVE and name not in installed:
+            manage.restore(name)
+        elif name not in installed:
+            raise HTTPException(404, f"no skill named '{name}'")
+        record = skill_usage.mark(name, state=body.state)
+    except manage.SkillManageError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"name": name, **record}
+
+
+class SkillFlags(BaseModel):
+    pinned: bool | None = None
+    locked: bool | None = None
+
+
+@app.post("/api/skills/{name}/flags")
+def set_skill_flags(name: str, body: SkillFlags) -> dict[str, Any]:
+    from backend.skills import usage as skill_usage
+
+    if name not in {s.name for s in scan()[0]}:
+        raise HTTPException(404, f"no skill named '{name}'")
+    record: dict[str, Any] = {}
+    try:
+        if body.pinned is not None:
+            record = skill_usage.set_flag(name, "pinned", body.pinned)
+        if body.locked is not None:
+            record = skill_usage.set_flag(name, "locked", body.locked)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"name": name, **record}
+
+
+@app.post("/api/skills/{name}/restore")
+def restore_skill(name: str) -> dict[str, Any]:
+    from backend.skills import manage
+    from backend.skills import usage as skill_usage
+
+    try:
+        target = manage.restore(name)
+    except manage.SkillManageError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    skill_usage.mark(name, state=skill_usage.ACTIVE)
+    return {"status": "restored", "name": name, "path": str(target)}
+
+
+class LearningSettingsBody(BaseModel):
+    enabled: bool
+    provider: str | None = None
+    model: str | None = None
+
+
+@app.get("/api/learning")
+def learning_state(status: str = "pending") -> dict[str, Any]:
+    """Settings, pending proposals, and counts in one read.
+
+    One call because the Skills tab shows all three together, and three separate
+    requests would let the badge disagree with the list it sits above.
+    """
+    from backend.config import load_learning_settings
+    from backend.learning.service import summary
+    from backend.learning.store import LearningStore
+
+    store = LearningStore()
+    return {
+        "settings": load_learning_settings().as_dict(),
+        "proposals": [p.as_dict() for p in store.list(status=status if status else None)],
+        **summary(store),
+    }
+
+
+@app.post("/api/learning/settings")
+def update_learning_settings(body: LearningSettingsBody) -> dict[str, Any]:
+    """Switch the review on or off, and name the model that runs it.
+
+    A provider and model are both optional: without them the review uses the
+    memory model, then the fast tier, then the model that answered the turn.
+    """
+    from backend.config import LearningSettings, load_providers, save_learning_settings
+
+    provider = (body.provider or "").strip() or None
+    model = (body.model or "").strip() or None
+    if bool(provider) != bool(model):
+        raise HTTPException(400, "name both a provider and a model, or neither")
+    if provider and provider not in load_providers():
+        raise HTTPException(400, f"'{provider}' is not a configured provider")
+    saved = save_learning_settings(
+        LearningSettings(enabled=body.enabled, provider=provider, model=model)
+    )
+    return saved.as_dict()
+
+
+@app.post("/api/learning/proposals/{proposal_id}/approve")
+async def approve_learning_proposal(proposal_id: int) -> dict[str, Any]:
+    from backend.learning.service import ApplyError, approve
+
+    try:
+        proposal = await approve(proposal_id)
+    except ApplyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    if proposal.status == "failed":
+        raise HTTPException(400, proposal.error or "the proposal could not be applied")
+    return proposal.as_dict()
+
+
+@app.post("/api/learning/proposals/{proposal_id}/reject")
+def reject_learning_proposal(proposal_id: int) -> dict[str, Any]:
+    from backend.learning.service import ApplyError, reject
+
+    try:
+        proposal = reject(proposal_id)
+    except ApplyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return proposal.as_dict()
 
 
 @app.delete("/api/skills/{name}")
@@ -8282,6 +8618,10 @@ async def add_library_item(body: LibraryBody) -> dict[str, Any]:
         raise HTTPException(500, f"Failed to capture item: {exc}") from exc
     with contextlib.suppress(Exception):
         _library.nudge()
+    if captured and captured.item and captured.item.get("id"):
+        with contextlib.suppress(Exception):
+            from backend.library.storage.sync import trigger_auto_sync
+            trigger_auto_sync(captured.item["id"])
     return {**captured.item, "already_logged": captured.already_logged}
 
 
@@ -8297,6 +8637,118 @@ async def sweep_library(force: bool = True) -> dict[str, Any]:
     unsummarized = len(LibraryStore().unsummarized(limit=500))
     return {"status": "sweeping", "swept": count, "unsummarized": unsummarized}
 
+
+class CreateListBody(BaseModel):
+    title: str
+    description: str = ""
+    icon: str = "bookmark"
+    is_smart: bool = False
+
+
+class UpdateListBody(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    icon: str | None = None
+
+
+class AddListMemberBody(BaseModel):
+    item_id: int | None = None
+    link_id: int | None = None
+    position: int = 0
+
+
+@app.get("/api/library/lists")
+async def get_library_lists() -> list[dict[str, Any]]:
+    from backend.library.service import LibraryService
+
+    return LibraryService().store.get_lists()
+
+
+@app.post("/api/library/lists")
+async def create_library_list(body: CreateListBody) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    store = LibraryService().store
+    list_id = store.create_list(body.title, body.description, body.icon, body.is_smart)
+    return {"id": list_id, "title": body.title}
+
+
+@app.patch("/api/library/lists/{list_id}")
+async def update_library_list(list_id: int, body: UpdateListBody) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    updated = LibraryService().store.update_list(
+        list_id=list_id,
+        title=body.title,
+        description=body.description,
+        icon=body.icon,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="List not found or nothing updated")
+    return {"updated": True, "id": list_id}
+
+
+@app.get("/api/library/lists/{list_id}")
+async def get_library_list_detail(list_id: int) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    store = LibraryService().store
+    lst = store.get_list(list_id)
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found")
+    members = store.get_list_members(list_id)
+    return {**lst, **members}
+
+
+@app.delete("/api/library/lists/{list_id}")
+async def delete_library_list(list_id: int) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    deleted = LibraryService().store.delete_list(list_id)
+    return {"deleted": deleted, "id": list_id}
+
+
+@app.post("/api/library/lists/{list_id}/members")
+async def add_library_list_member(list_id: int, body: AddListMemberBody) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    added = LibraryService().store.add_list_member(list_id, body.item_id, body.link_id, body.position)
+    return {"status": "added" if added else "already_exists", "added": added, "list_id": list_id}
+
+
+@app.delete("/api/library/lists/{list_id}/members")
+async def remove_library_list_member(
+    list_id: int,
+    item_id: int | None = None,
+    link_id: int | None = None,
+) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    removed = LibraryService().store.remove_list_member(list_id, item_id, link_id)
+    return {"removed": removed, "list_id": list_id}
+
+
+@app.post("/api/library/lists/auto-cluster")
+async def auto_cluster_lists() -> dict[str, Any]:
+    from backend.library.clustering import auto_cluster_library_items
+    from backend.library.service import LibraryService
+
+    return auto_cluster_library_items(LibraryService())
+
+
+@app.get("/api/library/links")
+async def get_extracted_links(item_id: int | None = None, limit: int = 100) -> list[dict[str, Any]]:
+    from backend.library.service import LibraryService
+
+    return LibraryService().store.get_extracted_links(item_id=item_id, limit=limit)
+
+
+@app.post("/api/library/links/backfill")
+async def backfill_links() -> dict[str, Any]:
+    from backend.library.links import backfill_all_links
+    from backend.library.service import LibraryService
+
+    return backfill_all_links(LibraryService())
 
 
 @app.get("/api/library/{item_id}")
@@ -8351,6 +8803,103 @@ def update_library_settings(body: dict[str, Any]) -> dict[str, Any]:
     """Update library settings."""
     from backend.config import save_library
     return save_library(body).as_dict()
+
+
+class StorageConfigPatch(BaseModel):
+    active_provider: str | None = None
+    gdrive_root_id: str | None = None
+    gdrive_root_name: str | None = None
+    auto_upload_new: int | None = None
+
+
+@app.get("/api/storage/config")
+def get_storage_config() -> dict[str, Any]:
+    """Library cloud storage configuration (local vs google_drive)."""
+    from backend.library.storage.config import StorageConfigStore
+
+    return StorageConfigStore().get_config()
+
+
+@app.patch("/api/storage/config")
+def update_storage_config(body: StorageConfigPatch) -> dict[str, Any]:
+    """Update storage provider or root folder configuration."""
+    from backend.library.storage.config import StorageConfigStore
+
+    data = body.model_dump(exclude_unset=True)
+    return StorageConfigStore().update_config(**data)
+
+
+@app.get("/api/storage/migration/status")
+def get_storage_migration_status() -> dict[str, Any]:
+    """Get statistics on library cloud storage migration."""
+    from backend.library.storage.migration import MigrationEngine
+
+    return MigrationEngine().get_status()
+
+
+@app.post("/api/storage/migration/start")
+async def start_storage_migration(background_tasks: BackgroundTasks) -> dict[str, Any]:
+    """Discover unmigrated items, populate manifest, and start background migration."""
+    from backend.library.storage.gdrive_bridge import GoogleDriveBridge
+    from backend.library.storage.migration import MigrationEngine
+
+    bridge = GoogleDriveBridge()
+    if not bridge.is_connected():
+        raise HTTPException(
+            status_code=400,
+            detail="Google Drive is not connected or requires re-authentication. Connect Google Drive in Settings before migrating.",
+        )
+
+    engine = MigrationEngine()
+    queued = await engine.build_manifest()
+
+    async def _drain_migration():
+        MigrationEngine._is_running = True
+        try:
+            while True:
+                res = await engine.step(batch_size=5)
+                if res.get("error") or (res["completed"] == 0 and res["failed"] == 0):
+                    break
+        except Exception as exc:
+            log.warning("Background migration step failed: %s", exc)
+        finally:
+            MigrationEngine._is_running = False
+
+    background_tasks.add_task(_drain_migration)
+    return {"status": "started", "queued": queued, **engine.get_status()}
+
+
+@app.post("/api/storage/migration/retry")
+async def retry_failed_storage_migration(background_tasks: BackgroundTasks) -> dict[str, Any]:
+    """Reset failed items in migration manifest back to pending and resume migration."""
+    from backend.library.storage.gdrive_bridge import GoogleDriveBridge
+    from backend.library.storage.migration import MigrationEngine
+
+    bridge = GoogleDriveBridge()
+    if not bridge.is_connected():
+        raise HTTPException(
+            status_code=400,
+            detail="Google Drive is not connected or requires re-authentication. Connect Google Drive in Settings before retrying.",
+        )
+
+    engine = MigrationEngine()
+    retried = engine.retry_failed()
+
+    async def _drain_migration():
+        MigrationEngine._is_running = True
+        try:
+            while True:
+                res = await engine.step(batch_size=5)
+                if res.get("error") or (res["completed"] == 0 and res["failed"] == 0):
+                    break
+        except Exception as exc:
+            log.warning("Background migration step failed: %s", exc)
+        finally:
+            MigrationEngine._is_running = False
+
+    background_tasks.add_task(_drain_migration)
+    return {"status": "retried", "retried": retried, **engine.get_status()}
+
 
 
 @app.post("/api/library/{item_id}/enrich")
@@ -8414,6 +8963,11 @@ async def library_thumbnail(item_id: int) -> FileResponse:
                 if alt.is_file():
                     path = alt
                     break
+        if not path:
+            from backend.config import paths
+            cache_thumb = paths().home / "cache" / "library" / f"{item_id:06d}-thumb.jpg"
+            if cache_thumb.is_file():
+                path = cache_thumb
 
     # If missing or not yet downloaded, try on-demand fetch once with a short timeout
     if not path and row["url"]:
@@ -8478,12 +9032,13 @@ async def library_slide(item_id: int, index: int) -> FileResponse:
 
 
 @app.api_route("/api/library/{item_id}/media", methods=["GET", "HEAD"])
-def library_media(item_id: int) -> FileResponse:
-    """Stream raw media content, downloading on-demand if needed."""
+async def library_media(item_id: int) -> FileResponse:
+    """Stream raw media content from local disk, cache, or Google Drive, downloading on-demand if needed."""
     import mimetypes
     from pathlib import Path
 
     from backend.library.store import LibraryStore
+    from backend.library.storage.accessor import FileContentAccessor
 
     with get_connection() as conn:
         row = LibraryStore(conn).get(item_id)
@@ -8491,34 +9046,29 @@ def library_media(item_id: int) -> FileResponse:
     if row is None:
         raise HTTPException(404, f"no library item {item_id}")
     row = dict(row)
-        
-    path = Path(row["media_path"]) if row.get("media_path") else None
-    if path and path.is_file() and path.stat().st_size > 1000:
-        mime_type, _ = mimetypes.guess_type(str(path))
-        return FileResponse(path, media_type=mime_type or "video/mp4")
 
-    # Check if a media file for this item already exists on disk
-    from backend.library.store import media_path
-    for ext in (".mp4", ".webm", ".mov", ".mkv"):
-        candidate = media_path(item_id, ext)
-        if candidate.is_file() and candidate.stat().st_size > 1000:
-            with get_connection() as conn:
-                conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(candidate), item_id))
-                conn.commit()
-            mime_type, _ = mimetypes.guess_type(str(candidate))
-            return FileResponse(candidate, media_type=mime_type or "video/mp4")
-        
-    # On-demand download for videos / reels (Instagram, TikTok, Twitter/X, Reddit, etc.)
-    # 1. First check if a direct video URL exists in resources
+    # 1. Resolve from stored source (local disk, media_dir, cache, or Google Drive cloud)
+    accessor = FileContentAccessor()
+    stored_path = await accessor.get_media_path(item_id)
+    if stored_path and stored_path.is_file() and stored_path.stat().st_size > 1000:
+        mime_type, _ = mimetypes.guess_type(str(stored_path))
+        return FileResponse(stored_path, media_type=mime_type or "video/mp4")
+
+    # 2. On-demand download for videos / reels (Instagram, TikTok, Twitter/X, Reddit, etc.)
+    from backend.library.store import media_path, media_dir
+    from backend.library.storage.sync import trigger_auto_sync
+
+    # Check if a direct video URL exists in resources
     if row.get("resources"):
         try:
             import json as _json
             import httpx
             res_list = _json.loads(row["resources"])
             for r in res_list:
-                if isinstance(r, dict) and r.get("type") == "video" and r.get("url"):
-                    v_url = r["url"]
-                    if v_url.startswith("http"):
+                if isinstance(r, dict):
+                    v_url = r.get("url") or ""
+                    is_vid = r.get("type") in ("video", "mp4") or (".mp4" in v_url or ".webm" in v_url or ".mov" in v_url)
+                    if is_vid and v_url.startswith("http"):
                         target = media_path(item_id, ".mp4")
                         if not target.is_file() or target.stat().st_size < 1000:
                             with httpx.Client(timeout=45.0, follow_redirects=True) as client:
@@ -8530,12 +9080,13 @@ def library_media(item_id: int) -> FileResponse:
                             with get_connection() as conn:
                                 conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(target), item_id))
                                 conn.commit()
+                            trigger_auto_sync(item_id)
                             mime_type, _ = mimetypes.guess_type(str(target))
                             return FileResponse(target, media_type=mime_type or "video/mp4")
         except Exception:
             pass
 
-    # 2. General yt-dlp on-demand extractor (for video, audio, or social media links)
+    # General yt-dlp on-demand extractor (for video, audio, or social media links)
     url = row.get("url")
     url_lower = (url or "").lower()
     is_social_or_video = (
@@ -8544,9 +9095,7 @@ def library_media(item_id: int) -> FileResponse:
     )
     if url and is_social_or_video:
         try:
-            from backend.library.store import media_dir
             m_dir = media_dir()
-            # Check if any video file for this item_id already exists in media_dir
             for existing in m_dir.glob(f"{item_id:06d}.*"):
                 if existing.is_file() and existing.stat().st_size > 1000 and not existing.name.endswith("-thumb.jpg"):
                     if existing.name.endswith(".mp4.mp4"):
@@ -8557,6 +9106,7 @@ def library_media(item_id: int) -> FileResponse:
                     with get_connection() as conn:
                         conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(existing), item_id))
                         conn.commit()
+                    trigger_auto_sync(item_id)
                     mime_type, _ = mimetypes.guess_type(str(existing))
                     return FileResponse(existing, media_type=mime_type or "video/mp4")
 
@@ -8591,6 +9141,7 @@ def library_media(item_id: int) -> FileResponse:
                     with get_connection() as conn:
                         conn.execute("UPDATE library_items SET media_path = ? WHERE id = ?", (str(cand), item_id))
                         conn.commit()
+                    trigger_auto_sync(item_id)
                     mime_type, _ = mimetypes.guess_type(str(cand))
                     return FileResponse(cand, media_type=mime_type or "video/mp4")
         except Exception:
@@ -8670,6 +9221,13 @@ async def merge_library_lists(body: MergeListsBody) -> dict[str, Any]:
         "destination": body.destination,
         "type": body.type,
     }
+
+
+@app.post("/api/library/purge-media")
+async def purge_library_media() -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    return LibraryService().purge_legacy_video_files()
 
 
 class ExportPlaylistBody(BaseModel):

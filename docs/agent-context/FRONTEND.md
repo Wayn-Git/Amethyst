@@ -23,6 +23,13 @@ registry and `App.jsx` turns it into routes.
 turn is not unmounted by navigation. Every other view is lazy-loaded. A failed
 chunk load triggers one session-scoped reload before surfacing the error.
 
+The reload defers while a turn owns the page: unloading kills the turn's SSE
+fetch and the control stream together, which the backend then logs as a client
+disconnect and the transcript blames on "the model stream". `Chat.openTurn`
+sets `window.__AMETHYST_TURN_ACTIVE` for the turn and dispatches
+`amethyst:turn-settled` when it ends; `views/registry.js` parks its reload on
+that signal (ceiling 120s) instead of killing a streaming turn.
+
 ## Pages
 
 `nav.js` defines these routes:

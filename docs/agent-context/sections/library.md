@@ -3,7 +3,7 @@
 The knowledge vault at `/library`: capture anything with a URL, store the text
 as a Markdown file, enrich it, index it, and search it by keyword or meaning.
 
-**Verified 2026-10-31 · commit `3c363b7` · dirty working tree.**
+**Verified 2026-11-04 · Zero video download & Smart Lists pipeline.**
 
 ## Entry points
 
@@ -15,11 +15,13 @@ as a Markdown file, enrich it, index it, and search it by keyword or meaning.
 | Routes | `backend/api/main.py` `/api/library*` |
 | Service | `backend/library/service.py` |
 | Enrichment | `backend/library/enrich.py` |
+| Link Harvester | `backend/library/links.py` |
+| Semantic Clustering | `backend/library/clustering.py` |
 | Reels | `backend/library/reels.py` |
 | Background sweep | `backend/library/runner.py` |
 | Store | `backend/library/store.py` |
 | Retrieval | `backend/retrieval/` |
-| Tables | `library_items`, `library_lists`, `library_tags` and related tables |
+| Tables | `library_items`, `library_lists`, `library_list_members`, `library_extracted_links`, `library_tags` |
 
 ## UI structure
 
@@ -27,14 +29,29 @@ as a Markdown file, enrich it, index it, and search it by keyword or meaning.
   input is not a URL.
 - “More capture options”: upload/drop a file, type a note, resolve a Wikipedia
   topic.
-- Grid and list views.
+- Lists & Organize dropdown controls in `frontend/src/views/library/LibraryToolbar.jsx`:
+  switch between "All Items", smart clustered lists and custom lists,
+  with "+ Create new list", "Merge lists", and "Auto-Group" actions.
+- Grid and list views with progressive batch rendering and infinite scroll sentinel.
 - Tag rail, kind filter, category filter, sort order.
-- Detail modal with summary, tags, resources, source, reading progress, notes
+- Detail modal with summary, tags, resources, harvested outbound links, source, reading progress, notes
   and actions.
 - Shelves/collections, playlist export, merge lists.
 - Ask/search panel.
 - Shortcuts modal.
 - Share panels for bookmarklet and phone capture.
+
+## Smart lists & link harvesting
+
+- Embedded URLs and Markdown links are automatically extracted, stripped of tracking
+  parameters (`utm_*`, `fbclid`, `igsh`, etc.), normalized, and stored in `library_extracted_links`
+  with zero duplicates per item.
+- `library_lists` and `library_list_members` support grouping items and extracted links with
+  database-level `UNIQUE(list_id, item_id)` and `UNIQUE(list_id, link_id)` constraints.
+- `backend/library/clustering.py` automatically synthesizes thematic smart lists using
+  shared tags, semantic vector representations, and domain analysis.
+- Detail modals feature a "Referenced Outbound Links" card allowing single-click external navigation
+  and list assignment.
 
 ## Capture paths
 
@@ -56,11 +73,12 @@ explanation is indistinguishable from a bug.
 
 ## Storage model
 
-- Text: `~/.amethyst/library/{id}-{slug}.md`.
-- Media: `~/.amethyst/library/media/`.
-- Metadata: `library_items` row.
-- Index: `chunks_fts` and `chunk_vectors`, created in
-  `backend/retrieval/store.py`.
+- Text: Local `~/.amethyst/library/{id}-{slug}.md` or Google Drive (`Amethyst/Library/articles/`, etc.).
+- Media: Local `~/.amethyst/library/media/` or Google Drive (`Amethyst/Library/media/`).
+- Cache: `~/.amethyst/cache/library/` for on-demand cloud caching and offline access.
+- Metadata: `library_items` row with `storage_provider` (`local` | `google_drive`), `external_id`, `cached_locally`, `sync_state`.
+- Provider layer: `backend/library/storage/` (`StorageProvider`, `LocalStorageProvider`, `GoogleDriveProvider`, `FileContentAccessor`, `MigrationEngine`).
+- Index: `chunks_fts` and `chunk_vectors`, created in `backend/retrieval/store.py`.
 - Status: `received`, `processing`, `enriching`, `ready`, `failed`.
 
 The filesystem is the source of truth for text (ADR-0004). Re-indexing can
@@ -70,9 +88,9 @@ rebuild the database from files. The reverse is not true.
 
 ```mermaid
 flowchart LR
-  CAP[capture] --> FILE[write Markdown file]
-  FILE --> ROW[library_items row]
-  ROW --> ENR[enrich: summary, tags, resources, category]
+  CAP[capture: fast metadata & thumbnail] --> ROW[library_items card]
+  ROW --> BG[background: ephemeral audio transcription]
+  ROW --> ENR[enrich: exhaustive summary, tags, grounded resources]
   ROW --> CHUNK[chunk Markdown]
   CHUNK --> FTS[chunks_fts]
   CHUNK --> VEC[chunk_vectors]
@@ -85,8 +103,15 @@ flowchart LR
   `backend/mcp/ssrf.py`.
 - It tries Instagram, X, YouTube, Pinterest, Reddit and Threads handlers, then
   plain readable text.
-- `backend/library/enrich.py` makes a model call. Enrichment is best-effort; a
-  failed enrichment leaves a usable item.
+- Video and reel captures use zero video download (`dest=None`), immediately creating
+  the item card and thumbnail within ~1 second while deferring ephemeral audio transcription
+  to background workers (with no persistent `.mp4` video downloads or Google Drive video sync).
+- Playback uses responsive platform iframe embeds (YouTube nocookie, Instagram, TikTok) or remote streaming URLs.
+- Legacy video files can be cleaned up using `POST /api/library/purge-media`.
+- `backend/library/enrich.py` generates exhaustive, technically dense summaries and
+  grounds resource links against `<known_links>` to avoid hallucinated URLs.
+- Polling in `Library.jsx` simultaneously updates grid cards and any open detail modal
+  the moment background processing finishes.
 - `backend/library/runner.py` sweeps unsummarized items in the background.
 - `backend/retrieval/indexer.py` chunks and indexes. `search.py` combines
   keyword and vector candidates.
@@ -143,4 +168,4 @@ Rules:
 - [systems/storage.md](../systems/storage.md)
 - [AGENT-SYSTEM.md](../AGENT-SYSTEM.md)
 
-_Last verified: 2026-10-31 · commit `3c363b7` · dirty working tree._
+_Last verified: 2026-11-04 · Zero video download & Smart Lists pipeline._

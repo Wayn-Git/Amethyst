@@ -575,6 +575,13 @@ CREATE TABLE IF NOT EXISTS library_items (
     remind_action    TEXT DEFAULT 'revisit', -- e.g. 'read', 'watch', 'book', 'revisit'
     reminded_at      TEXT,              -- timestamp when reminder was announced
     private_notes    TEXT,              -- local-only private notes, confidential to user
+    -- Cloud storage provider integration & migration fields
+    storage_provider TEXT DEFAULT 'local', -- local | google_drive
+    external_id      TEXT,              -- external provider file/object ID
+    cached_locally   INTEGER DEFAULT 1, -- 1 = available in local filesystem/cache, 0 = cloud-only
+    sync_state       TEXT DEFAULT 'synced', -- synced | pending | syncing | failed
+    checksum         TEXT,              -- sha256 checksum for verification
+    last_synced_at   TEXT,              -- ISO/naive local timestamp of last successful sync
     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
     -- A name that does not depend on insertion order, so a phone and a machine
@@ -594,10 +601,56 @@ CREATE INDEX IF NOT EXISTS idx_library_progress
     ON library_items(progress);
 CREATE INDEX IF NOT EXISTS idx_library_remind
     ON library_items(remind_at) WHERE remind_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_library_storage_provider
+    ON library_items(storage_provider);
+CREATE INDEX IF NOT EXISTS idx_library_external_id
+    ON library_items(external_id) WHERE external_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_library_sync_state
+    ON library_items(sync_state);
 -- Not unique: re-reading something a year later is a real event worth logging
 -- twice. Capture looks here first and offers what it finds rather than refusing.
 CREATE INDEX IF NOT EXISTS idx_library_url ON library_items(url) WHERE url IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_library_consumed ON library_items(consumed_on DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS library_extracted_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_item_id INTEGER NOT NULL REFERENCES library_items(id) ON DELETE CASCADE,
+    url TEXT NOT NULL,
+    normalized_url TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    title TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(source_item_id, normalized_url)
+);
+CREATE INDEX IF NOT EXISTS idx_extracted_links_norm ON library_extracted_links(normalized_url);
+CREATE INDEX IF NOT EXISTS idx_extracted_links_source ON library_extracted_links(source_item_id);
+CREATE INDEX IF NOT EXISTS idx_extracted_links_domain ON library_extracted_links(domain);
+
+CREATE TABLE IF NOT EXISTS library_lists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    icon TEXT DEFAULT 'bookmark',
+    is_smart BOOLEAN DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_library_lists_title ON library_lists(title);
+
+CREATE TABLE IF NOT EXISTS library_list_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    list_id INTEGER NOT NULL REFERENCES library_lists(id) ON DELETE CASCADE,
+    item_id INTEGER REFERENCES library_items(id) ON DELETE CASCADE,
+    link_id INTEGER REFERENCES library_extracted_links(id) ON DELETE CASCADE,
+    position INTEGER DEFAULT 0,
+    added_at TEXT DEFAULT (datetime('now')),
+    CHECK ((item_id IS NOT NULL AND link_id IS NULL) OR (item_id IS NULL AND link_id IS NOT NULL)),
+    UNIQUE(list_id, item_id),
+    UNIQUE(list_id, link_id)
+);
+CREATE INDEX IF NOT EXISTS idx_list_members_list ON library_list_members(list_id);
+CREATE INDEX IF NOT EXISTS idx_list_members_item ON library_list_members(item_id);
+CREATE INDEX IF NOT EXISTS idx_list_members_link ON library_list_members(link_id);
 
 -- How AMETHYST writes when it writes *for* the user rather than *to* them.
 --
@@ -1049,6 +1102,39 @@ CREATE TABLE IF NOT EXISTS provider_fallbacks (
     updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Library storage configuration: controls whether items are local or cloud-backed,
+-- and tracks the designated root folder in Google Drive.
+CREATE TABLE IF NOT EXISTS storage_configurations (
+    id                 INTEGER PRIMARY KEY CHECK (id = 1),
+    active_provider    TEXT NOT NULL DEFAULT 'local', -- local | google_drive
+    gdrive_root_id     TEXT,
+    gdrive_root_name   TEXT DEFAULT 'Amethyst/Library',
+    auto_upload_new    INTEGER NOT NULL DEFAULT 0,
+    created_at         TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Library migration manifest: tracks granular, resumable migration of items
+-- from local storage into Google Drive.
+CREATE TABLE IF NOT EXISTS storage_migration_manifest (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id            INTEGER NOT NULL REFERENCES library_items(id) ON DELETE CASCADE,
+    file_type          TEXT NOT NULL, -- text | media | thumbnail | slide
+    local_path         TEXT NOT NULL,
+    file_size          INTEGER NOT NULL,
+    checksum           TEXT NOT NULL,
+    target_folder      TEXT NOT NULL,
+    status             TEXT NOT NULL DEFAULT 'pending', -- pending | in_progress | completed | failed
+    external_id        TEXT,
+    error_message      TEXT,
+    attempt_count      INTEGER DEFAULT 0,
+    updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_migration_status ON storage_migration_manifest(status);
+CREATE INDEX IF NOT EXISTS idx_migration_item ON storage_migration_manifest(item_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_manifest_item_file ON storage_migration_manifest(item_id, file_type);
+
+
 
 -- Today keeps user triage and cached provider reads on this machine.
 CREATE TABLE IF NOT EXISTS today_items (
@@ -1087,3 +1173,29 @@ CREATE TABLE IF NOT EXISTS remote_action_drafts (
     expires_at REAL NOT NULL,
     decision TEXT
 );
+
+-- What the post-turn learning review proposed, and what a person decided.
+--
+-- A proposal is stored rather than applied so that switching the review on
+-- cannot quietly rewrite the skill library: the review costs tokens, the write
+-- costs trust, and only the second one needs a yes. `body` is the whole thing
+-- (a skill's instruction, or one memory fact), so approving works even after
+-- the conversation that produced it has been deleted.
+CREATE TABLE IF NOT EXISTS learning_proposals (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id TEXT,
+    run_id          TEXT,
+    kind            TEXT NOT NULL CHECK(kind IN ('skill', 'memory')),
+    name            TEXT,               -- skill slug; NULL for a memory
+    title           TEXT NOT NULL,      -- the description, or the fact
+    body            TEXT NOT NULL DEFAULT '',
+    rationale       TEXT,
+    status          TEXT NOT NULL DEFAULT 'pending'
+                    CHECK(status IN ('pending', 'approved', 'rejected', 'failed')),
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    decided_at      TEXT,
+    applied_at      TEXT,
+    error           TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_learning_proposals_status
+    ON learning_proposals(status, created_at);

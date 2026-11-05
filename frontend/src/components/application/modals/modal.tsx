@@ -101,7 +101,7 @@ export const ModalTitle = ({ className, ...props }: ModalTitleProps) => (
         slot="title"
         level={2}
         {...props}
-        className={cx("text-lg font-semibold tracking-tight text-fg-primary", className)}
+        className={cx("text-title-2-semibold text-fg-primary", className)}
     />
 );
 ModalTitle.displayName = "ModalTitle";
@@ -109,14 +109,14 @@ ModalTitle.displayName = "ModalTitle";
 export interface ModalDescriptionProps extends ComponentPropsWithRef<"p"> {}
 
 export const ModalDescription = ({ className, ...props }: ModalDescriptionProps) => (
-    <p {...props} className={cx("text-sm text-fg-tertiary leading-relaxed", className)} />
+    <p {...props} className={cx("text-body-regular text-fg-tertiary", className)} />
 );
 ModalDescription.displayName = "ModalDescription";
 
 export interface ModalBodyProps extends ComponentPropsWithRef<"div"> {}
 
 export const ModalBody = ({ className, ...props }: ModalBodyProps) => (
-    <div {...props} className={cx("my-4 flex-1 overflow-y-auto text-sm text-fg-secondary", className)} />
+    <div {...props} className={cx("my-4 flex-1 overflow-y-auto text-body-regular text-fg-secondary", className)} />
 );
 ModalBody.displayName = "ModalBody";
 

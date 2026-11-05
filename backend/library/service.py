@@ -21,6 +21,7 @@ because an item with no text and no explanation is indistinguishable from a bug.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import re
@@ -216,6 +217,13 @@ def as_dict(row, *, include_content: bool = True) -> dict:
                         text_p = match
                         break
 
+        # Fallback to local cache for cloud-backed or migrated items
+        if not text_p or not text_p.is_file():
+            from backend.config import paths
+            cache_cand = paths().home / "cache" / "library" / f"{item_id:06d}-text.md"
+            if cache_cand.is_file():
+                text_p = cache_cand
+
     if text_p and text_p.is_file():
         data["text_path"] = str(text_p)
         if include_content:
@@ -260,6 +268,11 @@ def as_dict(row, *, include_content: bool = True) -> dict:
                 if alt_cand.is_file():
                     thumb_p = alt_cand
                     break
+        if (not thumb_p or not thumb_p.is_file()):
+            from backend.config import paths
+            cache_thumb = paths().home / "cache" / "library" / f"{item_id:06d}-thumb.jpg"
+            if cache_thumb.is_file():
+                thumb_p = cache_thumb
     if thumb_p and thumb_p.is_file():
         data["thumbnail_path"] = str(thumb_p)
 
@@ -281,6 +294,12 @@ def as_dict(row, *, include_content: bool = True) -> dict:
             if cand.is_file() and cand.stat().st_size > 1000:
                 media_p = cand
                 break
+        if not media_p or not media_p.is_file():
+            from backend.config import paths
+            for cache_med in (paths().home / "cache" / "library").glob(f"{item_id:06d}-media.*"):
+                if cache_med.is_file():
+                    media_p = cache_med
+                    break
     if media_p and media_p.is_file():
         data["media_path"] = str(media_p)
 
@@ -607,6 +626,9 @@ class LibraryService:
                     await self._save_thumb(item_id, thumb_url)
                 if initial_status == "enriching":
                     self._enrich_later(item_id)
+                with contextlib.suppress(Exception):
+                    from backend.library.storage.sync import trigger_auto_sync
+                    trigger_auto_sync(item_id)
                 return Captured(as_dict(self.store.get(item_id)))
             # Rung 3: the note names whichever rung was the last one tried.
             if x_note:
@@ -813,6 +835,9 @@ class LibraryService:
 
         if initial_status == "enriching":
             self._enrich_later(item_id)
+        with contextlib.suppress(Exception):
+            from backend.library.storage.sync import trigger_auto_sync
+            trigger_auto_sync(item_id)
         return Captured(as_dict(self.store.get(item_id)))
 
     def _enrich_later(self, item_id: int) -> None:
@@ -917,6 +942,9 @@ class LibraryService:
         self.store.update(item_id, capture_note=note or None, text_source=text_source, status=initial_status)
         if initial_status == "enriching":
             self._enrich_later(item_id)
+        with contextlib.suppress(Exception):
+            from backend.library.storage.sync import trigger_auto_sync
+            trigger_auto_sync(item_id)
         return Captured(as_dict(self.store.get(item_id)))
 
     async def capture_media_file(
@@ -1065,6 +1093,10 @@ class LibraryService:
 
         if initial_status == "enriching":
             self._enrich_later(item_id)
+
+        with contextlib.suppress(Exception):
+            from backend.library.storage.sync import trigger_auto_sync
+            trigger_auto_sync(item_id)
 
         return Captured(as_dict(self.store.get(item_id)))
 
@@ -1343,6 +1375,18 @@ class LibraryService:
             text_path=str(path),
             word_count=len(text.split()),
         )
+        with contextlib.suppress(Exception):
+            from backend.library.links import harvest_and_store_links
+            import json as _json
+            res_list = None
+            row = self.store.get(item_id)
+            if row and row["resources"]:
+                try:
+                    res_list = _json.loads(row["resources"])
+                except Exception:
+                    res_list = None
+            harvest_and_store_links(self.store, item_id, text, res_list)
+
         if report == 0 and document is None:
             return note or "the text could not be indexed"
         return note
@@ -1439,6 +1483,9 @@ class LibraryService:
         if app_tag:
             updates["tags"] = json.dumps([app_tag])
         self.store.update(item_id, **updates)
+        with contextlib.suppress(Exception):
+            from backend.library.storage.sync import trigger_auto_sync
+            trigger_auto_sync(item_id)
         return Captured(as_dict(self.store.get(item_id)))
 
     async def replace_text(
@@ -1511,13 +1558,11 @@ class LibraryService:
 
         text_source = row["text_source"] or ("page" if row["url"] else "note")
 
-        # If this is a reel/video/carousel and has not had visual content extracted yet,
-        # try re-extracting slides, caption or frames so enrichment has full context
+        # Only re-capture if item is an incomplete skeleton missing essential content
         if row["url"] and is_reel_url(row["url"]) and (
             row["title"] in ("Instagram", row["url"])
-            or text_source in ("caption", "none", "title", "page")
-            or not row.get("resources")
-            or not row.get("thumbnail_path")
+            and not row.get("text_path")
+            and not row.get("thumbnail_path")
         ):
             from backend.config import load_instagram
             from backend.library.reels import ReelCapture
@@ -1536,16 +1581,7 @@ class LibraryService:
             except Exception as exc:
                 log.debug("re-extraction of reel during enrich skipped/failed: %s", exc)
 
-        # Check if local video exists on disk if media_path was null in DB
-        if not row.get("media_path"):
-            for ext in (".mp4", ".mov", ".webm", ".mkv"):
-                cand = media_path(item_id, ext)
-                if cand.is_file():
-                    row["media_path"] = str(cand)
-                    self.store.update(item_id, media_path=str(cand))
-                    break
-
-        elif row.get("media_path") and Path(row["media_path"]).is_file():
+        if row.get("media_path") and Path(row["media_path"]).is_file():
             # If transcript is missing, try audio extraction and transcription
             if "transcript" not in text_source:
                 try:
@@ -1642,6 +1678,22 @@ class LibraryService:
 
         self.store.update(item_id, status="enriching")
         try:
+            known_urls = []
+            if row.get("url"):
+                known_urls.append(row["url"])
+            if row.get("resources"):
+                try:
+                    for r in _json_list(row["resources"]):
+                        if isinstance(r, dict):
+                            if r.get("url") and r["url"].startswith("http"):
+                                known_urls.append(r["url"])
+                            if r.get("remote_url") and r["remote_url"].startswith("http"):
+                                known_urls.append(r["remote_url"])
+                except Exception:
+                    pass
+            known_urls.extend(enrichment.extract_urls(body))
+            known_urls = list(dict.fromkeys(u for u in known_urls if u))
+
             result = await enrichment.enrich_text(
                 body,
                 title=row["title"],
@@ -1650,6 +1702,7 @@ class LibraryService:
                 client=client,
                 provider=provider,
                 model=model,
+                known_urls=known_urls,
             )
 
             existing_tags = _json_list(row["tags"])
@@ -1672,7 +1725,7 @@ class LibraryService:
             existing_resources = _json_list(row.get("resources"))
             merged_resources = list(result.resources) if result.resources else []
             for r in existing_resources:
-                if isinstance(r, dict) and r.get("type") in ("slide", "image", "music", "song"):
+                if isinstance(r, dict) and r.get("type") in ("slide", "image", "music", "song", "video"):
                     if not any(mr.get("url") == r.get("url") for mr in merged_resources if isinstance(mr, dict)):
                         merged_resources.append(r)
 
@@ -1966,6 +2019,28 @@ class LibraryService:
                 pass
 
         return affected
+
+    def purge_legacy_video_files(self, media_dir: Path | None = None) -> dict[str, int]:
+        """Purge all legacy video files (.mp4, .webm, .mov, .mkv) and reset media_path to None."""
+        from backend.config import paths
+        scan_dir = media_dir or (paths().home / "library" / "media")
+        deleted_count = 0
+        if scan_dir.is_dir():
+            for ext in ("*.mp4", "*.webm", "*.mov", "*.mkv"):
+                for p in scan_dir.glob(ext):
+                    try:
+                        p.unlink(missing_ok=True)
+                        deleted_count += 1
+                    except Exception as exc:
+                        log.debug("could not unlink legacy video file %s: %s", p, exc)
+
+        cursor = self.store.conn.execute(
+            "UPDATE library_items SET media_path = NULL WHERE media_path IS NOT NULL"
+        )
+        self.store.conn.commit()
+        cleared_count = cursor.rowcount
+
+        return {"deleted_files": deleted_count, "cleared_rows": cleared_count}
 
     async def search(self, query: str, *, limit: int = 50) -> list[dict]:
         """Find library items by meaning and by keyword, ranked together.

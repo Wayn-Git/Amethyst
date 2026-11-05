@@ -2,8 +2,9 @@
 
 Analysis of `/home/wayne/Documents/GitHub/hermes-agent-main` against the Amethyst
 working tree. Hermes Agent is MIT-licensed, so code and designs may be adapted
-with attribution. This document is a ranked copy list, not an implementation
-plan; it does not change any code.
+with attribution. This document began as a ranked copy list rather than an
+implementation plan. Phases 1–4 are now implemented; see
+[Implementation status](#implementation-status-2026-11-04).
 
 Verified against the Amethyst agent context dated 2026-10-31 (`3c363b7`, dirty
 tree) and against the Hermes working tree as checked out on 2026-11-03.
@@ -30,6 +31,24 @@ work before model work, archive-instead-of-delete, read-before-write, and a
 narrow core with capability at the edges.
 
 ---
+
+## Implementation status (2026-11-04)
+
+Four phases landed from this list. Everything below is implemented and tested in
+the working tree; nothing was mocked.
+
+| Phase | Item | State |
+|---|---|---|
+| 1 | Token/cost accounting (item 6) | **Landed.** `ModelResponse` cache fields, Anthropic and OpenAI-compatible cache mapping, `agent_runs` usage columns, `AgentState` accumulators, `/api/analytics/activity` reads real columns. Cost reports `unknown`; no price table ships. |
+| 2 | Agent-managed skills (item 2) | **Landed.** `skill_manage`, `skills_list`, `skill_view`; create, patch, replace, support files, archive, restore; read-before-write and locked-skill refusal. |
+| 3 | Post-turn learning review (item 1) | **Landed, staged.** Off by default. Gated review enqueues a `learning_review` job; proposals sit in `learning_proposals` until approved in Capabilities → Skills. v1 proposes skill *creates* and memory facts; skill patches are deferred. |
+| 4 | Skill telemetry and curator (item 3) | **Landed, deterministic.** `.usage.json` counters, `/skill` bumps, 14-day stale / 30-day archive, 7-day grace, pin/lock/builtin/automation protections, daily job, reports on disk. No LLM consolidation. |
+
+Still open from this document: full-text session search (item 5), trajectory
+export and evals (item 9), the remaining memory-shape work (item 4 beyond what
+extraction and the review already do), compression refinements (item 7), and
+per-task routing changes (item 8). The curator's LLM-assisted consolidation
+remains deliberately unbuilt.
 
 ## Side-by-side: what already exists
 

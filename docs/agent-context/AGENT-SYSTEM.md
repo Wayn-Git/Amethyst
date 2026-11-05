@@ -4,7 +4,7 @@ The Director is the single owner of the reason → act → observe cycle
 (ADR-0016). It lives in `backend/agent/director.py`. Nothing else decides what
 the loop does next.
 
-**Verified 2026-10-31 · commit `3c363b7` · dirty working tree.**
+**Verified 2026-11-04 · commit `f52a7d1` · dirty working tree.**
 
 ## Main modules
 
@@ -136,6 +136,28 @@ turn with the serialized `AgentState` payload. `execution_logs` stores each tool
 dispatch and the permission decision. `conversation_summaries` supports
 compaction.
 
+`agent_runs` also carries the turn's measured usage: `input_tokens`,
+`output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `tool_call_count`
+and `duration_ms`. The counts come from `ModelResponse`; nothing is estimated
+from characters. `link` is `provider/model`, which is what analytics groups by.
+
+## After the turn
+
+A turn that reaches `done` runs three post-turn steps, in this order, none of
+which can fail the turn:
+
+1. `_remember` — memory extraction, a second model call.
+2. `_enqueue_learning_review` — a `learning_review` job, only when the review is
+   enabled. The job payload carries a bounded copy of the exchange, the tool
+   names used, and the answering provider/model.
+3. `_refresh_summary` — deterministic SQLite summary refresh, no model.
+
+The learning job stores proposals in `learning_proposals`; it never applies
+them. Approval happens through `/api/learning/proposals/{id}/approve` and calls
+`backend/learning/service.py`. See
+[sections/memory.md](sections/memory.md#learning-proposals) and
+[sections/capabilities.md](sections/capabilities.md#learning-proposals).
+
 ## Change guidance
 
 - Change the loop only in `director.py`; keep phase changes explicit in
@@ -166,4 +188,4 @@ compaction.
 - [../architecture/decisions/0016-agent-loop-ownership-and-concurrency.md](../architecture/decisions/0016-agent-loop-ownership-and-concurrency.md)
 - [../architecture/decisions/0021-agent-run-state.md](../architecture/decisions/0021-agent-run-state.md)
 
-_Last verified: 2026-10-31 · commit `3c363b7` · dirty working tree._
+_Last verified: 2026-11-04 · commit `f52a7d1` · dirty working tree._

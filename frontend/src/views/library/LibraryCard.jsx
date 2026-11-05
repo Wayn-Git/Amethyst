@@ -278,7 +278,10 @@ function LibraryCardComponent({
     )
   }, [parsedResources])
 
-  const hasLocalVideo = Boolean(item.media_path && /\.(mp4|mov|webm)(\?|$)/i.test(item.media_path))
+  const hasLocalVideo = Boolean(
+    (item.media_path && /\.(mp4|mov|webm)(\?|$)/i.test(item.media_path)) ||
+    (item.storage_provider === 'google_drive' && (item.kind === 'video' || item.is_reel))
+  )
   const urlLower = (item.url || '').toLowerCase()
   const isDirectVideoUrl = /\.(mp4|mov|webm)(\?|$)/i.test(urlLower)
   const isReelOrShort = urlLower.includes('/reel/') || urlLower.includes('/reels/') || urlLower.includes('/shorts/')

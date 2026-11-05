@@ -67,12 +67,12 @@ export interface AvatarProps {
 }
 
 const styles = {
-    xs: { root: "size-6", rootWithBorder: "p-px", initials: "text-xs font-semibold", icon: "size-4" },
-    sm: { root: "size-8", rootWithBorder: "p-px", initials: "text-sm font-semibold", icon: "size-5" },
-    md: { root: "size-10", rootWithBorder: "p-px", initials: "text-md font-semibold", icon: "size-6" },
-    lg: { root: "size-12", rootWithBorder: "p-[1.5px]", initials: "text-lg font-semibold", icon: "size-7" },
-    xl: { root: "size-14", rootWithBorder: "p-0.5", initials: "text-xl font-semibold", icon: "size-8" },
-    "2xl": { root: "size-16", rootWithBorder: "p-0.5", initials: "text-display-xs font-semibold", icon: "size-8" },
+    xs: { root: "size-6", rootWithBorder: "p-px", initials: "text-caption-1-semibold", icon: "size-4" },
+    sm: { root: "size-8", rootWithBorder: "p-px", initials: "text-body-semibold", icon: "size-5" },
+    md: { root: "size-10", rootWithBorder: "p-px", initials: "text-headline-semibold", icon: "size-6" },
+    lg: { root: "size-12", rootWithBorder: "p-[1.5px]", initials: "text-title-3-semibold", icon: "size-7" },
+    xl: { root: "size-14", rootWithBorder: "p-0.5", initials: "text-title-2-semibold", icon: "size-8" },
+    "2xl": { root: "size-16", rootWithBorder: "p-0.5", initials: "text-title-1-semibold", icon: "size-8" },
 };
 
 export const Avatar = ({
