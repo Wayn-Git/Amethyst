@@ -248,18 +248,20 @@ export default function AddContentModal({
         >
           {/* Header */}
           <div className="lib-modal-header">
-            <h2 className="lib-modal-title">
-              <Icon name="plus" size={16} />
-              <span>Add Knowledge Resource</span>
-            </h2>
-            <HouseButton
+            <div className="flex items-center gap-2.5">
+              <span className="lib-modal-header-icon">
+                <Icon name="plus" size={14} />
+              </span>
+              <h2 className="lib-modal-title">Add Knowledge Resource</h2>
+            </div>
+            <button
               type="button"
-              className="lib-modal-close"
+              className="lib-modal-close-btn"
               onClick={onClose}
               aria-label="Close dialog"
             >
               <Icon name="x" size={14} />
-            </HouseButton>
+            </button>
           </div>
 
           {/* Mode Tabs */}
@@ -329,7 +331,7 @@ export default function AddContentModal({
                         key={k.id}
                         type="button"
                         className={`lib-btn ${anythingKind === k.id ? 'lib-btn--primary' : 'btn--ghost'}`}
-                        style={{ height: 38, padding: '0 12px', fontSize: 13, borderRadius: 12 }}
+                        style={{ height: 38, padding: '0 12px', fontSize: 13, borderRadius: 8 }}
                         onClick={() => setAnythingKind(k.id)}
                       >
                         <Icon name={k.icon} size={14} />

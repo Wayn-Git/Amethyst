@@ -119,9 +119,9 @@ def auto_cluster_library_items(
         tag_counts = collections.Counter(all_cluster_tags)
         token_counts = collections.Counter(all_cluster_tokens)
 
-        title_parts = [t.title() for t, _ in tag_counts.most_common(2)]
+        title_parts = sorted([t.title() for t, _ in tag_counts.most_common(2)])
         if not title_parts:
-            title_parts = [tok.title() for tok, _ in token_counts.most_common(2)]
+            title_parts = sorted([tok.title() for tok, _ in token_counts.most_common(2)])
         if not title_parts:
             title_parts = ["Curated Collection"]
 
@@ -148,13 +148,15 @@ def auto_cluster_library_items(
             for link in item_links:
                 store.add_list_member(list_id=list_id, link_id=link["id"])
 
-        created_lists.append({
-            "id": list_id,
-            "title": list_title,
-            "item_count": len(cluster_item_ids),
-        })
+        if not any(c["id"] == list_id for c in created_lists):
+            created_lists.append({
+                "id": list_id,
+                "title": list_title,
+                "item_count": len(cluster_item_ids),
+            })
 
     return {
         "clusters_created": len(created_lists),
+        "created_or_updated": len(created_lists),
         "lists": created_lists,
     }

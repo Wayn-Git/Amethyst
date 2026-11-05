@@ -678,6 +678,36 @@ class LibraryStore:
         self.conn.commit()
         return cursor.rowcount > 0
 
+    def update_list(
+        self,
+        list_id: int,
+        title: str | None = None,
+        description: str | None = None,
+        icon: str | None = None,
+    ) -> bool:
+        """Update list metadata."""
+        sets = []
+        params = []
+        if title is not None:
+            sets.append("title = ?")
+            params.append(title.strip())
+        if description is not None:
+            sets.append("description = ?")
+            params.append(description.strip())
+        if icon is not None:
+            sets.append("icon = ?")
+            params.append(icon.strip())
+        if not sets:
+            return False
+        sets.append("updated_at = CURRENT_TIMESTAMP")
+        params.append(list_id)
+        cursor = self.conn.execute(
+            f"UPDATE library_lists SET {', '.join(sets)} WHERE id = ?",
+            params,
+        )
+        self.conn.commit()
+        return cursor.rowcount > 0
+
     def add_list_member(
         self,
         list_id: int,

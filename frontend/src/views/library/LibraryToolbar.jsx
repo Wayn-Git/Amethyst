@@ -1,10 +1,7 @@
-import { Button as HouseButton, Input as HouseInput, Select as HouseSelect } from '../../components/ui/bento/index.jsx'
-import { useEffect, useMemo, useState } from 'react'
+import { Button as HouseButton } from '../../components/ui/bento/index.jsx'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { IS_MAC } from '../../keys.js'
-import { KIND_ICON } from './LibraryCard.jsx'
-import { TRACKABLE_PROGRESS_KINDS } from './ProgressSegmentedControl.jsx'
-import LibraryFilterDesk from './LibraryFilterDesk.jsx'
 
 const BARE_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/.*)?$/i
 const isUrl = (value) => /^https?:\/\//i.test(value.trim()) || BARE_DOMAIN_RE.test(value.trim())
@@ -30,62 +27,81 @@ export default function LibraryToolbar({
   onOpenExport,
   onOpenAddModal,
   onOpenMergeModal,
-  counts,
-  categoryCounts,
-  tagCounts,
-  appCounts,
-  ratingCounts,
+  counts = {},
   selectedKinds = [],
-  selectedCategories = [],
-  selectedTags = [],
-  selectedRatings = [],
   onSelectKinds,
-  onSelectCategories,
-  onSelectTags,
-  onSelectRatings,
-  onClearFilters,
-  selectedProgress = 'all',
-  onSelectProgress,
-  shelfCounts = {},
+  lists = [],
+  selectedListId = null,
+  onSelectList,
+  onOpenCreateList,
+  onOpenManageLists,
+  onAutoCluster,
+  isClustering = false,
+  quickFilters = { addedThisWeek: false, unreadOnly: false, hasNotes: false },
+  onQuickFiltersChange,
+  isSelectMode = false,
+  onToggleSelectMode,
 }) {
-  const [filterOpen, setFilterOpen] = useState(false)
   const mac = IS_MAC || (typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || ''))
   const rawValue = quickCaptureText || query
   const capturing = isUrl(rawValue)
-  const activeCount = selectedKinds.length + selectedCategories.length + selectedTags.length + selectedRatings.length
 
-  const activeTrackableKind =
-    selectedKinds.length === 1 && TRACKABLE_PROGRESS_KINDS.has(selectedKinds[0])
-      ? selectedKinds[0]
-      : null
+  // Dropdown states
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false)
+  const [sortMenuOpen, setSortMenuOpen] = useState(false)
+  const [listMenuOpen, setListMenuOpen] = useState(false)
+  const [organizeMenuOpen, setOrganizeMenuOpen] = useState(false)
+  const [listSearch, setListSearch] = useState('')
 
-  const primaryFormats = useMemo(
-    () =>
-      Object.entries(counts || {})
-        .filter(([id, count]) => id !== 'total' && count > 0)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 4),
-    [counts]
-  )
-
-  const sortLabel = order === 'asc' ? 'Oldest' : order === 'rating' ? 'Top rated' : order === 'manual' ? 'Custom order' : 'Newest'
+  // Click-outside refs
+  const moreRef = useRef(null)
+  const filterRef = useRef(null)
+  const sortRef = useRef(null)
+  const listRef = useRef(null)
+  const organizeRef = useRef(null)
 
   useEffect(() => {
-    const keydown = (event) => {
-      if (
-        event.key.toLowerCase() === 'f' &&
-        !event.metaKey &&
-        !event.ctrlKey &&
-        !event.altKey &&
-        !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)
-      ) {
-        event.preventDefault()
-        setFilterOpen(true)
+    const handleClickOutside = (e) => {
+      if (moreRef.current && !moreRef.current.contains(e.target)) setMoreMenuOpen(false)
+      if (filterRef.current && !filterRef.current.contains(e.target)) setFilterMenuOpen(false)
+      if (sortRef.current && !sortRef.current.contains(e.target)) setSortMenuOpen(false)
+      if (listRef.current && !listRef.current.contains(e.target)) {
+        setListMenuOpen(false)
+        setListSearch('')
+      }
+      if (organizeRef.current && !organizeRef.current.contains(e.target)) setOrganizeMenuOpen(false)
+    }
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setMoreMenuOpen(false)
+        setFilterMenuOpen(false)
+        setSortMenuOpen(false)
+        setListMenuOpen(false)
+        setOrganizeMenuOpen(false)
+        setListSearch('')
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        if (searchRef?.current) {
+          searchRef.current.focus()
+          searchRef.current.select?.()
+        }
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
+        e.preventDefault()
+        onToggleShare?.()
       }
     }
-    window.addEventListener('keydown', keydown)
-    return () => window.removeEventListener('keydown', keydown)
-  }, [])
+
+    document.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [onToggleShare, searchRef])
 
   const changeInput = (event) => {
     const value = event.target.value
@@ -102,316 +118,578 @@ export default function LibraryToolbar({
     if (selectedKinds.includes(kind)) {
       onSelectKinds?.(selectedKinds.filter((item) => item !== kind))
     } else {
-      onSelectKinds?.([...selectedKinds, kind])
+      onSelectKinds?.([kind])
     }
   }
 
+  const primaryFormats = useMemo(() => {
+    const formatKeys = ['video', 'article', 'post', 'note']
+    return formatKeys.map((k) => ({
+      kind: k,
+      label: k.charAt(0).toUpperCase() + k.slice(1),
+      count: counts[k] || 0,
+    }))
+  }, [counts])
+
+  const currentList = useMemo(() => {
+    if (!selectedListId) return null
+    return lists.find((l) => l.id === selectedListId) || null
+  }, [lists, selectedListId])
+
+  const currentListTitle = currentList ? currentList.title : 'All Items'
+  const currentListCount = currentList
+    ? (currentList.item_count || 0) + (currentList.link_count || 0)
+    : total
+
+  // Filter lists in dropdown
+  const filteredDropdownLists = useMemo(() => {
+    if (!listSearch.trim()) return lists
+    const q = listSearch.toLowerCase()
+    return lists.filter((l) => (l.title || '').toLowerCase().includes(q))
+  }, [lists, listSearch])
+
+  const curatedLists = useMemo(
+    () => filteredDropdownLists.filter((l) => !l.is_smart),
+    [filteredDropdownLists]
+  )
+  const smartLists = useMemo(
+    () => filteredDropdownLists.filter((l) => Boolean(l.is_smart)),
+    [filteredDropdownLists]
+  )
+
+  const activeFilterCount =
+    (quickFilters.addedThisWeek ? 1 : 0) +
+    (quickFilters.unreadOnly ? 1 : 0) +
+    (quickFilters.hasNotes ? 1 : 0)
+
+  const sortLabel = order === 'asc' ? 'Oldest' : order === 'rating' ? 'Top rated' : 'Newest'
+
   return (
-    <>
-      {/* Authentic Amethyst Section Header */}
-      <header className="vheader" data-enter>
-        <div>
-          <div className="vheader-eyebrow">Knowledge Base</div>
-          <h1>Library</h1>
-          <div className="vheader-sub">
-            {total} saved {total === 1 ? 'item' : 'items'}
-            {isProcessingCount > 0 ? ` · syncing ${isProcessingCount}` : ''}
-            {' — articles, videos, bookmarks, and notes.'}
+    <div className="lib-deck w-full flex flex-col gap-3" data-enter>
+      {/* 1. Header Row */}
+      <header className="lib-header">
+        <div className="lib-header-info">
+          <div className="lib-eyebrow">KNOWLEDGE BASE</div>
+          <h1 className="lib-title">Library</h1>
+          <div className="lib-subtitle">
+            {total} saved items · articles, videos, bookmarks and notes
           </div>
         </div>
 
-        <div className="vheader-actions">
-          {hasMusic && (
-            <HouseButton
-              type="button"
-              className="btn btn--ghost btn--small lib-vheader-btn"
-              onClick={onOpenExport}
-              title="Export audio & playlists"
-            >
-              <Icon name="music" size={13} />
-              <span>Export playlist</span>
-            </HouseButton>
-          )}
-
+        <div className="lib-header-actions">
           <HouseButton
             type="button"
-            className={`btn btn--ghost btn--small lib-vheader-btn ${showShare ? 'is-active' : ''}`}
-            onClick={onToggleShare}
-            aria-pressed={showShare}
-            title="Knowledge connections & graph"
-          >
-            <Icon name="link" size={13} />
-            <span>Connections</span>
-          </HouseButton>
-
-          <HouseButton
-            type="button"
-            className="btn btn--ghost btn--small lib-vheader-btn"
-            onClick={onOpenMergeModal}
-            title="Combine two lists into one"
-          >
-            <Icon name="copy" size={13} />
-            <span>Merge lists</span>
-          </HouseButton>
-
-          <HouseButton
-            type="button"
-            className="btn btn--primary btn--small lib-vheader-btn"
+            className="lib-add-btn"
             onClick={() => onOpenAddModal?.('anything')}
-            title={`Add resource (${mac ? '⌘K' : 'Ctrl+K'})`}
+            title="Add resource"
           >
             <Icon name="plus" size={13} />
             <span>Add resource</span>
-            <kbd className="lib-kbd lib-kbd--primary">{mac ? '⌘K' : 'Ctrl+K'}</kbd>
           </HouseButton>
+
+          {/* More actions menu (Screenshot 3) */}
+          <div className="lib-popover-wrap" ref={moreRef}>
+            <button
+              type="button"
+              className={`lib-icon-btn ${moreMenuOpen ? 'is-active' : ''}`}
+              onClick={() => setMoreMenuOpen((v) => !v)}
+              aria-label="More options"
+              title="More options"
+            >
+              <Icon name="dots" size={16} />
+            </button>
+
+            {moreMenuOpen && (
+              <div className="lib-menu-dropdown lib-menu-dropdown--right" role="menu">
+                <button
+                  type="button"
+                  className="lib-menu-item"
+                  onClick={() => {
+                    setMoreMenuOpen(false)
+                    onToggleShare?.()
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon name="link" size={13} />
+                    <span>Connections</span>
+                  </div>
+                  <kbd className="lib-menu-kbd">{mac ? '⌘J' : 'Ctrl+J'}</kbd>
+                </button>
+
+                <button
+                  type="button"
+                  className="lib-menu-item"
+                  onClick={() => {
+                    setMoreMenuOpen(false)
+                    onOpenExport?.()
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon name="download" size={13} />
+                    <span>Export library</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  className="lib-menu-item"
+                  onClick={() => {
+                    setMoreMenuOpen(false)
+                    onOpenMergeModal?.()
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon name="copy" size={13} />
+                    <span>Merge lists</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  className="lib-menu-item"
+                  onClick={() => {
+                    setMoreMenuOpen(false)
+                    onToggleSelectMode?.()
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon name="check-square" size={13} />
+                    <span>{isSelectMode ? 'Exit select mode' : 'Select items'}</span>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
-      {/* Sub-Navigation & Filter Toolbar (Left-aligned tabs + right-aligned tools) */}
-      <div className="lib-subnav" data-enter>
-        {/* Left: Format Tabs (All, Video, Article, Post...) Left-aligned like Tasks / Automations */}
-        <div className="lib-tabs-track" role="tablist" aria-label="Format filters">
-          <HouseButton
+      {/* 2. Primary Filter & Search Bar (Screenshot 0) */}
+      <div className="lib-primary-row">
+        {/* Format tabs segmented control: [ All 333 | Video 194 | Article 112 | Post 20 | Note 5 ] */}
+        <div className="lib-format-track" role="tablist" aria-label="Format filter tabs">
+          <button
             type="button"
             role="tab"
             aria-selected={selectedKinds.length === 0}
-            className={`lib-tab-btn ${selectedKinds.length === 0 ? 'is-active' : ''}`}
+            className={`lib-format-pill ${selectedKinds.length === 0 ? 'is-active' : ''}`}
             onClick={() => onSelectKinds?.([])}
           >
-            <span>All</span>
-            <span className="lib-tab-count">{total}</span>
-          </HouseButton>
-          {primaryFormats.map(([kind, count]) => {
+            <span className="lib-format-label">All</span>
+            <span className="lib-format-count">{total}</span>
+          </button>
+          {primaryFormats.map(({ kind, label, count }) => {
             const isActive = selectedKinds.includes(kind)
             return (
-              <HouseButton
+              <button
                 key={kind}
                 type="button"
                 role="tab"
                 aria-selected={isActive}
-                className={`lib-tab-btn ${isActive ? 'is-active' : ''}`}
+                className={`lib-format-pill ${isActive ? 'is-active' : ''}`}
                 onClick={() => toggleFormat(kind)}
               >
-                <Icon name={KIND_ICON[kind] || 'file'} size={14} />
-                <span className="capitalize">{kind}</span>
-                <span className="lib-tab-count">{count}</span>
-              </HouseButton>
+                <span className="lib-format-label">{label}</span>
+                <span className="lib-format-count">{count}</span>
+              </button>
             )
           })}
         </div>
 
-        {/* Right: Search, Filter Desk Trigger, Sort Dropdown, and View Switcher */}
-        <div className="lib-subnav-tools">
+        {/* Right Tools: Search input, Filter button, Sort button, View switcher */}
+        <div className="lib-tools-group">
+          {/* Robust Search box with perfectly centered icon and ⌘K badge */}
           <form
             className={`lib-search-wrap ${capturing ? 'lib-search-wrap--capturing' : ''}`}
-            onSubmit={(event) => {
-              event.preventDefault()
-              if (capturing) onQuickCaptureSubmit?.(event)
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (capturing) onQuickCaptureSubmit?.(e)
             }}
             role="search"
-            aria-label="Library search"
           >
-            <Icon name={capturing ? 'link' : 'search'} size={14} className="lib-search-icon" />
-            <HouseInput
+            <Icon name={capturing ? 'link' : 'search'} size={13} className="lib-search-icon" />
+            <input
               ref={(node) => {
                 if (searchRef) searchRef.current = node
                 if (captureRef) captureRef.current = node
               }}
+              type="text"
               className="lib-search-input"
               value={rawValue}
               onChange={changeInput}
-              placeholder={capturing ? 'Press Enter to save link…' : 'Search library…'}
+              placeholder={capturing ? 'Press Enter to save link…' : 'Search library...'}
               aria-label="Search library or paste URL"
             />
             {capturing ? (
-              <HouseButton type="submit" className="lib-search-save-btn">
+              <button type="submit" className="lib-search-save-btn">
                 <span>Save</span>
                 <kbd className="lib-kbd-inline">↵</kbd>
-              </HouseButton>
+              </button>
             ) : (
-              <>
-                {!rawValue && <kbd className="lib-search-hotkey">{mac ? '⌘/' : 'Ctrl/'}</kbd>}
-                {rawValue && (
-                  <HouseButton
-                    type="button"
-                    className="lib-search-clear"
-                    onClick={() => {
-                      onQueryChange?.('')
-                      onQuickCaptureChange?.('')
-                    }}
-                    aria-label="Clear search"
-                  >
-                    <Icon name="x" size={12} />
-                  </HouseButton>
-                )}
-              </>
+              <kbd className="lib-search-badge">{mac ? '⌘K' : 'Ctrl+K'}</kbd>
             )}
           </form>
 
-          {/* Filter Desk Trigger */}
-          <HouseButton
-            type="button"
-            className={`btn btn--ghost btn--small lib-subnav-btn ${activeCount > 0 ? 'is-active' : ''}`}
-            onClick={() => setFilterOpen(true)}
-            aria-haspopup="dialog"
-            aria-expanded={filterOpen}
-            aria-pressed={activeCount > 0}
-            title={`Filters (${mac ? 'F' : 'F'})`}
-          >
-            <Icon name="sliders" size={13} />
-            <span>Filters</span>
-            {activeCount > 0 ? (
-              <span className="lib-filter-count-badge">{activeCount}</span>
-            ) : (
-              <kbd className="lib-hotkey-hint">F</kbd>
+          {/* Filter button + dropdown (Screenshot 2) */}
+          <div className="lib-popover-wrap" ref={filterRef}>
+            <button
+              type="button"
+              className={`lib-tool-btn ${filterMenuOpen || activeFilterCount > 0 ? 'is-active' : ''}`}
+              onClick={() => setFilterMenuOpen((v) => !v)}
+              aria-haspopup="true"
+              aria-expanded={filterMenuOpen}
+            >
+              <Icon name="sliders" size={13} />
+              <span>Filter</span>
+              {activeFilterCount > 0 && <span className="lib-filter-dot" />}
+            </button>
+
+            {filterMenuOpen && (
+              <div className="lib-menu-dropdown lib-menu-dropdown--filter" role="dialog">
+                <div className="lib-menu-header">FILTER LIBRARY</div>
+                <label className="lib-checkbox-row">
+                  <input
+                    type="checkbox"
+                    className="lib-checkbox"
+                    checked={Boolean(quickFilters.addedThisWeek)}
+                    onChange={(e) =>
+                      onQuickFiltersChange?.({ ...quickFilters, addedThisWeek: e.target.checked })
+                    }
+                  />
+                  <span>Added this week</span>
+                </label>
+
+                <label className="lib-checkbox-row">
+                  <input
+                    type="checkbox"
+                    className="lib-checkbox"
+                    checked={Boolean(quickFilters.unreadOnly)}
+                    onChange={(e) =>
+                      onQuickFiltersChange?.({ ...quickFilters, unreadOnly: e.target.checked })
+                    }
+                  />
+                  <span>Unread only</span>
+                </label>
+
+                <label className="lib-checkbox-row">
+                  <input
+                    type="checkbox"
+                    className="lib-checkbox"
+                    checked={Boolean(quickFilters.hasNotes)}
+                    onChange={(e) =>
+                      onQuickFiltersChange?.({ ...quickFilters, hasNotes: e.target.checked })
+                    }
+                  />
+                  <span>Has notes</span>
+                </label>
+              </div>
             )}
-          </HouseButton>
-
-          {/* Sort Dropdown */}
-          <label className="lib-sort-select-wrap" title="Change sort order">
-            <Icon name="down" size={11} className="lib-sort-chevron" />
-            <span className="lib-sort-current">{sortLabel}</span>
-            <HouseSelect
-              value={order}
-              onChange={(event) => onOrderChange?.(event.target.value)}
-              aria-label="Sort order"
-            >
-              <option value="desc">Newest</option>
-              <option value="asc">Oldest</option>
-              <option value="rating">Top rated</option>
-              <option value="manual">Custom order (Arrange)</option>
-            </HouseSelect>
-          </label>
-
-          {/* Segmented Grid / List Switcher */}
-          <div className="lib-layout-switch" role="group" aria-label="View display">
-            <HouseButton
-              type="button"
-              className={`lib-layout-switch-btn ${layout === 'grid' ? 'is-active' : ''}`}
-              onClick={() => onLayoutChange?.('grid')}
-              aria-label="Grid view"
-              aria-pressed={layout === 'grid'}
-              title="Grid view"
-            >
-              <Icon name="grid" size={14} />
-            </HouseButton>
-            <HouseButton
-              type="button"
-              className={`lib-layout-switch-btn ${layout === 'list' ? 'is-active' : ''}`}
-              onClick={() => onLayoutChange?.('list')}
-              aria-label="List view"
-              aria-pressed={layout === 'list'}
-              title="List view"
-            >
-              <Icon name="list" size={14} />
-            </HouseButton>
           </div>
+
+          {/* Sort button + dropdown */}
+          <div className="lib-popover-wrap" ref={sortRef}>
+            <button
+              type="button"
+              className={`lib-tool-btn ${sortMenuOpen ? 'is-active' : ''}`}
+              onClick={() => setSortMenuOpen((v) => !v)}
+              aria-haspopup="true"
+              aria-expanded={sortMenuOpen}
+            >
+              <Icon name="down" size={12} />
+              <span>{sortLabel}</span>
+            </button>
+
+            {sortMenuOpen && (
+              <div className="lib-menu-dropdown lib-menu-dropdown--sort" role="menu">
+                <button
+                  type="button"
+                  className={`lib-menu-item ${order === 'desc' ? 'is-active' : ''}`}
+                  onClick={() => {
+                    onOrderChange?.('desc')
+                    setSortMenuOpen(false)
+                  }}
+                >
+                  <span>Newest</span>
+                </button>
+                <button
+                  type="button"
+                  className={`lib-menu-item ${order === 'asc' ? 'is-active' : ''}`}
+                  onClick={() => {
+                    onOrderChange?.('asc')
+                    setSortMenuOpen(false)
+                  }}
+                >
+                  <span>Oldest</span>
+                </button>
+                <button
+                  type="button"
+                  className={`lib-menu-item ${order === 'rating' ? 'is-active' : ''}`}
+                  onClick={() => {
+                    onOrderChange?.('rating')
+                    setSortMenuOpen(false)
+                  }}
+                >
+                  <span>Top rated</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* View switcher (Grid button) */}
+          <button
+            type="button"
+            className={`lib-icon-btn ${layout === 'grid' ? 'is-active' : ''}`}
+            onClick={() => onLayoutChange?.(layout === 'grid' ? 'list' : 'grid')}
+            title="Toggle view"
+            aria-label="Toggle view"
+          >
+            <Icon name="grid" size={14} />
+          </button>
         </div>
       </div>
 
-      {/* Dedicated Media Progress Shelf (Movies & Video / Books / Places) */}
-      {activeTrackableKind && (
-        <div className="lib-shelf-bar" data-enter>
-          <div className="lib-shelf-head">
-            <span className="lib-shelf-pill">
-              <Icon
-                name={activeTrackableKind === 'video' ? 'play' : activeTrackableKind === 'book' ? 'book' : 'globe'}
-                size={12}
-              />
-              <span>
-                {activeTrackableKind === 'video'
-                  ? 'Movies & Video'
-                  : activeTrackableKind === 'book'
-                  ? 'Books'
-                  : 'Places'}
-              </span>
-            </span>
-          </div>
+      {/* 3. Secondary Row: List Selector & Organize Menu (Screenshot 0 & 1) */}
+      <div className="lib-secondary-row">
+        {/* Left: Lists Dropdown Button (Screenshot 0) */}
+        <div className="lib-popover-wrap" ref={listRef}>
+          <button
+            type="button"
+            className={`lib-list-select-btn ${listMenuOpen ? 'is-active' : ''}`}
+            onClick={() => setListMenuOpen((v) => !v)}
+            aria-haspopup="true"
+            aria-expanded={listMenuOpen}
+          >
+            <Icon name="tray" size={13} className="lib-list-select-icon" />
+            <span className="lib-list-select-title">{currentListTitle}</span>
+            <span className="lib-list-select-count">{currentListCount}</span>
+            <Icon name="caret-down" size={10} className="lib-chevron" />
+          </button>
 
-          <div className="lib-shelf-tabs" role="tablist" aria-label="Progress shelf">
-            <HouseButton
-              type="button"
-              role="tab"
-              aria-selected={selectedProgress === 'all'}
-              className={`lib-shelf-tab ${selectedProgress === 'all' ? 'is-active' : ''}`}
-              onClick={() => onSelectProgress?.('all')}
-            >
-              <span>All</span>
-              <span className="lib-shelf-count">{shelfCounts.all || 0}</span>
-            </HouseButton>
-            <HouseButton
-              type="button"
-              role="tab"
-              aria-selected={selectedProgress === 'unstarted'}
-              className={`lib-shelf-tab ${selectedProgress === 'unstarted' ? 'is-active' : ''}`}
-              onClick={() => onSelectProgress?.('unstarted')}
-            >
-              <span>
-                {activeTrackableKind === 'video'
-                  ? 'Want to watch'
-                  : activeTrackableKind === 'book'
-                  ? 'Want to read'
-                  : 'Want to visit'}
-              </span>
-              <span className="lib-shelf-count">{shelfCounts.unstarted || 0}</span>
-            </HouseButton>
-            <HouseButton
-              type="button"
-              role="tab"
-              aria-selected={selectedProgress === 'in_progress'}
-              className={`lib-shelf-tab ${selectedProgress === 'in_progress' ? 'is-active' : ''}`}
-              onClick={() => onSelectProgress?.('in_progress')}
-            >
-              <span>
-                {activeTrackableKind === 'video'
-                  ? 'Watching'
-                  : activeTrackableKind === 'book'
-                  ? 'Reading'
-                  : 'Visiting'}
-              </span>
-              <span className="lib-shelf-count">{shelfCounts.in_progress || 0}</span>
-            </HouseButton>
-            <HouseButton
-              type="button"
-              role="tab"
-              aria-selected={selectedProgress === 'completed'}
-              className={`lib-shelf-tab ${selectedProgress === 'completed' ? 'is-active' : ''}`}
-              onClick={() => onSelectProgress?.('completed')}
-            >
-              <Icon name="check" size={11} className="opacity-70" />
-              <span>
-                {activeTrackableKind === 'video'
-                  ? 'Watched'
-                  : activeTrackableKind === 'book'
-                  ? 'Read'
-                  : 'Visited'}
-              </span>
-              <span className="lib-shelf-count">{shelfCounts.completed || 0}</span>
-            </HouseButton>
-          </div>
+          {listMenuOpen && (
+            <div className="lib-menu-dropdown lib-menu-dropdown--lists" role="menu">
+              {lists.length > 5 && (
+                <div className="lib-dropdown-search-wrap">
+                  <Icon name="search" size={11} className="text-dim" />
+                  <input
+                    type="text"
+                    className="lib-dropdown-search-input"
+                    placeholder="Search lists..."
+                    value={listSearch}
+                    autoFocus
+                    onChange={(e) => setListSearch(e.target.value)}
+                  />
+                  {listSearch && (
+                    <button
+                      type="button"
+                      className="lib-dropdown-search-clear"
+                      onClick={() => setListSearch('')}
+                    >
+                      <Icon name="x" size={10} />
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* All Items Option */}
+              <button
+                type="button"
+                className={`lib-menu-item ${selectedListId === null ? 'is-active' : ''}`}
+                onClick={() => {
+                  onSelectList?.(null)
+                  setListMenuOpen(false)
+                  setListSearch('')
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Icon name="tray" size={12} className="opacity-70" />
+                  <span>All Items</span>
+                </div>
+                <span className="lib-menu-count">{total}</span>
+              </button>
+
+              <div className="lib-dropdown-lists-scroll">
+                {/* Curated Lists */}
+                {curatedLists.length > 0 && (
+                  <div className="lib-dropdown-section">
+                    <div className="lib-dropdown-section-title">Curated Lists</div>
+                    {curatedLists.map((l) => (
+                      <button
+                        key={l.id}
+                        type="button"
+                        className={`lib-menu-item ${selectedListId === l.id ? 'is-active' : ''}`}
+                        onClick={() => {
+                          onSelectList?.(l.id)
+                          setListMenuOpen(false)
+                          setListSearch('')
+                        }}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <Icon name="bookmark" size={12} className="opacity-70 flex-shrink-0" />
+                          <span className="truncate">{l.title}</span>
+                        </div>
+                        <span className="lib-menu-count">
+                          {(l.item_count || 0) + (l.link_count || 0)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Smart Collections */}
+                {smartLists.length > 0 && (
+                  <div className="lib-dropdown-section">
+                    <div className="lib-dropdown-section-title flex items-center gap-1">
+                      <Icon name="spark" size={10} className="text-amber-500" />
+                      <span>Smart Collections (AI)</span>
+                    </div>
+                    {smartLists.map((l) => (
+                      <button
+                        key={l.id}
+                        type="button"
+                        className={`lib-menu-item ${selectedListId === l.id ? 'is-active' : ''}`}
+                        onClick={() => {
+                          onSelectList?.(l.id)
+                          setListMenuOpen(false)
+                          setListSearch('')
+                        }}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <Icon name="spark" size={11} className="text-amber-500 flex-shrink-0" />
+                          <span className="truncate">{l.title}</span>
+                        </div>
+                        <span className="lib-menu-count">
+                          {(l.item_count || 0) + (l.link_count || 0)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {filteredDropdownLists.length === 0 && (
+                  <div className="p-3 text-xs text-center text-dim">
+                    No lists match &quot;{listSearch}&quot;
+                  </div>
+                )}
+              </div>
+
+              <div className="lib-menu-divider" />
+
+              <button
+                type="button"
+                className="lib-menu-item lib-menu-item--action"
+                onClick={() => {
+                  setListMenuOpen(false)
+                  setListSearch('')
+                  onOpenCreateList?.()
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Icon name="plus" size={12} />
+                  <span>Create new list</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className="lib-menu-item lib-menu-item--action"
+                onClick={() => {
+                  setListMenuOpen(false)
+                  setListSearch('')
+                  onOpenManageLists?.()
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Icon name="tray" size={12} />
+                  <span>Manage lists...</span>
+                </div>
+              </button>
+            </div>
+          )}
         </div>
-      )}
 
-      <LibraryFilterDesk
-        open={filterOpen}
-        onClose={() => setFilterOpen(false)}
-        total={total}
-        showing={showing}
-        counts={counts}
-        categoryCounts={categoryCounts}
-        tagCounts={tagCounts}
-        appCounts={appCounts}
-        ratingCounts={ratingCounts}
-        selectedKinds={selectedKinds}
-        selectedCategories={selectedCategories}
-        selectedTags={selectedTags}
-        selectedRatings={selectedRatings}
-        onSelectKinds={onSelectKinds}
-        onSelectCategories={onSelectCategories}
-        onSelectTags={onSelectTags}
-        onSelectRatings={onSelectRatings}
-        onClear={onClearFilters}
-      />
-    </>
+        {/* Right: Organize Menu (Cleaned - no duplicate Create List button) */}
+        <div className="lib-popover-wrap" ref={organizeRef}>
+          <button
+            type="button"
+            className={`lib-organize-btn ${organizeMenuOpen ? 'is-active' : ''} ${isClustering ? 'opacity-80' : ''}`}
+            onClick={() => setOrganizeMenuOpen((v) => !v)}
+            aria-haspopup="true"
+            aria-expanded={organizeMenuOpen}
+            disabled={isClustering}
+          >
+            <Icon
+              name={isClustering ? 'refresh' : 'spark'}
+              size={12}
+              className={isClustering ? 'animate-spin' : 'text-amber-500'}
+            />
+            <span>{isClustering ? 'Analyzing...' : 'Organize'}</span>
+            <Icon name="caret-down" size={10} className="lib-chevron" />
+          </button>
+
+          {organizeMenuOpen && (
+            <div className="lib-menu-dropdown lib-menu-dropdown--organize lib-menu-dropdown--right" role="menu">
+              <div className="lib-menu-header">ORGANIZE LIBRARY</div>
+
+              <button
+                type="button"
+                className="lib-menu-item"
+                disabled={isClustering}
+                onClick={() => {
+                  setOrganizeMenuOpen(false)
+                  onAutoCluster?.()
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Icon name="spark" size={12} className="text-amber-500" />
+                  <span>Auto-group library</span>
+                </div>
+                <span className="lib-ai-badge">AI</span>
+              </button>
+
+              <button
+                type="button"
+                className="lib-menu-item"
+                onClick={() => {
+                  setOrganizeMenuOpen(false)
+                  onOpenCreateList?.()
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Icon name="plus" size={12} />
+                  <span>Create new list</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className="lib-menu-item"
+                onClick={() => {
+                  setOrganizeMenuOpen(false)
+                  onOpenMergeModal?.()
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Icon name="copy" size={12} />
+                  <span>Merge lists</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className="lib-menu-item"
+                onClick={() => {
+                  setOrganizeMenuOpen(false)
+                  onOpenManageLists?.()
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Icon name="tray" size={12} />
+                  <span>Manage lists...</span>
+                </div>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }

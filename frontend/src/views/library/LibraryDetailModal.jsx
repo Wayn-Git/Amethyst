@@ -201,8 +201,10 @@ export function getResourceIcon(type, url, name = '') {
   const n = (name || '').toLowerCase()
   const u = (url || '').toLowerCase()
 
+  if (t === 'streaming' || n.includes('apple tv') || n.includes('roku') || n.includes('netflix') || n.includes('hulu') || n.includes('disney') || n.includes('prime video') || n.includes('candyjar')) return 'tv'
+  if (t === 'person' || t === 'actor' || t === 'director' || t === 'author' || t === 'creator' || t === 'cast') return 'user'
   if (n.includes('notion') || u.includes('notion.so')) return 'book'
-  if (n.includes('github') || u.includes('github.com')) return 'github'
+  if (t === 'code' || t === 'repo' || t === 'library' || t === 'framework' || (u.includes('github.com') && t !== 'person' && t !== 'actor' && t !== 'show' && t !== 'movie')) return 'github'
   if (n.includes('google docs') || u.includes('docs.google.com')) return 'file'
   if (n.includes('chatgpt') || n.includes('openai') || u.includes('openai.com') || u.includes('chatgpt.com')) return 'spark'
   if (n.includes('threads') || u.includes('threads.net')) return 'threads'
@@ -211,7 +213,7 @@ export function getResourceIcon(type, url, name = '') {
   if (n.includes('youtube') || u.includes('youtube.com') || u.includes('youtu.be')) return 'youtube'
   if (n.includes('spotify') || u.includes('spotify.com')) return 'music'
 
-  if (t === 'movie' || t === 'film' || t === 'show' || t === 'video') return 'video'
+  if (t === 'movie' || t === 'film' || t === 'show' || t === 'series' || t === 'video') return 'video'
   if (t === 'code' || t === 'repo' || t === 'tool' || t === 'software' || t === 'library') return 'code'
   if (t === 'person' || t === 'creator' || t === 'author') return 'user'
   if (t === 'book' || t === 'article' || t === 'paper') return 'book'
@@ -580,11 +582,33 @@ export default function LibraryDetailModal({
     return list
   }, [item.resources])
 
-  // Video resource setup
+  // Video resource setup: Prioritize direct playable video over third-party iframe embeds
   const videoItem = useMemo(() => {
     if (!item) return null
 
-    // 1. YouTube detection
+    // 1. Direct playable video check: local file, cloud drive, or direct MP4/video resource
+    const hasLocalVid = Boolean(item.media_path) && /\.(mp4|webm|mov)(\?|$)/i.test(item.media_path)
+    const isCloudVideo = item.storage_provider === 'google_drive' && (item.kind === 'video' || item.is_reel)
+    const directVideoResource = (Array.isArray(item.resources) ? item.resources : []).find(
+      (r) => r && (r.type === 'video' || r.type === 'mp4' || (typeof r.url === 'string' && /\.(mp4|webm|mov)(\?|$)/i.test(r.url)))
+    )
+
+    if (hasLocalVid || isCloudVideo || directVideoResource) {
+      const directUrl = directVideoResource
+        ? (directVideoResource.remote_url || directVideoResource.url)
+        : (api.mediaUrl ? api.mediaUrl(item.id) : item.media_path)
+
+      return {
+        url: directUrl || (api.mediaUrl ? api.mediaUrl(item.id) : item.url),
+        fallbackUrl: item.url,
+        poster: api.thumbnailUrl ? api.thumbnailUrl(item.id) : null,
+        isYouTube: false,
+        platform: 'direct',
+        isVertical: Boolean(item.is_reel || item.url?.includes('/reel/') || item.url?.includes('/shorts/') || item.url?.includes('tiktok.com')),
+      }
+    }
+
+    // 2. YouTube detection
     const isYouTube = Boolean(item.url && /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)/i.test(item.url))
     if (isYouTube) {
       let ytId = ''
@@ -600,29 +624,30 @@ export default function LibraryDetailModal({
       }
     }
 
-    // 2. Instagram Reel / Post detection
+    // 3. Instagram Reel / Post detection (stream directly if video, fallback to embed)
     const isInstagram = Boolean(item.url && /instagram\.com\/(?:reel|p)\/([\w-]+)/i.test(item.url))
     if (isInstagram) {
       const match = item.url.match(/instagram\.com\/(?:reel|p)\/([\w-]+)/i)
       const shortcode = match ? match[1] : ''
+      const canStream = item.kind === 'video' || item.is_reel || Boolean(item.duration_seconds)
       return {
-        url: item.url,
+        url: canStream && api.mediaUrl ? api.mediaUrl(item.id) : item.url,
         embedUrl: shortcode ? `https://www.instagram.com/reel/${shortcode}/embed/` : null,
         fallbackUrl: item.url,
         poster: api.thumbnailUrl ? api.thumbnailUrl(item.id) : null,
         isYouTube: false,
-        platform: 'instagram',
+        platform: canStream ? 'direct' : 'instagram',
         isVertical: true,
       }
     }
 
-    // 3. TikTok detection
+    // 4. TikTok detection
     const isTikTok = Boolean(item.url && /tiktok\.com\/.*\/video\/(\d+)/i.test(item.url))
     if (isTikTok) {
       const match = item.url.match(/tiktok\.com\/.*\/video\/(\d+)/i)
       const tiktokId = match ? match[1] : ''
       return {
-        url: item.url,
+        url: api.mediaUrl ? api.mediaUrl(item.id) : item.url,
         embedUrl: tiktokId ? `https://www.tiktok.com/embed/v2/${tiktokId}` : null,
         fallbackUrl: item.url,
         poster: api.thumbnailUrl ? api.thumbnailUrl(item.id) : null,
@@ -632,7 +657,7 @@ export default function LibraryDetailModal({
       }
     }
 
-    // 4. Video resource or embed in resources list
+    // 5. Video resource or embed in resources list
     const videoResource = (Array.isArray(item.resources) ? item.resources : []).find(
       (r) => r && (r.type === 'video' || r.type === 'embed' || r.type === 'mp4' || (typeof r.url === 'string' && /\.(mp4|webm|mov)(\?|$)/i.test(r.url)))
     )
@@ -647,20 +672,19 @@ export default function LibraryDetailModal({
       }
     }
 
-    // 5. Legacy local/cloud video if media_path still exists
-    const hasLocalVid = Boolean(item.media_path) && /\.(mp4|webm|mov)(\?|$)/i.test(item.media_path)
-    const isCloudVideo = item.storage_provider === 'google_drive' && (item.kind === 'video' || item.is_reel)
-    if (hasLocalVid || isCloudVideo) {
+    // 6. Generic media_path fallback
+    if (item.media_path && (item.kind === 'video' || item.is_reel)) {
       return {
         url: api.mediaUrl ? api.mediaUrl(item.id) : item.media_path,
         fallbackUrl: item.url,
         poster: api.thumbnailUrl ? api.thumbnailUrl(item.id) : null,
         isYouTube: false,
+        platform: 'direct',
       }
     }
 
     return null
-  }, [item?.id, item?.media_path, item?.url, item?.resources])
+  }, [item?.id, item?.media_path, item?.url, item?.resources, item?.kind, item?.is_reel, item?.storage_provider])
 
   const hasMultipleMediaModes = Boolean(videoItem && slideItems.length > 0)
   const isVideoMode = mediaMode === 'video' && Boolean(videoItem)

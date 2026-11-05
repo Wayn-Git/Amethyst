@@ -2,9 +2,13 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import gsap from 'gsap'
 import LibraryRow from './LibraryRow.jsx'
 import { groupItemsByDate } from './dateUtils.js'
+import LoadMoreSentinel from '../../components/damon/LoadMoreSentinel.jsx'
 
 function LibraryListViewComponent({
   items,
+  totalShowing = 0,
+  hasMore = false,
+  onLoadMore,
   busyId,
   onSelect,
   onReindex,
@@ -135,6 +139,30 @@ function LibraryListViewComponent({
           </div>
         </section>
       ))}
+
+      {hasMore && (
+        <div className="lib-load-more-container flex flex-col items-center justify-center py-6 gap-3">
+          <LoadMoreSentinel
+            hasMore={hasMore}
+            loading={false}
+            onLoadMore={onLoadMore}
+            label="Loading more items…"
+          />
+          <button
+            type="button"
+            className="lib-btn lib-btn--secondary"
+            onClick={onLoadMore}
+            style={{
+              padding: '7px 18px',
+              fontSize: '12px',
+              borderRadius: 'var(--radius-buttons, 6px)',
+              cursor: 'pointer',
+            }}
+          >
+            Show more ({totalShowing ? Math.max(0, totalShowing - items.length) : 'more'} remaining)
+          </button>
+        </div>
+      )}
     </div>
   )
 }

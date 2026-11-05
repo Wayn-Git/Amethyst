@@ -1,5 +1,5 @@
 import { Button as HouseButton } from '../components/ui/bento/index.jsx'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import Icon from '../components/Icon.jsx'
 import { useApp } from '../store.jsx'
@@ -19,6 +19,8 @@ import LibraryDetailModal from './library/LibraryDetailModal.jsx'
 import AddContentModal from './library/AddContentModal.jsx'
 import ExportPlaylistModal from './library/ExportPlaylistModal.jsx'
 import MergeListsModal from './library/MergeListsModal.jsx'
+import CreateListModal from './library/CreateListModal.jsx'
+import ManageListsModal from './library/ManageListsModal.jsx'
 import { CaptureIntegrationsModal } from './library/SharePanels.jsx'
 import { getDomain } from './library/LibraryCard.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -74,6 +76,17 @@ export default function Library() {
   const [lists, setLists] = useState([])
   const [selectedListId, setSelectedListId] = useState(null)
   const [selectedListDetail, setSelectedListDetail] = useState(null)
+  const [showCreateListModal, setShowCreateListModal] = useState(false)
+  const [showManageListsModal, setShowManageListsModal] = useState(false)
+  const [isClustering, setIsClustering] = useState(false)
+
+  // Quick Filters state matching toolbar dropdown
+  const [quickFilters, setQuickFilters] = useState({
+    addedThisWeek: false,
+    unreadOnly: false,
+    hasNotes: false,
+  })
+  const [isSelectMode, setIsSelectMode] = useState(false)
 
   // Polling tracking refs
   const loadToken = useRef(0)
@@ -120,6 +133,7 @@ export default function Library() {
         category: selectedCategories.join(','),
         tag: selectedTags.join(','),
         order,
+        limit: 500,
         signal: controller.signal,
       })
       if (loadToken.current !== token) return
@@ -187,16 +201,20 @@ export default function Library() {
         return [...remainingOptimistic, ...merged]
       })
 
-      setCounts(data.counts || {})
-      setCategoryCounts(data.category_counts || {})
-      setTagCounts(data.tag_counts || {})
-      setError(null)
-      setLoaded(true)
+      startTransition(() => {
+        setCounts(data.counts || {})
+        setCategoryCounts(data.category_counts || {})
+        setTagCounts(data.tag_counts || {})
+        setError(null)
+        setLoaded(true)
+      })
     } catch (err) {
       if (err.name === 'AbortError') return
       if (loadToken.current !== token) return
-      setError(err.message)
-      setLoaded(true)
+      startTransition(() => {
+        setError(err.message)
+        setLoaded(true)
+      })
     }
   }, [debouncedQuery, selectedKinds, selectedCategories, selectedTags, order])
 
@@ -243,11 +261,47 @@ export default function Library() {
   const loadLists = useCallback(async () => {
     try {
       const data = await api.getLibraryLists()
-      setLists(data.lists || [])
+      const listItems = Array.isArray(data) ? data : (data?.lists || [])
+      setLists(listItems)
     } catch {
       // keep existing
     }
   }, [])
+
+  const handleAutoCluster = useCallback(async () => {
+    if (isClustering) return
+    setIsClustering(true)
+    try {
+      const res = await api.autoClusterLibraryLists()
+      const count = res.clusters_created !== undefined ? res.clusters_created : res.created_or_updated || 0
+      toast?.(
+        count > 0
+          ? `Auto-grouped library into ${count} smart collections`
+          : 'Smart lists are already up to date',
+        'ok'
+      )
+      await loadLists()
+    } catch (err) {
+      toast?.(err.message || 'Auto-grouping failed', 'bad')
+    } finally {
+      setIsClustering(false)
+    }
+  }, [isClustering, loadLists, toast])
+
+  const handleCreateList = useCallback(async () => {
+    const title = window.prompt('Enter new list name:')
+    if (!title || !title.trim()) return
+    try {
+      const res = await api.createLibraryList({ title: title.trim() })
+      toast?.(`Created list "${title.trim()}"`, 'ok')
+      await loadLists()
+      if (res?.id) {
+        setSelectedListId(res.id)
+      }
+    } catch (err) {
+      toast?.(err.message || 'Failed to create list', 'bad')
+    }
+  }, [loadLists, toast])
 
   useEffect(() => {
     loadLists()
@@ -272,12 +326,17 @@ export default function Library() {
     }
   }, [selectedListId, toast])
 
-  // Global keyboard shortcuts (Cmd+K / Ctrl+K to open add modal, Cmd+/ for search)
+  // Global keyboard shortcuts (Cmd+K / Ctrl+K for search, Cmd+N / Cmd+E for add resource)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
-        setAddModalMode('url')
+        searchInputRef.current?.focus()
+        searchInputRef.current?.select?.()
+      }
+      if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 'n' || e.key.toLowerCase() === 'e')) {
+        e.preventDefault()
+        setAddModalMode('anything')
         setShowAddModal(true)
       }
       if ((e.metaKey || e.ctrlKey) && e.key === '/') {
@@ -675,12 +734,40 @@ export default function Library() {
     return { '5': count5, '4+': count4plus, 'rated': countRated }
   }, [items])
 
-  // Filter items reactively by selectedProgress, selectedRating and order
+  // Filter items reactively by selectedProgress, selectedRating, quickFilters and order
   const displayedItems = useMemo(() => {
-    let result = items
-    if (selectedListId && selectedListDetail) {
-      const memberItemIds = new Set((selectedListDetail.items || []).map((m) => m.id))
-      result = result.filter((it) => memberItemIds.has(it.id))
+    let result = (selectedListId && Array.isArray(selectedListDetail?.items))
+      ? selectedListDetail.items
+      : items
+
+    if (selectedListId && Array.isArray(selectedListDetail?.items)) {
+      if (selectedKinds.length > 0) {
+        result = result.filter((it) => selectedKinds.includes(it.kind))
+      }
+      if (debouncedQuery && debouncedQuery.trim()) {
+        const q = debouncedQuery.toLowerCase()
+        result = result.filter(
+          (it) =>
+            (it.title || '').toLowerCase().includes(q) ||
+            (it.notes || '').toLowerCase().includes(q) ||
+            (it.url || '').toLowerCase().includes(q) ||
+            (it.author || '').toLowerCase().includes(q)
+        )
+      }
+    }
+    if (quickFilters.addedThisWeek) {
+      const oneWeekAgo = new Date()
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+      result = result.filter((it) => {
+        const itemDate = new Date(it.created_at || it.consumed_on || 0)
+        return itemDate >= oneWeekAgo
+      })
+    }
+    if (quickFilters.unreadOnly) {
+      result = result.filter((it) => !it.progress || it.progress === 'unstarted')
+    }
+    if (quickFilters.hasNotes) {
+      result = result.filter((it) => Boolean(it.notes && it.notes.trim()))
     }
     if (selectedProgress && selectedProgress !== 'all') {
       result = result.filter((it) => (it.progress || 'unstarted') === selectedProgress)
@@ -698,7 +785,36 @@ export default function Library() {
     // Always prioritize pinned items on top
     result = [...result].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0))
     return result
-  }, [items, selectedListId, selectedListDetail, selectedProgress, selectedRatings, order])
+  }, [items, selectedListId, selectedListDetail, selectedProgress, selectedRatings, quickFilters, order])
+
+  // Progressive item rendering: render initial batch first to eliminate main-thread freeze
+  const PAGE_SIZE = 30
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+
+  // Reset pagination when active query/filters/sorting change
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE)
+  }, [
+    debouncedQuery,
+    selectedKinds,
+    selectedCategories,
+    selectedTags,
+    selectedRatings,
+    selectedProgress,
+    quickFilters,
+    order,
+    selectedListId,
+  ])
+
+  const visibleItems = useMemo(() => {
+    return displayedItems.slice(0, visibleCount)
+  }, [displayedItems, visibleCount])
+
+  const hasMoreItems = visibleCount < displayedItems.length
+
+  const handleLoadMore = useCallback(() => {
+    setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, displayedItems.length))
+  }, [displayedItems.length])
 
   const appCounts = useMemo(() => {
     const known = ['pinterest', 'youtube', 'instagram', 'x', 'github', 'reddit', 'spotify', 'threads']
@@ -810,32 +926,19 @@ export default function Library() {
               }}
               onOpenMergeModal={() => setShowMergeModal(true)}
               counts={counts}
-              categoryCounts={categoryCounts}
-              tagCounts={tagCounts}
-              appCounts={appCounts}
-              ratingCounts={ratingCounts}
               selectedKinds={selectedKinds}
-              selectedCategories={selectedCategories}
-              selectedTags={selectedTags}
-              selectedRatings={selectedRatings}
               onSelectKinds={handleSelectKinds}
-              onSelectCategories={setSelectedCategories}
-              onSelectTags={setSelectedTags}
-              onSelectRatings={setSelectedRatings}
-              onClearFilters={handleClearFilters}
-              selectedProgress={selectedProgress}
-              onSelectProgress={setSelectedProgress}
-              shelfCounts={shelfCounts}
-            />
-
-            {/* Smart & Curated Lists Shelf */}
-            <LibraryListsShelf
               lists={lists}
               selectedListId={selectedListId}
               onSelectList={setSelectedListId}
-              totalItems={total}
-              onRefreshLists={loadLists}
-              toast={toast}
+              onOpenCreateList={() => setShowCreateListModal(true)}
+              onOpenManageLists={() => setShowManageListsModal(true)}
+              onAutoCluster={handleAutoCluster}
+              isClustering={isClustering}
+              quickFilters={quickFilters}
+              onQuickFiltersChange={setQuickFilters}
+              isSelectMode={isSelectMode}
+              onToggleSelectMode={() => setIsSelectMode((v) => !v)}
             />
 
             {/* Selected List Banner */}
@@ -844,17 +947,21 @@ export default function Library() {
                 <div className="lib-selected-list-info">
                   <div className="lib-selected-list-title-row">
                     <Icon
-                      name={selectedListDetail.list?.is_smart ? 'spark' : 'folder'}
+                      name={(selectedListDetail.is_smart || selectedListDetail.list?.is_smart) ? 'spark' : 'folder'}
                       size={16}
-                      className={selectedListDetail.list?.is_smart ? 'text-amber-400' : ''}
+                      className={(selectedListDetail.is_smart || selectedListDetail.list?.is_smart) ? 'text-amber-400' : ''}
                     />
-                    <h2 className="lib-selected-list-title">{selectedListDetail.list?.title}</h2>
-                    {Boolean(selectedListDetail.list?.is_smart) && (
+                    <h2 className="lib-selected-list-title">
+                      {selectedListDetail.title || selectedListDetail.list?.title || 'Selected List'}
+                    </h2>
+                    {Boolean(selectedListDetail.is_smart || selectedListDetail.list?.is_smart) && (
                       <span className="lib-smart-badge">Smart Clustered</span>
                     )}
                   </div>
-                  {selectedListDetail.list?.description && (
-                    <p className="lib-selected-list-desc">{selectedListDetail.list.description}</p>
+                  {(selectedListDetail.description || selectedListDetail.list?.description) && (
+                    <p className="lib-selected-list-desc">
+                      {selectedListDetail.description || selectedListDetail.list?.description}
+                    </p>
                   )}
                 </div>
                 <div className="lib-selected-list-stats">
@@ -900,23 +1007,25 @@ export default function Library() {
 
             {/* Layout Area: Active Filter Strip (when active) + Content Canvas */}
             <div className="lib-layout w-full flex flex-col gap-4">
-              <LibraryFilterBar
-                selectedKinds={selectedKinds}
-                selectedCategories={selectedCategories}
-                selectedTags={selectedTags}
-                selectedRatings={selectedRatings}
-                query={query}
-                onSelectKinds={handleSelectKinds}
-                onSelectCategories={setSelectedCategories}
-                onSelectTags={setSelectedTags}
-                onSelectRatings={setSelectedRatings}
-                onClearQuery={() => setQuery('')}
-                onClearFilters={handleClearFilters}
-              />
+              {hasFilter && (
+                <LibraryFilterBar
+                  selectedKinds={selectedKinds}
+                  selectedCategories={selectedCategories}
+                  selectedTags={selectedTags}
+                  selectedRatings={selectedRatings}
+                  query={query}
+                  onSelectKinds={handleSelectKinds}
+                  onSelectCategories={setSelectedCategories}
+                  onSelectTags={setSelectedTags}
+                  onSelectRatings={setSelectedRatings}
+                  onClearQuery={() => setQuery('')}
+                  onClearFilters={handleClearFilters}
+                />
+              )}
 
               <main className="lib-content-main w-full">
                 {!loaded && items.length === 0 ? (
-                  <SkeletonLibraryGrid cards={8} />
+                  <SkeletonLibraryGrid cards={9} />
                 ) : error ? (
                   <ErrorState message={error} onRetry={load} />
                 ) : displayedItems.length === 0 ? (
@@ -959,7 +1068,12 @@ export default function Library() {
                   </div>
                 ) : layout === 'grid' ? (
                   <LibraryGrid
-                    items={displayedItems}
+                    items={visibleItems}
+                    total={total}
+                    showing={visibleItems.length}
+                    totalShowing={displayedItems.length}
+                    hasMore={hasMoreItems}
+                    onLoadMore={handleLoadMore}
                     busyId={busyId}
                     onSelect={handleSelectCard}
                     onReindex={handleReindex}
@@ -974,7 +1088,10 @@ export default function Library() {
                   />
                 ) : (
                   <LibraryListView
-                    items={displayedItems}
+                    items={visibleItems}
+                    totalShowing={displayedItems.length}
+                    hasMore={hasMoreItems}
+                    onLoadMore={handleLoadMore}
                     busyId={busyId}
                     onSelect={handleSelectCard}
                     onReindex={handleReindex}
@@ -1007,6 +1124,32 @@ export default function Library() {
           tagCounts={tagCounts}
           categoryCounts={categoryCounts}
           onMerged={load}
+          toast={toast}
+        />
+
+        {/* Create List Modal */}
+        <CreateListModal
+          open={showCreateListModal}
+          onClose={() => setShowCreateListModal(false)}
+          onCreated={(newList) => {
+            loadLists()
+            if (newList?.id) setSelectedListId(newList.id)
+          }}
+          toast={toast}
+        />
+
+        {/* Manage Lists Modal */}
+        <ManageListsModal
+          open={showManageListsModal}
+          onClose={() => setShowManageListsModal(false)}
+          lists={lists}
+          selectedListId={selectedListId}
+          onSelectList={setSelectedListId}
+          onRefreshLists={loadLists}
+          onOpenCreateModal={() => {
+            setShowManageListsModal(false)
+            setShowCreateListModal(true)
+          }}
           toast={toast}
         />
 

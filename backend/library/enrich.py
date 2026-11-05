@@ -328,16 +328,14 @@ Rules:
     - For book/reading: Author, Genre, Publisher, Pages/Length, Published.
     - For food/travel: Location, Cuisine/Category, Best For, Hours/Season.
     - For general/article: Author, Publication, Topic, Read Time.
-- summary: Comprehensive, high-density, highly informative synthesis capturing EVERYTHING significant mentioned in the content.
-  * Natural structure:
-    - For listicles, guides, frameworks, or multi-point posts (e.g. "10 habits", "5 tools", "7 rules", "3 steps"): provide a brief 1-2 sentence core overview, followed by distinct, bulleted points covering ALL the habits, techniques, tools, or concepts mentioned with their concrete explanations, rather than collapsing them into one brief run-on sentence.
-    - For tools, software, or libraries: describe what it is, its core architecture/capabilities, and why/when to use it.
-    - For cinema, films, or creative media: describe the core subject, synopsis/plot mechanics, and distinctive artistry or takeaways.
-    - For articles, research papers, or talks: outline the central thesis, supporting methodologies/evidence, and critical implications.
-  * Formatting & Tone:
-    - Use clean markdown formatting (bold headers like **Header:**, clear bullet points, and paragraph separation).
-    - Be concrete and specific: preserve exact names, commands, technical terms, book/paper titles, and arguments mentioned.
-    - NEVER use meta-commentary: DO NOT say "This video describes...", "In this reel...", "The speaker shares...", "The author explains...", or "This post is about...". State the knowledge directly and authoritatively.
+- summary: Exhaustive, high-density, descriptive synthesis capturing EVERYTHING significant mentioned in the content.
+  * Structure:
+    1. Executive Overview: 1-2 punchy, authoritative sentences establishing the central thesis, core subject, and context.
+    2. Comprehensive Analysis: Exhaustive breakdown of EVERY single technique, concept, tool, argument, step, or rule mentioned. If the video covers multiple items or steps, enumerate every single one as bold bullet points with thorough, concrete explanations. Do NOT summarize generally or skip items; capture everything taught or discussed.
+    3. Practical Takeaways & Recommendations: Concrete instructions, commands, decisions, or workflows specified in the content.
+  * Tone & Quality:
+    - Write with deep technical precision and substance. Retain exact model names, versions, library names, code snippets, numbers, and dates.
+    - NEVER use meta-commentary: DO NOT write "This video describes...", "In this reel...", "The speaker shares...", "The creator explains...", or "This post is about...". State the facts, insights, and concepts directly as established knowledge.
 - tags: two to three lowercase canonical topic words (e.g. ai, algorithms, programming, tools, design, cinema, streaming, data-science, reading). For movies/series/actors/films, always use "cinema" or "streaming" as primary tag.
 - resources: extract concrete named things the text names that the user could go and find, use, read, visit, or watch:
   - repo / codebase: open-source software, library, GitHub repository. Set type: "repo", name: "owner/repo" or project name, and url: "https://github.com/owner/repo" or the repo name. NEVER invent a synthetic ".com" domain for open-source repositories or code libraries.
@@ -349,7 +347,8 @@ Rules:
   - link/person/place/other: exact named entity, handles, or external services.
   `type` must be one of movie|show|travel|destination|food|restaurant|cafe|\
 recipe|tool|repo|code|product|book|place|person|link|other.
-  `detail` is key information in ten words or fewer. For `url`, provide the direct link from the text or the official domain (e.g. "github.com", "goodreads.com", "chatgpt.com").
+  `detail` is key information in ten words or fewer.
+  `url`: You MUST use an exact URL from <known_links> if one matches this resource. If it is a famous tool, platform, or GitHub repository, provide its exact official URL. NEVER invent random, fake, or broken URLs. If no verified link exists, leave `url` null.
 - An empty list is the right answer when the text names nothing. Do not invent entities.
 - If the text is too thin to say anything true about, reply \
 {"category": "general", "summary": null, "tags": [], "entity": null, "resources": []}."""
@@ -596,7 +595,50 @@ KNOWN_TOOL_URLS = {
     "fastapi": "https://github.com/fastapi/fastapi",
     "vllm": "https://github.com/vllm-project/vllm",
     "uv": "https://github.com/astral-sh/uv",
+    "apple tv": "https://tv.apple.com",
+    "appletv": "https://tv.apple.com",
+    "roku": "https://www.roku.com",
+    "inkitt": "https://www.inkitt.com",
+    "candyjar": "https://www.inkitt.com",
+    "inkitt candyjar": "https://www.inkitt.com",
+    "netflix": "https://www.netflix.com",
+    "hulu": "https://www.hulu.com",
+    "disney plus": "https://www.disneyplus.com",
+    "disney+": "https://www.disneyplus.com",
+    "prime video": "https://www.primevideo.com",
+    "max": "https://www.max.com",
+    "peacock": "https://www.peacocktv.com",
+    "shazam": "https://www.shazam.com",
 }
+
+
+def is_internal_or_cdn_url(url: str) -> bool:
+    """Check if a URL is an internal CDN, asset delivery, or media stream link that should not be a user link."""
+    if not url:
+        return True
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+        path = parsed.path.lower()
+        if any(path.endswith(ext) for ext in (".mp4", ".webm", ".mov", ".m4v", ".mkv", ".jpg", ".jpeg", ".png", ".webp", ".gif", ".m4a", ".mp3")):
+            return True
+        cdn_domains = (
+            "fbcdn.net",
+            "cdninstagram.com",
+            "instagram.f",
+            "twimg.com",
+            "tiktokcdn.com",
+            "googlevideo.com",
+            "ytimg.com",
+            "media.tenor.com",
+            "giphy.com/media",
+            "pbs.twimg.com",
+            "licdn.com",
+            "cloudfront.net",
+        )
+        return any(d in host for d in cdn_domains)
+    except Exception:
+        return False
 
 
 def resolve_entity_url(name: str, kind: str) -> str:
@@ -746,7 +788,7 @@ def _clean_entity(raw: object, category: str = "general", text_urls: list[str] |
     }
 
 
-def parse_enrichment(text: str, source_text: str = "") -> Enrichment | None:
+def parse_enrichment(text: str, source_text: str = "", known_urls: list[str] | None = None) -> Enrichment | None:
     """Read the model's reply, keeping only what is the right shape."""
     body = (text or "").strip()
     if not body:
@@ -776,7 +818,8 @@ def parse_enrichment(text: str, source_text: str = "") -> Enrichment | None:
         if tag and tag not in tags:
             tags.append(tag)
 
-    text_urls = extract_urls(source_text) if source_text else []
+    extracted = extract_urls(source_text) if source_text else []
+    text_urls = list(dict.fromkeys([*(known_urls or []), *extracted]))
 
     resources = []
     seen_urls: set[str] = set()
@@ -788,9 +831,35 @@ def parse_enrichment(text: str, source_text: str = "") -> Enrichment | None:
                 seen_urls.add(cleaned["url"].lower())
 
     # Any URL visibly present in the source content that was not already captured
-    # should be added as an extracted link resource.
+    # should be added as an extracted link resource (excluding CDN assets and media streams).
+    has_video_resource = any(
+        r.get("type") in ("video", "mp4") or (isinstance(r.get("url"), str) and any(r["url"].lower().endswith(ext) for ext in (".mp4", ".webm", ".mov")))
+        for r in resources
+    )
+
     for u in text_urls:
-        if u.lower() not in seen_urls and len(resources) < MAX_RESOURCES:
+        if not u or u.lower() in seen_urls:
+            continue
+
+        # If it's a direct video link and we don't have a video resource yet, register it as direct video
+        u_lower = u.lower()
+        if any(ext in u_lower for ext in (".mp4", ".webm", ".mov")):
+            if not has_video_resource:
+                resources.append({
+                    "type": "video",
+                    "name": "Direct Video",
+                    "detail": "High-res source video stream",
+                    "url": u,
+                })
+                has_video_resource = True
+                seen_urls.add(u_lower)
+            continue
+
+        # Skip all internal CDN domains and image/audio assets
+        if is_internal_or_cdn_url(u):
+            continue
+
+        if len(resources) < MAX_RESOURCES:
             host = (urlparse(u).hostname or u).lower()
             link_name = host.removeprefix("www.")
             resources.append({
@@ -799,7 +868,7 @@ def parse_enrichment(text: str, source_text: str = "") -> Enrichment | None:
                 "detail": "Link from content",
                 "url": u,
             })
-            seen_urls.add(u.lower())
+            seen_urls.add(u_lower)
 
     raw_cat = str(data.get("category") or "").strip().lower()
     category = raw_cat if raw_cat in CATEGORIES and raw_cat != "general" else infer_category(resources, tags)
@@ -873,6 +942,7 @@ async def enrich_text(
     client=None,
     provider: str | None = None,
     model: str | None = None,
+    known_urls: list[str] | None = None,
 ) -> Enrichment:
     """Summary, tags and resources for some text -- or a stated reason there are none."""
     refusal = _refusal(text, text_source)
@@ -884,21 +954,25 @@ async def enrich_text(
     body = text.strip()[:MAX_ENRICH_CHARS]
     if len(text.strip()) > MAX_ENRICH_CHARS:
         body += "\n…(cut off)"
+
+    user_parts = [
+        f"<title>{title}</title>",
+        f"<kind>{kind}</kind>",
+        f"<source>{text_source}</source>",
+    ]
+    if known_urls:
+        clean_known = [u for u in known_urls if u and u.startswith("http")][:10]
+        if clean_known:
+            user_parts.append("<known_links>\n" + "\n".join(f"- {u}" for u in clean_known) + "\n</known_links>")
+    user_parts.append(f"<text>\n{body}\n</text>")
+
     messages = [
         {"role": "system", "content": PROMPT},
-        {
-            "role": "user",
-            # The source is named because a whisper transcript has no reliable
-            # punctuation and the model should know it is reading speech.
-            "content": (
-                f"<title>{title}</title>\n<kind>{kind}</kind>\n"
-                f"<source>{text_source}</source>\n<text>\n{body}\n</text>"
-            ),
-        },
+        {"role": "user", "content": "\n".join(user_parts)},
     ]
 
     if client is not None:
-        return await _ask(client, messages, None, None, source_text=body)
+        return await _ask(client, messages, None, None, source_text=body, known_urls=known_urls)
 
     from backend.config import load_library
     lib_settings = load_library()
@@ -908,7 +982,7 @@ async def enrich_text(
     if target_provider and target_model:
         try:
             m = resolve(target_provider, target_model)
-            res = await _ask(m.client, messages, target_provider, target_model, source_text=body)
+            res = await _ask(m.client, messages, target_provider, target_model, source_text=body, known_urls=known_urls)
             if not res.empty:
                 availability.record_success(target_provider)
                 return res
@@ -945,7 +1019,7 @@ async def enrich_text(
         except Exception as exc:
             last = Enrichment(note=f"{link.provider} could not be resolved: {exc}")
             continue
-        result = await _ask(m_resolved.client, messages, link.provider, link.model, source_text=body)
+        result = await _ask(m_resolved.client, messages, link.provider, link.model, source_text=body, known_urls=known_urls)
         if not result.empty:
             availability.record_success(link.provider)
             return result
@@ -1012,8 +1086,33 @@ async def _resolve_working_resource_url(res: dict, client: Any) -> dict:
                 item["url"] = raw_url
                 return item
 
+    # Never search code/GitHub for people, actors, directors, movies, shows, books, or places
+    import urllib.parse
+    if kind in ("person", "actor", "director", "author", "creator", "cast"):
+        if not raw_url or "github.com" in raw_url:
+            handle_match = re.search(r"@([a-zA-Z0-9_.]+)", f"{name} {item.get('detail', '')}")
+            if handle_match:
+                handle = handle_match.group(1).rstrip(".")
+                item["url"] = f"https://www.instagram.com/{handle}/"
+            else:
+                q = urllib.parse.quote_plus(name.strip())
+                item["url"] = f"https://www.imdb.com/find/?q={q}&s=nm"
+        return item
+
+    if kind in ("movie", "show", "film", "series", "tv", "cinema"):
+        if not raw_url or "github.com" in raw_url:
+            q = urllib.parse.quote_plus(name.strip())
+            item["url"] = f"https://www.themoviedb.org/search?query={q}"
+        return item
+
+    if kind in ("book", "novel", "reading"):
+        if not raw_url or "github.com" in raw_url:
+            q = urllib.parse.quote_plus(name.strip())
+            item["url"] = f"https://www.goodreads.com/search?q={q}"
+        return item
+
     # Try common domain candidate patterns for tools/products
-    if kind in ("tool", "product", "link", "code", "library", "framework") or not raw_url:
+    if kind in ("tool", "product", "app", "software", "streaming"):
         slug = re.sub(r"\s+", "-", name.strip().lower())
         slug_clean = re.sub(r"[^a-z0-9\-]", "", slug)
         if slug_clean:
@@ -1030,7 +1129,8 @@ async def _resolve_working_resource_url(res: dict, client: Any) -> dict:
                     item["url"] = cand
                     return item
 
-        # Search GitHub for developer/code tools
+    # Search GitHub ONLY for developer/code tools, repos, libraries, and frameworks
+    if kind in ("code", "repo", "library", "framework", "package", "github"):
         try:
             from backend.web.search_service import search_github
             gh_results = await search_github(name, limit=1)
@@ -1063,7 +1163,12 @@ async def resolve_and_verify_resource_urls(resources: tuple[dict, ...] | list[di
 
 
 async def _ask(
-    client, messages: list[dict], provider: str | None, model: str | None, source_text: str = ""
+    client,
+    messages: list[dict],
+    provider: str | None,
+    model: str | None,
+    source_text: str = "",
+    known_urls: list[str] | None = None,
 ) -> Enrichment:
     try:
         response = await asyncio.wait_for(
@@ -1083,7 +1188,7 @@ async def _ask(
         return Enrichment(note=f"{provider or 'the model'} could not be reached: {exc}")
 
     raw_text = getattr(response, "text", "") or ""
-    parsed = parse_enrichment(raw_text, source_text=source_text)
+    parsed = parse_enrichment(raw_text, source_text=source_text, known_urls=known_urls)
     if parsed is None:
         return Enrichment(
             note="the model did not answer in the expected format", provider=provider, model=model

@@ -29,10 +29,10 @@ as a Markdown file, enrich it, index it, and search it by keyword or meaning.
   input is not a URL.
 - “More capture options”: upload/drop a file, type a note, resolve a Wikipedia
   topic.
-- Smart & Curated Lists Shelf (`frontend/src/views/library/LibraryListsShelf.jsx`):
-  switch between "All Items", smart clustered lists (`✦ AI Tools`, etc.) and custom lists,
-  with "+ New List" and "⚡ Auto-Group" actions.
-- Grid and list views.
+- Lists & Organize dropdown controls in `frontend/src/views/library/LibraryToolbar.jsx`:
+  switch between "All Items", smart clustered lists and custom lists,
+  with "+ Create new list", "Merge lists", and "Auto-Group" actions.
+- Grid and list views with progressive batch rendering and infinite scroll sentinel.
 - Tag rail, kind filter, category filter, sort order.
 - Detail modal with summary, tags, resources, harvested outbound links, source, reading progress, notes
   and actions.
