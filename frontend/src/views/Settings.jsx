@@ -1293,7 +1293,7 @@ function General() {
                 className="set-range-slider"
                 style={{ width: 140 }}
               />
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: 600, color: 'var(--text)', minWidth: 26, textAlign: 'right' }}>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', minWidth: 26, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                 {maxIterations}
               </span>
             </div>
@@ -2785,7 +2785,7 @@ function Appearance() {
                     onChange={(e) => setContrast(Number(e.target.value))}
                     className="codex-slider"
                   />
-                  <span style={{ fontSize: 13, fontFamily: 'var(--font-mono, monospace)', color: 'var(--text)', minWidth: 24, textAlign: 'right' }}>
+                  <span style={{ fontSize: 13, color: 'var(--text)', minWidth: 24, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                     {contrast}
                   </span>
                 </div>
@@ -3307,14 +3307,14 @@ function Models() {
                                   }}
                                 >
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
-                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                       {m.id}
                                     </span>
                                     {isDefault && <Badge tone="ok" style={{ fontSize: '9.5px', padding: '1px 5px' }}>Current Default</Badge>}
                                   </div>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                                     {m.context_length && (
-                                      <span style={{ fontSize: '10.5px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+                                      <span style={{ fontSize: '10.5px', color: 'var(--text-dim)', fontVariantNumeric: 'tabular-nums' }}>
                                         {Math.round(m.context_length / 1000)}k ctx
                                       </span>
                                     )}
@@ -3357,7 +3357,7 @@ function Models() {
             {routingLadder.map((cand, idx) => (
               <div key={cand} className="set-box-row">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: idx === 0 ? 'var(--live)' : 'var(--text-dim)', width: 24, fontWeight: idx === 0 ? 600 : 400 }}>
+                  <span style={{ fontSize: '12px', color: idx === 0 ? 'var(--live)' : 'var(--text-dim)', width: 24, fontWeight: idx === 0 ? 600 : 400, fontVariantNumeric: 'tabular-nums' }}>
                     #{idx + 1}
                   </span>
                   <AiProviderIcon provider={cand} size={15} />
@@ -4538,18 +4538,18 @@ function Usage() {
             </div>
           </div>
 
-          <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 4, fontFamily: 'var(--font-mono)', fontSize: '11px' }}>
+          <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 4, fontSize: '11px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 14 }}>
               <span style={{ color: 'var(--text-dim)', letterSpacing: '0.04em' }}>ACCESS ENDS</span>
-              <strong style={{ color: 'var(--text)', fontWeight: 600, minWidth: 54, textAlign: 'right' }}>{data?.access_ends || 'LOCAL KEY'}</strong>
+              <strong style={{ color: 'var(--text)', fontWeight: 600, minWidth: 54, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{data?.access_ends || 'LOCAL KEY'}</strong>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 14 }}>
               <span style={{ color: 'var(--text-dim)', letterSpacing: '0.04em' }}>NEXT RESET</span>
-              <strong style={{ color: 'var(--text)', fontWeight: 600, minWidth: 54, textAlign: 'right' }}>{data?.next_reset || 'ROLLING 5H'}</strong>
+              <strong style={{ color: 'var(--text)', fontWeight: 600, minWidth: 54, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{data?.next_reset || 'ROLLING 5H'}</strong>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 14 }}>
               <span style={{ color: 'var(--text-dim)', letterSpacing: '0.04em' }}>5H WINDOWS AT 0%</span>
-              <strong style={{ color: (data?.windows_at_zero || 0) > 0 ? 'var(--stop)' : 'var(--text)', fontWeight: 600, minWidth: 54, textAlign: 'right' }}>
+              <strong style={{ color: (data?.windows_at_zero || 0) > 0 ? 'var(--stop)' : 'var(--text)', fontWeight: 600, minWidth: 54, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                 {data?.windows_at_zero ?? 0}
               </strong>
             </div>
@@ -4578,7 +4578,7 @@ function Usage() {
                   <div style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)' }}>
                     <AiProviderIcon model={fam.provider || fam.name} provider={fam.provider || fam.name} size={15} />
                   </div>
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: fam.enabled === false ? 'var(--text-dim)' : 'var(--text)', letterSpacing: '0.05em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: fam.enabled === false ? 'var(--text-dim)' : 'var(--text)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                     {fam.name}
                     {fam.enabled === false && (
                       <span style={{ marginLeft: 8, fontSize: '9px', fontWeight: 500, color: 'var(--text-faint)', letterSpacing: '0.04em' }}>
@@ -4595,11 +4595,11 @@ function Usage() {
                     style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
                     title={`5-hour window: ${(fam.tokens_5h || 0).toLocaleString()} tokens · ${fam.runs_5h || 0} runs · quota unknown`}
                   >
-                    <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-dim)', minWidth: 20, fontFamily: 'var(--font-mono)' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-dim)', minWidth: 20 }}>
                       5H
                     </span>
                     <SegmentedTickBar filled={fam.ticks_5h_filled} total={18} />
-                    <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', minWidth: 64, color: 'var(--text-dim)', textAlign: 'right' }}>
+                    <span style={{ fontSize: '11px', minWidth: 64, color: 'var(--text-dim)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                       {fam.left_5h_pct == null
                         ? <span style={{ color: 'var(--text-faint)' }}>—</span>
                         : <><strong style={{ color: fam.left_5h_pct === 0 ? 'var(--text-dim)' : 'var(--text)', fontWeight: 600 }}>{fam.left_5h_pct}%</strong> LEFT</>}
@@ -4611,11 +4611,11 @@ function Usage() {
                     style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
                     title={`7-day window: ${(fam.tokens_7d || 0).toLocaleString()} tokens · ${fam.runs_7d || 0} runs · quota unknown`}
                   >
-                    <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-dim)', minWidth: 20, fontFamily: 'var(--font-mono)' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-dim)', minWidth: 20 }}>
                       7D
                     </span>
                     <SegmentedTickBar filled={fam.ticks_7d_filled} total={18} />
-                    <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', minWidth: 64, color: 'var(--text-dim)', textAlign: 'right' }}>
+                    <span style={{ fontSize: '11px', minWidth: 64, color: 'var(--text-dim)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                       {fam.left_7d_pct == null
                         ? <span style={{ color: 'var(--text-faint)' }}>—</span>
                         : <><strong style={{ color: fam.left_7d_pct === 0 ? 'var(--text-dim)' : 'var(--text)', fontWeight: 600 }}>{fam.left_7d_pct}%</strong> LEFT</>}
@@ -4628,7 +4628,7 @@ function Usage() {
         </div>
 
         {/* Card Footer */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', borderTop: '1px solid rgba(255, 255, 255, 0.04)', fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', borderTop: '1px solid rgba(255, 255, 255, 0.04)', fontSize: '11px', color: 'var(--text-dim)' }}>
           <span style={{ letterSpacing: '0.04em' }}>
             {activeHover
               ? `WINDOW FOR ${activeHover.name} RESETS IN ${activeHover.resets_in || 'ROLLING 5H'}`
@@ -4911,15 +4911,15 @@ function Activity() {
               <span style={{ fontSize: '12px', color: '#818cf8' }}>~</span>
               <span>TOKENS USED</span>
             </div>
-            <div style={{ fontSize: '26px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em', margin: '4px 0 2px', fontFamily: 'var(--font-mono)' }}>
+            <div style={{ fontSize: '26px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em', margin: '4px 0 2px', fontVariantNumeric: 'tabular-nums' }}>
               {tokens.total ? tokens.total.toLocaleString() : '0'}
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '0.04em', fontFamily: 'var(--font-mono)' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '0.04em' }}>
               LAST {daysNum} DAYS · ALL MACHINES
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20, fontFamily: 'var(--font-mono)', fontSize: '12px', marginTop: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20, fontSize: '12px', marginTop: 4 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#a855f7', display: 'inline-block' }} />
               <span style={{ color: 'var(--text-dim)' }}>Input</span>
@@ -5048,7 +5048,7 @@ function Activity() {
         </div>
 
         {/* Date Labels Row */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 24px', fontSize: '10.5px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 24px', fontSize: '10.5px', color: 'var(--text-dim)' }}>
           {chartData.axisLabels.map((item) => (
             <span key={item.iso} style={{ color: activePoint?.iso === item.iso ? 'var(--text)' : 'var(--text-dim)', opacity: activePoint?.iso === item.iso ? 1 : 0.7 }}>
               {item.label}
@@ -5066,7 +5066,6 @@ function Activity() {
           borderTop: '1px solid rgba(255, 255, 255, 0.04)',
           fontSize: '11px',
           color: 'var(--text-dim)',
-          fontFamily: 'var(--font-mono)',
         }}>
           <div>
             Avg / active day <strong style={{ color: 'var(--text)', marginLeft: 6, fontWeight: 600 }}>{avgActiveTokensStr}</strong>
@@ -5115,7 +5114,7 @@ function Activity() {
             <div style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '0.02em', marginBottom: 4 }}>
               {mode === 'spend' ? `Spent · Last ${daysNum} days` : `Requests · Last ${daysNum} days`}
             </div>
-            <div style={{ fontSize: '26px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em', fontFamily: 'var(--font-mono)' }}>
+            <div style={{ fontSize: '26px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>
               {mode === 'spend' ? totalSpendFormatted : totalRuns}
             </div>
           </div>
@@ -5124,7 +5123,7 @@ function Activity() {
             <div style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '0.02em', marginBottom: 4 }}>
               Models
             </div>
-            <div style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-mono)' }}>
+            <div style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
               {models.length}
             </div>
           </div>
@@ -5133,7 +5132,7 @@ function Activity() {
             <div style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '0.02em', marginBottom: 4 }}>
               Failed
             </div>
-            <div style={{ fontSize: '20px', fontWeight: 600, color: failedRuns > 0 ? 'var(--stop)' : 'var(--text)', fontFamily: 'var(--font-mono)' }}>
+            <div style={{ fontSize: '20px', fontWeight: 600, color: failedRuns > 0 ? 'var(--stop)' : 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
               {failedRuns}
             </div>
           </div>
@@ -5199,7 +5198,6 @@ function Activity() {
                       whiteSpace: 'nowrap',
                       pointerEvents: 'none',
                       fontSize: '11px',
-                      fontFamily: 'var(--font-mono)',
                     }}
                   >
                     <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>
@@ -5285,7 +5283,7 @@ function Activity() {
         </div>
 
         {/* Subheader: Last 30 days ... Ranked by requests / spend */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 24px', borderTop: '1px solid rgba(255, 255, 255, 0.04)', fontSize: '10.5px', color: 'var(--text-dim)', letterSpacing: '0.04em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 24px', borderTop: '1px solid rgba(255, 255, 255, 0.04)', fontSize: '10.5px', color: 'var(--text-dim)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
           <span>Last {daysNum} days</span>
           <span>Ranked by {mode === 'spend' ? 'spend' : 'requests'}</span>
         </div>
@@ -5313,7 +5311,7 @@ function Activity() {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ fontSize: '11px', color: 'var(--text-dim)', width: 14, fontFamily: 'var(--font-mono)' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-dim)', width: 14, fontVariantNumeric: 'tabular-nums' }}>
                       {m.rank || idx + 1}
                     </span>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, display: 'inline-block' }} />
@@ -5325,11 +5323,11 @@ function Activity() {
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
-                    <span style={{ color: 'var(--text)', fontWeight: 600, minWidth: 36, textAlign: 'right' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: '12px' }}>
+                    <span style={{ color: 'var(--text)', fontWeight: 600, minWidth: 36, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                       {mode === 'spend' ? m.spend_formatted : m.count}
                     </span>
-                    <span style={{ color: 'var(--text-dim)', minWidth: 36, textAlign: 'right', fontSize: '11px' }}>
+                    <span style={{ color: 'var(--text-dim)', minWidth: 36, textAlign: 'right', fontSize: '11px', fontVariantNumeric: 'tabular-nums' }}>
                       {mode === 'spend' ? (m.spend > 0 ? `${m.percentage}%` : '0%') : `${m.percentage}%`}
                     </span>
                   </div>
@@ -5372,7 +5370,7 @@ function Activity() {
             <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: 3 }}>
               Requests
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-mono)' }}>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
               {recentRuns.length || totalRuns}
             </div>
           </div>
@@ -5381,7 +5379,7 @@ function Activity() {
             <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: 3 }}>
               Completed
             </div>
-            <div style={{ fontSize: '20px', fontWeight: 600, color: 'var(--live)', fontFamily: 'var(--font-mono)' }}>
+            <div style={{ fontSize: '20px', fontWeight: 600, color: 'var(--live)', fontVariantNumeric: 'tabular-nums' }}>
               {completedRuns}
             </div>
           </div>
@@ -5390,7 +5388,7 @@ function Activity() {
             <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: 3 }}>
               Failed
             </div>
-            <div style={{ fontSize: '20px', fontWeight: 600, color: failedRuns > 0 ? 'var(--stop)' : 'var(--text)', fontFamily: 'var(--font-mono)' }}>
+            <div style={{ fontSize: '20px', fontWeight: 600, color: failedRuns > 0 ? 'var(--stop)' : 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
               {failedRuns}
             </div>
           </div>
@@ -5412,7 +5410,7 @@ function Activity() {
                 <div key={r.id} className="act-recent-row">
                   {/* Timestamp + Model Name */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <span style={{ fontSize: '11.5px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', minWidth: 40 }}>
+                    <span style={{ fontSize: '11.5px', color: 'var(--text-dim)', minWidth: 40, fontVariantNumeric: 'tabular-nums' }}>
                       {r.time || '00:00'}
                     </span>
                     <div style={{ width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -5424,14 +5422,14 @@ function Activity() {
                   </div>
 
                   {/* Right: Dot + Transfer + Latency + Cost */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 20, fontFamily: 'var(--font-mono)', fontSize: '11.5px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 20, fontSize: '11.5px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ width: 5, height: 5, borderRadius: '50%', background: dotColor, display: 'inline-block' }} />
-                      <span style={{ color: 'var(--text-dim)' }}>
+                      <span style={{ color: 'var(--text-dim)', fontVariantNumeric: 'tabular-nums' }}>
                         {r.input_tokens_display || '0'} → {r.output_tokens_display || '0'} · {r.duration_display || '1s'}
                       </span>
                     </div>
-                    <span style={{ color: 'var(--text)', fontWeight: 600, minWidth: 54, textAlign: 'right' }}>
+                    <span style={{ color: 'var(--text)', fontWeight: 600, minWidth: 54, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                       {r.cost_display || '$0.0000'}
                     </span>
                   </div>

@@ -493,7 +493,7 @@ function DiagnoseModal({ data, onClose }) {
               }}
             >
               <span style={{ fontSize: '13px', color: 'var(--text-dim)' }}>{item.label}</span>
-              <span style={{ fontSize: '13px', fontWeight: 500, color: item.ok ? 'var(--ok, #22c55e)' : 'var(--text)', fontFamily: 'var(--font-mono)' }}>
+              <span style={{ fontSize: '13px', fontWeight: 500, color: item.ok ? 'var(--ok, #22c55e)' : 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
                 {item.val}
               </span>
             </div>

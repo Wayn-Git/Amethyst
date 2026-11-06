@@ -3,41 +3,34 @@ import Icon from '../Icon.jsx'
 
 export default function DamonFooter({
   mode = 'standard', // 'standard' | 'weather' | 'split' | 'ask' | 'approve'
+  query = '',
   onAskAmethyst,
   onSaveLink,
   onNewNote,
   onReveal,
   onCopyPath,
   onOpenWith,
-  onSelectAction,
 }) {
+  const hasQuery = Boolean(query && query.trim())
+
   if (mode === 'weather') {
     return (
       <div className="damon-footer">
         <div className="damon-footer-hints">
           <div className="damon-footer-hint-group">
-            <span className="damon-footer-kbd">↑</span>
-            <span className="damon-footer-kbd">↓</span>
-            <span>Move</span>
+            <span className="damon-footer-kbd">↑↓</span>
+            <span>Forecast</span>
           </div>
           <div className="damon-footer-hint-group">
             <span className="damon-footer-kbd">↵</span>
-            <span>Select</span>
+            <span>View details</span>
           </div>
         </div>
 
         <div className="damon-footer-hints">
           <div className="damon-footer-hint-group">
-            <span>Recent</span>
-            <span className="damon-footer-kbd">⇧</span>
-          </div>
-          <div className="damon-footer-hint-group">
-            <span>Widgets</span>
-            <span className="damon-footer-kbd">⌘</span>
-          </div>
-          <div className="damon-footer-hint-group">
-            <span>Settings</span>
-            <span className="damon-footer-kbd">⌥</span>
+            <span className="damon-footer-kbd">Esc</span>
+            <span>Close</span>
           </div>
         </div>
       </div>
@@ -49,28 +42,27 @@ export default function DamonFooter({
       <div className="damon-footer">
         <div className="damon-footer-actions">
           <button type="button" className="damon-footer-action-btn" onClick={onReveal}>
-            <Icon name="folder" size={14} />
-            <span>Reveal</span>
+            <Icon name="folder" size={13} />
+            <span>Reveal in files</span>
           </button>
           <button type="button" className="damon-footer-action-btn" onClick={onCopyPath}>
-            <Icon name="copy" size={14} />
+            <Icon name="copy" size={13} />
             <span>Copy path</span>
           </button>
           <button type="button" className="damon-footer-action-btn" onClick={onOpenWith}>
-            <Icon name="code" size={14} />
-            <span>Open with</span>
+            <Icon name="code" size={13} />
+            <span>Open</span>
           </button>
         </div>
 
         <div className="damon-footer-hints">
           <div className="damon-footer-hint-group">
-            <span className="damon-footer-kbd">↑</span>
-            <span className="damon-footer-kbd">↓</span>
-            <span>Move</span>
+            <span className="damon-footer-kbd">↑↓</span>
+            <span>Navigate</span>
           </div>
           <div className="damon-footer-hint-group">
             <span className="damon-footer-kbd">↵</span>
-            <span>Select</span>
+            <span>Open</span>
           </div>
           <div className="damon-footer-hint-group">
             <span className="damon-footer-kbd">Esc</span>
@@ -85,28 +77,20 @@ export default function DamonFooter({
     return (
       <div className="damon-footer">
         <div className="damon-footer-actions">
-          <button type="button" className="damon-footer-action-btn" onClick={onAskAmethyst}>
-            <Icon name="spark" size={14} />
-            <span>Ask Amethyst</span>
-          </button>
-          <button type="button" className="damon-footer-action-btn" onClick={onSaveLink}>
-            <Icon name="link" size={14} />
-            <span>Save link</span>
-          </button>
           <button type="button" className="damon-footer-action-btn" onClick={onNewNote}>
-            <Icon name="plus" size={14} />
-            <span>New note</span>
+            <Icon name="plus" size={13} />
+            <span>Save to note</span>
           </button>
         </div>
 
         <div className="damon-footer-hints">
           <div className="damon-footer-hint-group">
             <span className="damon-footer-kbd">↵</span>
-            <span>Follow up</span>
+            <span>Ask question</span>
           </div>
           <div className="damon-footer-hint-group">
             <span className="damon-footer-kbd">Esc</span>
-            <span>Close</span>
+            <span>Back</span>
           </div>
         </div>
       </div>
@@ -123,40 +107,50 @@ export default function DamonFooter({
           </div>
           <div className="damon-footer-hint-group">
             <span className="damon-footer-kbd">Esc</span>
-            <span>Close</span>
+            <span>Dismiss</span>
           </div>
         </div>
       </div>
     )
   }
 
-  // Standard Footer
+  // Standard Footer: spacious and context-aware
   return (
     <div className="damon-footer">
       <div className="damon-footer-actions">
         <button type="button" className="damon-footer-action-btn" onClick={onAskAmethyst}>
-          <Icon name="spark" size={14} />
+          <Icon name="spark" size={13} />
           <span>Ask Amethyst</span>
         </button>
-        <button type="button" className="damon-footer-action-btn" onClick={onSaveLink}>
-          <Icon name="link" size={14} />
-          <span>Save link</span>
-        </button>
-        <button type="button" className="damon-footer-action-btn" onClick={onNewNote}>
-          <Icon name="plus" size={14} />
-          <span>New note</span>
-        </button>
+
+        {/* When query is empty (initial recents), show creation shortcuts. When typing, hide them to keep footer airy */}
+        {!hasQuery ? (
+          <>
+            <button type="button" className="damon-footer-action-btn" onClick={onNewNote}>
+              <Icon name="plus" size={13} />
+              <span>New note</span>
+            </button>
+            <button type="button" className="damon-footer-action-btn" onClick={onSaveLink}>
+              <Icon name="link" size={13} />
+              <span>Save link</span>
+            </button>
+          </>
+        ) : query.startsWith('http') ? (
+          <button type="button" className="damon-footer-action-btn" onClick={onSaveLink}>
+            <Icon name="link" size={13} />
+            <span>Save link to Library</span>
+          </button>
+        ) : null}
       </div>
 
       <div className="damon-footer-hints">
         <div className="damon-footer-hint-group">
-          <span className="damon-footer-kbd">↑</span>
-          <span className="damon-footer-kbd">↓</span>
-          <span>Move</span>
+          <span className="damon-footer-kbd">↑↓</span>
+          <span>Navigate</span>
         </div>
         <div className="damon-footer-hint-group">
           <span className="damon-footer-kbd">↵</span>
-          <span>Select</span>
+          <span>Open</span>
         </div>
         <div className="damon-footer-hint-group">
           <span className="damon-footer-kbd">Esc</span>

@@ -1,16 +1,24 @@
 import React, { useState } from 'react'
 import Icon from '../Icon.jsx'
 
-function AppIconRenderer({ icon, iconUrl, title, isApp = false }) {
+function AppIconRenderer({ icon, iconUrl, title, isApp = false, isMath = false }) {
   const [imgFailed, setImgFailed] = useState(false)
+
+  if (isMath || icon === 'calculator') {
+    return (
+      <div className="damon-row-icon-wrap" style={{ background: '#2563eb', color: '#ffffff' }}>
+        <Icon name="calculator" size={18} />
+      </div>
+    )
+  }
 
   const isBrandAmethyst =
     title?.toLowerCase() === 'amethyst' || icon === 'amethyst' || icon === 'diamond'
 
   if (isBrandAmethyst) {
     return (
-      <div className="damon-row-icon-wrap" style={{ background: '#0E0F12', color: '#ffffff' }}>
-        <Icon name="diamond" size={20} />
+      <div className="damon-row-icon-wrap" style={{ background: '#7132f5', color: '#ffffff' }}>
+        <Icon name="diamond" size={18} />
       </div>
     )
   }
@@ -27,7 +35,7 @@ function AppIconRenderer({ icon, iconUrl, title, isApp = false }) {
           onError={() => setImgFailed(true)}
         />
       ) : (
-        <Icon name={icon || 'app'} size={20} />
+        <Icon name={icon || 'app'} size={18} />
       )}
     </div>
   )
@@ -71,6 +79,7 @@ export default function DamonUniversalResults({
                     iconUrl={topHit.icon_url || topHit.preview_data?.icon_url}
                     title={topHit.title}
                     isApp={topHit.provider_id === 'apps'}
+                    isMath={topHit.isMath}
                   />
                   <div className="damon-row-main">
                     <div className="damon-row-title">{topHit.title}</div>
@@ -253,6 +262,7 @@ export default function DamonUniversalResults({
             {appItems.map((app, i) => {
               const idx = getItemIndex(app)
               const isSelected = selectedIndex === idx
+              const shortcutBadge = idx < 9 ? `⌘${idx + 1}` : null
 
               return (
                 <button
@@ -274,6 +284,8 @@ export default function DamonUniversalResults({
                   <div className="damon-row-trailing">
                     {isSelected ? (
                       <span className="damon-row-shortcut">↵</span>
+                    ) : shortcutBadge ? (
+                      <span className="damon-row-shortcut">{shortcutBadge}</span>
                     ) : (
                       <Icon name="arrow-up-right" size={16} />
                     )}
@@ -299,6 +311,7 @@ export default function DamonUniversalResults({
             {actionItems.map((act, i) => {
               const idx = getItemIndex(act)
               const isSelected = selectedIndex === idx
+              const shortcutBadge = idx < 9 ? `⌘${idx + 1}` : null
 
               return (
                 <button
@@ -315,7 +328,13 @@ export default function DamonUniversalResults({
                     <div className="damon-row-subtitle">{act.subtitle || act.hint || 'Command'}</div>
                   </div>
                   <div className="damon-row-trailing">
-                    <span className="damon-row-shortcut">↵</span>
+                    {isSelected ? (
+                      <span className="damon-row-shortcut">↵</span>
+                    ) : shortcutBadge ? (
+                      <span className="damon-row-shortcut">{shortcutBadge}</span>
+                    ) : (
+                      <span className="damon-row-shortcut">↵</span>
+                    )}
                   </div>
                 </button>
               )

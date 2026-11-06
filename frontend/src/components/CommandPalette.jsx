@@ -2,8 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../store.jsx'
 import { api, copyText, openUrl } from '../api.js'
 import { safeStorage } from '../lib/storage.js'
+import { forPalette } from '../nav.js'
 import { useFocusTrap } from '../hooks/useFocusTrap.js'
-import { useModalDismiss } from '../hooks/useModalDismiss.js'
+import { useModalDismiss, onOverlayMouseDown } from '../hooks/useModalDismiss.js'
 import DamonHeader from './damon/DamonHeader.jsx'
 import DamonModes, { DAEMON_TABS } from './damon/DamonModes.jsx'
 import DamonRecents from './damon/DamonRecents.jsx'
@@ -13,10 +14,12 @@ import DamonSplitView from './damon/DamonSplitView.jsx'
 import DamonAskView from './damon/DamonAskView.jsx'
 import DamonApproveView from './damon/DamonApproveView.jsx'
 import DamonFooter from './damon/DamonFooter.jsx'
+import { evaluateMath } from './damon/calculator.js'
 import { request as dashboardRequest } from '../dashboard/api.js'
 import './damon/daemon.css'
 
 const RECENTS_KEY = 'amethyst.spotlight.recents'
+const WEATHER_SYNONYMS = ['weather', 'forecast', 'temperature', 'temp', 'rain']
 
 function loadRecents() {
   try {
@@ -39,22 +42,25 @@ function saveRecents(list) {
 
 export default function CommandPalette({ bare = false }) {
   const app = useApp()
-  const { overlay, setOverlay, activeId, toast } = app
+  const { overlay, setOverlay, toast } = app
 
   const open = bare || overlay === 'palette'
 
   // Navigation handler
-  const handleNavigate = useCallback((viewId, prompt) => {
-    if (bare) {
-      window.pywebview?.api?.open_main?.(viewId, prompt || '')
-    } else if (prompt) {
-      app.openChatWithPrompt?.(prompt)
-      setOverlay(null)
-    } else {
-      app.setView?.(viewId)
-      setOverlay(null)
-    }
-  }, [bare, app, setOverlay])
+  const handleNavigate = useCallback(
+    (viewId, prompt) => {
+      if (bare) {
+        window.pywebview?.api?.open_main?.(viewId, prompt || '')
+      } else if (prompt) {
+        app.openChatWithPrompt?.(prompt)
+        setOverlay(null)
+      } else {
+        app.setView?.(viewId)
+        setOverlay(null)
+      }
+    },
+    [bare, app, setOverlay]
+  )
 
   const hideBar = useCallback(() => {
     if (bare) window.pywebview?.api?.hide?.()
@@ -67,15 +73,7 @@ export default function CommandPalette({ bare = false }) {
   const closeTimerRef = useRef(null)
 
   const closePalette = useCallback(() => {
-    if (closingRef.current) return
-    closingRef.current = true
-    setClosing(true)
-    if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
-    closeTimerRef.current = setTimeout(() => {
-      closingRef.current = false
-      setClosing(false)
-      hideBar()
-    }, 90)
+    hideBar()
   }, [hideBar])
 
   // State
@@ -109,6 +107,12 @@ export default function CommandPalette({ bare = false }) {
   }, [closePalette])
 
   useModalDismiss(open, handleDismiss)
+
+  // Auto-scroll selected row into view
+  useEffect(() => {
+    const selectedEl = panelRef.current?.querySelector('.damon-row.is-selected, .palette-item.is-selected')
+    selectedEl?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [selectedIndex])
 
   // Auto-hide in pywebview on window blur
   useEffect(() => {
@@ -157,7 +161,8 @@ export default function CommandPalette({ bare = false }) {
     }
 
     // Load initial data
-    api.library({ limit: 10 })
+    api
+      .library({ limit: 10 })
       .then((d) => {
         const items = (d.items || []).map((it) => ({
           ...it,
@@ -166,21 +171,23 @@ export default function CommandPalette({ bare = false }) {
         if (items.length > 0) {
           setContinueItems(items)
         } else {
-          // Fallback continue items from tasks
-          api.tasks({ bucket: 'all', limit: 4 }).then((t) => {
-            const taskItems = (t.tasks || []).map((task) => ({
-              id: task.id,
-              title: task.title,
-              kind: 'note',
-              date_label: 'Today',
-            }))
-            if (taskItems.length > 0) setContinueItems(taskItems)
-          }).catch(() => {})
+          api
+            .tasks({ bucket: 'all', limit: 4 })
+            .then((t) => {
+              const taskItems = (t.tasks || []).map((task) => ({
+                id: task.id,
+                title: task.title,
+                kind: 'note',
+                date_label: 'Today',
+              }))
+              if (taskItems.length > 0) setContinueItems(taskItems)
+            })
+            .catch(() => {})
         }
       })
       .catch(() => {})
 
-    // Load contacts from dashboard communication widget or mail
+    // Load contacts
     dashboardRequest('/dashboard/widgets/comm.contacts/data')
       .then((d) => {
         const items = d?.payload?.items || d?.items || []
@@ -201,7 +208,8 @@ export default function CommandPalette({ bare = false }) {
       })
 
     // Check pending confirmations
-    api.confirmations()
+    api
+      .confirmations()
       .then((confList) => {
         if (Array.isArray(confList) && confList.length > 0) {
           const pending = confList[0]
@@ -284,107 +292,127 @@ export default function CommandPalette({ bare = false }) {
   }, [])
 
   // Action execution
-  const executeItem = useCallback(async (item) => {
-    if (!item) return
-    if (query.trim()) recordRecentSearch(query.trim())
+  const executeItem = useCallback(
+    async (item) => {
+      if (!item) return
+      if (query.trim()) recordRecentSearch(query.trim())
 
-    // 1. Web search / url item
-    if (item.url || item.type === 'web') {
-      openUrl(item.url || `https://www.google.com/search?q=${encodeURIComponent(query || item.title)}`)
-      closePalette()
-      return
-    }
-
-    // 2. Applications launcher action
-    if (item.provider_id === 'apps') {
-      try {
-        await api.executeLauncherAction('apps', 'launch', {
-          clean_exec: item.preview_data?.exec,
-          desktop_path: item.preview_data?.path,
-          terminal: item.preview_data?.terminal,
-        })
+      // 0. Math calculation / conversion result
+      if (item.isMath || item.copyValue) {
+        copyText(item.copyValue)
+        toast?.(`Copied ${item.copyValue} to clipboard`, 'ok')
         closePalette()
-      } catch (err) {
-        toast?.(err.message, 'bad')
+        return
       }
-      return
-    }
 
-    // 3. Local Files action
-    if (item.provider_id === 'files') {
-      const filePath = item.path || item.preview_data?.path
-      try {
-        await api.executeLauncherAction('files', 'open', { path: filePath })
+      // 0.1 System command runner
+      if (typeof item.run === 'function') {
+        item.run()
         closePalette()
-      } catch (err) {
-        toast?.(err.message, 'bad')
+        return
       }
-      return
-    }
 
-    // 4. Library item
-    if (item.provider_id === 'library' || item.kind) {
-      if (item.url) {
-        openUrl(item.url)
+      // 1. Web search / url item
+      if (item.url || item.type === 'web') {
+        openUrl(item.url || `https://www.google.com/search?q=${encodeURIComponent(query || item.title)}`)
+        closePalette()
+        return
+      }
+
+      // 2. Applications launcher action
+      if (item.provider_id === 'apps') {
+        try {
+          await api.executeLauncherAction('apps', 'launch', {
+            clean_exec: item.preview_data?.exec,
+            desktop_path: item.preview_data?.path,
+            terminal: item.preview_data?.terminal,
+          })
+          closePalette()
+        } catch (err) {
+          toast?.(err.message, 'bad')
+        }
+        return
+      }
+
+      // 3. Local Files action
+      if (item.provider_id === 'files') {
+        const filePath = item.path || item.preview_data?.path
+        try {
+          await api.executeLauncherAction('files', 'open', { path: filePath })
+          closePalette()
+        } catch (err) {
+          toast?.(err.message, 'bad')
+        }
+        return
+      }
+
+      // 4. Library item
+      if (item.provider_id === 'library' || item.kind) {
+        if (item.url) {
+          openUrl(item.url)
+        } else {
+          handleNavigate('library')
+        }
+        closePalette()
+        return
+      }
+
+      // 5. System commands / navigation
+      if (item.viewId) {
+        handleNavigate(item.viewId)
+        closePalette()
+        return
+      }
+
+      // Fallback
+      if (item.action_id && item.provider_id) {
+        try {
+          await api.executeLauncherAction(item.provider_id, item.action_id, item.payload || {})
+          closePalette()
+        } catch (err) {
+          toast?.(err.message, 'bad')
+        }
       } else {
-        handleNavigate('library')
-      }
-      closePalette()
-      return
-    }
-
-    // 5. System commands / navigation
-    if (item.viewId) {
-      handleNavigate(item.viewId)
-      closePalette()
-      return
-    }
-
-    // Fallback
-    if (item.action_id && item.provider_id) {
-      try {
-        await api.executeLauncherAction(item.provider_id, item.action_id, item.payload || {})
         closePalette()
-      } catch (err) {
-        toast?.(err.message, 'bad')
       }
-    } else {
-      closePalette()
-    }
-  }, [query, recordRecentSearch, closePalette, handleNavigate, toast])
+    },
+    [query, recordRecentSearch, closePalette, handleNavigate, toast]
+  )
 
   // Ask Amethyst execution
-  const handleTriggerAsk = useCallback((customQuery) => {
-    const q = (customQuery || query).trim()
-    if (!q) return
-    setIsAskMode(true)
-    setAskStreaming(true)
-    setAskSteps([
-      { label: 'Searched Library', badge: '6 matches' },
-      { label: 'Read react.dev' },
-    ])
-    setAskSources([
-      { id: 's1', title: 'Hooks notes', badge: 'Library', domain: 'Note' },
-      { id: 's2', title: 'React 19 hooks cheat sheet', badge: 'Library', domain: 'Reel' },
-      { id: 's3', title: 'react.dev', badge: 'Web', domain: 'Doc' },
-    ])
+  const handleTriggerAsk = useCallback(
+    (customQuery) => {
+      const q = (customQuery || query).trim()
+      if (!q) return
+      setIsAskMode(true)
+      setAskStreaming(true)
+      setAskSteps([
+        { label: 'Searched Library', badge: '6 matches' },
+        { label: 'Read react.dev' },
+      ])
+      setAskSources([
+        { id: 's1', title: 'Hooks notes', badge: 'Library', domain: 'Note' },
+        { id: 's2', title: 'React 19 hooks cheat sheet', badge: 'Library', domain: 'Reel' },
+        { id: 's3', title: 'react.dev', badge: 'Web', domain: 'Doc' },
+      ])
 
-    // Stream simulated or backend response
-    let currentText = ''
-    const sampleAnswer =
-      'use() reads a value from a promise or a context during render, and suspends until the promise resolves. Unlike other hooks, you can call it inside conditions and loops.'
-    let i = 0
-    const interval = setInterval(() => {
-      if (i < sampleAnswer.length) {
-        currentText += sampleAnswer.charAt(i)
-        setAskAnswer(currentText)
-        i++
-      } else {
-        clearInterval(interval)
-        setAskStreaming(false)
-      }
-    }, 18)
-  }, [query])
+      let currentText = ''
+      const sampleAnswer =
+        'use() reads a value from a promise or a context during render, and suspends until the promise resolves. Unlike other hooks, you can call it inside conditions and loops.'
+      let i = 0
+      const interval = setInterval(() => {
+        if (i < sampleAnswer.length) {
+          currentText += sampleAnswer.charAt(i)
+          setAskAnswer(currentText)
+          i++
+        } else {
+          clearInterval(interval)
+          setAskStreaming(false)
+        }
+      }, 18)
+    },
+    [query]
+  )
 
   // Approval actions
   const handleAllowOnce = useCallback(async () => {
@@ -424,7 +452,61 @@ export default function CommandPalette({ bare = false }) {
   }, [pendingConfirmation, toast, closePalette])
 
   // Category filtering & grouping
-  const isWeatherQuery = query.trim().toLowerCase() === 'weather'
+  const isWeatherQuery = WEATHER_SYNONYMS.includes(query.trim().toLowerCase())
+
+  // Math Evaluator
+  const mathResult = useMemo(() => {
+    return evaluateMath(query)
+  }, [query])
+
+  // System Built-in Commands (Navigation & Quick Actions)
+  const systemCommands = useMemo(() => {
+    const list = []
+    for (const view of forPalette(app.betaPages)) {
+      list.push({
+        id: `nav:${view.id}`,
+        title: `Go to ${view.label}`,
+        subtitle: `Open ${view.label} section`,
+        icon: view.icon || 'arrow-up-right',
+        provider_id: 'commands',
+        run: () => handleNavigate(view.id),
+      })
+    }
+    list.push({
+      id: 'cmd:browse-skills',
+      title: 'New skill, or browse and install one',
+      subtitle: 'Skills and connectors catalogue',
+      icon: 'plus',
+      provider_id: 'commands',
+      run: () => {
+        app.setCapabilitiesTab?.('skills')
+        handleNavigate('capabilities')
+      },
+    })
+    list.push({
+      id: 'cmd:add-connector',
+      title: 'Add a connector',
+      subtitle: 'GitHub, Google Workspace, MCP servers',
+      icon: 'plug',
+      provider_id: 'commands',
+      run: () => {
+        app.setCapabilitiesTab?.('connectors')
+        handleNavigate('capabilities')
+      },
+    })
+    list.push({
+      id: 'cmd:new-chat',
+      title: 'New conversation',
+      subtitle: 'Start a fresh conversation thread',
+      icon: 'plus',
+      provider_id: 'commands',
+      run: () => {
+        handleNavigate('chat')
+        setTimeout(() => app.chat?.startFresh?.(), 0)
+      },
+    })
+    return list
+  }, [app, handleNavigate])
 
   const filteredApps = useMemo(() => {
     return launcherItems.filter((it) => it.provider_id === 'apps')
@@ -435,8 +517,18 @@ export default function CommandPalette({ bare = false }) {
   }, [launcherItems])
 
   const filteredActions = useMemo(() => {
-    return launcherItems.filter((it) => it.provider_id === 'commands' || it.provider_id === 'system')
-  }, [launcherItems])
+    const q = query.trim().toLowerCase()
+    const serverActions = launcherItems.filter(
+      (it) => it.provider_id === 'commands' || it.provider_id === 'system'
+    )
+    if (!q) return [...systemCommands, ...serverActions]
+    const matchedSystem = systemCommands.filter(
+      (cmd) =>
+        cmd.title.toLowerCase().includes(q) ||
+        cmd.subtitle.toLowerCase().includes(q)
+    )
+    return [...matchedSystem, ...serverActions]
+  }, [launcherItems, systemCommands, query])
 
   const filteredLibrary = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -456,6 +548,19 @@ export default function CommandPalette({ bare = false }) {
   }, [peopleContacts, query])
 
   const topHit = useMemo(() => {
+    if (mathResult) {
+      return {
+        id: 'math-top-hit',
+        title: `= ${mathResult.result}`,
+        subtitle:
+          mathResult.type === 'conversion'
+            ? `${mathResult.expression} · Press Enter to copy`
+            : `Calculation: ${mathResult.expression} · Press Enter to copy`,
+        icon: 'calculator',
+        isMath: true,
+        copyValue: String(mathResult.result),
+      }
+    }
     if (!query.trim()) return null
     if (query.trim().toLowerCase() === 'amethyst') {
       return {
@@ -468,7 +573,7 @@ export default function CommandPalette({ bare = false }) {
       }
     }
     return launcherItems[0] || null
-  }, [query, launcherItems])
+  }, [mathResult, query, launcherItems])
 
   // Split view detection (when Files tab is active or selected item is a file)
   const isSplitView =
@@ -499,10 +604,12 @@ export default function CommandPalette({ bare = false }) {
 
     const items = []
     if (topHit) items.push(topHit)
-    if (activeTab === 'all' || activeTab === 'people') items.push(...filteredPeople)
-    if (activeTab === 'all' || activeTab === 'files') items.push(...filteredFiles)
-    if (activeTab === 'all' || activeTab === 'apps') items.push(...filteredApps)
     if (activeTab === 'all' || activeTab === 'actions') items.push(...filteredActions)
+    if (activeTab === 'all' || activeTab === 'apps') items.push(...filteredApps)
+    if (activeTab === 'all' || activeTab === 'files') items.push(...filteredFiles)
+    if (activeTab === 'all' || activeTab === 'people') items.push(...filteredPeople)
+    if (activeTab === 'all' || activeTab === 'library') items.push(...filteredLibrary)
+
     // Web fallback item
     items.push({
       id: 'web-fallback',
@@ -523,9 +630,10 @@ export default function CommandPalette({ bare = false }) {
     recents,
     topHit,
     activeTab,
-    filteredPeople,
-    filteredApps,
     filteredActions,
+    filteredApps,
+    filteredPeople,
+    filteredLibrary,
   ])
 
   // Get index helper for children
@@ -602,14 +710,12 @@ export default function CommandPalette({ bare = false }) {
         }
         if (currentNavItems[selectedIndex]) {
           const item = currentNavItems[selectedIndex]
-          if (item.title && typeof item.title === 'string' && !item.provider_id && !item.url) {
-            // Recent query clicked
+          if (item.title && typeof item.title === 'string' && !item.provider_id && !item.url && !item.run && !item.isMath) {
             setQuery(item.title)
           } else {
             executeItem(item)
           }
         } else if (query.trim()) {
-          // Fallback to web search
           executeItem({
             id: 'web-fallback',
             url: `https://www.google.com/search?q=${encodeURIComponent(query)}`,
@@ -653,166 +759,175 @@ export default function CommandPalette({ bare = false }) {
     ? 'split'
     : 'standard'
 
-  return (
+  const card = (
     <div
-      className={`damon-overlay palette damon-spotlight${bare ? ' damon-overlay--bare palette--bar' : ''}`}
-      data-closing={closing || undefined}
+      className={`palette damon-spotlight${bare ? ' palette--bar' : ''}${closing ? ' is-closing' : ''}`}
       ref={panelRef}
       role="dialog"
       aria-modal="true"
       aria-label="Spotlight Command Palette"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget && !bare) closePalette()
-      }}
+      onKeyDown={onKeyDown}
+      tabIndex={-1}
     >
-      <div className="damon-glass-frame" onKeyDown={onKeyDown}>
-        <div className="damon-card">
-          {/* Header Search Input */}
-          <DamonHeader
-            query={query}
-            inputRef={inputRef}
-            onChange={(val) => {
-              setQuery(val)
-              setSelectedIndex(0)
-              if (val.toLowerCase().startsWith('ask:')) {
-                setIsAskMode(true)
-                setQuery(val.slice(4).trim())
-              }
-            }}
-            onKeyDown={onKeyDown}
-            onClear={() => {
-              setQuery('')
-              setIsAskMode(false)
-              setSelectedIndex(0)
-            }}
-            isAskMode={isAskMode}
-            onToggleAsk={() => setIsAskMode((prev) => !prev)}
-            hotkeyLabel="⌥ Space"
-          />
+      <div className="damon-card">
+        {/* Header Search Input */}
+        <DamonHeader
+          query={query}
+          inputRef={inputRef}
+          onChange={(val) => {
+            setQuery(val)
+            setSelectedIndex(0)
+            if (val.toLowerCase().startsWith('ask:')) {
+              setIsAskMode(true)
+              setQuery(val.slice(4).trim())
+            }
+          }}
+          onKeyDown={onKeyDown}
+          onClear={() => {
+            setQuery('')
+            setIsAskMode(false)
+            setSelectedIndex(0)
+          }}
+          isAskMode={isAskMode}
+          onToggleAsk={() => setIsAskMode((prev) => !prev)}
+          hotkeyLabel="⌥ Space"
+        />
 
-          {/* Mode Tabs (when not in Ask or Approval mode) */}
-          {!isAskMode && !pendingConfirmation && (
-            <DamonModes activeTab={activeTab} onSelectTab={(t) => { setActiveTab(t); setSelectedIndex(0); }} />
-          )}
+        {/* Mode Tabs (when not in Ask or Approval mode) */}
+        {!isAskMode && !pendingConfirmation && (
+          <DamonModes activeTab={activeTab} onSelectTab={(t) => { setActiveTab(t); setSelectedIndex(0); }} />
+        )}
 
-          {/* Body Content Area */}
-          <div className="damon-body">
-            {pendingConfirmation ? (
-              <DamonApproveView
-                confirmation={pendingConfirmation}
-                onAllowOnce={handleAllowOnce}
-                onAlwaysAllow={handleAlwaysAllow}
-                onDeny={handleDenyApproval}
-              />
-            ) : isAskMode ? (
-              <DamonAskView
-                steps={askSteps}
-                answerText={askAnswer}
-                streaming={askStreaming}
-                sources={askSources}
-                followups={['Show an example', 'Save to Library']}
-                onSelectSource={(s) => {
-                  handleNavigate('library')
-                  closePalette()
-                }}
-                onFollowup={(f) => {
-                  handleTriggerAsk(`${query} (${f})`)
-                }}
-              />
-            ) : isWeatherQuery ? (
-              <DamonWeatherWidget
-                onSelectForecast={(f) => {
-                  toast?.(`Showing ${f.subtitle}`, 'ok')
-                  closePalette()
-                }}
-                selectedIndex={selectedIndex}
-                getItemIndex={getItemIndex}
-              />
-            ) : isSplitView ? (
-              <DamonSplitView
-                folderItems={filteredFiles.filter((f) => f.is_dir || f.title?.endsWith('/'))}
-                documentItems={filteredFiles.filter((f) => !f.is_dir && !f.title?.endsWith('/'))}
-                selectedItem={selectedFileItem || filteredFiles[selectedIndex] || filteredFiles[0]}
-                onSelectItem={(item) => setSelectedFileItem(item)}
-                onOpenItem={(item) => executeItem(item)}
-                onRevealItem={(item) => {
-                  const p = item.path || item.preview_data?.path
-                  if (p) api.executeLauncherAction('files', 'reveal', { path: p })
-                  closePalette()
-                }}
-                onClearTypeFilter={() => setActiveTab('all')}
-                selectedIndex={selectedIndex}
-                getItemIndex={getItemIndex}
-              />
-            ) : !query.trim() ? (
-              <DamonRecents
-                recents={recents}
-                continueItems={continueItems}
-                onSelectRecent={(r) => {
-                  setQuery(r)
-                  setSelectedIndex(0)
-                }}
-                onClearRecents={handleClearRecents}
-                onOpenContinueItem={(it) => {
-                  executeItem(it)
-                }}
-                selectedIndex={selectedIndex}
-                startIndex={0}
-              />
-            ) : (
-              <DamonUniversalResults
-                query={query}
-                topHit={topHit}
-                libraryItems={activeTab === 'all' || activeTab === 'library' ? filteredLibrary : []}
-                peopleItems={activeTab === 'all' || activeTab === 'people' ? filteredPeople : []}
-                fileItems={activeTab === 'all' || activeTab === 'files' ? filteredFiles : []}
-                appItems={activeTab === 'all' || activeTab === 'apps' ? filteredApps : []}
-                actionItems={activeTab === 'all' || activeTab === 'actions' ? filteredActions : []}
-                onSelectResult={(item) => executeItem(item)}
-                selectedIndex={selectedIndex}
-                getItemIndex={getItemIndex}
-              />
-            )}
-          </div>
-
-          {/* Docked Footer */}
-          <DamonFooter
-            mode={footerMode}
-            onAskAmethyst={() => handleTriggerAsk(query || 'What can you help me with?')}
-            onSaveLink={() => {
-              if (query.startsWith('http')) {
-                api.capture({ url: query })
-                toast?.('Link captured to Library', 'ok')
-                closePalette()
-              } else {
+        {/* Body Content Area */}
+        <div className="damon-body">
+          {pendingConfirmation ? (
+            <DamonApproveView
+              confirmation={pendingConfirmation}
+              onAllowOnce={handleAllowOnce}
+              onAlwaysAllow={handleAlwaysAllow}
+              onDeny={handleDenyApproval}
+            />
+          ) : isAskMode ? (
+            <DamonAskView
+              steps={askSteps}
+              answerText={askAnswer}
+              streaming={askStreaming}
+              sources={askSources}
+              followups={['Show an example', 'Save to Library']}
+              onSelectSource={() => {
                 handleNavigate('library')
-              }
-            }}
-            onNewNote={() => {
-              handleNavigate('chat', 'Create a new note')
-            }}
-            onReveal={() => {
-              const current = selectedFileItem || filteredFiles[selectedIndex] || filteredFiles[0]
-              const p = current?.path || current?.preview_data?.path
-              if (p) api.executeLauncherAction('files', 'reveal', { path: p })
-              closePalette()
-            }}
-            onCopyPath={() => {
-              const current = selectedFileItem || filteredFiles[selectedIndex] || filteredFiles[0]
-              const p = current?.path || current?.preview_data?.path
-              if (p) {
-                copyText(p)
-                toast?.('Path copied to clipboard', 'ok')
-              }
-              closePalette()
-            }}
-            onOpenWith={() => {
-              const current = selectedFileItem || filteredFiles[selectedIndex] || filteredFiles[0]
-              if (current) executeItem(current)
-            }}
-          />
+                closePalette()
+              }}
+              onFollowup={(f) => {
+                handleTriggerAsk(`${query} (${f})`)
+              }}
+            />
+          ) : isWeatherQuery ? (
+            <DamonWeatherWidget
+              onSelectForecast={(f) => {
+                toast?.(`Showing ${f.subtitle}`, 'ok')
+                closePalette()
+              }}
+              selectedIndex={selectedIndex}
+              getItemIndex={getItemIndex}
+            />
+          ) : isSplitView ? (
+            <DamonSplitView
+              folderItems={filteredFiles.filter((f) => f.is_dir || f.title?.endsWith('/'))}
+              documentItems={filteredFiles.filter((f) => !f.is_dir && !f.title?.endsWith('/'))}
+              selectedItem={selectedFileItem || filteredFiles[selectedIndex] || filteredFiles[0]}
+              onSelectItem={(item) => setSelectedFileItem(item)}
+              onOpenItem={(item) => executeItem(item)}
+              onRevealItem={(item) => {
+                const p = item.path || item.preview_data?.path
+                if (p) api.executeLauncherAction('files', 'reveal', { path: p })
+                closePalette()
+              }}
+              onClearTypeFilter={() => setActiveTab('all')}
+              selectedIndex={selectedIndex}
+              getItemIndex={getItemIndex}
+            />
+          ) : !query.trim() ? (
+            <DamonRecents
+              recents={recents}
+              continueItems={continueItems}
+              onSelectRecent={(r) => {
+                setQuery(r)
+                setSelectedIndex(0)
+              }}
+              onClearRecents={handleClearRecents}
+              onOpenContinueItem={(it) => {
+                executeItem(it)
+              }}
+              selectedIndex={selectedIndex}
+              startIndex={0}
+            />
+          ) : (
+            <DamonUniversalResults
+              query={query}
+              topHit={topHit}
+              libraryItems={activeTab === 'all' || activeTab === 'library' ? filteredLibrary : []}
+              peopleItems={activeTab === 'all' || activeTab === 'people' ? filteredPeople : []}
+              fileItems={activeTab === 'all' || activeTab === 'files' ? filteredFiles : []}
+              appItems={activeTab === 'all' || activeTab === 'apps' ? filteredApps : []}
+              actionItems={activeTab === 'all' || activeTab === 'actions' ? filteredActions : []}
+              onSelectResult={(item) => executeItem(item)}
+              selectedIndex={selectedIndex}
+              getItemIndex={getItemIndex}
+            />
+          )}
         </div>
+
+        {/* Docked Footer */}
+        <DamonFooter
+          mode={footerMode}
+          query={query}
+          onAskAmethyst={() => handleTriggerAsk(query || 'What can you help me with?')}
+          onSaveLink={() => {
+            if (query.startsWith('http')) {
+              api.capture({ url: query })
+              toast?.('Link captured to Library', 'ok')
+              closePalette()
+            } else {
+              handleNavigate('library')
+            }
+          }}
+          onNewNote={() => {
+            handleNavigate('chat', 'Create a new note')
+          }}
+          onReveal={() => {
+            const current = selectedFileItem || filteredFiles[selectedIndex] || filteredFiles[0]
+            const p = current?.path || current?.preview_data?.path
+            if (p) api.executeLauncherAction('files', 'reveal', { path: p })
+            closePalette()
+          }}
+          onCopyPath={() => {
+            const current = selectedFileItem || filteredFiles[selectedIndex] || filteredFiles[0]
+            const p = current?.path || current?.preview_data?.path
+            if (p) {
+              copyText(p)
+              toast?.('Path copied to clipboard', 'ok')
+            }
+            closePalette()
+          }}
+          onOpenWith={() => {
+            const current = selectedFileItem || filteredFiles[selectedIndex] || filteredFiles[0]
+            if (current) executeItem(current)
+          }}
+        />
       </div>
+    </div>
+  )
+
+  if (bare) return card
+
+  return (
+    <div
+      className={`modal-overlay palette-overlay damon-overlay${closing ? ' is-closing' : ''}`}
+      data-closing={closing || undefined}
+      onMouseDown={onOverlayMouseDown(handleDismiss)}
+    >
+      {card}
     </div>
   )
 }
