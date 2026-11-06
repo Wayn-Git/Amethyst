@@ -162,7 +162,7 @@ function useGlobalKeys() {
       // is open does it reach the running turn. The drawer sits between them --
       // it covers the page on a phone, so it is "what is open" there too.
       if (combo === 'escape') {
-        if (overlay && overlay !== 'palette') { e.preventDefault(); setOverlay(null); return }
+        if (overlay) { e.preventDefault(); setOverlay(null); return }
         if (compact && railOpen) { e.preventDefault(); closeRail(); return }
         if (chat.turnRunning) { e.preventDefault(); chat.stop?.(); return }
         return
@@ -244,6 +244,8 @@ function WorkbenchBar() {
     setOverlay, view, setView, compact, railOpen, toggleRail,
     panel, togglePanel, userProfile, autoHideTopBar, workspace,
   } = useApp()
+
+  if (view === 'today') return null
 
   const isCode = view === 'code'
 

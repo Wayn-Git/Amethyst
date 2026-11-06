@@ -15,6 +15,7 @@ import WidgetSlot from './WidgetSlot.jsx'
 import AddWidget from './AddWidget.jsx'
 import { showBoardUINotification } from '../lib/boardui-notifications.js'
 import { GRID_GEOMETRY, gridCellAt, gridPosition, insertGridWidget, moveGridWidget, normalizeLayout, removeGridWidget, resizeGridWidget } from './grid.js'
+import FennelHome from '../views/FennelHome.jsx'
 import './home.css'
 import './home-shell.css'
 
@@ -29,6 +30,11 @@ const WidgetView = memo(function WidgetView({ context, ...props }) {
 })
 
 export default function Home({ layoutMode = "default" }) {
+  const showClassic = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('classic') === '1'
+  if (!showClassic) {
+    return <FennelHome />
+  }
+
   const navigate = useNavigate()
   const { setOverlay, setCapabilitiesTab } = useApp()
   const connections = useConnections()

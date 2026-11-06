@@ -12,6 +12,7 @@ import { useDismiss } from '../hooks/useDismiss.js'
 import { SmoothInput } from './ui/skiper/index.js'
 import { AnimatePresence, motion } from 'framer-motion'
 import UserMenu from './UserMenu.jsx'
+import ModeSwitcher from './ModeSwitcher.jsx'
 import { safeStorage } from '../lib/storage.js'
 
 function parseSessionTime(val) {
@@ -143,6 +144,7 @@ function ConvItem({ conv, active, onOpen, onRename, onDelete, onTogglePin }) {
 
 export default function Sidebar() {
   const {
+    appMode, setAppMode,
     view, setView, setOverlay, health, healthError,
     compact, railOpen, toggleRail, closeRail,
     sidebar, setSidebar,
@@ -155,6 +157,22 @@ export default function Sidebar() {
 
   const [filter, setFilter] = useState('')
   const [showSearchInput, setShowSearchInput] = useState(false)
+  const [taskCount, setTaskCount] = useState(0)
+  const [recentFiles, setRecentFiles] = useState([])
+
+  useEffect(() => {
+    api.tasks({ bucket: 'pending', limit: 20 })
+      .then((res) => {
+        if (res?.tasks) setTaskCount(res.tasks.length)
+      })
+      .catch(() => {})
+
+    api.library({ limit: 4 })
+      .then((res) => {
+        if (res?.items) setRecentFiles(res.items)
+      })
+      .catch(() => {})
+  }, [])
 
   const toggleSidebar = toggleRail
 
@@ -470,342 +488,414 @@ export default function Sidebar() {
            2. EXPANDED MODERN SIDEBAR (260px) — Vibecoded
            =================================================================== */
         <div className="sb-expanded-container">
-          {/* Top Header: Authentic Amethyst Logo + Workspace Selector + Search + Collapse */}
-          <div className="sb-header">
-            <div className="sb-header-top-row">
-              <UserMenu align="start" side="bottom" sideOffset={8}>
-                <HouseButton
-                  type="button"
-                  className="sb-workspace-selector wb-brand"
-                  title="Workspace settings & user menu"
-                >
-                  <BrandMark size={24} glow />
-                  <span className="sb-workspace-name">Amethyst</span>
-                  <Icon name="chevron-down" size={11} className="sb-workspace-chevron" />
-                </HouseButton>
-              </UserMenu>
-
-              <div className="sb-header-actions">
-                <HouseButton
-                  type="button"
-                  className={`sb-header-icon-btn${showSearchInput ? ' is-active' : ''}`}
-                  onClick={() => setShowSearchInput((s) => !s)}
-                  title={`Search conversations — ${MOD_LABEL}+K`}
-                  aria-label="Search conversations"
-                >
-                  <Icon name="search" size={18} />
-                </HouseButton>
-
-                <HouseButton
-                  type="button"
-                  className="sb-header-icon-btn"
-                  onClick={handleToggle}
-                  title={`Collapse sidebar — ${MOD_LABEL}+B`}
-                  aria-label="Collapse sidebar"
-                >
-                  <Icon name="sidebar" size={18} />
-                </HouseButton>
-              </div>
-            </div>
-
-            {/* Inline Conversation Filter */}
-            <AnimatePresence>
-              {showSearchInput && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                  className="sb-search-wrapper"
-                >
-                  <div className="sb-search-bar">
-                    <Icon name="search" size={15} className="sb-search-icon" />
-                    <SmoothInput
-                      autoFocus
-                      value={filter}
-                      onChange={(e) => setFilter(e.target.value)}
-                      placeholder="Search chats…"
-                      className="sb-search-input"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          e.stopPropagation()
-                          setFilter('')
-                          setShowSearchInput(false)
-                        }
-                      }}
-                    />
-                    {filter && (
-                      <HouseButton
-                        type="button"
-                        className="sb-clear-btn"
-                        onClick={() => setFilter('')}
-                        aria-label="Clear search"
-                      >
-                        <Icon name="x" size={12} />
-                      </HouseButton>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Prominent + New Chat Pill Button */}
-          <HouseButton
-            type="button"
-            className={`sb-new-chat-pill${view === 'chat' && !activeId ? ' is-active' : ''}`}
-            onClick={leave(() => {
-              setView('chat')
-              chat.startFresh?.()
-            })}
-            title={`New chat — ${MOD_LABEL}+Shift+O`}
-            aria-label="New chat"
-          >
-            <div className="sb-new-chat-left">
-              <Icon name="plus" size={16} weight="bold" />
-              <span>New Chat</span>
-            </div>
-            <span className="sb-new-chat-shortcut">
-              {MOD_LABEL}+Shift+O
-            </span>
-          </HouseButton>
-
-          {/* Primary Navigation Section: Real Amethyst Views */}
-          <div className="sb-nav-section" aria-label="Main Navigation">
-            {/* Top item: Today */}
-            {topPlaces.map((place) => {
-              const isActive = view === place.id
-              return (
-                <HouseButton
-                  key={place.id}
-                  type="button"
-                  className={`sb-nav-item${isActive ? ' is-active' : ''}`}
-                  onClick={leave(() => setView(place.id))}
-                  onPointerEnter={() => prefetchView(place.id)}
-                  title={`${place.label} — ${MOD_LABEL}+${place.digit || ''}`}
-                >
-                  <div className="sb-nav-item-left">
-                    <span className="sb-nav-item-icon">
-                      <Icon name={place.icon} size={18} />
-                    </span>
-                    <span className="sb-nav-item-label">{place.label}</span>
-                  </div>
-                  {place.digit && (
-                    <span className="sb-nav-item-shortcut">
-                      {MOD_LABEL}+{place.digit}
-                    </span>
-                  )}
-                </HouseButton>
-              )
-            })}
-
-            {/* Expandable Utilities Group (Tasks, Email, File Converter) */}
-            <div className="sb-nav-group">
-              <HouseButton
-                type="button"
-                className={`sb-nav-item sb-nav-group-trigger${isUtilityActive ? ' has-active-child' : ''}`}
-                onClick={toggleUtilities}
-                aria-expanded={utilitiesOpen}
-                title="Utilities (Tasks, Email, File Converter)"
-              >
-                <div className="sb-nav-item-left">
-                  <span className="sb-nav-item-icon">
-                    <Icon name="wrench" size={18} />
-                  </span>
-                  <span className="sb-nav-item-label">Utilities</span>
-                </div>
-                <div className="sb-nav-group-right">
-                  {isUtilityActive && <span className="sb-nav-group-active-dot" />}
-                  <span className={`sb-nav-group-chevron${utilitiesOpen ? ' is-open' : ''}`}>
-                    <Icon name="chevron-down" size={13} />
-                  </span>
-                </div>
-              </HouseButton>
-
-              <AnimatePresence initial={false}>
-                {utilitiesOpen && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-                    className="sb-nav-subitems-wrap"
+          {appMode === 'app' ? (
+            /* ===============================================================
+               FENNEL APP SIDEBAR (Screenshot 1)
+               =============================================================== */
+            <>
+              <div className="sb-header">
+                <div className="sb-header-top-row">
+                  <ModeSwitcher />
+                  <HouseButton
+                    type="button"
+                    className="sb-header-icon-btn"
+                    onClick={handleToggle}
+                    title={`Collapse sidebar — ${MOD_LABEL}+B`}
+                    aria-label="Collapse sidebar"
                   >
-                    <div className="sb-nav-subitems">
-                      {utilityPlaces.map((place) => {
-                        const isActive = view === place.id
-                        return (
-                          <HouseButton
-                            key={place.id}
-                            type="button"
-                            className={`sb-nav-item sb-nav-subitem${isActive ? ' is-active' : ''}`}
-                            onClick={leave(() => setView(place.id))}
-                            onPointerEnter={() => prefetchView(place.id)}
-                            title={`${place.label} — ${MOD_LABEL}+${place.digit || ''}`}
-                          >
-                            <div className="sb-nav-item-left">
-                              <span className="sb-nav-item-icon">
-                                <Icon name={place.icon} size={16} />
-                              </span>
-                              <span className="sb-nav-item-label">{place.label}</span>
-                            </div>
-                            {place.digit ? (
-                              <span className="sb-nav-item-shortcut">
-                                {MOD_LABEL}+{place.digit}
-                              </span>
-                            ) : place.beta ? (
-                              <span className="sb-nav-item-beta">Beta</span>
-                            ) : null}
-                          </HouseButton>
-                        )
-                      })}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                    <Icon name="sidebar" size={17} />
+                  </HouseButton>
+                </div>
+              </div>
 
-            {/* Bottom items: Capabilities, Automations, Memory, Library */}
-            {bottomPlaces.map((place) => {
-              const isActive = view === place.id
-              return (
-                <HouseButton
-                  key={place.id}
+              {/* Action row: + New button and Search */}
+              <div className="sb-fennel-action-row">
+                <button
                   type="button"
-                  className={`sb-nav-item${isActive ? ' is-active' : ''}`}
-                  onClick={leave(() => setView(place.id))}
-                  onPointerEnter={() => prefetchView(place.id)}
-                  title={`${place.label} — ${MOD_LABEL}+${place.digit || ''}`}
+                  className="sb-fennel-new-btn"
+                  onClick={() => setOverlay('palette')}
+                  title="Create new task, note, or prompt"
                 >
-                  <div className="sb-nav-item-left">
-                    <span className="sb-nav-item-icon">
-                      <Icon name={place.icon} size={18} />
-                    </span>
-                    <span className="sb-nav-item-label">{place.label}</span>
+                  <Icon name="plus" size={14} />
+                  <span>New</span>
+                </button>
+                <button
+                  type="button"
+                  className="sb-fennel-search-icon-btn"
+                  onClick={() => setOverlay('palette')}
+                  title={`Search in project — ${MOD_LABEL}+K`}
+                  aria-label="Search"
+                >
+                  <Icon name="search" size={14} />
+                </button>
+              </div>
+
+              {/* Main Nav Section */}
+              <nav className="sb-fennel-nav wb-list" aria-label="App Navigation">
+                <button
+                  type="button"
+                  className={`sb-fennel-nav-item${view === 'today' ? ' is-active' : ''}`}
+                  onClick={leave(() => setView('today'))}
+                >
+                  <div className="sb-fennel-nav-item-left">
+                    <Icon name="home" size={16} />
+                    <span>Home</span>
                   </div>
-                  {place.digit && (
-                    <span className="sb-nav-item-shortcut">
-                      {MOD_LABEL}+{place.digit}
-                    </span>
-                  )}
-                </HouseButton>
-              )
-            })}
-          </div>
+                </button>
 
-          {/* Scroll Area: Starred & Time-Grouped Recent Chats */}
-          <div className="sb-scroll-body wb-list">
-            {/* Starred Conversations */}
-            {starred.length > 0 && (
-              <div className="sb-starred-group">
-                <div className="sb-section-label">Starred</div>
-                {starred.map((c) => (
-                  renaming === c.id ? (
-                    <div key={c.id} className="sb-rename-wrap">
-                      <SmoothInput
-                        autoFocus
-                        defaultValue={c.title || ''}
-                        className="sb-rename-input"
-                        onBlur={(e) => renameConversation(c.id, e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault()
-                            renameConversation(c.id, e.target.value)
-                          }
-                          if (e.key === 'Escape') {
-                            e.stopPropagation()
-                            setRenaming(null)
-                          }
-                        }}
-                      />
-                    </div>
+                <button
+                  type="button"
+                  className="sb-fennel-nav-item"
+                  onClick={() => toast('Projects coming soon', 'info')}
+                >
+                  <div className="sb-fennel-nav-item-left">
+                    <Icon name="folder" size={16} />
+                    <span>Projects</span>
+                  </div>
+                  <span className="sb-fennel-soon-badge">Soon</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="sb-fennel-nav-item"
+                  onClick={() => toast('Templates coming soon', 'info')}
+                >
+                  <div className="sb-fennel-nav-item-left">
+                    <Icon name="grid" size={16} />
+                    <span>Templates</span>
+                  </div>
+                  <span className="sb-fennel-soon-badge">Soon</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`sb-fennel-nav-item${view === 'library' ? ' is-active' : ''}`}
+                  onClick={leave(() => setView('library'))}
+                >
+                  <div className="sb-fennel-nav-item-left">
+                    <Icon name="files" size={16} />
+                    <span>Artifacts</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  className={`sb-fennel-nav-item${view === 'tasks' ? ' is-active' : ''}`}
+                  onClick={leave(() => setView('tasks'))}
+                >
+                  <div className="sb-fennel-nav-item-left">
+                    <Icon name="check-square" size={16} />
+                    <span>Tasks</span>
+                  </div>
+                  {taskCount > 0 && <span className="sb-fennel-count-badge">{taskCount}</span>}
+                </button>
+              </nav>
+
+              {/* Recent section */}
+              <div className="sb-fennel-section">
+                <div className="sb-fennel-section-label">Recent</div>
+                <div className="sb-fennel-recent-list">
+                  {recentFiles.length > 0 ? (
+                    recentFiles.map((file) => (
+                      <button
+                        key={file.id}
+                        type="button"
+                        className="sb-fennel-recent-item"
+                        onClick={leave(() => setView('library'))}
+                        title={file.title}
+                      >
+                        <Icon name="folder" size={13} className="sb-fennel-recent-icon" />
+                        <span className="sb-fennel-recent-title">{file.title}</span>
+                      </button>
+                    ))
                   ) : (
-                    <ConvItem
-                      key={c.id}
-                      conv={c}
-                      active={c.id === activeId && view === 'chat'}
-                      onOpen={leave(() => {
-                        setView('chat')
-                        chat.selectConversation?.(c.id)
-                      })}
-                      onRename={() => setRenaming(c.id)}
-                      onDelete={() => deleteConversation(c.id)}
-                      onTogglePin={togglePin}
-                    />
-                  )
-                ))}
+                    <>
+                      <button type="button" className="sb-fennel-recent-item" onClick={leave(() => setView('library'))}>
+                        <Icon name="folder" size={13} className="sb-fennel-recent-icon" />
+                        <span className="sb-fennel-recent-title">Savings launch, Q1</span>
+                      </button>
+                      <button type="button" className="sb-fennel-recent-item" onClick={leave(() => setView('library'))}>
+                        <Icon name="folder" size={13} className="sb-fennel-recent-icon" />
+                        <span className="sb-fennel-recent-title">Q3 pricing review</span>
+                      </button>
+                      <button type="button" className="sb-fennel-recent-item" onClick={leave(() => setView('library'))}>
+                        <Icon name="folder" size={13} className="sb-fennel-recent-icon" />
+                        <span className="sb-fennel-recent-title">Board update, Nov</span>
+                      </button>
+                      <button type="button" className="sb-fennel-recent-item" onClick={leave(() => setView('library'))}>
+                        <Icon name="folder" size={13} className="sb-fennel-recent-icon" />
+                        <span className="sb-fennel-recent-title">Hiring plan 2027</span>
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
-            )}
 
-            {/* Time-Grouped Recents (Today, Yesterday, Previous 7 Days, etc.) */}
-            {recentBuckets.length === 0 ? (
-              <div className="sb-empty-chats">
-                {filter ? 'No matching chats' : 'No chats yet'}
+              {/* Teams section */}
+              <div className="sb-fennel-section">
+                <div className="sb-fennel-section-label">Teams</div>
+                <div className="sb-fennel-recent-list">
+                  <button type="button" className="sb-fennel-recent-item" onClick={leave(() => setView('capabilities'))}>
+                    <Icon name="users" size={13} className="sb-fennel-recent-icon" />
+                    <span className="sb-fennel-recent-title">Product</span>
+                  </button>
+                  <button type="button" className="sb-fennel-recent-item" onClick={leave(() => setView('capabilities'))}>
+                    <Icon name="chart-bar" size={13} className="sb-fennel-recent-icon" />
+                    <span className="sb-fennel-recent-title">Growth</span>
+                  </button>
+                </div>
               </div>
-            ) : (
-              recentBuckets.map((bucket) => (
-                <div key={bucket.label || 'all'} className="sb-bucket-group">
-                  {bucket.label && <div className="sb-section-label">{bucket.label}</div>}
-                  {bucket.items.map((c) => (
-                    renaming === c.id ? (
-                      <div key={c.id} className="sb-rename-wrap">
+
+              {/* Bottom Credits & User Card */}
+              <div className="sb-fennel-footer">
+                <span className="wb-foot-sub" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}>{status}</span>
+                <div className="sb-fennel-credits-card">
+                  <div className="sb-fennel-credits-top">
+                    <span className="sb-fennel-credits-label">
+                      <Icon name="spark" size={12} />
+                      <span>Credits</span>
+                    </span>
+                    <span className="sb-fennel-pro-badge">Pro</span>
+                  </div>
+                  <div className="sb-fennel-credits-val">
+                    760 left of 2,000
+                  </div>
+                </div>
+
+                <UserMenu align="start" side="top" sideOffset={10}>
+                  <HouseButton
+                    type="button"
+                    className="sb-user-card-bottom"
+                    title={`Account settings for ${displayName}`}
+                  >
+                    <div className="sb-user-avatar-square">
+                      {userInitials}
+                    </div>
+                    <div className="sb-user-info-bottom">
+                      <span className="sb-user-name-bottom">{displayName}</span>
+                      <span className="sb-user-subtext-bottom">{workspaceName}</span>
+                    </div>
+                  </HouseButton>
+                </UserMenu>
+              </div>
+            </>
+          ) : (
+            /* ===============================================================
+               AGENT MODE SIDEBAR (Screenshot 2)
+               =============================================================== */
+            <>
+              <div className="sb-header">
+                <div className="sb-header-top-row">
+                  <ModeSwitcher />
+
+                  <div className="sb-header-actions">
+                    <HouseButton
+                      type="button"
+                      className="sb-header-icon-btn"
+                      onClick={() => toast('No new notifications', 'info')}
+                      title="Notifications"
+                      aria-label="Notifications"
+                    >
+                      <Icon name="bell" size={16} />
+                    </HouseButton>
+
+                    <HouseButton
+                      type="button"
+                      className={`sb-header-icon-btn${showSearchInput ? ' is-active' : ''}`}
+                      onClick={() => setShowSearchInput((s) => !s)}
+                      title={`Search conversations — ${MOD_LABEL}+K`}
+                      aria-label="Search conversations"
+                    >
+                      <Icon name="search" size={16} />
+                    </HouseButton>
+
+                    <HouseButton
+                      type="button"
+                      className="sb-header-icon-btn"
+                      onClick={handleToggle}
+                      title={`Collapse sidebar — ${MOD_LABEL}+B`}
+                      aria-label="Collapse sidebar"
+                    >
+                      <Icon name="sidebar" size={16} />
+                    </HouseButton>
+                  </div>
+                </div>
+
+                {/* Inline Conversation Filter */}
+                <AnimatePresence>
+                  {showSearchInput && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                      className="sb-search-wrapper"
+                    >
+                      <div className="sb-search-bar">
+                        <Icon name="search" size={15} className="sb-search-icon" />
                         <SmoothInput
                           autoFocus
-                          defaultValue={c.title || ''}
-                          className="sb-rename-input"
-                          onBlur={(e) => renameConversation(c.id, e.target.value)}
+                          value={filter}
+                          onChange={(e) => setFilter(e.target.value)}
+                          placeholder="Search chats…"
+                          className="sb-search-input"
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault()
-                              renameConversation(c.id, e.target.value)
-                            }
                             if (e.key === 'Escape') {
                               e.stopPropagation()
-                              setRenaming(null)
+                              setFilter('')
+                              setShowSearchInput(false)
                             }
                           }}
                         />
+                        {filter && (
+                          <HouseButton
+                            type="button"
+                            className="sb-clear-btn"
+                            onClick={() => setFilter('')}
+                            aria-label="Clear search"
+                          >
+                            <Icon name="x" size={12} />
+                          </HouseButton>
+                        )}
                       </div>
-                    ) : (
-                      <ConvItem
-                        key={c.id}
-                        conv={c}
-                        active={c.id === activeId && view === 'chat'}
-                        onOpen={leave(() => {
-                          setView('chat')
-                          chat.selectConversation?.(c.id)
-                        })}
-                        onRename={() => setRenaming(c.id)}
-                        onDelete={() => deleteConversation(c.id)}
-                        onTogglePin={togglePin}
-                      />
-                    )
-                  ))}
-                </div>
-              ))
-            )}
-          </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
-          {/* Bottom Actions: Functional User & Workspace Card */}
-          <div className="sb-bottom-container">
-            <span className="wb-foot-sub" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}>{status}</span>
-
-            <UserMenu align="start" side="top" sideOffset={10}>
+              {/* Prominent + New Chat Pill Button */}
               <HouseButton
                 type="button"
-                className="sb-user-card-bottom"
-                title={`Account settings for ${displayName}`}
+                className={`sb-new-chat-pill${view === 'chat' && !activeId ? ' is-active' : ''}`}
+                onClick={leave(() => {
+                  setView('chat')
+                  chat.startFresh?.()
+                })}
+                title={`New chat — ${MOD_LABEL}+Shift+O`}
+                aria-label="New chat"
               >
-                <div className="sb-user-avatar-square">
-                  {userInitials}
+                <div className="sb-new-chat-left">
+                  <Icon name="plus" size={16} weight="bold" />
+                  <span>New Chat</span>
                 </div>
-                <div className="sb-user-info-bottom">
-                  <span className="sb-user-name-bottom">{displayName}</span>
-                  <span className="sb-user-subtext-bottom">{workspaceName}</span>
-                </div>
+                <span className="sb-new-chat-shortcut">
+                  {MOD_LABEL}+Shift+O
+                </span>
               </HouseButton>
-            </UserMenu>
-          </div>
+
+              {/* Scroll Area: Starred & Time-Grouped Recent Chats */}
+              <div className="sb-scroll-body wb-list">
+                {starred.length > 0 && (
+                  <div className="sb-starred-group">
+                    <div className="sb-section-label">Starred</div>
+                    {starred.map((c) => (
+                      renaming === c.id ? (
+                        <div key={c.id} className="sb-rename-wrap">
+                          <SmoothInput
+                            autoFocus
+                            defaultValue={c.title || ''}
+                            className="sb-rename-input"
+                            onBlur={(e) => renameConversation(c.id, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                renameConversation(c.id, e.target.value)
+                              }
+                              if (e.key === 'Escape') {
+                                e.stopPropagation()
+                                setRenaming(null)
+                              }
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <ConvItem
+                          key={c.id}
+                          conv={c}
+                          active={c.id === activeId && view === 'chat'}
+                          onOpen={leave(() => {
+                            setView('chat')
+                            chat.selectConversation?.(c.id)
+                          })}
+                          onRename={() => setRenaming(c.id)}
+                          onDelete={() => deleteConversation(c.id)}
+                          onTogglePin={togglePin}
+                        />
+                      )
+                    ))}
+                  </div>
+                )}
+
+                {recentBuckets.length === 0 ? (
+                  <div className="sb-empty-chats">
+                    {filter ? 'No matching chats' : 'No chats yet'}
+                  </div>
+                ) : (
+                  recentBuckets.map((bucket) => (
+                    <div key={bucket.label || 'all'} className="sb-bucket-group">
+                      {bucket.label && <div className="sb-section-label">{bucket.label}</div>}
+                      {bucket.items.map((c) => (
+                        renaming === c.id ? (
+                          <div key={c.id} className="sb-rename-wrap">
+                            <SmoothInput
+                              autoFocus
+                              defaultValue={c.title || ''}
+                              className="sb-rename-input"
+                              onBlur={(e) => renameConversation(c.id, e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  renameConversation(c.id, e.target.value)
+                                }
+                                if (e.key === 'Escape') {
+                                  e.stopPropagation()
+                                  setRenaming(null)
+                                }
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <ConvItem
+                            key={c.id}
+                            conv={c}
+                            active={c.id === activeId && view === 'chat'}
+                            onOpen={leave(() => {
+                              setView('chat')
+                              chat.selectConversation?.(c.id)
+                            })}
+                            onRename={() => setRenaming(c.id)}
+                            onDelete={() => deleteConversation(c.id)}
+                            onTogglePin={togglePin}
+                          />
+                        )
+                      ))}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Bottom Actions: Functional User & Workspace Card */}
+              <div className="sb-bottom-container">
+                <span className="wb-foot-sub" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}>{status}</span>
+
+                <UserMenu align="start" side="top" sideOffset={10}>
+                  <HouseButton
+                    type="button"
+                    className="sb-user-card-bottom"
+                    title={`Account settings for ${displayName}`}
+                  >
+                    <div className="sb-user-avatar-square">
+                      {userInitials}
+                    </div>
+                    <div className="sb-user-info-bottom">
+                      <span className="sb-user-name-bottom">{displayName}</span>
+                      <span className="sb-user-subtext-bottom">{workspaceName}</span>
+                    </div>
+                  </HouseButton>
+                </UserMenu>
+              </div>
+            </>
+          )}
         </div>
       )}
     </aside>

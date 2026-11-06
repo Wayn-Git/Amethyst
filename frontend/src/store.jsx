@@ -414,6 +414,37 @@ export function AppProvider({ children }) {
       return null
     }
   })
+
+  // Mode architecture: 'app' (Workspace & Home overview) vs 'agent' (Agentic chat & execution)
+  const [appMode, setAppModeState] = useState(() => {
+    try {
+      const stored = safeStorage.getItem('amethyst.ui.appMode')
+      if (stored === 'app' || stored === 'agent') return stored
+    } catch {}
+    return location.pathname === '/chat' ? 'agent' : 'app'
+  })
+
+  const setAppMode = useCallback((mode) => {
+    try {
+      safeStorage.setItem('amethyst.ui.appMode', mode)
+    } catch {}
+    setAppModeState(mode)
+    if (mode === 'agent' && view !== 'chat') {
+      navigate('/chat')
+    } else if (mode === 'app' && view === 'chat') {
+      navigate('/today')
+    }
+  }, [view, navigate])
+
+  useEffect(() => {
+    if (view === 'chat' && appMode !== 'agent') {
+      setAppModeState('agent')
+      try { safeStorage.setItem('amethyst.ui.appMode', 'agent') } catch {}
+    } else if (view !== 'chat' && appMode !== 'app') {
+      setAppModeState('app')
+      try { safeStorage.setItem('amethyst.ui.appMode', 'app') } catch {}
+    }
+  }, [view, appMode])
   const [caps, setCaps] = useState({ skills: [], connectors: [] })
   const [busyCap, setBusyCap] = useState('')
   const [workspace, setWorkspaceRaw] = useState(prefs.workspace || '')
@@ -1302,6 +1333,7 @@ export function AppProvider({ children }) {
   }, [checkForUpdates])
 
   const value = useMemo(() => ({
+    appMode, setAppMode,
     view, setView,
     server, retryServer: wakeBackend,
     health, healthError, refreshHealth,
@@ -1361,6 +1393,7 @@ export function AppProvider({ children }) {
     chat: chatRef.current,
     registerChat: (actions) => Object.assign(chatRef.current, actions),
   }), [
+    appMode, setAppMode,
     view, setView, server, health, healthError, refreshHealth, toast, overlay,
     conversations, refreshConvs, updateConversationOptimistic, activeId, setActiveId, caps, refreshCaps,
     setCapEnabled, busyCap, workspace, setWorkspace, sidebar, setSidebar,
