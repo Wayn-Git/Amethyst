@@ -4,7 +4,7 @@ How a host machine and paired control devices converge: pairing, sealed ops,
 hybrid logical clocks, per-field merge, transcript projection, the relay
 protocol, and remote intents.
 
-**Verified 2026-10-31 · commit `3c363b7` · dirty working tree.**
+**Verified 2026-11-06 · commit `9606fbbf` · phone connectivity improvements.**
 
 Related: [systems/auth.md](auth.md), [sections/remote-mobile.md](../sections/remote-mobile.md),
 [DATABASE.md](../DATABASE.md), [DATA-FLOW.md](../DATA-FLOW.md).
@@ -39,7 +39,7 @@ backend/sync/intents.py      the only remote commands: turn, new_conversation, s
 backend/sync/microsoft_todo.py  Microsoft To Do's separate two-way sync
 backend/instagram/relay.py   RelayPoller and the relay HTTP client
 relay/src/ops.ts             op envelope, fan-out, acks, retention
-frontend/src/lib/sync/       client replica, pairing, control-device UI
+frontend/src/lib/sync/       client replica, pairing, transportManager (dual LAN/relay), useSync (visibility sleep)
 ```
 
 ## Pairing
@@ -178,6 +178,14 @@ the relay within one poll.
 The second check was added after a revoked group left the host sealing and
 uploading for an empty room.
 
+### Client transport and quota protection
+
+Phone clients manage connectivity through `frontend/src/lib/sync/transportManager.js` and `useSync.js`:
+
+1. **Dual-Path Resolution**: The client probes the host LAN (`/api/remote/status`) with a 1.5s timeout. If reachable, direct LAN is used, generating 0 Cloudflare Worker/D1 requests. If LAN is unreachable or times out, it falls back seamlessly to the Cloudflare relay (`/ops`).
+2. **Visibility Sleep**: Whenever `document.visibilityState === 'hidden'` (e.g. phone screen locked or app backgrounded), sync poll timers are cleared immediately. When the screen becomes visible, sync wakes immediately with a prompt poll.
+3. **Adaptive Backoff**: Polling bursts at 3s intervals during active user interaction, eases to 30s at rest, and uses exponential backoff up to 60s with jitter when idle or encountering network errors.
+
 ## Remote intents
 
 A control device cannot call tools, read files or choose a provider. It writes
@@ -261,4 +269,4 @@ Rules:
 - `relay/` has its own tests and deployment; the Python test suite does not
   exercise the Worker.
 
-_Last verified: 2026-10-31 · commit `3c363b7` · dirty working tree._
+_Last verified: 2026-11-06 · commit `9606fbbf` · phone connectivity improvements._

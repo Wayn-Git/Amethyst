@@ -3,7 +3,7 @@
 The phone companion and remote-control surfaces: `/pair`, `/remote`, the
 Capacitor app, and the `/api/remote/*` backend.
 
-**Verified 2026-10-31 · commit `3c363b7` · dirty working tree.**
+**Verified 2026-11-06 · commit `9606fbbf` · phone connectivity improvements.**
 
 ## Entry points
 
@@ -13,7 +13,9 @@ Capacitor app, and the `/api/remote/*` backend.
 | Remote view | `frontend/src/views/Remote.jsx` |
 | Phone frame | `frontend/src/views/RemoteOnly.jsx` |
 | Companion tabs | `frontend/src/mobile/Companion.jsx` |
-| Sync client | `frontend/src/lib/sync/client.js` |
+| Transport manager | `frontend/src/lib/sync/transportManager.js` |
+| Sync hook & client | `frontend/src/lib/sync/useSync.js`, `client.js` |
+| Connection diagnostics | `frontend/src/mobile/ConnectionDiagnosticsModal.jsx` |
 | Crypto | `frontend/src/lib/sync/crypto.js`, `hlc.js`, `keystore.js` |
 | Remote subviews | `frontend/src/views/remote/` |
 | Backend remote | `backend/remote/` |
@@ -105,12 +107,17 @@ Companion tabs: `today`, `library`, `agent`, `activity`, `devices`. It reads
 through the sync replica and the remote API, caches snapshots in native
 storage, and queues captures when offline.
 
+- `frontend/src/lib/sync/transportManager.js` — dual-path network manager probing LAN first (`/api/remote/status` with 1.5s timeout) before falling back to relay (`/ops`).
+- `frontend/src/lib/sync/useSync.js` — visibility sleep (`document.visibilityState === 'hidden'` clears poll timers to prevent Cloudflare D1/Worker quota exhaustion), adaptive backoff (3s burst on user activity, 30s idle, exponential backoff up to 60s with jitter).
+- `frontend/src/mobile/ConnectionDiagnosticsModal.jsx` — Happy-inspired diagnostic sheet showing transport mode, latency, pending outbox, LAN/relay addresses, and copyable diagnostics.
 - `frontend/src/mobile/captures.js` — durable capture queue.
 - `frontend/src/mobile/storage.js` — snapshot and record storage.
 - `frontend/src/mobile/native.js` — native bridges.
 - `frontend/src/mobile/updates.js` — Android APK update flow.
 - `POST /api/mobile/captures` — 202, durable job, re-checks library permission.
 - `GET /api/mobile/update` and `/apk` — update metadata and download.
+
+In `Companion.jsx`, `refresh()` decouples direct LAN capabilities probing from sync polling: an unreachable host LAN does not block replica synchronization through the Cloudflare Worker relay.
 
 `startup.js` shows a recovery panel if the bundle or native storage fails to
 load within 15 seconds.
@@ -127,14 +134,16 @@ load within 15 seconds.
 A revoked device is detected by a 401 from sync (`reason: 'revoked'`) and shown
 as the end of the pairing, not as a temporary failure.
 
-## Sync
+## Sync and Connectivity
 
-The phone holds a replica and exchanges sealed ops through the relay. See
+The phone holds a replica and exchanges sealed ops through either direct LAN or the relay. See
 [systems/sync.md](../systems/sync.md) for the op format, HLC merge and
 allowlists. The short version:
 
-- Pairing establishes the group key.
+- Pairing establishes the group key and records direct LAN and relay endpoints.
+- `TransportManager` continuously tracks network health and routes requests to the fastest available path (`direct` -> `relayed` -> `offline`).
 - Every synced write goes to an outbox and is sealed.
+- Cloudflare quotas are safeguarded: polling stops completely when the screen is locked/backgrounded (`visibilityState === 'hidden'`).
 - Ops are acknowledged on the next poll.
 - Merge is per-field last-write-wins by HLC.
 - Transcripts are published by a watermark sweep.
@@ -179,4 +188,4 @@ Rules:
 - [FRONTEND.md](../FRONTEND.md)
 - [sections/settings.md](settings.md)
 
-_Last verified: 2026-10-31 · commit `3c363b7` · dirty working tree._
+_Last verified: 2026-11-06 · commit `9606fbbf` · phone connectivity improvements._
