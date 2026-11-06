@@ -193,11 +193,6 @@ export default function FennelHome() {
 
         {/* Right Actions */}
         <div className="fennel-top-bar-right">
-          <div className="fennel-director-badge" title="Director runtime connected">
-            <span className="fennel-director-dot" />
-            <span>Director Ready</span>
-          </div>
-
           <motion.button
             type="button"
             className="fennel-theme-btn"
@@ -689,22 +684,6 @@ export default function FennelHome() {
           </div>
         </div>
       </div>
-
-      {/* Floating Ask Amethyst Pill */}
-      <motion.button
-        type="button"
-        className="fennel-ask-pill"
-        onClick={() => {
-          setAppMode('agent')
-          setView('chat')
-        }}
-        whileHover={{ scale: 1.05, y: -2, transition: springTransition }}
-        whileTap={{ scale: 0.95 }}
-        title="Open Agent Mode"
-      >
-        <Icon name="spark" size={15} />
-        <span>Ask Amethyst</span>
-      </motion.button>
     </motion.div>
   )
 }

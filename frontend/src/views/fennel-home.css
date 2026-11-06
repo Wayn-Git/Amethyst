@@ -162,29 +162,6 @@
   gap: 10px;
 }
 
-/* Live Status Badge in place of fake presence avatars */
-.fennel-director-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 20px;
-  background: var(--surface-2, rgba(125, 125, 125, 0.06));
-  border: 1px solid var(--hairline, rgba(125, 125, 125, 0.1));
-  font-size: 11.5px;
-  font-weight: 550;
-  color: var(--text);
-}
-
-.fennel-director-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #10b981;
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
-  animation: fennelPulse 2.4s infinite ease-in-out;
-}
-
 /* Theme Toggle Button in Top Bar */
 .fennel-theme-btn {
   display: flex;
@@ -960,37 +937,4 @@
   font-size: 12px;
   color: var(--text-faint);
   line-height: 1.4;
-}
-
-/* ==========================================================================
-   5. FLOATING ASK AMETHYST PILL (Screenshot 1 Bottom Right)
-   ========================================================================== */
-.fennel-ask-pill {
-  position: fixed;
-  bottom: 24px;
-  right: 28px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 18px;
-  border-radius: 9999px;
-  background: #111827;
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: 0 10px 28px -4px rgba(0, 0, 0, 0.28);
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
-  z-index: 40;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-:root[data-theme-mode='dark'] .fennel-ask-pill,
-.dark .fennel-ask-pill,
-:root.dark-mode .fennel-ask-pill {
-  background: #1d212c;
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.6);
 }
