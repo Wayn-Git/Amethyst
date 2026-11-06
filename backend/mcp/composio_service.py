@@ -1504,6 +1504,12 @@ class ComposioService:
 
     def get_key_mode(self) -> str:
         """Get the active key mode ('consumer', 'user', 'org', or 'project')."""
+        key = self.get_api_key()
+        if key:
+            detected = self._detect_key_mode(key)
+            if detected != "project":
+                self._key_mode = detected
+                return detected
         if getattr(self, "_key_mode", None):
             return self._key_mode
         try:
@@ -1515,7 +1521,6 @@ class ComposioService:
         except Exception:
             pass
 
-        key = self.get_api_key()
         if key:
             mode = self._detect_key_mode(key)
             self._key_mode = mode
@@ -1525,10 +1530,14 @@ class ComposioService:
     def _client_kwargs_for_key(self, key: str) -> dict[str, Any]:
         """Produce the appropriate Composio constructor kwargs for a key."""
         cleaned = sanitize_composio_key(key)
-        mode = self.get_key_mode()
-        if mode == "user" or (mode is None and cleaned.startswith(("uak_", "uak-"))):
+        if cleaned.startswith(("uak_", "uak-")):
             return {"disable_api_key": True, "user_api_key": cleaned}
-        if mode == "org" or (mode is None and cleaned.startswith(("oak_", "oak-"))):
+        if cleaned.startswith(("oak_", "oak-")):
+            return {"disable_api_key": True, "user_api_key": cleaned, "org_api_key": cleaned}
+        mode = self.get_key_mode()
+        if mode == "user":
+            return {"disable_api_key": True, "user_api_key": cleaned}
+        if mode == "org":
             return {"disable_api_key": True, "user_api_key": cleaned, "org_api_key": cleaned}
         return {"api_key": cleaned}
 

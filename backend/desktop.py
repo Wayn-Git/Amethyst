@@ -42,9 +42,8 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
-#: Not `mod+k`: that is the in-window palette chord and belongs to the browser.
-#: A global grab has to be one nothing else has taken, on three platforms.
-DEFAULT_HOTKEY = "<ctrl>+<alt>+<space>"
+#: Default global chord for the spotlight.
+DEFAULT_HOTKEY = "<ctrl>+<space>"
 
 DEFAULT_PORT = 8000
 
@@ -76,13 +75,14 @@ def _launch_desktop_daemon(port: int = DEFAULT_PORT) -> bool:
 
     venv_exe = pathlib.Path(sys.executable).parent / "amethyst"
     exe = shutil.which("amethyst") or (str(venv_exe) if venv_exe.exists() else None)
-    argv = [exe, "desktop", "--port", str(port)] if exe else [
+    argv = [exe, "desktop", "--port", str(port), "--background"] if exe else [
         sys.executable,
         "-m",
         "backend.cli",
         "desktop",
         "--port",
         str(port),
+        "--background",
     ]
 
     repo_root = pathlib.Path(__file__).resolve().parent.parent
@@ -183,6 +183,22 @@ def _activation_token() -> dict[str, Any]:
     return {"token": token} if token else {}
 
 
+def _activate_browser_if_needed() -> None:
+    """If running in web mode on Linux, gently raise the running browser window without opening new tabs."""
+    import shutil
+    import subprocess
+    if not shutil.which("gtk-launch"):
+        return
+    for app in ("zen", "google-chrome", "firefox", "chromium"):
+        try:
+            out = subprocess.run(["pgrep", "-f", app], capture_output=True, text=True, timeout=1).stdout.strip()
+            if out:
+                subprocess.run(["gtk-launch", app], capture_output=True, timeout=2)
+                return
+        except Exception:
+            pass
+
+
 def _summon(port: int, action: str, fallback_path: str, timeout: float = 1.5) -> bool:
     """Ask the running AMETHYST for a window; start one if there is none.
 
@@ -194,12 +210,16 @@ def _summon(port: int, action: str, fallback_path: str, timeout: float = 1.5) ->
     body = _activation_token()
     try:
         answer = _control(port, action, timeout, **body)
-        if answer and answer.get("delivered"):
+        if answer is not None:
+            if answer.get("delivered", 0) > 0:
+                _activate_browser_if_needed()
+                return True
+            # Server is running and answered on the port.
+            # Do NOT open new browser tabs on palette summons!
+            if action != "palette":
+                import webbrowser
+                webbrowser.open(url_for(port, fallback_path))
             return True
-        if answer is None:
-            # Something that is not AMETHYST holds the port. Launching the daemon
-            # would only fail to bind, so go straight to the fallback.
-            answer = None
     except OSError:
         # Nothing is serving. This is the case where the keyboard shortcut is the
         # only thing alive; start the daemon and retry rather than opening the
@@ -210,12 +230,15 @@ def _summon(port: int, action: str, fallback_path: str, timeout: float = 1.5) ->
             for _ in range(60):
                 time.sleep(0.15)
                 with contextlib.suppress(OSError):
-                    if (_control(port, action, timeout, **body) or {}).get("delivered"):
+                    ans = _control(port, action, timeout, **body)
+                    if ans and ans.get("delivered"):
+                        _activate_browser_if_needed()
                         return True
 
-    import webbrowser
+        import webbrowser
 
-    webbrowser.open(url_for(port, fallback_path))
+        webbrowser.open(url_for(port, fallback_path))
+        return False
     return False
 
 
@@ -505,6 +528,12 @@ _GNOME_MEDIA_KEYS = "org.gnome.settings-daemon.plugins.media-keys"
 _GNOME_CUSTOM = "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding"
 _GNOME_PATH = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/amethyst/"
 
+SHORTCUT_CANDIDATES = [
+    "<ctrl>+<space>",
+    "<ctrl>+<alt>+<space>",
+    "<ctrl>+<shift>+<space>",
+]
+
 
 def _gnome_chord(hotkey: str) -> str:
     """pynput's chord spelling, in GNOME's.
@@ -525,32 +554,208 @@ def _gnome_chord(hotkey: str) -> str:
     return "".join(mods) + key
 
 
-def install_shortcut(hotkey: str = DEFAULT_HOTKEY) -> tuple[bool, str]:
-    """Bind the chord in the desktop environment's own shortcut settings.
+def _palette_command() -> str:
+    """An absolute command to invoke amethyst-palette / summon spotlight."""
+    import shutil
+    from pathlib import Path
 
-    This exists because of Wayland. A global key grab is refused there by
-    design, so `_start_hotkey` cannot work and the only route to a global chord
-    is to ask the desktop environment to run a command -- which is exactly what
-    `amethyst-show` is for.
+    # 1. Check sibling in same dir as sys.executable (e.g. .venv/bin/amethyst-palette)
+    exe_dir = Path(sys.executable).parent
+    sibling_palette = exe_dir / "amethyst-palette"
+    if sibling_palette.exists() and os.access(sibling_palette, os.X_OK):
+        return str(sibling_palette)
 
-    Deliberately an explicit command and not something a launch does by itself:
-    this writes into a list of the user's own keybindings, it can collide with a
-    chord they already use, and doing it on every start would silently put back
-    one they had deliberately removed.
+    # 2. Check repo root venv
+    root_dir = Path(__file__).resolve().parent.parent
+    venv_palette = root_dir / ".venv" / "bin" / "amethyst-palette"
+    if venv_palette.exists() and os.access(venv_palette, os.X_OK):
+        return str(venv_palette)
 
-    GNOME only for now. KDE's equivalent lives in `kglobalshortcutsrc` and needs
-    a `kglobalaccel` reload to take effect, which is a lot of machinery for a
-    second desktop; there, and everywhere else, this says what to bind by hand.
+    # 3. Check if amethyst-palette is directly on PATH
+    found = shutil.which("amethyst-palette")
+    if found:
+        return found
+
+    # 4. Check if amethyst CLI is on PATH
+    amethyst_cli = shutil.which("amethyst")
+    if amethyst_cli:
+        return f"{amethyst_cli} palette"
+
+    # 5. Sibling amethyst in venv
+    sibling_amethyst = exe_dir / "amethyst"
+    if sibling_amethyst.exists() and os.access(sibling_amethyst, os.X_OK):
+        return f"{sibling_amethyst} palette"
+
+    return f"{sys.executable} -m backend.desktop palette"
+
+
+def _normalize_chord_tokens(chord: str) -> set[str]:
+    """Canonical set of modifier and key tokens for conflict matching."""
+    s = chord.lower().replace("<", " ").replace(">", " ").replace("+", " ")
+    tokens = set(s.split())
+    if "ctrl" in tokens or "primary" in tokens:
+        tokens.discard("ctrl")
+        tokens.discard("primary")
+        tokens.add("control")
+    return tokens
+
+
+def _free_ibus_conflict_if_present() -> bool:
+    """Free Control+space from IBus triggers so it does not intercept the shortcut."""
+    import shutil
+    import subprocess
+
+    if not shutil.which("gsettings"):
+        return False
+    try:
+        out = subprocess.run(
+            ["gsettings", "get", "org.freedesktop.ibus.general.hotkey", "trigger"],
+            capture_output=True, text=True, timeout=2,
+        ).stdout.strip()
+        if "control+space" in out.lower():
+            cleaned = [
+                piece.strip().strip("'\"")
+                for piece in out.strip("[]").split(",")
+                if piece.strip() and piece.strip().strip("'\"").lower() != "control+space"
+            ]
+            arr_str = "[" + ", ".join(f"'{p}'" for p in cleaned) + "]"
+            subprocess.run(
+                ["gsettings", "set", "org.freedesktop.ibus.general.hotkey", "trigger", arr_str],
+                check=True, timeout=2,
+            )
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def check_shortcut_conflicts(chord: str) -> list[dict[str, str]]:
+    """Check if chord conflicts with existing GNOME shortcuts, IBus, or custom bindings."""
+    import shutil
+    import subprocess
+
+    if not shutil.which("gsettings"):
+        return []
+
+    conflicts = []
+    target_tokens = _normalize_chord_tokens(chord)
+
+    # A. Check custom keybindings
+    try:
+        listed = subprocess.run(
+            ["gsettings", "get", _GNOME_MEDIA_KEYS, "custom-keybindings"],
+            check=True, capture_output=True, text=True, timeout=3,
+        ).stdout.strip()
+        paths = [] if "[]" in listed else [
+            piece.strip().strip("'\"") for piece in listed.strip("[]").split(",") if piece.strip()
+        ]
+        for p in paths:
+            base = f"{_GNOME_CUSTOM}:{p}"
+            try:
+                b = subprocess.run(["gsettings", "get", base, "binding"], capture_output=True, text=True, timeout=2).stdout.strip().strip("'\"")
+                name = subprocess.run(["gsettings", "get", base, "name"], capture_output=True, text=True, timeout=2).stdout.strip().strip("'\"")
+                cmd = subprocess.run(["gsettings", "get", base, "command"], capture_output=True, text=True, timeout=2).stdout.strip().strip("'\"")
+                if _normalize_chord_tokens(b) == target_tokens:
+                    # Ignore if it is already an AMETHYST binding
+                    if "amethyst" in p.lower() or name.lower() == "amethyst" or "amethyst" in cmd.lower():
+                        continue
+                    conflicts.append({
+                        "type": "custom",
+                        "name": name or p,
+                        "binding": b,
+                        "path": p,
+                        "command": cmd,
+                    })
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # B. Check GNOME Window Manager, Shell, Media-Keys, and IBus keybindings
+    schemas = (
+        "org.gnome.desktop.wm.keybindings",
+        "org.gnome.shell.keybindings",
+        "org.gnome.settings-daemon.plugins.media-keys",
+        "org.freedesktop.ibus.general.hotkey",
+    )
+    for schema in schemas:
+        try:
+            keys = subprocess.run(["gsettings", "list-keys", schema], capture_output=True, text=True, timeout=3).stdout.splitlines()
+            for k in keys:
+                k = k.strip()
+                if not k:
+                    continue
+                val = subprocess.run(["gsettings", "get", schema, k], capture_output=True, text=True, timeout=2).stdout.strip()
+                # Check each entry in array/string
+                entries = [piece.strip().strip("'\"") for piece in val.strip("[]").split(",") if piece.strip()]
+                for entry in entries:
+                    if _normalize_chord_tokens(entry) == target_tokens:
+                        conflicts.append({
+                            "type": "system",
+                            "name": f"{schema}.{k}",
+                            "binding": val,
+                            "path": schema,
+                            "command": k,
+                        })
+                        break
+        except Exception:
+            pass
+
+    return conflicts
+
+
+def find_best_shortcut(preferred: str = DEFAULT_HOTKEY) -> tuple[str, list[dict[str, str]]]:
+    """Find a conflict-free shortcut chord, testing preferred then standard candidates."""
+    pref_chord = _gnome_chord(preferred)
+    conflicts = check_shortcut_conflicts(pref_chord)
+    if not conflicts:
+        return preferred, []
+
+    for cand in SHORTCUT_CANDIDATES:
+        if cand == preferred:
+            continue
+        c_chord = _gnome_chord(cand)
+        cand_conflicts = check_shortcut_conflicts(c_chord)
+        if not cand_conflicts:
+            return cand, conflicts
+
+    return preferred, conflicts
+
+
+def install_shortcut(hotkey: str = DEFAULT_HOTKEY, auto_resolve: bool = True) -> tuple[bool, str]:
+    """Bind the chord in GNOME shortcut settings, checking and resolving conflicts.
+
+    Configured to invoke `amethyst-palette` so pressing the shortcut summons
+    ONLY the floating Spotlight card without opening the main application window.
     """
     import shutil
     import subprocess
 
-    exe = shutil.which("amethyst-show") or "amethyst-show"
-    chord = _gnome_chord(hotkey)
+    exe = _palette_command()
+    target_hotkey = hotkey
+    notes = []
+
+    if shutil.which("gsettings"):
+        if _normalize_chord_tokens(hotkey) == {"control", "space"}:
+            _free_ibus_conflict_if_present()
+        conflicts = check_shortcut_conflicts(_gnome_chord(hotkey))
+        if conflicts:
+            conflict_names = ", ".join(c["name"] for c in conflicts)
+            if auto_resolve:
+                best_hotkey, _ = find_best_shortcut(hotkey)
+                if best_hotkey != hotkey:
+                    notes.append(f"Conflict on {hotkey} ({conflict_names}); automatically switched to {best_hotkey}")
+                    target_hotkey = best_hotkey
+                else:
+                    notes.append(f"Warning: {hotkey} conflicts with {conflict_names}")
+            else:
+                return False, f"Hotkey {hotkey} conflicts with {conflict_names}"
+
+    chord = _gnome_chord(target_hotkey)
 
     if not shutil.which("gsettings"):
         return False, (
-            f"bind this command to {hotkey} in your desktop's keyboard settings:\n"
+            f"bind this command to {target_hotkey} in your desktop's keyboard settings:\n"
             f"  {exe}"
         )
 
@@ -562,24 +767,83 @@ def install_shortcut(hotkey: str = DEFAULT_HOTKEY) -> tuple[bool, str]:
             ["gsettings", "get", _GNOME_MEDIA_KEYS, "custom-keybindings"],
             check=True, capture_output=True, text=True, timeout=5,
         ).stdout.strip()
-        # "@as []" is how GNOME spells an empty list of strings.
         paths = [] if "[]" in listed else [
             piece.strip().strip("'\"") for piece in listed.strip("[]").split(",") if piece.strip()
         ]
-        if _GNOME_PATH not in paths:
-            paths.append(_GNOME_PATH)
-            gset("set", _GNOME_MEDIA_KEYS, "custom-keybindings",
-                 "[" + ", ".join(f"'{q}'" for q in paths) + "]")
-        base = f"{_GNOME_CUSTOM}:{_GNOME_PATH}"
-        gset("set", base, "name", "AMETHYST")
+
+        # Reuse or fix existing AMETHYST binding (e.g. custom0 or amethyst)
+        target_path = None
+        for p in list(paths):
+            base = f"{_GNOME_CUSTOM}:{p}"
+            try:
+                name = subprocess.run(["gsettings", "get", base, "name"], capture_output=True, text=True, timeout=2).stdout.strip().strip("'\"")
+                cmd = subprocess.run(["gsettings", "get", base, "command"], capture_output=True, text=True, timeout=2).stdout.strip().strip("'\"")
+                if "amethyst" in p.lower() or name.lower() == "amethyst" or "amethyst" in cmd.lower():
+                    target_path = p
+                    break
+            except Exception:
+                pass
+
+        if not target_path:
+            target_path = _GNOME_PATH
+            if target_path not in paths:
+                paths.append(target_path)
+                gset("set", _GNOME_MEDIA_KEYS, "custom-keybindings",
+                     "[" + ", ".join(f"'{q}'" for q in paths) + "]")
+
+        base = f"{_GNOME_CUSTOM}:{target_path}"
+        gset("set", base, "name", "Amethyst Spotlight")
         gset("set", base, "command", exe)
         gset("set", base, "binding", chord)
     except Exception as exc:
         return False, (
             f"could not set the shortcut ({exc}).\n"
-            f"bind this command to {hotkey} by hand in your keyboard settings:\n  {exe}"
+            f"bind this command to {target_hotkey} by hand in your keyboard settings:\n  {exe}"
         )
-    return True, f"{hotkey} now opens AMETHYST (runs {exe})"
+
+    prefix = ("; ".join(notes) + "; ") if notes else ""
+    return True, f"{prefix}{target_hotkey} now opens Amethyst Spotlight (runs {exe})"
+
+
+def auto_install_shortcut_if_needed(hotkey: str = DEFAULT_HOTKEY) -> None:
+    """Automatically verify and configure the desktop shortcut on startup."""
+    import shutil
+    import subprocess
+
+    if not shutil.which("gsettings"):
+        return
+
+    try:
+        listed = subprocess.run(
+            ["gsettings", "get", _GNOME_MEDIA_KEYS, "custom-keybindings"],
+            check=True, capture_output=True, text=True, timeout=3,
+        ).stdout.strip()
+        paths = [] if "[]" in listed else [
+            piece.strip().strip("'\"") for piece in listed.strip("[]").split(",") if piece.strip()
+        ]
+
+        needs_install = True
+        for p in paths:
+            base = f"{_GNOME_CUSTOM}:{p}"
+            try:
+                name = subprocess.run(["gsettings", "get", base, "name"], capture_output=True, text=True, timeout=2).stdout.strip().strip("'\"")
+                cmd = subprocess.run(["gsettings", "get", base, "command"], capture_output=True, text=True, timeout=2).stdout.strip().strip("'\"")
+                if "amethyst" in p.lower() or name.lower() == "amethyst" or "amethyst" in cmd.lower():
+                    import shlex
+                    bin_part = shlex.split(cmd)[0] if cmd else ""
+                    # If file exists and points to palette command, it is healthy
+                    if os.path.exists(bin_part) and os.access(bin_part, os.X_OK) and "palette" in cmd:
+                        needs_install = False
+                        break
+            except Exception:
+                pass
+
+        if needs_install:
+            ok, msg = install_shortcut(hotkey, auto_resolve=True)
+            if ok:
+                log.info("Auto-configured spotlight shortcut: %s", msg)
+    except Exception as e:
+        log.warning("Could not auto-configure shortcut: %s", e)
 
 
 def uninstall_shortcut() -> tuple[bool, str]:
@@ -1075,8 +1339,8 @@ def _build_windows(port: int):
     spotlight = webview.create_window(
         "AMETHYST",
         html="",
-        width=760,
-        height=520,
+        width=880,
+        height=640,
         frameless=True,
         easy_drag=True,
         on_top=True,
@@ -1414,6 +1678,7 @@ def run_tray(
     # talks to the display server. They run while uvicorn boots.
     def _background_setup() -> None:
         _install_xdg_assets()
+        auto_install_shortcut_if_needed(hotkey)
         problem = _hotkey_unavailable_reason() or _start_hotkey(
             hotkey, lambda: summon_palette(port)
         )

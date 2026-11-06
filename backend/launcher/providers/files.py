@@ -13,6 +13,7 @@ from backend.launcher.provider import (
     LauncherAction,
     LauncherResult,
 )
+from backend.launcher.wox_matcher import flow_file_match, wox_fuzzy_match
 from backend.remote.clipboard import set_clipboard
 
 log = logging.getLogger(__name__)
@@ -68,116 +69,210 @@ class FileProvider(BaseLauncherProvider):
     priority = 60
 
     def __init__(self, search_roots: list[Path | str] | None = None):
+        self.home = Path.home()
         if search_roots is None:
-            home = Path.home()
             candidates = [
-                home / "Documents",
-                home / "Downloads",
-                home / "Desktop",
+                self.home / "Documents",
+                self.home / "Downloads",
+                self.home / "Desktop",
+                self.home / "Projects",
             ]
             self.search_roots = [p for p in candidates if p.exists() and p.is_dir()]
+            if not self.search_roots:
+                self.search_roots = [self.home]
         else:
             self.search_roots = [Path(p) for p in search_roots if Path(p).exists()]
 
-        self._cached_files: list[Path] = []
-        self._last_index_time: float = 0.0
-        self._index_ttl: float = 60.0  # 60s cache
+        self._has_fd = shutil.which("fd") is not None or shutil.which("fdfind") is not None
+        self._fd_cmd = shutil.which("fd") or shutil.which("fdfind")
 
-    def _refresh_index_if_needed(self) -> None:
-        now = time.time()
-        if self._cached_files and (now - self._last_index_time < self._index_ttl):
-            return
-
-        files: list[Path] = []
+    def _find_recent_files(self, limit: int = 15) -> list[Path]:
+        """Collect recent files across primary directories."""
+        recent: list[tuple[float, Path]] = []
         for root in self.search_roots:
             try:
-                for dirpath, dirnames, filenames in os.walk(str(root)):
-                    # Filter out ignored dirs in-place to avoid descending
-                    dirnames[:] = [
-                        d for d in dirnames
-                        if d not in IGNORED_DIRS and not d.startswith(".")
-                    ]
-                    # Enforce max depth of 4 from root
+                for entry in root.iterdir():
+                    if entry.name.startswith(".") or entry.name in IGNORED_DIRS:
+                        continue
                     try:
-                        rel = Path(dirpath).relative_to(root)
-                        if len(rel.parts) > 3:
-                            dirnames.clear()
-                            continue
-                    except ValueError:
+                        st = entry.stat()
+                        recent.append((st.st_mtime, entry))
+                    except Exception:
                         pass
+            except Exception:
+                pass
+        recent.sort(key=lambda x: x[0], reverse=True)
+        return [p for _, p in recent[:limit]]
 
-                    for fname in filenames:
-                        if fname.startswith("."):
-                            continue
-                        files.append(Path(dirpath) / fname)
-                        if len(files) >= 5000:
-                            break
-                    if len(files) >= 5000:
-                        break
-            except Exception as e:
-                log.debug("Error indexing directory %s: %s", root, e)
-
-        self._cached_files = files
-        self._last_index_time = now
+    def _search_with_fd(self, pattern: str, limit: int = 50) -> list[Path]:
+        """Execute ultra-fast global search using fd."""
+        if not self._fd_cmd:
+            return []
+        roots = [str(r) for r in self.search_roots] if self.search_roots else [str(self.home)]
+        tokens = pattern.strip().split()
+        if len(tokens) > 1:
+            import re
+            regex_pat = ".*" + ".*".join(re.escape(t) for t in tokens) + ".*"
+            cmd = [
+                self._fd_cmd,
+                "--exclude", ".git",
+                "--exclude", "node_modules",
+                "--exclude", ".cache",
+                "--exclude", "__pycache__",
+                "--exclude", ".gemini",
+                "--max-results", str(limit),
+                "-i",
+                regex_pat,
+                *roots,
+            ]
+        else:
+            cmd = [
+                self._fd_cmd,
+                "--exclude", ".git",
+                "--exclude", "node_modules",
+                "--exclude", ".cache",
+                "--exclude", "__pycache__",
+                "--exclude", ".gemini",
+                "--max-results", str(limit),
+                "-i",
+                pattern,
+                *roots,
+            ]
+        if pattern.startswith("."):
+            cmd.insert(1, "--hidden")
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=1.5)
+            paths: list[Path] = []
+            for line in res.stdout.strip().splitlines():
+                if line.strip():
+                    paths.append(Path(line.strip()))
+            return paths
+        except Exception as e:
+            log.debug("fd file search error: %s", e)
+            return []
 
     async def search(
         self, query: str, session_id: str
     ) -> AsyncIterator[LauncherResult]:
         raw = query.strip()
-        if not raw:
-            return
-
         is_explicit = False
         term = raw
         if raw.lower().startswith("f ") or raw.lower().startswith("file "):
             is_explicit = True
             term = raw.split(None, 1)[1] if " " in raw else ""
 
-        if not is_explicit and len(term) < 3:
+        # Empty query: yield recent files
+        if not term:
+            recents = self._find_recent_files(15)
+            for fpath in recents:
+                res = self._build_file_result(fpath, score=50.0)
+                if res:
+                    yield res
             return
 
+        # Flow Launcher Explorer: Direct path navigation (~/, /, ./)
+        if term.startswith("~/") or term.startswith("/") or term.startswith("./"):
+            expanded_str = os.path.expanduser(term)
+            p = Path(expanded_str)
+            target_dir = None
+            filter_stem = ""
+            if p.is_dir():
+                target_dir = p
+            elif p.parent.is_dir():
+                target_dir = p.parent
+                filter_stem = p.name.lower()
+
+            if target_dir and target_dir.exists():
+                count = 0
+                try:
+                    for child in sorted(target_dir.iterdir(), key=lambda c: (not c.is_dir(), c.name.lower())):
+                        if child.name.startswith(".") and not term.startswith("."):
+                            continue
+                        if filter_stem and filter_stem not in child.name.lower():
+                            continue
+                        res = self._build_file_result(child, score=98.0 - count)
+                        if res:
+                            yield res
+                            count += 1
+                            if count >= 30:
+                                break
+                    return
+                except Exception as e:
+                    log.debug("Directory navigation error: %s", e)
+
         term_lower = term.lower()
-        self._refresh_index_if_needed()
+        candidates: list[Path] = []
 
-        count = 0
-        for fpath in self._cached_files:
+        if self._has_fd:
+            candidates = self._search_with_fd(term, limit=50)
+        else:
+            # Fallback walk
+            for root in self.search_roots:
+                for dirpath, dirnames, filenames in os.walk(str(root)):
+                    dirnames[:] = [d for d in dirnames if d not in IGNORED_DIRS and not d.startswith(".")]
+                    for fname in filenames:
+                        if term_lower in fname.lower():
+                            candidates.append(Path(dirpath) / fname)
+                            if len(candidates) >= 30:
+                                break
+                    if len(candidates) >= 30:
+                        break
+
+        scored: list[tuple[Path, float]] = []
+        for fpath in candidates:
+            match = flow_file_match(fpath.name, str(fpath.parent), term)
+            if match.is_match:
+                scored.append((fpath, match.score))
+            elif term_lower in str(fpath).lower():
+                scored.append((fpath, 35.0))
+
+        scored.sort(key=lambda x: x[1], reverse=True)
+
+        for fpath, score in scored[:30]:
+            final_score = score + 30.0 if is_explicit else score
+            res = self._build_file_result(fpath, final_score)
+            if res:
+                yield res
+
+    def _build_file_result(self, fpath: Path, score: float) -> LauncherResult | None:
+        try:
             fname = fpath.name
-            fname_lower = fname.lower()
-            if term_lower not in fname_lower:
-                continue
+            if fname.startswith("."):
+                return None
+            is_dir = fpath.is_dir()
+            ext = "" if is_dir else fpath.suffix.lower()
+            badge = "FOLDER" if is_dir else (ext[1:].upper() if ext else "FILE")
+            icon = "folder" if is_dir else ICON_MAP.get(ext, "file")
 
-            score = 0.0
-            if is_explicit:
-                if fname_lower.startswith(term_lower):
-                    score = 95.0
-                else:
-                    score = 85.0
-            else:
-                if fname_lower.startswith(term_lower):
-                    score = 80.0
-                else:
-                    score = 65.0
-
-            ext = fpath.suffix.lower()
-            badge = ext[1:].upper() if ext else "FILE"
-            icon = ICON_MAP.get(ext, "file")
-
-            # Try to read small snippet if text
-            preview_md = f"### {fname}\n\n- **Path:** `{fpath}`\n"
+            size_str = ""
+            mod_str = ""
+            snippet = ""
             try:
-                stat = fpath.stat()
-                size_kb = stat.st_size / 1024
-                preview_md += f"- **Size:** {size_kb:.1f} KB\n"
-                if ext in {".txt", ".md", ".json", ".py", ".sh", ".js"} and stat.st_size < 30000:
-                    sample = fpath.read_text(encoding="utf-8", errors="replace")[:800]
-                    preview_md += f"\n```text\n{sample}\n```"
+                st = fpath.stat()
+                mod_time = time.strftime("%b %d, %Y", time.localtime(st.st_mtime))
+                mod_str = f"Modified {mod_time}"
+                if not is_dir:
+                    if st.st_size >= 1024 * 1024:
+                        size_str = f"{st.st_size / (1024 * 1024):.1f} MB"
+                    else:
+                        size_str = f"{max(1, int(st.st_size / 1024))} KB"
+                    if ext in {".txt", ".md", ".json", ".py", ".sh", ".js", ".jsx", ".ts", ".tsx", ".css", ".html"} and st.st_size < 40000:
+                        snippet = fpath.read_text(encoding="utf-8", errors="replace")[:1200]
             except Exception:
                 pass
+
+            preview_md = f"### {fname}\n\n- **Path:** `{fpath}`\n"
+            if size_str:
+                preview_md += f"- **Size:** {size_str}\n"
+            if mod_str:
+                preview_md += f"- **Date:** {mod_str}\n"
+            if snippet:
+                preview_md += f"\n```text\n{snippet[:800]}\n```"
 
             actions = [
                 LauncherAction(
                     id="open",
-                    title="Open File",
+                    title="Open File" if not is_dir else "Open Folder",
                     shortcut="↵",
                     is_primary=True,
                     handler_payload={"path": str(fpath)},
@@ -187,33 +282,40 @@ class FileProvider(BaseLauncherProvider):
                     title="Show in File Manager",
                     shortcut="Cmd+O",
                     is_primary=False,
-                    handler_payload={"path": str(fpath.parent)},
+                    handler_payload={"path": str(fpath.parent if not is_dir else fpath)},
                 ),
                 LauncherAction(
                     id="copy_path",
-                    title="Copy File Path",
+                    title="Copy Path",
                     shortcut="Cmd+C",
                     is_primary=False,
                     handler_payload={"text": str(fpath)},
                 ),
             ]
 
-            yield LauncherResult(
+            return LauncherResult(
                 id=f"file:{fpath}",
                 provider_id=self.id,
                 title=fname,
-                subtitle=str(fpath.parent),
+                subtitle=str(fpath.parent).replace(str(self.home), "~"),
                 icon=icon,
                 badge=badge,
                 score=score,
                 preview_type="markdown",
-                preview_data={"markdown": preview_md},
+                preview_data={
+                    "name": fname,
+                    "path": str(fpath),
+                    "parent": str(fpath.parent).replace(str(self.home), "~"),
+                    "size_str": size_str,
+                    "mod_str": mod_str,
+                    "is_dir": is_dir,
+                    "snippet": snippet,
+                    "markdown": preview_md,
+                },
                 actions=actions,
             )
-
-            count += 1
-            if count >= 20:
-                break
+        except Exception:
+            return None
 
     async def execute(
         self, action_id: str, payload: dict[str, Any]

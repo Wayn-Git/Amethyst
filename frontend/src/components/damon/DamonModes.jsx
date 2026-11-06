@@ -6,7 +6,6 @@ export const DAEMON_TABS = [
   { id: 'files', label: 'Files' },
   { id: 'web', label: 'Web' },
   { id: 'library', label: 'Library' },
-  { id: 'people', label: 'People' },
   { id: 'actions', label: 'Actions' },
 ]
 export const MODES = DAEMON_TABS

@@ -17,24 +17,36 @@ export default function LibraryCloudStorage() {
   const [migrating, setMigrating] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const [connecting, setConnecting] = useState(false)
+  const [syncStatus, setSyncStatus] = useState(null)
+  const [syncing, setSyncing] = useState(false)
+  const [folderInfo, setFolderInfo] = useState(null)
   const pollTimerRef = useRef(null)
 
   const loadData = useCallback(async () => {
     try {
-      const [cfg, mig, conns] = await Promise.all([
+      const [cfg, mig, conns, syncSt] = await Promise.all([
         api.storageConfig().catch(() => null),
         api.migrationStatus().catch(() => null),
         api.connectorsConnected().catch(() => null),
+        api.librarySyncStatus().catch(() => null),
       ])
 
       if (cfg) {
         setConfig(cfg)
-        setRootInput(cfg.gdrive_root_name || 'Amethyst/Library')
+        setRootInput(cfg.gdrive_root_name || 'Amethyst/library')
       }
       if (mig) {
         setMigration(mig)
         if (!mig.is_running && (!mig.in_progress || mig.in_progress === 0)) {
           setMigrating(false)
+        }
+      }
+      if (syncSt) {
+        setSyncStatus(syncSt)
+        if (syncSt.is_running) {
+          setSyncing(true)
+        } else {
+          setSyncing(false)
         }
       }
 
@@ -59,31 +71,49 @@ export default function LibraryCloudStorage() {
     }
   }, [loadData])
 
-  // Polling while migration is running
+  // Polling while migration or sync is running
   useEffect(() => {
-    const isRunning = Boolean(migrating || migration?.is_running || (migration && migration.in_progress > 0))
+    const isRunning = Boolean(
+      migrating ||
+      syncing ||
+      syncStatus?.is_running ||
+      migration?.is_running ||
+      (migration && migration.in_progress > 0)
+    )
     if (isRunning) {
       pollTimerRef.current = setInterval(async () => {
         try {
-          const mig = await api.migrationStatus()
+          const [mig, syncSt] = await Promise.all([
+            api.migrationStatus().catch(() => null),
+            api.librarySyncStatus().catch(() => null),
+          ])
           if (mig) {
             setMigration(mig)
             if (!mig.is_running && (!mig.in_progress || mig.in_progress === 0)) {
               setMigrating(false)
-              if (pollTimerRef.current) clearInterval(pollTimerRef.current)
+            }
+          }
+          if (syncSt) {
+            setSyncStatus(syncSt)
+            if (!syncSt.is_running) {
+              setSyncing(false)
+              if (syncSt.stage === 'complete') {
+                loadData()
+              }
             }
           }
         } catch {
           setMigrating(false)
+          setSyncing(false)
         }
-      }, 2000)
+      }, 1500)
     } else {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current)
     }
     return () => {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current)
     }
-  }, [migrating, migration?.is_running, migration?.in_progress])
+  }, [migrating, syncing, syncStatus?.is_running, migration?.is_running, migration?.in_progress, loadData])
 
   const handleSelectProvider = async (next) => {
     try {
@@ -101,11 +131,41 @@ export default function LibraryCloudStorage() {
     try {
       const updated = await api.updateStorageConfig({ gdrive_root_name: rootInput.trim() })
       setConfig(updated)
-      toast('Saved Library root folder', 'ok')
+      if (driveConnected) {
+        try {
+          const detect = await api.librarySyncDetect({ mode: 'custom', custom_path: rootInput.trim() })
+          setFolderInfo(detect)
+          if (detect.verified) {
+            toast(`Saved. Verified Google Drive folder (${detect.file_count || 0} files found)`, 'ok')
+          } else {
+            toast(detect.warning || 'Saved folder path (marker will be placed upon sync)', 'ok')
+          }
+        } catch {
+          toast('Saved Library root folder', 'ok')
+        }
+      } else {
+        toast('Saved Library root folder', 'ok')
+      }
     } catch (err) {
       toast(`Failed to save root: ${err.message}`, 'bad')
     } finally {
       setSavingRoot(false)
+    }
+  }
+
+  const handleStartSync = async () => {
+    if (!driveConnected) {
+      toast('Connect Google Drive before starting synchronization', 'bad')
+      return
+    }
+    setSyncing(true)
+    try {
+      const res = await api.librarySyncStart({ root_path: rootInput.trim() })
+      toast('Two-way synchronization started', 'ok')
+      setSyncStatus(res)
+    } catch (err) {
+      setSyncing(false)
+      toast(`Sync failed: ${err.message}`, 'bad')
     }
   }
 
@@ -256,32 +316,46 @@ export default function LibraryCloudStorage() {
       </div>
 
       {/* Row 3: Google Drive Root Folder */}
-      <div className="codex-row" style={{ padding: '16px 20px' }}>
-        <div className="codex-row-info">
-          <span className="codex-row-title">Google Drive root folder</span>
-          <span className="codex-row-desc">
-            Files and folders are strictly scoped inside this directory in your Google Drive
-          </span>
+      <div className="codex-row" style={{ padding: '16px 20px', flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div className="codex-row-info">
+            <span className="codex-row-title">Google Drive root folder</span>
+            <span className="codex-row-desc">
+              Files and folders are strictly scoped inside this directory in your Google Drive
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 260 }}>
+            <input
+              type="text"
+              className="set-input"
+              value={rootInput}
+              onChange={(e) => setRootInput(e.target.value)}
+              placeholder="Amethyst/library"
+              style={{ flex: '1 1 auto', minWidth: 200 }}
+            />
+            <HouseButton
+              type="button"
+              className="set-btn-sm"
+              onClick={handleSaveRoot}
+              disabled={savingRoot || rootInput === config?.gdrive_root_name}
+              style={{ padding: '5px 16px', fontSize: '13px' }}
+            >
+              {savingRoot ? 'Saving…' : 'Save'}
+            </HouseButton>
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input
-            type="text"
-            className="set-input"
-            value={rootInput}
-            onChange={(e) => setRootInput(e.target.value)}
-            placeholder="Amethyst/Library"
-            style={{ width: 180 }}
-          />
-          <HouseButton
-            type="button"
-            className="set-btn-sm"
-            onClick={handleSaveRoot}
-            disabled={savingRoot || rootInput === config?.gdrive_root_name}
-            style={{ padding: '5px 16px', fontSize: '13px' }}
-          >
-            {savingRoot ? 'Saving…' : 'Save'}
-          </HouseButton>
-        </div>
+        {folderInfo?.verified && (
+          <div style={{ fontSize: '12px', color: 'var(--ok, #22c55e)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Icon name="check" size={13} />
+            <span>Folder verified: {folderInfo.file_count || 0} files found in Google Drive</span>
+          </div>
+        )}
+        {folderInfo?.warning && (
+          <div style={{ fontSize: '12px', color: 'var(--amber, #f59e0b)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Icon name="alert-triangle" size={13} />
+            <span>{folderInfo.warning}</span>
+          </div>
+        )}
       </div>
 
       {/* Row 4: Auto-sync newly added content */}
@@ -300,13 +374,13 @@ export default function LibraryCloudStorage() {
         />
       </div>
 
-      {/* Row 4: Cloud Migration */}
+      {/* Row 5: Two-Way Library Sync & Inbound Import */}
       <div className="codex-row" style={{ padding: '16px 20px', flexDirection: 'column', alignItems: 'stretch', gap: 14 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
           <div className="codex-row-info">
-            <span className="codex-row-title">Library cloud migration</span>
+            <span className="codex-row-title">Two-way library synchronization</span>
             <span className="codex-row-desc">
-              Resumable, verified batch transfer. Local original files remain untouched.
+              Scans Google Drive to import existing items into your Library, and uploads local files to Drive.
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -329,17 +403,35 @@ export default function LibraryCloudStorage() {
             <HouseButton
               type="button"
               className="set-btn-sm"
+              onClick={handleStartSync}
+              disabled={syncing || isActivelyMigrating || !driveConnected}
+              style={{
+                padding: '5px 16px',
+                fontSize: '13px',
+                backgroundColor: 'var(--accent, #6366f1)',
+                color: '#fff',
+              }}
+              title={!driveConnected ? 'Connect Google Drive first' : undefined}
+            >
+              <Icon name="refresh" size={13} className={syncing ? 'animate-spin' : ''} style={{ marginRight: 6 }} />
+              {syncing
+                ? `Syncing (${syncStatus?.stage || 'running'})…`
+                : 'Sync Library Now'}
+            </HouseButton>
+            <HouseButton
+              type="button"
+              className="set-btn-sm"
               onClick={handleStartMigration}
-              disabled={isActivelyMigrating || !driveConnected || (total > 0 && pending === 0 && failed === 0)}
+              disabled={isActivelyMigrating || syncing || !driveConnected || (total > 0 && pending === 0 && failed === 0)}
               style={{ padding: '5px 16px', fontSize: '13px' }}
               title={!driveConnected ? 'Connect Google Drive first' : undefined}
             >
               {isActivelyMigrating
-                ? 'Migrating…'
+                ? 'Uploading…'
                 : total === 0
-                ? 'Start Migration'
+                ? 'Outbound Upload'
                 : pending > 0
-                ? 'Resume Migration'
+                ? 'Resume Upload'
                 : 'Up to Date'}
             </HouseButton>
           </div>
@@ -357,7 +449,7 @@ export default function LibraryCloudStorage() {
         >
           <div
             style={{
-              width: `${percent}%`,
+              width: `${syncing ? 100 : percent}%`,
               height: '100%',
               background: failed > 0 && completed === 0 ? 'var(--bad, #ef4444)' : 'var(--accent, #6366f1)',
               borderRadius: 3,
@@ -378,23 +470,32 @@ export default function LibraryCloudStorage() {
             color: 'var(--text-dim)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
             <span>
-              Total: <strong style={{ color: 'var(--text)' }}>{total}</strong>
+              Drive items found: <strong style={{ color: 'var(--text)' }}>{syncStatus?.found_drive_items ?? '—'}</strong>
             </span>
             <span>
-              Migrated: <strong style={{ color: 'var(--ok, #22c55e)' }}>{completed}</strong>
+              Inbound imported: <strong style={{ color: 'var(--ok, #22c55e)' }}>{syncStatus?.inbound_imported ?? 0}</strong>
             </span>
             <span>
-              Pending: <strong style={{ color: 'var(--text-dim)' }}>{pending}</strong>
+              Outbound uploaded: <strong style={{ color: 'var(--text)' }}>{completed}</strong>
             </span>
+            {syncStatus?.skipped_duplicates > 0 && (
+              <span>
+                Duplicates skipped: <strong style={{ color: 'var(--text-dim)' }}>{syncStatus.skipped_duplicates}</strong>
+              </span>
+            )}
             {failed > 0 && (
               <span>
                 Failed: <strong style={{ color: 'var(--bad, #ef4444)' }}>{failed}</strong>
               </span>
             )}
           </div>
-          <span style={{ fontWeight: 600, color: 'var(--text)' }}>{percent}%</span>
+          {syncStatus?.stage && (
+            <span style={{ fontWeight: 600, color: syncStatus.stage === 'failed' ? 'var(--bad, #ef4444)' : 'var(--accent, #6366f1)' }}>
+              Status: {syncStatus.stage}
+            </span>
+          )}
         </div>
 
         {/* Diagnostic Failure Callout */}

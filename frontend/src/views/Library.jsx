@@ -87,6 +87,7 @@ export default function Library() {
     hasNotes: false,
   })
   const [isSelectMode, setIsSelectMode] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
 
   // Polling tracking refs
   const loadToken = useRef(0)
@@ -217,6 +218,39 @@ export default function Library() {
       })
     }
   }, [debouncedQuery, selectedKinds, selectedCategories, selectedTags, order])
+
+  const handleSync = useCallback(async () => {
+    setIsSyncing(true)
+    try {
+      await api.librarySyncStart()
+      toast('Two-way sync started with Google Drive', 'ok')
+      let attempts = 0
+      const poll = setInterval(async () => {
+        attempts += 1
+        try {
+          const st = await api.librarySyncStatus()
+          if (!st.is_running || attempts > 40) {
+            clearInterval(poll)
+            setIsSyncing(false)
+            if (st.stage === 'failed') {
+              toast(`Sync failed: ${st.last_error || 'Unknown error'}`, 'bad')
+            } else if (st.inbound_imported > 0) {
+              toast(`Sync complete: ${st.inbound_imported} items imported from Drive`, 'ok')
+            } else {
+              toast('Sync complete: library is up to date', 'ok')
+            }
+            load()
+          }
+        } catch {
+          clearInterval(poll)
+          setIsSyncing(false)
+        }
+      }, 1500)
+    } catch (err) {
+      setIsSyncing(false)
+      toast(err.message || 'Sync failed', 'bad')
+    }
+  }, [load, toast])
 
   // Debounce search query to eliminate typing stutter
   useEffect(() => {
@@ -939,6 +973,8 @@ export default function Library() {
               onQuickFiltersChange={setQuickFilters}
               isSelectMode={isSelectMode}
               onToggleSelectMode={() => setIsSelectMode((v) => !v)}
+              onSync={handleSync}
+              isSyncing={isSyncing}
             />
 
             {/* Selected List Banner */}
@@ -1051,17 +1087,28 @@ export default function Library() {
                             Reset filters
                           </HouseButton>
                         ) : (
-                          <HouseButton
-                            type="button"
-                            className="lib-btn lib-btn--primary"
-                            onClick={() => {
-                              setAddModalMode('url')
-                              setShowAddModal(true)
-                            }}
-                          >
-                            <Icon name="plus" size={14} />
-                            <span>Add first resource</span>
-                          </HouseButton>
+                          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                            <HouseButton
+                              type="button"
+                              className="lib-btn lib-btn--primary"
+                              onClick={() => {
+                                setAddModalMode('url')
+                                setShowAddModal(true)
+                              }}
+                            >
+                              <Icon name="plus" size={14} />
+                              <span>Add first resource</span>
+                            </HouseButton>
+                            <HouseButton
+                              type="button"
+                              className="lib-btn"
+                              onClick={handleSync}
+                              disabled={isSyncing}
+                            >
+                              <Icon name="refresh" size={13} className={isSyncing ? 'animate-spin text-accent' : ''} style={{ marginRight: 6 }} />
+                              <span>{isSyncing ? 'Syncing Drive…' : 'Sync from Google Drive'}</span>
+                            </HouseButton>
+                          </div>
                         )}
                       </EmptyState.Footer>
                     </EmptyState>

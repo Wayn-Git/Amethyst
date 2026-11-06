@@ -113,7 +113,24 @@ export default function DamonRecents({
                 >
                   <div className="damon-card-header">
                     <div className="damon-card-icon-box">
-                      <Icon name={iconName} size={15} />
+                      {item.thumbnail_url || (item.id && typeof item.id === 'number') ? (
+                        <img
+                          src={item.thumbnail_url || `/api/library/${item.id}/thumbnail`}
+                          alt=""
+                          className="damon-card-thumb-img"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none'
+                            const fallback = e.currentTarget.parentElement.querySelector('.damon-card-icon-fallback')
+                            if (fallback) fallback.style.display = 'flex'
+                          }}
+                        />
+                      ) : null}
+                      <span
+                        className="damon-card-icon-fallback"
+                        style={{ display: item.thumbnail_url || typeof item.id === 'number' ? 'none' : 'flex' }}
+                      >
+                        <Icon name={iconName} size={15} />
+                      </span>
                     </div>
                     <span className="damon-card-title">{item.title}</span>
                   </div>

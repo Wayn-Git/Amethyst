@@ -11,8 +11,8 @@ as a Markdown file, enrich it, index it, and search it by keyword or meaning.
 |---|---|
 | View | `frontend/src/views/Library.jsx` |
 | UI modules | `frontend/src/views/library/` |
-| Client | `frontend/src/api.js` → `api.library`, `api.libraryItem`, `api.addLibraryItem`, `api.enrichLibraryItem`, `api.reindexLibraryItem` |
-| Routes | `backend/api/main.py` `/api/library*` |
+| Client | `frontend/src/api.js` → `api.library`, `api.libraryItem`, `api.addLibraryItem`, `api.enrichLibraryItem`, `api.reindexLibraryItem`, `api.librarySyncStart`, `api.librarySyncStatus`, `api.librarySyncDetect` |
+| Routes | `backend/api/main.py` `/api/library*`, `/api/library/sync/*` |
 | Service | `backend/library/service.py` |
 | Enrichment | `backend/library/enrich.py` |
 | Link Harvester | `backend/library/links.py` |
@@ -77,7 +77,7 @@ explanation is indistinguishable from a bug.
 - Media: Local `~/.amethyst/library/media/` or Google Drive (`Amethyst/Library/media/`).
 - Cache: `~/.amethyst/cache/library/` for on-demand cloud caching and offline access.
 - Metadata: `library_items` row with `storage_provider` (`local` | `google_drive`), `external_id`, `cached_locally`, `sync_state`.
-- Provider layer: `backend/library/storage/` (`StorageProvider`, `LocalStorageProvider`, `GoogleDriveProvider`, `FileContentAccessor`, `MigrationEngine`).
+- Provider layer: `backend/library/storage/` (`StorageProvider`, `LocalStorageProvider`, `GoogleDriveProvider`, `FileContentAccessor`, `MigrationEngine`, `LibrarySyncEngine`).
 - Index: `chunks_fts` and `chunk_vectors`, created in `backend/retrieval/store.py`.
 - Status: `received`, `processing`, `enriching`, `ready`, `failed`.
 

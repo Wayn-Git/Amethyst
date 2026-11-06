@@ -89,8 +89,6 @@ function useDaemonSummon(onPairingRequest) {
           try {
             const data = JSON.parse(e.data)
             if (data.type === 'palette') {
-              // When native desktop is running with pywebview, the native spotlight window is raised.
-              // The main workbench window should not open an overlapping duplicate palette!
               if (document.documentElement.dataset.native === '1') {
                 return
               }

@@ -599,3 +599,28 @@ def test_autostart_writes_then_removes_a_login_entry(tmp_path, monkeypatch):
     assert not entry.exists()
     # Removing what is not there is not an error, and says nothing was removed.
     assert desktop.uninstall_autostart() is None
+
+
+# ------------------------------------------------------------------ shortcuts
+
+
+def test_palette_command_points_to_palette_binary():
+    cmd = desktop._palette_command()
+    assert "palette" in cmd
+    assert not cmd.endswith("amethyst-show")
+
+
+def test_shortcut_conflict_detection_and_resolution(monkeypatch):
+    # Simulate conflicting custom binding on <ctrl>+<alt>+<space>
+    def fake_check(chord):
+        if "control" in chord.lower() and "alt" in chord.lower():
+            return [{"type": "custom", "name": "other-app", "binding": chord, "path": "custom9", "command": "other"}]
+        return []
+
+    monkeypatch.setattr(desktop, "check_shortcut_conflicts", fake_check)
+    best, conflicts = desktop.find_best_shortcut("<ctrl>+<alt>+<space>")
+    assert len(conflicts) > 0
+    assert best != "<ctrl>+<alt>+<space>"
+    # Selected candidate must have no conflicts under fake_check
+    assert fake_check(desktop._gnome_chord(best)) == []
+

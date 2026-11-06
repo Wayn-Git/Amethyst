@@ -999,6 +999,10 @@ export const api = {
   migrationStatus: () => j('/storage/migration/status'),
   startMigration: () => j('/storage/migration/start', json('POST', {})),
   retryMigration: () => j('/storage/migration/retry', json('POST', {})),
+  librarySyncDetect: (body) => j('/library/sync/detect-path', json('POST', body || { mode: 'auto' })),
+  librarySyncStart: (body) => j('/library/sync/start', json('POST', body || {})),
+  librarySyncStatus: () => j('/library/sync/status'),
+  librarySyncCancel: () => j('/library/sync/cancel', json('POST', {})),
 
   // Instagram capture. Credentials go one way only — set and delete; the status
   // reports whether each is present, never what it is.

@@ -9,6 +9,8 @@ export default function DamonHeader({
   onClear,
   isAskMode,
   onToggleAsk,
+  compactMode = false,
+  onToggleCompact,
   hotkeyLabel = '⌥ Space',
   placeholder = 'Search apps, files, the web, or ask Amethyst',
 }) {
@@ -56,9 +58,21 @@ export default function DamonHeader({
             <Icon name="x" size={16} />
           </button>
         ) : (
-          <span className="damon-hotkey-badge" aria-hidden="true">
-            {hotkeyLabel}
-          </span>
+          <>
+            <button
+              type="button"
+              className={`damon-compact-toggle-btn${compactMode ? ' is-active' : ''}`}
+              onClick={onToggleCompact}
+              title={compactMode ? 'Compact Bar Active (Click or ⌘M to expand)' : 'Toggle Clean Search Bar (⌘M)'}
+              aria-label="Toggle compact search bar"
+            >
+              <Icon name={compactMode ? 'minimize-2' : 'maximize-2'} size={12} />
+              <span>{compactMode ? 'Clean' : 'Full'}</span>
+            </button>
+            <span className="damon-hotkey-badge" aria-hidden="true">
+              {hotkeyLabel}
+            </span>
+          </>
         )}
       </div>
     </div>

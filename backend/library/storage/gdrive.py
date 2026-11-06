@@ -47,7 +47,11 @@ class GoogleDriveProvider(StorageProvider):
     async def _resolve_parent_id(self, parent_folder_id: str | None) -> str:
         """Resolve destination folder ID, ensuring it lives within root folder."""
         if not self.root_folder_id:
-            self.root_folder_id = await self.bridge.ensure_root_folder("Amethyst/Library")
+            from backend.library.storage.config import StorageConfigStore
+
+            cfg = StorageConfigStore().get_config()
+            target_root = cfg.get("gdrive_root_name") or "Amethyst/Library"
+            self.root_folder_id = await self.bridge.ensure_root_folder(target_root)
 
         if not parent_folder_id or parent_folder_id in ("root", "/"):
             return self.root_folder_id

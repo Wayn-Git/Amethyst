@@ -132,11 +132,7 @@ export default function Pair({ onPaired, onDesktop }) {
       run({ relay: relayUrl.trim(), host: hostUrl.trim(), secret: code.trim() })
       return
     }
-    if (canScan()) {
-      setPhase('scanning')
-    } else {
-      setTyping(true)
-    }
+    setPhase('scanning')
   }
 
   const handleBack = () => {
@@ -170,7 +166,7 @@ export default function Pair({ onPaired, onDesktop }) {
     && syncClient.readPayload(code).secret.length >= 16
 
   return (
-    <div className="pair-screen">
+    <div className={`pair-screen ${phase === 'idle' && !typing ? 'is-flow-lime' : ''}`}>
       {/* Top Bar with Circular Back Button */}
       <header className="pair-top-bar">
         <button
@@ -189,7 +185,14 @@ export default function Pair({ onPaired, onDesktop }) {
       <main className="pair-center-content">
         {phase === 'scanning' ? (
           <div className="pair-scan-card">
-            <QrScanner onScan={scanned} onCancel={() => setPhase('idle')} />
+            <QrScanner
+              onScan={scanned}
+              onCancel={() => setPhase('idle')}
+              onManual={() => {
+                setPhase('idle')
+                setTyping(true)
+              }}
+            />
           </div>
         ) : phase === 'pairing' ? (
           <div className="pair-dialog-card">
@@ -228,19 +231,26 @@ export default function Pair({ onPaired, onDesktop }) {
             )}
           </div>
         ) : (
-          /* Default IDLE Screen: Exact match to reference phone screen */
+          /* Default IDLE Screen: Exact match to Screen 1 from Amethyst Mobile Flow */
           <>
-            <div className="pair-monitor-icon" aria-hidden="true">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="3" width="20" height="14" rx="2.5" />
-                <line x1="8" y1="21" x2="16" y2="21" />
-                <line x1="12" y1="17" x2="12" y2="21" />
+            <div style={{ margin: '20px 0 10px', display: 'flex', justifyContent: 'center' }} aria-hidden="true">
+              <svg viewBox="0 0 300 300" width="220" height="220" fill="none" stroke="#111113" strokeWidth="1.5">
+                <circle cx="150" cy="150" r="16" stroke="#111113" strokeWidth="1.5" />
+                <ellipse cx="150" cy="150" rx="120" ry="48" transform="rotate(0 150 150)" />
+                <ellipse cx="150" cy="150" rx="120" ry="48" transform="rotate(45 150 150)" />
+                <ellipse cx="150" cy="150" rx="120" ry="48" transform="rotate(90 150 150)" />
+                <ellipse cx="150" cy="150" rx="120" ry="48" transform="rotate(135 150 150)" />
+                <path d="M70 215 L74 225 L84 229 L74 233 L70 243 L66 233 L56 229 L66 225 Z" fill="#111113" />
+                <path d="M225 65 L229 75 L239 79 L229 83 L225 93 L221 83 L211 79 L221 75 Z" fill="#111113" />
               </svg>
             </div>
 
-            <h1 className="pair-prompt-title">
-              Allow this phone to access Amethyst on your computer?
+            <h1 className="pair-prompt-title" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 32, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
+              Connect your PC to Amethyst
             </h1>
+            <p className="pair-prompt-desc" style={{ color: '#141414', opacity: 0.8, fontSize: 15, margin: '8px 0 24px' }}>
+              Open Amethyst on your PC, go to Settings, then Phone, and scan the code it shows.
+            </p>
 
             {typing && (
               <div className="pair-manual-card">
@@ -320,16 +330,19 @@ export default function Pair({ onPaired, onDesktop }) {
               <button
                 type="button"
                 className="pair-auth-btn"
+                style={{ background: '#111113', color: '#fff', borderRadius: 999, minHeight: 48, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' }}
                 onClick={handleAuthorize}
               >
-                Authorize this phone
+                <span>Scan code</span>
+                <span aria-hidden="true">→</span>
               </button>
               <button
                 type="button"
                 className="pair-sub-action"
+                style={{ border: '1.5px solid #111113', borderRadius: 999, minHeight: 48, color: '#111113', fontWeight: 600 }}
                 onClick={() => setTyping(true)}
               >
-                Enter code manually
+                Enter code instead
               </button>
             </>
           )

@@ -58,7 +58,6 @@ class MigrationEngine:
             """
             SELECT id, kind, title, text_path, media_path, thumbnail_path, storage_provider, external_id
             FROM library_items
-            WHERE storage_provider = 'local' OR external_id IS NULL
             """
         ).fetchall()
 
@@ -112,6 +111,33 @@ class MigrationEngine:
                         inserted += 1
                         existing.add((item_id, "media"))
 
+            # 3. Check thumbnail_path
+            thp_cand = None
+            if r["thumbnail_path"]:
+                th_p = Path(r["thumbnail_path"]).expanduser()
+                if th_p.is_file() and th_p.stat().st_size > 500:
+                    thp_cand = th_p
+            if not thp_cand:
+                from backend.library.store import thumbnail_path
+                cand = thumbnail_path(item_id)
+                if cand.is_file() and cand.stat().st_size > 500:
+                    thp_cand = cand
+
+            if (item_id, "thumbnail") not in existing and thp_cand and thp_cand.is_file():
+                size = thp_cand.stat().st_size
+                checksum = _compute_sha256(thp_cand)
+                cur = conn.execute(
+                    """
+                    INSERT OR IGNORE INTO storage_migration_manifest (
+                        item_id, file_type, local_path, file_size, checksum, target_folder, status
+                    ) VALUES (?, 'thumbnail', ?, ?, ?, 'media', 'pending')
+                    """,
+                    (item_id, str(thp_cand), size, checksum),
+                )
+                if cur.rowcount > 0:
+                    inserted += 1
+                    existing.add((item_id, "thumbnail"))
+
         conn.commit()
         return inserted
 
@@ -128,7 +154,7 @@ class MigrationEngine:
 
         row = conn.execute(
             """
-            SELECT id, kind, title, text_path, media_path, storage_provider, external_id
+            SELECT id, kind, title, text_path, media_path, thumbnail_path, storage_provider, external_id
             FROM library_items
             WHERE id = ?
             """,
@@ -189,6 +215,32 @@ class MigrationEngine:
                 ) VALUES (?, 'media', ?, ?, ?, 'media', 'pending')
                 """,
                 (item_id, str(mp_cand), size, checksum),
+            )
+            if cur.rowcount > 0:
+                inserted += 1
+
+        # 3. Thumbnail path
+        thp_cand = None
+        if row["thumbnail_path"]:
+            p = Path(row["thumbnail_path"]).expanduser()
+            if p.is_file() and p.stat().st_size > 500:
+                thp_cand = p
+        if not thp_cand:
+            from backend.library.store import thumbnail_path
+            cand = thumbnail_path(item_id)
+            if cand.is_file() and cand.stat().st_size > 500:
+                thp_cand = cand
+
+        if "thumbnail" not in existing and thp_cand and thp_cand.is_file():
+            size = thp_cand.stat().st_size
+            checksum = _compute_sha256(thp_cand)
+            cur = conn.execute(
+                """
+                INSERT OR IGNORE INTO storage_migration_manifest (
+                    item_id, file_type, local_path, file_size, checksum, target_folder, status
+                ) VALUES (?, 'thumbnail', ?, ?, ?, 'media', 'pending')
+                """,
+                (item_id, str(thp_cand), size, checksum),
             )
             if cur.rowcount > 0:
                 inserted += 1
@@ -269,15 +321,16 @@ class MigrationEngine:
                     (obj.external_id, actual_checksum, len(content), manifest_id),
                 )
 
-                store.update(
-                    item_id,
-                    storage_provider="google_drive",
-                    external_id=obj.external_id,
-                    checksum=actual_checksum,
-                    cached_locally=1,
-                    sync_state="synced",
-                    last_synced_at=conn.execute("SELECT datetime('now')").fetchone()[0],
-                )
+                if file_type in ("text", "media") or not store.get(item_id)["external_id"]:
+                    store.update(
+                        item_id,
+                        storage_provider="google_drive",
+                        external_id=obj.external_id,
+                        checksum=actual_checksum,
+                        cached_locally=1,
+                        sync_state="synced",
+                        last_synced_at=conn.execute("SELECT datetime('now')").fetchone()[0],
+                    )
                 conn.commit()
                 uploaded += 1
             except Exception as exc:
@@ -374,15 +427,16 @@ class MigrationEngine:
                 )
 
                 # Update library_items row
-                store.update(
-                    item_id,
-                    storage_provider="google_drive",
-                    external_id=obj.external_id,
-                    checksum=actual_checksum,
-                    cached_locally=1,
-                    sync_state="synced",
-                    last_synced_at=conn.execute("SELECT datetime('now')").fetchone()[0],
-                )
+                if file_type in ("text", "media") or not store.get(item_id)["external_id"]:
+                    store.update(
+                        item_id,
+                        storage_provider="google_drive",
+                        external_id=obj.external_id,
+                        checksum=actual_checksum,
+                        cached_locally=1,
+                        sync_state="synced",
+                        last_synced_at=conn.execute("SELECT datetime('now')").fetchone()[0],
+                    )
                 conn.commit()
                 completed += 1
             except Exception as exc:

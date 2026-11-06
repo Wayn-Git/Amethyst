@@ -1,34 +1,14 @@
-import { Button as HouseButton } from './ui/bento/index.jsx'
-/* The camera, pointed at a pairing code.
- *
- * Built on `BarcodeDetector`, which is a browser API rather than a library:
- * Chrome on Android has it, and where it does the scan costs this application
- * nothing in bundle size and runs in the browser's own decoder rather than a
- * megabyte of wasm on the main thread.
- *
- * Where it does not exist -- Safari on iOS, most notably -- there is no
- * fallback here on purpose, because iOS does not need one. The machine's QR
- * code is an ordinary https link, so the *system camera app* scans it and opens
- * the pairing screen with the code already in it. That is one fewer tap than an
- * in-app scanner, not one more, and it is why `supported()` is exported: the
- * caller offers this button only where it will do something, and shows the
- * typed code everywhere else rather than a camera button that fails on tap.
- * That check is `canScan` in `views/Pair.jsx`, beside the button it governs.
- *
- * The stream is stopped in every exit path. A camera left running is a light on
- * somebody's phone that this app turned on and did not turn off.
- */
-
 import { useCallback, useEffect, useRef, useState } from 'react'
-
+import jsQR from 'jsqr'
 import Icon from './Icon.jsx'
 
 /** How often to look at the frame. Ten a second reads instantly to a person and
  *  leaves the phone's decoder idle most of the time. */
 const SCAN_INTERVAL_MS = 100
 
-export default function QrScanner({ onScan, onCancel }) {
+export default function QrScanner({ onScan, onCancel, onManual }) {
   const videoRef = useRef(null)
+  const canvasRef = useRef(null)
   const [error, setError] = useState(null)
   // Held in a ref so the effect's cleanup can stop it without the stream being
   // a dependency that restarts the camera every render.
@@ -44,6 +24,17 @@ export default function QrScanner({ onScan, onCancel }) {
     let timer = null
 
     const run = async () => {
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+        if (!cancelled) {
+          setError(
+            typeof window !== 'undefined' && window.isSecureContext === false
+              ? 'Camera requires HTTPS or localhost on mobile browsers. Open via https:// or enter code manually.'
+              : 'Camera access is not supported on this browser. Please enter code manually.'
+          )
+        }
+        return
+      }
+
       let stream
       try {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -58,11 +49,12 @@ export default function QrScanner({ onScan, onCancel }) {
           setError(
             err?.name === 'NotAllowedError'
               ? 'Camera access was declined. You can type the code instead.'
-              : 'No camera available here. You can type the code instead.',
+              : 'No camera available here. You can type the code instead.'
           )
         }
         return
       }
+
       if (cancelled) {
         stream.getTracks().forEach((track) => track.stop())
         return
@@ -75,18 +67,58 @@ export default function QrScanner({ onScan, onCancel }) {
         await video.play().catch(() => {})
       }
 
-      const detector = new window.BarcodeDetector({ formats: ['qr_code'] })
+      const hasBarcodeDetector = typeof window !== 'undefined' && 'BarcodeDetector' in window
+      let detector = null
+      let canvas = null
+      let ctx = null
+
+      if (hasBarcodeDetector) {
+        try {
+          detector = new window.BarcodeDetector({ formats: ['qr_code'] })
+        } catch {
+          detector = null
+        }
+      }
+
+      if (!detector) {
+        canvas = document.createElement('canvas')
+        ctx = canvas.getContext('2d', { willReadFrequently: true })
+        canvasRef.current = canvas
+      }
+
       timer = setInterval(async () => {
         if (cancelled || !videoRef.current || videoRef.current.readyState < 2) return
-        let found = []
-        try {
-          found = await detector.detect(videoRef.current)
-        } catch {
-          // A frame the decoder could not read is the normal case between one
-          // aimed at the code and the next. Nothing to report.
-          return
+        let value = null
+
+        if (detector) {
+          try {
+            const found = await detector.detect(videoRef.current)
+            value = found.find((c) => c.rawValue)?.rawValue
+          } catch {
+            // normal frame without detected code
+          }
+        } else if (ctx && videoRef.current.videoWidth > 0) {
+          try {
+            const v = videoRef.current
+            const w = v.videoWidth
+            const h = v.videoHeight
+            if (canvas.width !== w || canvas.height !== h) {
+              canvas.width = w
+              canvas.height = h
+            }
+            ctx.drawImage(v, 0, 0, w, h)
+            const imageData = ctx.getImageData(0, 0, w, h)
+            const decoded = jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: 'dontInvert',
+            })
+            if (decoded?.data) {
+              value = decoded.data
+            }
+          } catch {
+            // normal frame without detected code
+          }
         }
-        const value = found.find((code) => code.rawValue)?.rawValue
+
         if (value && !cancelled) {
           cancelled = true
           clearInterval(timer)
@@ -112,13 +144,45 @@ export default function QrScanner({ onScan, onCancel }) {
         <video ref={videoRef} className="qr-scan-video" playsInline muted />
         <div className="qr-scan-reticle" aria-hidden="true" />
       </div>
-      <p className="qr-scan-hint">
+      <p className="qr-scan-hint" style={{ color: error ? '#ef4444' : '#141414', opacity: error ? 1 : 0.75 }}>
         {error || 'Point this at the code on your computer.'}
       </p>
-      <HouseButton type="button" className="pair-secondary" onClick={onCancel}>
-        <Icon name="x" size={16} />
-        Cancel
-      </HouseButton>
+      <div style={{ display: 'flex', gap: 10, width: '100%', justifyContent: 'center', marginTop: 4 }}>
+        <button
+          type="button"
+          style={{
+            background: '#111113',
+            color: '#fff',
+            borderRadius: 999,
+            padding: '10px 20px',
+            border: 0,
+            fontSize: 14,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+        {onManual && (
+          <button
+            type="button"
+            style={{
+              background: '#fff',
+              color: '#111113',
+              border: '1.5px solid #111113',
+              borderRadius: 999,
+              padding: '10px 18px',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+            onClick={onManual}
+          >
+            Enter code instead
+          </button>
+        )}
+      </div>
     </div>
   )
 }

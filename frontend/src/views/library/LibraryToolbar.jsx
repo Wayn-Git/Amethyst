@@ -41,6 +41,8 @@ export default function LibraryToolbar({
   onQuickFiltersChange,
   isSelectMode = false,
   onToggleSelectMode,
+  onSync,
+  isSyncing = false,
 }) {
   const mac = IS_MAC || (typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || ''))
   const rawValue = quickCaptureText || query
@@ -444,6 +446,20 @@ export default function LibraryToolbar({
           >
             <Icon name="grid" size={14} />
           </button>
+
+          {/* Cloud Sync button */}
+          {onSync && (
+            <button
+              type="button"
+              className={`lib-icon-btn ${isSyncing ? 'is-active' : ''}`}
+              onClick={onSync}
+              disabled={isSyncing}
+              title={isSyncing ? 'Syncing with Google Drive…' : 'Sync with Google Drive'}
+              aria-label="Sync with Google Drive"
+            >
+              <Icon name="refresh" size={14} className={isSyncing ? 'animate-spin text-accent' : ''} />
+            </button>
+          )}
         </div>
       </div>
 

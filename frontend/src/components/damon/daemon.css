@@ -3,7 +3,7 @@
    ========================================================================== */
 
 :root {
-  --damon-overlay-bg: rgba(0, 0, 0, 0.45);
+  --damon-overlay-bg: rgba(15, 17, 23, 0.78);
   --damon-bezel-bg: rgba(255, 255, 255, 0.65);
   --damon-bezel-border: rgba(255, 255, 255, 0.8);
   --damon-bezel-shadow:
@@ -16,20 +16,20 @@
   --damon-surface-card: #f5f5f3;
   --damon-text: #0E0F12;
   --damon-text-muted: #5B5F68;
-  --damon-text-faint: #9BA0A8;
+  --damon-text-faint: #64748b;
   --damon-hairline: rgba(14, 15, 18, 0.07);
   --damon-row-hover: rgba(14, 15, 18, 0.04);
   --damon-row-selected: rgba(14, 15, 18, 0.08);
   --damon-row-selected-icon-bg: rgba(37, 99, 235, 0.1);
   --damon-row-selected-icon-color: #2563eb;
-  --damon-kbd-bg: #f1f1ef;
-  --damon-kbd-text: #3a3d45;
-  --damon-kbd-border: rgba(14, 15, 18, 0.1);
-  --damon-chip-bg: rgba(14, 15, 18, 0.04);
-  --damon-chip-border: rgba(14, 15, 18, 0.08);
-  --damon-chip-hover: rgba(14, 15, 18, 0.08);
-  --damon-icon-bg: rgba(14, 15, 18, 0.04);
-  --damon-icon-color: #0E0F12;
+  --damon-kbd-bg: #f1f2f4;
+  --damon-kbd-text: #27272a;
+  --damon-kbd-border: rgba(14, 15, 18, 0.14);
+  --damon-chip-bg: #f1f2f5;
+  --damon-chip-border: rgba(14, 15, 18, 0.12);
+  --damon-chip-hover: #e5e7eb;
+  --damon-icon-bg: #f3f4f6;
+  --damon-icon-color: #111827;
   --damon-panel-right-bg: #ffffff;
   --damon-btn-primary-bg: #0E0F12;
   --damon-btn-primary-text: #ffffff;
@@ -46,7 +46,7 @@
 .dark,
 .dark-mode,
 :root:not([data-theme-mode='light']) {
-  --damon-overlay-bg: rgba(0, 0, 0, 0.68);
+  --damon-overlay-bg: rgba(8, 9, 12, 0.90);
   --damon-bezel-bg: rgba(26, 27, 32, 0.78);
   --damon-bezel-border: rgba(255, 255, 255, 0.14);
   --damon-bezel-shadow:
@@ -110,11 +110,29 @@
   -webkit-backdrop-filter: none !important;
 }
 
+/* Spotlight-only mode (pure floating Spotlight, zero host app layout) */
+html.spotlight-only-mode,
+body.spotlight-only-mode {
+  background: transparent !important;
+  overflow: hidden !important;
+}
+
+html.spotlight-only-mode #root,
+body.spotlight-only-mode #root {
+  background: transparent !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  padding-top: clamp(20px, 8vh, 60px) !important;
+  min-height: 100vh !important;
+  box-sizing: border-box !important;
+}
+
 /* The Spotlight Dialog Card — Single unified sleek surface */
 .palette.damon-spotlight {
-  width: min(740px, calc(100vw - 32px)) !important;
-  max-width: 740px !important;
-  max-height: min(580px, 80vh) !important;
+  width: min(860px, calc(100vw - 32px)) !important;
+  max-width: 860px !important;
+  max-height: min(620px, 84vh) !important;
   margin: 0 auto !important;
   padding: 0 !important;
   border-radius: 18px !important;
@@ -131,6 +149,18 @@
   box-sizing: border-box !important;
   animation: damon-spring-in 170ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   outline: none !important;
+  transition: max-height 0.2s cubic-bezier(0.16, 1, 0.3, 1), width 0.2s ease;
+}
+
+.palette.damon-spotlight.is-compact {
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: 58px !important;
+  width: min(680px, calc(100vw - 32px)) !important;
+  border-radius: 16px !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 20px 48px -10px rgba(0, 0, 0, 0.35) !important;
 }
 
 .palette.damon-spotlight.palette--bar {
@@ -289,6 +319,35 @@
   letter-spacing: 0.02em;
 }
 
+.damon-compact-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--damon-chip-bg);
+  border: 1px solid var(--damon-chip-border);
+  color: var(--damon-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  user-select: none;
+}
+
+.damon-compact-toggle-btn:hover {
+  background: var(--damon-chip-hover);
+  color: var(--damon-text);
+  border-color: var(--damon-hairline);
+}
+
+.damon-compact-toggle-btn.is-active {
+  background: rgba(14, 165, 233, 0.12);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
 /* ==========================================================================
    CATEGORY / SCOPE TABS (40px height)
    ========================================================================== */
@@ -300,11 +359,15 @@
   padding: 0 16px;
   border-bottom: 1px solid var(--damon-hairline);
   overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   flex-shrink: 0;
 }
 
 .damon-tabs::-webkit-scrollbar {
   display: none;
+  width: 0;
+  height: 0;
 }
 
 .damon-tab {
@@ -369,13 +432,22 @@
    CONTENT SCROLL / CONTAINER
    ========================================================================== */
 .damon-body {
-  max-height: 450px;
+  max-height: 480px;
   min-height: 200px;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: hidden !important;
   display: flex;
   flex-direction: column;
   scroll-behavior: smooth;
+}
+
+.damon-body:has(.damon-split-layout),
+.damon-body:has(.damon-split-container),
+.damon-body:has(.damon-library-split-root),
+.damon-body.is-split {
+  overflow: hidden !important;
+  max-height: 480px !important;
+  height: 480px !important;
 }
 
 .damon-body::-webkit-scrollbar {
@@ -579,16 +651,39 @@
    CARDS GRID (Continue Where You Left Off & Library Cards)
    ========================================================================== */
 .damon-cards-grid {
-  display: flex;
-  gap: 12px;
-  padding: 0 20px 10px;
-  overflow-x: auto;
-  flex-shrink: 0;
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)) !important;
+  gap: 12px !important;
+  padding: 0 20px 12px !important;
+  overflow: hidden !important;
+  overflow-x: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+.damon-cards-grid::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Prevent any accidental horizontal scrollbar in any child of the spotlight dialog */
+.palette.damon-spotlight,
+.palette.damon-spotlight .damon-card,
+.palette.damon-spotlight .damon-header,
+.palette.damon-spotlight .damon-tabs,
+.palette.damon-spotlight .damon-section-group,
+.palette.damon-spotlight .damon-footer {
+  overflow-x: hidden !important;
 }
 
 .damon-card-item {
-  width: 200px;
-  flex-shrink: 0;
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
   min-height: 74px;
   padding: 12px 14px;
   background: var(--damon-surface-card);
@@ -624,6 +719,22 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.damon-card-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 5px;
+}
+
+.damon-card-icon-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .damon-card-title {
@@ -823,26 +934,51 @@
 }
 
 /* ==========================================================================
-   SPLIT PANE FILE PREVIEW
+   SPLIT PANE FILE & LIBRARY PREVIEW
    ========================================================================== */
+.damon-split-container {
+  display: flex;
+  flex-direction: column;
+  height: 480px;
+  max-height: 480px;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .damon-split-layout {
   display: flex;
-  min-height: 340px;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 .damon-split-left {
   width: 380px;
+  min-width: 380px;
+  max-width: 380px;
+  height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   border-right: 1px solid var(--damon-hairline);
+  box-sizing: border-box;
 }
 
 .damon-split-right {
   flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   background: var(--damon-panel-right-bg);
+  position: sticky;
+  top: 0;
+  box-sizing: border-box;
 }
 
 .damon-preview-header {
@@ -1176,14 +1312,14 @@
 }
 
 /* ==========================================================================
-   DOCKED FOOTER (48px height — spacious, balanced native bar)
+   DOCKED FOOTER (44px height — spacious, balanced native bar)
    ========================================================================== */
 .damon-footer {
-  height: 48px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
+  padding: 0 16px;
   border-top: 1px solid var(--damon-hairline);
   background: transparent;
   flex-shrink: 0;
@@ -1193,16 +1329,16 @@
 .damon-footer-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .damon-footer-action-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 28px;
+  height: 26px;
   padding: 0 10px;
-  border-radius: 7px;
+  border-radius: 6px;
   background: var(--damon-chip-bg);
   border: 1px solid var(--damon-chip-border);
   color: var(--damon-text);
@@ -1212,6 +1348,7 @@
   cursor: pointer;
   transition: all 0.12s ease;
   white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .damon-footer-action-btn:hover {
@@ -1222,7 +1359,7 @@
 .damon-footer-hints {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   font-size: 11.5px;
   color: var(--damon-text-muted);
 }
@@ -1230,16 +1367,16 @@
 .damon-footer-hint-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .damon-footer-kbd {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 20px;
-  min-width: 20px;
-  padding: 0 6px;
+  height: 19px;
+  min-width: 19px;
+  padding: 0 5px;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Geist Mono", monospace;
   font-size: 10.5px;
   font-weight: 500;
@@ -1247,7 +1384,7 @@
   background: var(--damon-kbd-bg);
   border: 1px solid var(--damon-kbd-border);
   border-radius: 4px;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
 }
 
 /* ==========================================================================
@@ -1284,5 +1421,304 @@
   100% {
     opacity: 0;
     transform: scale(0.97) translateY(4px);
+  }
+}
+
+/* ==========================================================================
+   DEDICATED SCREENS: LIBRARY, APPS, WEB, ACTIONS
+   ========================================================================== */
+.damon-library-split-root,
+.damon-apps-split-root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 480px;
+  max-height: 480px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.damon-web-view-root,
+.damon-actions-view-root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.damon-library-preview-col,
+.damon-app-preview-col {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: sticky;
+  top: 0;
+  box-sizing: border-box;
+}
+
+.damon-library-detail-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  justify-content: space-between;
+}
+
+/* Library View Styles */
+.damon-library-row-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--damon-surface-card);
+  border: 1px solid var(--damon-hairline);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.damon-library-row-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.damon-library-row-thumb-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--damon-icon-color);
+}
+
+.damon-lib-kind-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--damon-surface-card);
+  border: 1px solid var(--damon-chip-border);
+  color: var(--damon-text-muted);
+}
+
+.damon-library-hero-thumb {
+  width: 100%;
+  height: 140px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  border: 1px solid var(--damon-hairline);
+  background: var(--damon-surface-card);
+}
+
+.damon-library-hero-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.damon-library-preview-title {
+  margin: 6px 0 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--damon-text-main);
+  line-height: 1.35;
+}
+
+.damon-library-pills-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.damon-lib-site-tag,
+.damon-lib-date-tag {
+  color: var(--damon-text-muted);
+}
+
+.damon-library-excerpt-box {
+  margin-top: 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--damon-text-muted);
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.damon-library-tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.damon-library-tag {
+  font-size: 11px;
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+
+/* App View Styles */
+.damon-app-preview-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.damon-app-preview-hero-icon {
+  width: 58px;
+  height: 58px;
+  border-radius: 14px;
+  background: var(--damon-surface-card);
+  border: 1px solid var(--damon-hairline);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.damon-app-hero-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 6px;
+}
+
+.damon-app-hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.damon-app-hero-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--damon-text-main);
+}
+
+.damon-app-hero-sub {
+  font-size: 12px;
+  color: var(--damon-text-muted);
+}
+
+.damon-app-meta-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.damon-app-meta-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--damon-text-muted);
+  letter-spacing: 0.05em;
+}
+
+.damon-app-meta-code {
+  font-family: var(--font-mono, monospace);
+  font-size: 11.5px;
+  color: var(--damon-text-main);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 4px 8px;
+  border-radius: 6px;
+  word-break: break-all;
+}
+
+.damon-app-meta-val {
+  font-size: 12px;
+  color: var(--damon-text-main);
+  word-break: break-all;
+}
+
+/* Web View Styles */
+.damon-web-ask-hero {
+  margin: 0 16px 12px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(113, 50, 245, 0.15), rgba(59, 130, 246, 0.15));
+  border: 1px solid rgba(113, 50, 245, 0.3);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.1s ease;
+}
+
+.damon-web-ask-hero:hover {
+  border-color: rgba(113, 50, 245, 0.6);
+  transform: translateY(-1px);
+}
+
+.damon-web-ask-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #7132f5;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.damon-web-ask-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.damon-web-ask-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--damon-text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.damon-web-ask-sub {
+  font-size: 11px;
+  color: var(--damon-text-muted);
+}
+
+/* ==========================================================================
+   ACCESSIBILITY & REDUCED MOTION (WCAG 2.2 AA & LAWS OF UX)
+   ========================================================================== */
+.damon-tab:focus-visible,
+.damon-footer-action-btn:focus-visible,
+.damon-filter-chip:focus-visible,
+.damon-card-item:focus-visible,
+.damon-compact-toggle-btn:focus-visible,
+.damon-btn-primary:focus-visible,
+.damon-btn-secondary:focus-visible,
+.damon-clear-btn:focus-visible {
+  outline: 2px solid #2563eb !important;
+  outline-offset: 2px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .palette.damon-spotlight,
+  .damon-overlay,
+  .damon-card-item,
+  .damon-row,
+  .damon-card-thumb-img,
+  .damon-tab,
+  .damon-badge-tag {
+    animation: none !important;
+    transition: none !important;
   }
 }

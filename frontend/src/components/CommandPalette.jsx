@@ -14,7 +14,12 @@ import DamonSplitView from './damon/DamonSplitView.jsx'
 import DamonAskView from './damon/DamonAskView.jsx'
 import DamonApproveView from './damon/DamonApproveView.jsx'
 import DamonFooter from './damon/DamonFooter.jsx'
+import DamonLibraryView from './damon/views/DamonLibraryView.jsx'
+import DamonAppsView from './damon/views/DamonAppsView.jsx'
+import DamonWebView from './damon/views/DamonWebView.jsx'
+import DamonActionsView, { SYSTEM_ACTIONS } from './damon/views/DamonActionsView.jsx'
 import { evaluateMath } from './damon/calculator.js'
+import { woxFuzzyMatch } from './damon/woxMatcher.js'
 import { request as dashboardRequest } from '../dashboard/api.js'
 import './damon/daemon.css'
 
@@ -78,13 +83,29 @@ export default function CommandPalette({ bare = false }) {
 
   // State
   const [query, setQuery] = useState('')
-  const [activeTab, setActiveTab] = useState('all') // 'all', 'apps', 'files', 'web', 'library', 'people', 'actions'
+  const [activeTab, setActiveTab] = useState('all') // 'all', 'apps', 'files', 'web', 'library', 'actions'
   const [selectedIndex, setSelectedIndex] = useState(0)
 
   const [recents, setRecents] = useState(loadRecents)
   const [continueItems, setContinueItems] = useState([])
   const [launcherItems, setLauncherItems] = useState([])
-  const [peopleContacts, setPeopleContacts] = useState([])
+  const [installedApps, setInstalledApps] = useState([])
+  const [initialFiles, setInitialFiles] = useState([])
+  const [libraryPool, setLibraryPool] = useState([])
+  const [compactMode, setCompactMode] = useState(() => localStorage.getItem('damon_compact_mode') === 'true')
+
+  const toggleCompactMode = useCallback(() => {
+    setCompactMode((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('damon_compact_mode', String(next))
+      } catch {}
+      if (next) {
+        setActiveTab('all')
+      }
+      return next
+    })
+  }, [])
 
   const [selectedFileItem, setSelectedFileItem] = useState(null)
   const [isAskMode, setIsAskMode] = useState(false)
@@ -160,16 +181,18 @@ export default function CommandPalette({ bare = false }) {
       inputRef.current?.select()
     }
 
-    // Load initial data
+    // Load initial library pool
     api
-      .library({ limit: 10 })
+      .library({ limit: 40 })
       .then((d) => {
         const items = (d.items || []).map((it) => ({
           ...it,
-          date_label: it.consumed_on ? 'Yesterday' : '2d',
+          thumbnail_url: it.thumbnail_url || (it.id ? `/api/library/${it.id}/thumbnail` : null),
+          date_label: it.consumed_on ? 'Yesterday' : 'Recent',
         }))
+        setLibraryPool(items)
         if (items.length > 0) {
-          setContinueItems(items)
+          setContinueItems(items.slice(0, 4))
         } else {
           api
             .tasks({ bucket: 'all', limit: 4 })
@@ -187,25 +210,37 @@ export default function CommandPalette({ bare = false }) {
       })
       .catch(() => {})
 
-    // Load contacts
-    dashboardRequest('/dashboard/widgets/comm.contacts/data')
-      .then((d) => {
-        const items = d?.payload?.items || d?.items || []
-        if (items.length > 0) {
-          setPeopleContacts(items)
-        } else {
-          setPeopleContacts([
-            { id: 'p1', title: 'Riya Sharma', subtitle: 'riya@studio.in', person: 'riya@studio.in' },
-            { id: 'p2', title: 'Kabir Nair', subtitle: 'kabir@mail.com', person: 'kabir@mail.com' },
-          ])
+    // Preload installed applications
+    const initAppEs = new EventSource('/api/launcher/stream?q=&mode=apps&session_id=init_apps_pool')
+    initAppEs.onmessage = (event) => {
+      try {
+        const batch = JSON.parse(event.data)
+        if (Array.isArray(batch)) {
+          setInstalledApps((prev) => {
+            const map = new Map(prev.map((it) => [it.id, it]))
+            for (const it of batch) map.set(it.id, it)
+            return Array.from(map.values())
+          })
         }
-      })
-      .catch(() => {
-        setPeopleContacts([
-          { id: 'p1', title: 'Riya Sharma', subtitle: 'riya@studio.in', person: 'riya@studio.in' },
-          { id: 'p2', title: 'Kabir Nair', subtitle: 'kabir@mail.com', person: 'kabir@mail.com' },
-        ])
-      })
+      } catch {}
+    }
+    initAppEs.onerror = () => initAppEs?.close()
+
+    // Preload recent files pool for split view
+    const initFileEs = new EventSource('/api/launcher/stream?q=&mode=files&session_id=init_files_pool')
+    initFileEs.onmessage = (event) => {
+      try {
+        const batch = JSON.parse(event.data)
+        if (Array.isArray(batch)) {
+          setInitialFiles((prev) => {
+            const map = new Map(prev.map((it) => [it.id, it]))
+            for (const it of batch) map.set(it.id, it)
+            return Array.from(map.values())
+          })
+        }
+      } catch {}
+    }
+    initFileEs.onerror = () => initFileEs?.close()
 
     // Check pending confirmations
     api
@@ -230,19 +265,22 @@ export default function CommandPalette({ bare = false }) {
       .catch(() => {})
 
     return () => {
+      initAppEs?.close()
+      initFileEs?.close()
       delete window.__amethyst_spotlight_shown
     }
   }, [open])
 
-  // Stream launcher results when query changes
+  // Stream launcher results when query changes or mode requires pre-population
   useEffect(() => {
-    if (!open || !query.trim()) {
-      setLauncherItems([])
+    if (!open || (!query.trim() && activeTab !== 'files')) {
+      if (activeTab !== 'files') setLauncherItems([])
       return
     }
 
     let es = null
     const sessionId = 'spotlight_' + Math.random().toString(36).slice(2)
+    const delay = query.trim() ? 100 : 0
     const timer = setTimeout(() => {
       const modeParam = activeTab === 'all' ? '' : `&mode=${encodeURIComponent(activeTab)}`
       es = new EventSource(
@@ -267,7 +305,7 @@ export default function CommandPalette({ bare = false }) {
       es.onerror = () => {
         es?.close()
       }
-    }, 100)
+    }, delay)
 
     return () => {
       clearTimeout(timer)
@@ -305,9 +343,21 @@ export default function CommandPalette({ bare = false }) {
         return
       }
 
+      // 0.05 Ask Amethyst trigger
+      if (item.type === 'ask' || item.isAsk) {
+        handleTriggerAsk(item.askQuery || query)
+        return
+      }
+
       // 0.1 System command runner
       if (typeof item.run === 'function') {
         item.run()
+        closePalette()
+        return
+      }
+
+      if (typeof item.action === 'function') {
+        item.action(app, handleNavigate)
         closePalette()
         return
       }
@@ -509,45 +559,66 @@ export default function CommandPalette({ bare = false }) {
   }, [app, handleNavigate])
 
   const filteredApps = useMemo(() => {
-    return launcherItems.filter((it) => it.provider_id === 'apps')
-  }, [launcherItems])
+    const fromServer = launcherItems.filter((it) => it.provider_id === 'apps')
+    if (fromServer.length > 0) return fromServer
+    if (!query.trim()) return installedApps
+    return installedApps
+      .map((app) => {
+        const match = woxFuzzyMatch(app.title || app.name || '', query.trim())
+        return { app, score: match.isMatch ? match.score : 0 }
+      })
+      .filter((it) => it.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((it) => it.app)
+  }, [launcherItems, installedApps, query])
 
   const filteredFiles = useMemo(() => {
-    return launcherItems.filter((it) => it.provider_id === 'files')
-  }, [launcherItems])
+    const fromServer = launcherItems.filter((it) => it.provider_id === 'files')
+    if (fromServer.length > 0) return fromServer
+    if (!query.trim()) return initialFiles
+    return initialFiles
+      .map((f) => {
+        const match = woxFuzzyMatch(f.title || '', query.trim())
+        return { f, score: match.isMatch ? match.score : 0 }
+      })
+      .filter((it) => it.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((it) => it.f)
+  }, [launcherItems, initialFiles, query])
 
   const filteredActions = useMemo(() => {
     const q = query.trim().toLowerCase()
     const serverActions = launcherItems.filter(
       (it) => it.provider_id === 'commands' || it.provider_id === 'system'
     )
-    if (!q) return [...systemCommands, ...serverActions]
-    const matchedSystem = systemCommands.filter(
+    if (!q) return [...SYSTEM_ACTIONS, ...systemCommands, ...serverActions]
+    const matchedSystem = [...SYSTEM_ACTIONS, ...systemCommands].filter(
       (cmd) =>
-        cmd.title.toLowerCase().includes(q) ||
-        cmd.subtitle.toLowerCase().includes(q)
+        cmd.title?.toLowerCase().includes(q) ||
+        cmd.subtitle?.toLowerCase().includes(q)
     )
     return [...matchedSystem, ...serverActions]
   }, [launcherItems, systemCommands, query])
 
   const filteredLibrary = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return continueItems
-    return continueItems.filter((it) => it.title?.toLowerCase().includes(q))
-  }, [continueItems, query])
-
-  const filteredPeople = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return peopleContacts
-    return peopleContacts.filter(
-      (p) =>
-        p.title?.toLowerCase().includes(q) ||
-        p.name?.toLowerCase().includes(q) ||
-        p.subtitle?.toLowerCase().includes(q)
-    )
-  }, [peopleContacts, query])
+    const fromServer = launcherItems.filter((it) => it.provider_id === 'library')
+    if (fromServer.length > 0) return fromServer
+    const pool = libraryPool.length > 0 ? libraryPool : continueItems
+    if (!query.trim()) return pool
+    return pool
+      .map((item) => {
+        const matchTitle = woxFuzzyMatch(item.title || '', query.trim())
+        const matchSite = woxFuzzyMatch(item.site || '', query.trim())
+        const score = Math.max(matchTitle.score, matchSite.score * 0.7)
+        return { item, score: matchTitle.isMatch || matchSite.isMatch ? score : 0 }
+      })
+      .filter((it) => it.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((it) => it.item)
+  }, [launcherItems, libraryPool, continueItems, query])
 
   const topHit = useMemo(() => {
+    if (activeTab !== 'all') return null
     if (mathResult) {
       return {
         id: 'math-top-hit',
@@ -573,12 +644,12 @@ export default function CommandPalette({ bare = false }) {
       }
     }
     return launcherItems[0] || null
-  }, [mathResult, query, launcherItems])
+  }, [activeTab, mathResult, query, launcherItems])
 
   // Split view detection (when Files tab is active or selected item is a file)
   const isSplitView =
     activeTab === 'files' ||
-    (filteredFiles.length > 0 && (query.toLowerCase().includes('release') || activeTab === 'files'))
+    (filteredFiles.length > 0 && query.toLowerCase().includes('release'))
 
   // Current navigable items list
   const currentNavItems = useMemo(() => {
@@ -595,8 +666,17 @@ export default function CommandPalette({ bare = false }) {
         { id: 'forecast-nextweek', title: 'Pune, Maharashtra', subtitle: 'Next week forecast' },
       ]
     }
-    if (isSplitView) {
-      return [...filteredFiles]
+    if (activeTab === 'apps') {
+      return filteredApps
+    }
+    if (activeTab === 'files' || isSplitView) {
+      return filteredFiles
+    }
+    if (activeTab === 'library') {
+      return filteredLibrary
+    }
+    if (activeTab === 'actions') {
+      return filteredActions
     }
     if (!query.trim()) {
       return recents.map((r, i) => ({ id: `recent-${i}`, title: r }))
@@ -604,13 +684,19 @@ export default function CommandPalette({ bare = false }) {
 
     const items = []
     if (topHit) items.push(topHit)
-    if (activeTab === 'all' || activeTab === 'actions') items.push(...filteredActions)
-    if (activeTab === 'all' || activeTab === 'apps') items.push(...filteredApps)
-    if (activeTab === 'all' || activeTab === 'files') items.push(...filteredFiles)
-    if (activeTab === 'all' || activeTab === 'people') items.push(...filteredPeople)
-    if (activeTab === 'all' || activeTab === 'library') items.push(...filteredLibrary)
+    items.push(...filteredActions)
+    items.push(...filteredApps)
+    items.push(...filteredFiles)
+    items.push(...filteredLibrary)
 
-    // Web fallback item
+    // Fallback Ask AI and Web items
+    items.push({
+      id: 'ask-amethyst-fallback',
+      type: 'ask',
+      title: `Ask Amethyst: “${query}”`,
+      subtitle: 'AI reasoning, answer, and follow-ups',
+      isAsk: true,
+    })
     items.push({
       id: 'web-fallback',
       type: 'web',
@@ -625,15 +711,14 @@ export default function CommandPalette({ bare = false }) {
     askSources,
     isWeatherQuery,
     isSplitView,
+    activeTab,
+    filteredApps,
     filteredFiles,
+    filteredLibrary,
+    filteredActions,
     query,
     recents,
     topHit,
-    activeTab,
-    filteredActions,
-    filteredApps,
-    filteredPeople,
-    filteredLibrary,
   ])
 
   // Get index helper for children
@@ -656,6 +741,13 @@ export default function CommandPalette({ bare = false }) {
         e.preventDefault()
         e.stopPropagation()
         closePalette()
+        return
+      }
+
+      // Compact Mode toggle: Cmd+M or Ctrl+M
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'm') {
+        e.preventDefault()
+        toggleCompactMode()
         return
       }
 
@@ -686,12 +778,13 @@ export default function CommandPalette({ bare = false }) {
         return
       }
 
-      // 5. Tab / Shift+Tab (cycle category tabs)
-      if (e.key === 'Tab') {
+      // 5. Tab / Shift+Tab (cycle category tabs), or Left/Right arrows when input is empty
+      if (e.key === 'Tab' || (!query && (e.key === 'ArrowLeft' || e.key === 'ArrowRight'))) {
         e.preventDefault()
         const tabs = DAEMON_TABS.map((t) => t.id)
         const cur = tabs.indexOf(activeTab)
-        const next = tabs[(cur + (e.shiftKey ? -1 : 1) + tabs.length) % tabs.length]
+        const dir = e.key === 'Tab' ? (e.shiftKey ? -1 : 1) : (e.key === 'ArrowRight' ? 1 : -1)
+        const next = tabs[(cur + dir + tabs.length) % tabs.length]
         setActiveTab(next)
         setSelectedIndex(0)
         return
@@ -759,9 +852,11 @@ export default function CommandPalette({ bare = false }) {
     ? 'split'
     : 'standard'
 
+  const isBarOnly = compactMode && !query.trim() && !isAskMode && !pendingConfirmation
+
   const card = (
     <div
-      className={`palette damon-spotlight${bare ? ' palette--bar' : ''}${closing ? ' is-closing' : ''}`}
+      className={`palette damon-spotlight${isBarOnly ? ' is-compact' : ''}${bare ? ' palette--bar' : ''}${closing ? ' is-closing' : ''}`}
       ref={panelRef}
       role="dialog"
       aria-modal="true"
@@ -790,131 +885,174 @@ export default function CommandPalette({ bare = false }) {
           }}
           isAskMode={isAskMode}
           onToggleAsk={() => setIsAskMode((prev) => !prev)}
+          compactMode={compactMode}
+          onToggleCompact={toggleCompactMode}
           hotkeyLabel="⌥ Space"
         />
 
-        {/* Mode Tabs (when not in Ask or Approval mode) */}
-        {!isAskMode && !pendingConfirmation && (
+        {/* Mode Tabs (when not in Ask or Approval mode, and not collapsed in bar-only mode) */}
+        {!isBarOnly && !isAskMode && !pendingConfirmation && (
           <DamonModes activeTab={activeTab} onSelectTab={(t) => { setActiveTab(t); setSelectedIndex(0); }} />
         )}
 
-        {/* Body Content Area */}
-        <div className="damon-body">
-          {pendingConfirmation ? (
-            <DamonApproveView
-              confirmation={pendingConfirmation}
-              onAllowOnce={handleAllowOnce}
-              onAlwaysAllow={handleAlwaysAllow}
-              onDeny={handleDenyApproval}
-            />
-          ) : isAskMode ? (
-            <DamonAskView
-              steps={askSteps}
-              answerText={askAnswer}
-              streaming={askStreaming}
-              sources={askSources}
-              followups={['Show an example', 'Save to Library']}
-              onSelectSource={() => {
-                handleNavigate('library')
-                closePalette()
-              }}
-              onFollowup={(f) => {
-                handleTriggerAsk(`${query} (${f})`)
-              }}
-            />
-          ) : isWeatherQuery ? (
-            <DamonWeatherWidget
-              onSelectForecast={(f) => {
-                toast?.(`Showing ${f.subtitle}`, 'ok')
-                closePalette()
-              }}
-              selectedIndex={selectedIndex}
-              getItemIndex={getItemIndex}
-            />
-          ) : isSplitView ? (
-            <DamonSplitView
-              folderItems={filteredFiles.filter((f) => f.is_dir || f.title?.endsWith('/'))}
-              documentItems={filteredFiles.filter((f) => !f.is_dir && !f.title?.endsWith('/'))}
-              selectedItem={selectedFileItem || filteredFiles[selectedIndex] || filteredFiles[0]}
-              onSelectItem={(item) => setSelectedFileItem(item)}
-              onOpenItem={(item) => executeItem(item)}
-              onRevealItem={(item) => {
-                const p = item.path || item.preview_data?.path
-                if (p) api.executeLauncherAction('files', 'reveal', { path: p })
-                closePalette()
-              }}
-              onClearTypeFilter={() => setActiveTab('all')}
-              selectedIndex={selectedIndex}
-              getItemIndex={getItemIndex}
-            />
-          ) : !query.trim() ? (
-            <DamonRecents
-              recents={recents}
-              continueItems={continueItems}
-              onSelectRecent={(r) => {
-                setQuery(r)
-                setSelectedIndex(0)
-              }}
-              onClearRecents={handleClearRecents}
-              onOpenContinueItem={(it) => {
-                executeItem(it)
-              }}
-              selectedIndex={selectedIndex}
-              startIndex={0}
-            />
-          ) : (
-            <DamonUniversalResults
-              query={query}
-              topHit={topHit}
-              libraryItems={activeTab === 'all' || activeTab === 'library' ? filteredLibrary : []}
-              peopleItems={activeTab === 'all' || activeTab === 'people' ? filteredPeople : []}
-              fileItems={activeTab === 'all' || activeTab === 'files' ? filteredFiles : []}
-              appItems={activeTab === 'all' || activeTab === 'apps' ? filteredApps : []}
-              actionItems={activeTab === 'all' || activeTab === 'actions' ? filteredActions : []}
-              onSelectResult={(item) => executeItem(item)}
-              selectedIndex={selectedIndex}
-              getItemIndex={getItemIndex}
-            />
-          )}
-        </div>
+        {/* Body Content Area (hidden in clean bar mode until typed) */}
+        {!isBarOnly && (
+          <div className={`damon-body${isSplitView ? ' is-split' : ''}`}>
+            {pendingConfirmation ? (
+              <DamonApproveView
+                confirmation={pendingConfirmation}
+                onAllowOnce={handleAllowOnce}
+                onAlwaysAllow={handleAlwaysAllow}
+                onDeny={handleDenyApproval}
+              />
+            ) : isAskMode ? (
+              <DamonAskView
+                steps={askSteps}
+                answerText={askAnswer}
+                streaming={askStreaming}
+                sources={askSources}
+                followups={['Show an example', 'Save to Library']}
+                onSelectSource={() => {
+                  handleNavigate('library')
+                  closePalette()
+                }}
+                onFollowup={(f) => {
+                  handleTriggerAsk(`${query} (${f})`)
+                }}
+              />
+            ) : isWeatherQuery ? (
+              <DamonWeatherWidget
+                onSelectForecast={(f) => {
+                  toast?.(`Showing ${f.subtitle}`, 'ok')
+                  closePalette()
+                }}
+                selectedIndex={selectedIndex}
+                getItemIndex={getItemIndex}
+              />
+            ) : activeTab === 'apps' ? (
+              <DamonAppsView
+                apps={filteredApps.length > 0 ? filteredApps : installedApps}
+                query={query}
+                selectedIndex={selectedIndex}
+                onSelectApp={() => {}}
+                onLaunchApp={(app) => executeItem(app)}
+              />
+            ) : activeTab === 'files' || isSplitView ? (
+              <DamonSplitView
+                folderItems={filteredFiles.filter((f) => f.is_dir || f.preview_data?.is_dir || f.title?.endsWith('/'))}
+                documentItems={filteredFiles.filter((f) => !f.is_dir && !f.preview_data?.is_dir && !f.title?.endsWith('/'))}
+                selectedItem={selectedFileItem || filteredFiles[selectedIndex] || filteredFiles[0]}
+                onSelectItem={(item) => setSelectedFileItem(item)}
+                onOpenItem={(item) => executeItem(item)}
+                onRevealItem={(item) => {
+                  const p = item.path || item.preview_data?.path
+                  if (p) api.executeLauncherAction('files', 'reveal', { path: p })
+                  closePalette()
+                }}
+                onClearTypeFilter={() => setActiveTab('all')}
+                selectedIndex={selectedIndex}
+                getItemIndex={getItemIndex}
+              />
+            ) : activeTab === 'web' ? (
+              <DamonWebView
+                query={query}
+                selectedIndex={selectedIndex}
+                onTriggerAsk={(q) => handleTriggerAsk(q)}
+                onSelectResult={(item) => executeItem(item)}
+                onSelectTab={(tab) => {
+                  setActiveTab(tab)
+                  setSelectedIndex(0)
+                }}
+              />
+            ) : activeTab === 'library' ? (
+              <DamonLibraryView
+                items={filteredLibrary.length > 0 ? filteredLibrary : libraryPool}
+                query={query}
+                selectedIndex={selectedIndex}
+                onSelectItem={() => {}}
+                onOpenItem={(item) => executeItem(item)}
+                onToast={toast}
+              />
+            ) : activeTab === 'actions' ? (
+              <DamonActionsView
+                query={query}
+                selectedIndex={selectedIndex}
+                onExecuteAction={(act) => executeItem(act)}
+              />
+            ) : !query.trim() ? (
+              <DamonRecents
+                recents={recents}
+                continueItems={continueItems}
+                onSelectRecent={(r) => {
+                  setQuery(r)
+                  setSelectedIndex(0)
+                }}
+                onClearRecents={handleClearRecents}
+                onOpenContinueItem={(it) => {
+                  executeItem(it)
+                }}
+                selectedIndex={selectedIndex}
+                startIndex={0}
+              />
+            ) : (
+              <DamonUniversalResults
+                query={query}
+                topHit={topHit}
+                libraryItems={filteredLibrary}
+                fileItems={filteredFiles}
+                appItems={filteredApps}
+                actionItems={filteredActions}
+                onSelectResult={(item) => executeItem(item)}
+                onSelectTab={(tab) => {
+                  setActiveTab(tab)
+                  setSelectedIndex(0)
+                }}
+                selectedIndex={selectedIndex}
+                getItemIndex={getItemIndex}
+              />
+            )}
+          </div>
+        )}
 
-        {/* Docked Footer */}
-        <DamonFooter
-          mode={footerMode}
-          query={query}
-          onAskAmethyst={() => handleTriggerAsk(query || 'What can you help me with?')}
-          onSaveLink={() => {
-            if (query.startsWith('http')) {
-              api.capture({ url: query })
-              toast?.('Link captured to Library', 'ok')
+        {/* Docked Footer (hidden in clean bar mode until typed) */}
+        {!isBarOnly && (
+          <DamonFooter
+            mode={footerMode}
+            query={query}
+            onAskAmethyst={() => handleTriggerAsk(query || 'What can you help me with?')}
+            onSaveLink={() => {
+              if (query.startsWith('http')) {
+                api.capture({ url: query })
+                toast?.('Link captured to Library', 'ok')
+                closePalette()
+              } else {
+                handleNavigate('library')
+              }
+            }}
+            onNewNote={() => {
+              handleNavigate('chat', 'Create a new note')
+            }}
+            onReveal={() => {
+              const current = selectedFileItem || filteredFiles[selectedIndex] || filteredFiles[0]
+              const p = current?.path || current?.preview_data?.path
+              if (p) api.executeLauncherAction('files', 'reveal', { path: p })
               closePalette()
-            } else {
-              handleNavigate('library')
-            }
-          }}
-          onNewNote={() => {
-            handleNavigate('chat', 'Create a new note')
-          }}
-          onReveal={() => {
-            const current = selectedFileItem || filteredFiles[selectedIndex] || filteredFiles[0]
-            const p = current?.path || current?.preview_data?.path
-            if (p) api.executeLauncherAction('files', 'reveal', { path: p })
-            closePalette()
-          }}
-          onCopyPath={() => {
-            const current = selectedFileItem || filteredFiles[selectedIndex] || filteredFiles[0]
-            const p = current?.path || current?.preview_data?.path
-            if (p) {
-              copyText(p)
-              toast?.('Path copied to clipboard', 'ok')
-            }
-            closePalette()
-          }}
-          onOpenWith={() => {
-            const current = selectedFileItem || filteredFiles[selectedIndex] || filteredFiles[0]
-            if (current) executeItem(current)
-          }}
-        />
+            }}
+            onCopyPath={() => {
+              const current = selectedFileItem || filteredFiles[selectedIndex] || filteredFiles[0]
+              const p = current?.path || current?.preview_data?.path
+              if (p) {
+                copyText(p)
+                toast?.('Path copied to clipboard', 'ok')
+              }
+              closePalette()
+            }}
+            onOpenWith={() => {
+              const current = selectedFileItem || filteredFiles[selectedIndex] || filteredFiles[0]
+              if (current) executeItem(current)
+            }}
+          />
+        )}
       </div>
     </div>
   )

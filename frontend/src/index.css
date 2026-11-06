@@ -6088,8 +6088,8 @@ html:has(.palette--bar) body {
 }
 
 /* Damon Launcher Proportions & Quick Capture Styling */
-.palette.damon-spotlight:not(.palette--bar) {
-  width: min(840px, calc(100vw - 32px));
+.palette.damon-spotlight:not(.palette--bar):not(.is-compact) {
+  width: min(860px, calc(100vw - 32px));
   min-height: 480px;
   max-height: min(640px, 85vh);
 }
@@ -7201,84 +7201,7 @@ html:has(.palette--bar) body {
   border-color: rgba(0, 0, 0, 0.1);
 }
 
-/* Spotlight Docked Footer (Raycast & Wox v2) */
-.damon-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 32px;
-  padding: 0 12px;
-  border-top: 1px solid var(--hairline);
-  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
-  font-size: 11px;
-  color: var(--text-faint);
-  flex: none;
-}
 
-.damon-footer-left {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--text-dim);
-  font-weight: 500;
-  font-size: 11px;
-}
-
-.damon-footer-brand-icon {
-  color: var(--accent);
-  opacity: 0.85;
-}
-
-.damon-footer-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-}
-
-.damon-footer-action-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--text-dim);
-  font-size: 11px;
-}
-
-.damon-footer-action-btn {
-  background: transparent;
-  border: none;
-  padding: 1px 3px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: color 100ms ease;
-}
-
-.damon-footer-action-btn:hover {
-  color: var(--text);
-}
-
-.damon-footer-key {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 3.5px;
-  padding: 1px 4.5px;
-  font-size: 9.5px;
-  color: var(--text);
-  font-family: var(--font-mono, monospace);
-  line-height: 1.2;
-}
-
-[data-theme-mode='light'] .damon-footer-key {
-  background: rgba(0, 0, 0, 0.05);
-  border-color: rgba(0, 0, 0, 0.12);
-}
-
-.damon-footer-divider {
-  width: 1px;
-  height: 10px;
-  background: var(--hairline);
-  margin: 0 3px;
-}
 
 
 
@@ -30936,84 +30859,7 @@ html:has(.palette--bar) body {
   color: var(--text-faint);
 }
 
-/* Spotlight Docked Footer (Raycast & Wox v2) */
-.damon-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 32px;
-  padding: 0 12px;
-  border-top: 1px solid var(--hairline);
-  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
-  font-size: 11px;
-  color: var(--text-faint);
-  flex: none;
-}
 
-.damon-footer-left {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--text-dim);
-  font-weight: 500;
-  font-size: 11px;
-}
-
-.damon-footer-brand-icon {
-  color: var(--accent);
-  opacity: 0.85;
-}
-
-.damon-footer-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-}
-
-.damon-footer-action-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--text-dim);
-  font-size: 11px;
-}
-
-.damon-footer-action-btn {
-  background: transparent;
-  border: none;
-  padding: 1px 3px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: color 100ms ease;
-}
-
-.damon-footer-action-btn:hover {
-  color: var(--text);
-}
-
-.damon-footer-key {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 3.5px;
-  padding: 1px 4.5px;
-  font-size: 9.5px;
-  color: var(--text);
-  font-family: var(--font-mono, monospace);
-  line-height: 1.2;
-}
-
-[data-theme-mode='light'] .damon-footer-key {
-  background: rgba(0, 0, 0, 0.05);
-  border-color: rgba(0, 0, 0, 0.12);
-}
-
-.damon-footer-divider {
-  width: 1px;
-  height: 10px;
-  background: var(--hairline);
-  margin: 0 3px;
-}
 
 
 

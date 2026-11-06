@@ -61,3 +61,61 @@ async def test_run_two_way_sync():
         assert status["stage"] == "complete"
         assert status["inbound_imported"] == 1
         assert status["uploaded_outbound"] == 1
+
+@pytest.mark.asyncio
+async def test_gdrive_bridge_pagination():
+    from backend.library.storage.gdrive_bridge import GoogleDriveBridge
+    bridge = GoogleDriveBridge()
+    with patch.object(bridge, "_execute", new_callable=AsyncMock) as mock_exec:
+        # First page has 2 files and nextPageToken, second page has 1 file and no token
+        mock_exec.side_effect = [
+            {"files": [{"id": "1", "name": "f1"}, {"id": "2", "name": "f2"}], "nextPageToken": "token123"},
+            {"files": [{"id": "3", "name": "f3"}]},
+        ]
+        files = await bridge.list_files_in_folder("dummy_folder")
+        assert len(files) == 3
+        assert [f["id"] for f in files] == ["1", "2", "3"]
+        assert mock_exec.call_count == 2
+
+@pytest.mark.asyncio
+async def test_inbound_preserves_item_id_and_merges_thumb(tmp_path):
+    conn = get_connection()
+    store = LibraryStore(conn)
+    engine = LibrarySyncEngine()
+
+    md_file = {
+        "id": "drive_md_999",
+        "name": "000999-my-awesome-post.md",
+        "mimeType": "text/markdown",
+        "size": 250,
+        "md5Checksum": "md5_hash_999",
+        "parent_folder": "articles",
+    }
+    thumb_file = {
+        "id": "drive_th_999",
+        "name": "000999-thumb.jpg",
+        "mimeType": "image/jpeg",
+        "size": 1500,
+        "md5Checksum": "md5_th_999",
+        "parent_folder": "media",
+    }
+
+    with patch.object(engine.bridge, "download_file", new_callable=AsyncMock) as mock_down:
+        mock_down.return_value = b"# My Awesome Post\n\nSome summary here.\n\n## Mentioned\n- tool - Figma: UI design (https://figma.com)\n"
+        res_md = await engine.ingest_inbound_item(md_file)
+        assert res_md["status"] == "imported"
+        assert res_md["item_id"] == 999
+
+        # Ingest thumbnail for item 999
+        mock_down.return_value = b"FAKE_JPG_BYTES_12345"
+        res_th = await engine.ingest_inbound_item(thumb_file)
+        assert res_th["status"] == "merged_thumbnail"
+        assert res_th["item_id"] == 999
+
+        item = store.get(999)
+        assert item is not None
+        assert item["id"] == 999
+        assert item["title"] == "My Awesome Post"
+        assert item["url"] == "https://figma.com"
+        assert "Figma" in item["resources"]
+        assert item["thumbnail_path"] is not None

@@ -246,6 +246,7 @@ benchmark_results.json
 # Packaged desktop dist
 dist-desktop/
 resources/bin/
+*.apk
 
 # Codex assistant metadata
 .codex/

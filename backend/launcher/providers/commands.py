@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import logging
+import math
+import os
+import subprocess
 from typing import Any, AsyncIterator
 
 from backend.launcher.provider import (
@@ -118,13 +121,151 @@ class CommandProvider(BaseLauncherProvider):
     async def search(
         self, query: str, session_id: str
     ) -> AsyncIterator[LauncherResult]:
-        q = query.strip().lower()
+        raw = query.strip()
+        q = raw.lower()
         if not q:
             # Show navigation commands first when query is empty
             for cmd in self._commands[:6]:
                 yield self._to_result(cmd, score=40.0)
             return
 
+        # 1. Flow Launcher Shell Command Plugin ("> <command>")
+        if raw.startswith(">"):
+            cmd_text = raw[1:].strip()
+            if cmd_text:
+                yield LauncherResult(
+                    id=f"shell:{cmd_text}",
+                    provider_id=self.id,
+                    title=f"Run “{cmd_text}” in Terminal",
+                    subtitle="Flow Launcher Shell Execution",
+                    icon="terminal",
+                    badge="SHELL",
+                    score=115.0,
+                    preview_type="none",
+                    actions=[
+                        LauncherAction(
+                            id="shell_run",
+                            title="Execute Shell Command",
+                            is_primary=True,
+                            handler_payload={"command": cmd_text},
+                        )
+                    ],
+                )
+
+        # 2. Flow Launcher Process Killer Plugin ("kill <process>")
+        if q.startswith("kill "):
+            proc_target = q[5:].strip()
+            if proc_target:
+                try:
+                    res = subprocess.run(
+                        ["ps", "-eo", "pid,comm,%mem,%cpu", "--sort=-%cpu"],
+                        capture_output=True,
+                        text=True,
+                        timeout=0.6,
+                    )
+                    count = 0
+                    for line in res.stdout.strip().splitlines()[1:]:
+                        parts = line.strip().split(None, 3)
+                        if len(parts) >= 4:
+                            pid_str, comm, mem, cpu = parts[0], parts[1], parts[2], parts[3]
+                            if proc_target in comm.lower() or proc_target in pid_str:
+                                yield LauncherResult(
+                                    id=f"kill:{pid_str}",
+                                    provider_id=self.id,
+                                    title=f"Kill {comm} (PID {pid_str})",
+                                    subtitle=f"Memory: {mem}% · CPU: {cpu}%",
+                                    icon="x-circle",
+                                    badge="PROCESS",
+                                    score=110.0 - count,
+                                    preview_type="none",
+                                    actions=[
+                                        LauncherAction(
+                                            id="kill_process",
+                                            title="Terminate Process",
+                                            is_primary=True,
+                                            handler_payload={"pid": int(pid_str), "name": comm},
+                                        )
+                                    ],
+                                )
+                                count += 1
+                                if count >= 8:
+                                    break
+                except Exception as e:
+                    log.debug("Process listing error: %s", e)
+
+        # 3. Flow Launcher Web Search Prefix Plugins (g, ddg, gh, yt, wiki)
+        web_engines = {
+            "g ": ("Google", "https://www.google.com/search?q=", "google"),
+            "ddg ": ("DuckDuckGo", "https://duckduckgo.com/?q=", "search"),
+            "gh ": ("GitHub", "https://github.com/search?q=", "github"),
+            "yt ": ("YouTube", "https://www.youtube.com/results?search_query=", "youtube"),
+            "w ": ("Wikipedia", "https://en.wikipedia.org/wiki/Special:Search?search=", "book"),
+            "wiki ": ("Wikipedia", "https://en.wikipedia.org/wiki/Special:Search?search=", "book"),
+        }
+        for prefix, (engine_name, search_url, icon_name) in web_engines.items():
+            if q.startswith(prefix):
+                term = raw[len(prefix):].strip()
+                if term:
+                    yield LauncherResult(
+                        id=f"web_search:{engine_name}:{term}",
+                        provider_id=self.id,
+                        title=f"Search {engine_name} for “{term}”",
+                        subtitle=f"Direct Flow Launcher Web Search via {engine_name}",
+                        icon=icon_name,
+                        badge="WEB",
+                        score=110.0,
+                        preview_type="none",
+                        actions=[
+                            LauncherAction(
+                                id="open_url",
+                                title=f"Open in {engine_name}",
+                                is_primary=True,
+                                handler_payload={"url": f"{search_url}{term}"},
+                            )
+                        ],
+                    )
+
+        # 4. Flow Launcher Calculator Plugin (math evaluation)
+        if any(op in q for op in ("+", "-", "*", "/", "%", "^", "sqrt", "sin", "cos")):
+            try:
+                allowed = {
+                    "__builtins__": None,
+                    "math": math,
+                    "sqrt": math.sqrt,
+                    "abs": abs,
+                    "round": round,
+                    "sin": math.sin,
+                    "cos": math.cos,
+                    "pi": math.pi,
+                }
+                cleaned_expr = raw.replace("^", "**").replace("×", "*").replace("÷", "/")
+                # Ensure no forbidden identifiers
+                if not any(token in cleaned_expr for token in ("import", "exec", "eval", "__")):
+                    val = eval(cleaned_expr, allowed, {})
+                    if val is not None and isinstance(val, (int, float)):
+                        formatted_val = f"{val:g}" if isinstance(val, float) else str(val)
+                        yield LauncherResult(
+                            id=f"calc:{raw}",
+                            provider_id=self.id,
+                            title=formatted_val,
+                            subtitle=f"= {raw} (Flow Launcher Calculator — press ↵ to copy)",
+                            icon="calculator",
+                            badge="MATH",
+                            score=120.0,
+                            preview_type="none",
+                            actions=[
+                                LauncherAction(
+                                    id="copy_result",
+                                    title="Copy Result to Clipboard",
+                                    is_primary=True,
+                                    handler_payload={"text": formatted_val},
+                                )
+                            ],
+                        )
+            except Exception:
+                pass
+
+        # 5. Built-in Commands matching
         for cmd in self._commands:
             score = self._score_cmd(cmd, q)
             if score > 0:
@@ -191,4 +332,36 @@ class CommandProvider(BaseLauncherProvider):
                 "target": target,
                 "command_id": cmd_id,
             }
+
+        if action_id == "shell_run":
+            cmd_str = payload.get("command", "")
+            if cmd_str:
+                try:
+                    subprocess.Popen(cmd_str, shell=True)
+                    return {"status": "ok", "message": f"Command executed: {cmd_str}"}
+                except Exception as e:
+                    return {"status": "error", "message": str(e)}
+
+        if action_id == "kill_process":
+            pid = payload.get("pid")
+            name = payload.get("name", "process")
+            if pid:
+                try:
+                    import signal
+                    os.kill(int(pid), signal.SIGKILL)
+                    return {"status": "ok", "message": f"Terminated {name} (PID {pid})"}
+                except Exception as e:
+                    return {"status": "error", "message": str(e)}
+
+        if action_id == "copy_result":
+            from backend.remote.clipboard import set_clipboard
+            text = payload.get("text", "")
+            if text:
+                set_clipboard(text)
+                return {"status": "ok", "action": "clipboard", "text": text}
+
+        if action_id == "open_url":
+            url = payload.get("url", "")
+            return {"status": "ok", "action": "open_url", "url": url}
+
         raise ValueError(f"Unknown command action {action_id}")

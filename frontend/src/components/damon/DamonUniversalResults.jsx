@@ -45,11 +45,11 @@ export default function DamonUniversalResults({
   query,
   topHit,
   libraryItems = [],
-  peopleItems = [],
   fileItems = [],
   appItems = [],
   actionItems = [],
   onSelectResult,
+  onSelectTab,
   selectedIndex,
   getItemIndex,
 }) {
@@ -105,7 +105,11 @@ export default function DamonUniversalResults({
               <span>Library</span>
               <span className="damon-section-count">{libraryItems.length}</span>
             </div>
-            <button type="button" className="damon-section-action damon-section-action--see-all">
+            <button
+              type="button"
+              className="damon-section-action damon-section-action--see-all"
+              onClick={() => onSelectTab?.('library')}
+            >
               See all
             </button>
           </div>
@@ -141,7 +145,24 @@ export default function DamonUniversalResults({
                 >
                   <div className="damon-card-header">
                     <div className="damon-card-icon-box">
-                      <Icon name={iconName} size={15} />
+                      {item.thumbnail_url || (item.id && typeof item.id === 'number') ? (
+                        <img
+                          src={item.thumbnail_url || `/api/library/${item.id}/thumbnail`}
+                          alt=""
+                          className="damon-card-thumb-img"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none'
+                            const fallback = e.currentTarget.parentElement.querySelector('.damon-card-icon-fallback')
+                            if (fallback) fallback.style.display = 'flex'
+                          }}
+                        />
+                      ) : null}
+                      <span
+                        className="damon-card-icon-fallback"
+                        style={{ display: item.thumbnail_url || typeof item.id === 'number' ? 'none' : 'flex' }}
+                      >
+                        <Icon name={iconName} size={15} />
+                      </span>
                     </div>
                     <span className="damon-card-title">{item.title}</span>
                   </div>
@@ -156,51 +177,7 @@ export default function DamonUniversalResults({
         </div>
       )}
 
-      {/* 3. People Section */}
-      {peopleItems.length > 0 && (
-        <div className="damon-section-group">
-          <div className="damon-section-header">
-            <div className="damon-section-title-wrap">
-              <span>People</span>
-              <span className="damon-section-count">{peopleItems.length}</span>
-            </div>
-            <button type="button" className="damon-section-action damon-section-action--see-all">
-              See all
-            </button>
-          </div>
-
-          <div className="damon-list-container">
-            {peopleItems.map((person, i) => {
-              const idx = getItemIndex(person)
-              const isSelected = selectedIndex === idx
-              const initial = (person.title || person.name || 'P').charAt(0).toUpperCase()
-              const avatarClass = i % 2 === 0 ? 'damon-avatar--orange' : 'damon-avatar--green'
-
-              return (
-                <button
-                  key={person.id || `person-${i}`}
-                  type="button"
-                  className={`damon-row palette-item${isSelected ? ' is-selected' : ''}`}
-                  onClick={() => onSelectResult(person)}
-                >
-                  <div className={`damon-avatar ${avatarClass}`}>{initial}</div>
-                  <div className="damon-row-main">
-                    <div className="damon-row-title">{person.title || person.name}</div>
-                    <div className="damon-row-subtitle">
-                      {person.subtitle || person.email || person.person || ''}
-                    </div>
-                  </div>
-                  <div className="damon-row-trailing">
-                    <Icon name="arrow-up-right" size={16} />
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* 4. Files & Folders Section */}
+      {/* 3. Files & Folders Section */}
       {fileItems.length > 0 && (
         <div className="damon-section-group">
           <div className="damon-section-header">
@@ -208,7 +185,11 @@ export default function DamonUniversalResults({
               <span>Files and folders</span>
               <span className="damon-section-count">{fileItems.length}</span>
             </div>
-            <button type="button" className="damon-section-action damon-section-action--see-all">
+            <button
+              type="button"
+              className="damon-section-action damon-section-action--see-all"
+              onClick={() => onSelectTab?.('files')}
+            >
               See all
             </button>
           </div>
@@ -343,16 +324,50 @@ export default function DamonUniversalResults({
         </div>
       )}
 
-      {/* 7. Web Fallback Row */}
+      {/* 7. Web & AI Fallback Actions */}
       {query && (
         <div className="damon-section-group">
           <div className="damon-section-header">
             <div className="damon-section-title-wrap">
-              <span>Web</span>
+              <span>Actions & Search</span>
             </div>
           </div>
 
           <div className="damon-list-container">
+            {/* Ask AI row */}
+            {(() => {
+              const askItem = {
+                id: 'ask-amethyst-fallback',
+                type: 'ask',
+                title: `Ask Amethyst: “${query}”`,
+                subtitle: 'AI reasoning, answer, and follow-ups',
+                isAsk: true,
+              }
+              const idx = getItemIndex(askItem)
+              const isSelected = selectedIndex === idx
+
+              return (
+                <button
+                  key="ask-amethyst-fallback"
+                  type="button"
+                  className={`damon-row palette-item${isSelected ? ' is-selected' : ''}`}
+                  onClick={() => onSelectResult(askItem)}
+                >
+                  <div className="damon-row-icon-wrap" style={{ background: 'rgba(113, 50, 245, 0.12)', color: '#7132f5' }}>
+                    <Icon name="spark" size={17} />
+                  </div>
+                  <div className="damon-row-main">
+                    <div className="damon-row-title">Ask Amethyst: “{query}”</div>
+                    <div className="damon-row-subtitle">AI reasoning, answer, and follow-ups</div>
+                  </div>
+                  <div className="damon-row-trailing">
+                    <span className="damon-row-shortcut">↵</span>
+                  </div>
+                </button>
+              )
+            })()}
+
+            {/* Web Search row */}
             {(() => {
               const webItem = {
                 id: 'web-fallback',
@@ -366,12 +381,13 @@ export default function DamonUniversalResults({
 
               return (
                 <button
+                  key="web-fallback"
                   type="button"
                   className={`damon-row palette-item${isSelected ? ' is-selected' : ''}`}
                   onClick={() => onSelectResult(webItem)}
                 >
                   <div className="damon-row-icon-wrap">
-                    <Icon name="globe" size={18} />
+                    <Icon name="globe" size={17} />
                   </div>
                   <div className="damon-row-main">
                     <div className="damon-row-title">Search the web for “{query}”</div>

@@ -54,6 +54,11 @@
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
 }
 
+.pair-screen.is-flow-lime {
+  background: #D6F23E;
+  color: #111113;
+}
+
 /* Top Navigation Bar */
 .pair-top-bar {
   width: 100%;

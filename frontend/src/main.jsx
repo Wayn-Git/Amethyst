@@ -45,7 +45,13 @@ const isDevWidgets = import.meta.env.DEV && window.location.pathname === '/dev/w
 const isDevUI = import.meta.env.DEV && window.location.pathname === '/dev/ui'
 
 const params = new URLSearchParams(window.location.search)
-const SPOTLIGHT = params.get('spotlight') === '1'
+const SPOTLIGHT = params.get('spotlight') === '1' || params.get('cmd') === 'palette' || params.get('mode') === 'spotlight'
+if (SPOTLIGHT) {
+  document.documentElement.classList.add('spotlight-only-mode')
+  if (typeof document !== 'undefined' && document.body) {
+    document.body.style.background = 'transparent'
+  }
+}
 
 /* Inside AMETHYST's own window rather than a browser tab.
 

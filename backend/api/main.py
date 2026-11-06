@@ -8936,6 +8936,82 @@ async def retry_failed_storage_migration(background_tasks: BackgroundTasks) -> d
     return {"status": "retried", "retried": retried, **engine.get_status()}
 
 
+class LibrarySyncDetectRequest(BaseModel):
+    mode: str = "auto"
+    custom_path: str | None = None
+
+
+class LibrarySyncStartRequest(BaseModel):
+    root_folder_id: str | None = None
+    root_path: str | None = None
+
+
+@app.post("/api/library/sync/detect-path")
+async def detect_library_sync_path(body: LibrarySyncDetectRequest | None = None) -> dict[str, Any]:
+    """Detect or verify the Google Drive library root folder."""
+    from backend.library.storage.gdrive_bridge import GoogleDriveBridge
+
+    bridge = GoogleDriveBridge()
+    if not bridge.is_connected():
+        raise HTTPException(
+            status_code=400,
+            detail="Google Drive is not connected or requires re-authentication.",
+        )
+
+    mode = body.mode if body else "auto"
+    custom_path = body.custom_path if body else None
+    return await bridge.detect_library_root(mode=mode, custom_path=custom_path)
+
+
+@app.get("/api/library/sync/status")
+def get_library_sync_status() -> dict[str, Any]:
+    """Get live metrics on Google Drive two-way library synchronization."""
+    from backend.library.storage.sync_engine import LibrarySyncEngine
+
+    return LibrarySyncEngine().get_status()
+
+
+@app.post("/api/library/sync/start")
+async def start_library_sync(
+    background_tasks: BackgroundTasks,
+    body: LibrarySyncStartRequest | None = None,
+) -> dict[str, Any]:
+    """Trigger background two-way synchronization with Google Drive."""
+    from backend.library.storage.gdrive_bridge import GoogleDriveBridge
+    from backend.library.storage.sync_engine import LibrarySyncEngine
+
+    bridge = GoogleDriveBridge()
+    if not bridge.is_connected():
+        raise HTTPException(
+            status_code=400,
+            detail="Google Drive is not connected or requires re-authentication. Connect Google Drive in Settings first.",
+        )
+
+    engine = LibrarySyncEngine(bridge=bridge)
+    if engine.get_status().get("is_running"):
+        return {"status": "already_running", **engine.get_status()}
+
+    root_id = body.root_folder_id if body else None
+    if not root_id and body and body.root_path:
+        root_id = await bridge.ensure_verified_root(body.root_path)
+
+    async def _run_sync():
+        await engine.run_two_way_sync(root_folder_id=root_id)
+
+    background_tasks.add_task(_run_sync)
+    return {"status": "started", **engine.get_status()}
+
+
+@app.post("/api/library/sync/cancel")
+def cancel_library_sync() -> dict[str, Any]:
+    """Cancel any in-progress library synchronization."""
+    from backend.library.storage.sync_engine import LibrarySyncEngine
+
+    engine = LibrarySyncEngine()
+    engine.cancel()
+    return {"status": "cancelling", **engine.get_status()}
+
+
 
 @app.post("/api/library/{item_id}/enrich")
 async def enrich_library_item(
@@ -9005,7 +9081,7 @@ async def library_thumbnail(item_id: int) -> FileResponse:
                 path = cache_thumb
 
     # If missing or not yet downloaded, try on-demand fetch once with a short timeout
-    if not path and row["url"]:
+    if not path and row["url"] and not any(d in (row["url"] or "") for d in ("drive.google.com", "127.0.0.1", "localhost")):
         service = LibraryService(store)
         try:
             fetched = await asyncio.wait_for(service.fetch_thumbnail_for_item(item_id), timeout=3.0)
@@ -9929,6 +10005,7 @@ async def launcher_icon(name: str):
 
     import glob
     import os
+    from pathlib import Path
     from starlette.responses import FileResponse
 
     # 1. Direct absolute path if provided
@@ -9936,12 +10013,50 @@ async def launcher_icon(name: str):
         media_type = "image/svg+xml" if name.endswith(".svg") else "image/png"
         return FileResponse(name, media_type=media_type, headers={"Cache-Control": "public, max-age=86400"})
 
-    clean = name.strip().lower()
-    if clean.endswith(".png") or clean.endswith(".svg") or clean.endswith(".xpm"):
-        clean = os.path.splitext(clean)[0]
+    raw_name = name.strip()
+    if raw_name.endswith(".png") or raw_name.endswith(".svg") or raw_name.endswith(".xpm"):
+        raw_name = os.path.splitext(raw_name)[0]
+    clean = raw_name.lower()
 
-    # 2. System icon candidates on Linux
+    # Common aliases and variations (preserving case sensitive desktop names)
+    aliases = [raw_name]
+    if clean != raw_name:
+        aliases.append(clean)
+
+    if "." in raw_name:
+        parts = raw_name.split(".")
+        last = parts[-1]
+        aliases.append(last)
+        if last.lower() != last:
+            aliases.append(last.lower())
+        import re
+        hyphenated = re.sub(r'(?<!^)(?=[A-Z])', '-', last).lower()
+        if hyphenated not in aliases:
+            aliases.append(hyphenated)
+
+    alias_map = {
+        "code": ["visual-studio-code", "vscode", "com.visualstudio.code"],
+        "spotify": ["spotify-client", "com.spotify.Client"],
+        "terminal": ["utilities-terminal", "terminal", "org.gnome.Terminal", "kitty", "alacritty", "ptyxis"],
+        "files": ["system-file-manager", "org.gnome.Nautilus", "file-manager"],
+        "nautilus": ["org.gnome.Nautilus", "system-file-manager"],
+        "settings": ["preferences-system", "gnome-control-center"],
+        "chrome": ["google-chrome", "chromium-browser", "chromium"],
+        "firefox": ["firefox-esr", "org.mozilla.firefox"],
+        "calculator": ["accessories-calculator", "org.gnome.Calculator", "calc"],
+        "evince": ["org.gnome.Evince", "document-viewer", "org.gnome.Papers"],
+        "papers": ["org.gnome.Papers", "org.gnome.Evince", "document-viewer"],
+    }
+    for a in list(aliases):
+        if a.lower() in alias_map:
+            aliases.extend(alias_map[a.lower()])
+
+    home = Path.home()
     search_dirs = [
+        str(home / "MacTahoe-icon-theme" / "src" / "apps" / "scalable"),
+        str(home / "MacTahoe-icon-theme" / "links" / "apps" / "scalable"),
+        str(home / "MacTahoe-icon-theme" / "bold" / "apps" / "symbolic"),
+        str(home / ".local" / "share" / "icons" / "hicolor" / "scalable" / "apps"),
         "/usr/share/icons/hicolor/scalable/apps",
         "/usr/share/icons/hicolor/256x256/apps",
         "/usr/share/icons/hicolor/128x128/apps",
@@ -9949,28 +10064,34 @@ async def launcher_icon(name: str):
         "/usr/share/icons/hicolor/48x48/apps",
         "/usr/share/pixmaps",
     ]
-    for d in search_dirs:
-        for ext in (".svg", ".png"):
-            cand = os.path.join(d, f"{clean}{ext}")
-            if os.path.isfile(cand):
-                media_type = "image/svg+xml" if ext == ".svg" else "image/png"
-                return FileResponse(cand, media_type=media_type, headers={"Cache-Control": "public, max-age=86400"})
 
-    # 3. Simple icons in node_modules
-    simple_icon_path = os.path.abspath(os.path.join(
-        os.path.dirname(__file__), "..", "..", "frontend", "node_modules", "simple-icons", "icons", f"{clean}.svg"
-    ))
-    if os.path.isfile(simple_icon_path):
-        return FileResponse(simple_icon_path, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=86400"})
+    for candidate_name in aliases:
+        for d in search_dirs:
+            if not os.path.isdir(d):
+                continue
+            for ext in (".svg", ".png"):
+                cand = os.path.join(d, f"{candidate_name}{ext}")
+                if os.path.isfile(cand):
+                    media_type = "image/svg+xml" if ext == ".svg" else "image/png"
+                    return FileResponse(cand, media_type=media_type, headers={"Cache-Control": "public, max-age=86400"})
 
-    # 4. Fallback search in /usr/share/icons
-    matches = glob.glob(f"/usr/share/icons/**/{clean}.*", recursive=True)
-    for m in matches:
-        if os.path.isfile(m):
-            ext = os.path.splitext(m)[1].lower()
-            if ext in (".svg", ".png"):
-                media_type = "image/svg+xml" if ext == ".svg" else "image/png"
-                return FileResponse(m, media_type=media_type, headers={"Cache-Control": "public, max-age=86400"})
+    # Simple icons in node_modules
+    for candidate_name in aliases:
+        simple_icon_path = os.path.abspath(os.path.join(
+            os.path.dirname(__file__), "..", "..", "frontend", "node_modules", "simple-icons", "icons", f"{candidate_name}.svg"
+        ))
+        if os.path.isfile(simple_icon_path):
+            return FileResponse(simple_icon_path, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=86400"})
+
+    # Fallback search across icon themes
+    for candidate_name in aliases:
+        matches = glob.glob(f"/usr/share/icons/**/{candidate_name}.*", recursive=True)
+        for m in matches:
+            if os.path.isfile(m):
+                ext = os.path.splitext(m)[1].lower()
+                if ext in (".svg", ".png"):
+                    media_type = "image/svg+xml" if ext == ".svg" else "image/png"
+                    return FileResponse(m, media_type=media_type, headers={"Cache-Control": "public, max-age=86400"})
 
     raise HTTPException(status_code=404, detail="Icon not found")
 

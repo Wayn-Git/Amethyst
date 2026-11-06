@@ -310,18 +310,37 @@ class GoogleDriveBridge:
         return root_id
 
     async def _find_folder(self, name: str, parent_id: str | None = None) -> str | None:
-        """Search for a folder by name within parent_id."""
-        args: dict[str, Any] = {"name_exact": name}
-        if parent_id and parent_id not in ("root", "/"):
-            args["parent_folder_id"] = parent_id
+        """Search for a folder by name within parent_id (case-insensitive fallback)."""
+        variations = [name]
+        for candidate in (name.lower(), name.capitalize(), name.title(), name.upper()):
+            if candidate not in variations:
+                variations.append(candidate)
 
-        try:
-            res = await self._execute("GOOGLEDRIVE_FIND_FOLDER", args)
-            files = res.get("files", []) if isinstance(res, dict) else []
-            if files and isinstance(files[0], dict) and "id" in files[0]:
-                return str(files[0]["id"])
-        except Exception as exc:
-            log.warning("Failed to find folder '%s' under '%s': %s", name, parent_id, exc)
+        for cand in variations:
+            args: dict[str, Any] = {"name_exact": cand}
+            if parent_id and parent_id not in ("root", "/"):
+                args["parent_folder_id"] = parent_id
+
+            try:
+                res = await self._execute("GOOGLEDRIVE_FIND_FOLDER", args)
+                files = res.get("files", []) if isinstance(res, dict) else []
+                if files and isinstance(files[0], dict) and "id" in files[0]:
+                    return str(files[0]["id"])
+            except Exception as exc:
+                log.warning("Failed to find folder '%s' under '%s': %s", cand, parent_id, exc)
+
+        # Fallback: if parent_id provided, list contents and check case-insensitively
+        if parent_id and parent_id not in ("root", "/"):
+            try:
+                children = await self.list_files_in_folder(parent_id)
+                target_lower = name.strip().lower()
+                for c in children:
+                    if c.get("mimeType") == "application/vnd.google-apps.folder":
+                        if str(c.get("name", "")).strip().lower() == target_lower and c.get("id"):
+                            return str(c["id"])
+            except Exception:
+                pass
+
         return None
 
     async def _create_folder_direct(self, name: str, parent_id: str | None = None) -> str:
@@ -349,15 +368,30 @@ class GoogleDriveBridge:
         return found
 
     async def list_files_in_folder(self, folder_id: str) -> list[dict[str, Any]]:
-        """List files strictly inside folder_id."""
+        """List all files strictly inside folder_id with full pagination support."""
         query = f"'{folder_id}' in parents and trashed = false"
+        all_files: list[dict[str, Any]] = []
+        page_token = None
+        max_pages = 50
+
         try:
-            res = await self._execute("GOOGLEDRIVE_FIND_FILE", {"q": query})
-            if isinstance(res, dict) and "files" in res:
-                return list(res["files"])
+            for _ in range(max_pages):
+                params: dict[str, Any] = {"q": query, "pageSize": 500}
+                if page_token:
+                    params["nextPageToken"] = page_token
+                res = await self._execute("GOOGLEDRIVE_FIND_FILE", params)
+                if not isinstance(res, dict):
+                    break
+                files = res.get("files", [])
+                if isinstance(files, list):
+                    all_files.extend(files)
+                page_token = res.get("nextPageToken")
+                if not page_token:
+                    break
+            return all_files
         except Exception as exc:
             log.warning("Could not list files in folder %s: %s", folder_id, exc)
-        return []
+            return all_files
 
     async def upload_file(
         self,

@@ -8,8 +8,8 @@ export default function DamonSplitView({
   onSelectItem,
   onOpenItem,
   onRevealItem,
-  filterRoot = '~/Projects',
-  filterDate = 'This week',
+  filterRoot = 'Home ~ (Global)',
+  filterDate = 'All time',
   onClearTypeFilter,
   selectedIndex,
   getItemIndex,
@@ -142,13 +142,16 @@ export default function DamonSplitView({
                   <div className="damon-preview-meta">
                     <span className="damon-preview-filename">{current.title}</span>
                     <span className="damon-preview-sub">
-                      {current.meta || current.subtitle || 'File · Local storage'}
+                      {current.preview_data?.size_str
+                        ? `${current.preview_data.size_str} · ${current.preview_data.mod_str || 'File'}`
+                        : current.subtitle || 'File · Local storage'}
                     </span>
                   </div>
                 </div>
 
                 <div className="damon-preview-content-card">
-                  {current.preview_data?.content ||
+                  {current.preview_data?.snippet ||
+                    current.preview_data?.markdown ||
                     current.content ||
                     current.summary ||
                     `# ${current.title}\nReady to open or view in your system file manager.`}

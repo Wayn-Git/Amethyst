@@ -121,7 +121,9 @@ export function getDomain(url, site) {
   if (!url) return ''
   try {
     const parsed = new URL(url)
-    return (parsed.hostname || '').replace(/^www\./i, '').toLowerCase()
+    const host = (parsed.hostname || '').replace(/^www\./i, '').toLowerCase()
+    if (host.includes('drive.google.com')) return ''
+    return host
   } catch {
     return ''
   }
@@ -131,6 +133,8 @@ export function getFaviconUrl(url) {
   if (!url) return null
   try {
     const parsed = new URL(url)
+    const host = (parsed.hostname || '').toLowerCase()
+    if (host.includes('drive.google.com')) return null
     return `https://www.google.com/s2/favicons?domain=${parsed.hostname}&sz=32`
   } catch {
     return null
@@ -248,12 +252,21 @@ function LibraryCardComponent({
   const slideCount = slides.length
   const isCarousel = slideCount > 1
 
+  const urlLower = (item.url || '').toLowerCase()
+  const isDirectVideoUrl = /\.(mp4|mov|webm)(\?|$)/i.test(urlLower)
+  const isReelOrShort = urlLower.includes('/reel/') || urlLower.includes('/reels/') || urlLower.includes('/shorts/')
+  const youtubeId = useMemo(() => extractYoutubeId(item.url), [item.url])
+  const isYouTube = app === 'youtube' || Boolean(youtubeId)
+
   const currentImageUrl = useMemo(() => {
     if (isCarousel && currentSlideIndex > 0 && slides[currentSlideIndex]) {
       return slides[currentSlideIndex].url
     }
+    if (youtubeId && !item.thumbnail_path) {
+      return `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`
+    }
     return api.thumbnailUrl(item.id)
-  }, [isCarousel, slides, currentSlideIndex, item.id])
+  }, [isCarousel, slides, currentSlideIndex, item.id, youtubeId, item.thumbnail_path])
 
   const [imgLoaded, setImgLoaded] = useState(false)
   useEffect(() => {
@@ -271,7 +284,7 @@ function LibraryCardComponent({
     }
   }, [slides, currentSlideIndex, item.id])
 
-  const hasThumbnail = Boolean((item.thumbnail_path || item.url || slides.length > 0) && !thumbFailed)
+  const hasThumbnail = Boolean((item.thumbnail_path || slides.length > 0 || (isYouTube && youtubeId)) && !thumbFailed)
   const domain = getDomain(item.url, item.site)
   const duration = formatDuration(item.duration_seconds)
   const favicon = getFaviconUrl(item.url)
@@ -287,11 +300,6 @@ function LibraryCardComponent({
     (item.media_path && /\.(mp4|mov|webm)(\?|$)/i.test(item.media_path)) ||
     (item.storage_provider === 'google_drive' && (item.kind === 'video' || item.is_reel))
   )
-  const urlLower = (item.url || '').toLowerCase()
-  const isDirectVideoUrl = /\.(mp4|mov|webm)(\?|$)/i.test(urlLower)
-  const isReelOrShort = urlLower.includes('/reel/') || urlLower.includes('/reels/') || urlLower.includes('/shorts/')
-  const youtubeId = useMemo(() => extractYoutubeId(item.url), [item.url])
-  const isYouTube = app === 'youtube' || Boolean(youtubeId)
 
   const isVideo = (
     item.kind === 'video' ||
@@ -827,7 +835,7 @@ function LibraryCardComponent({
 
         {/* Title */}
         <h3 className="lib-card-title">
-          {item.url ? (
+          {item.url && !item.url.includes('drive.google.com') ? (
             <a
               href={item.url}
               target="_blank"

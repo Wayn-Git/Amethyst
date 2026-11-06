@@ -1165,7 +1165,7 @@ def cmd_desktop(args: argparse.Namespace) -> int:
         log_level=args.log_level,
         open_browser=args.open,
         native_window=not args.no_window,
-        present=not args.background,
+        present=not (args.background or getattr(args, "spotlight_only", False)),
     )
 
 
@@ -2192,6 +2192,11 @@ def main(argv: list[str] | None = None) -> int:
         "--background",
         action="store_true",
         help="start without showing a window (what the login entry uses)",
+    )
+    desk.add_argument(
+        "--spotlight-only",
+        action="store_true",
+        help="run in spotlight-only mode; main application window stays hidden unless explicitly summoned",
     )
     desk.add_argument(
         "--install-autostart", action="store_true", help="start the tray at login"

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Send to Amethyst</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&amp;family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}*{box-sizing:border-box}
+.s{position:relative;width:390px;height:844px;background:#ECEAE6;color:#141414;font-family:'Instrument Sans','Inter',system-ui,sans-serif;font-size:14px;line-height:1.4;display:flex;flex-direction:column;overflow:hidden}
+.b{flex:1;padding:20px 18px 104px;display:flex;flex-direction:column;gap:14px;overflow:hidden}.dsp{font-family:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif}
+.h{font-family:'Bricolage Grotesque','Instrument Sans',sans-serif;font-size:32px;font-weight:600;letter-spacing:-.04em;line-height:1.05;margin:0}.gl{font-style:italic;color:#7D7871;font-size:24px;line-height:1.1;letter-spacing:-.02em}
+.m{color:#6E6A64;font-size:12px}.mono{font-family:'JetBrains Mono',monospace}.ttl{font-size:15px;font-weight:600;margin:0;letter-spacing:-.01em}.st{font-family:'Bricolage Grotesque',sans-serif;font-size:19px;font-weight:600;letter-spacing:-.03em}
+.c{background:#F6F4F1;border-radius:24px;padding:16px;box-shadow:0 1px 2px rgba(30,25,20,.05)}.blk{background:#111113;color:#fff;border-radius:28px;padding:18px}.blk .m{color:#A9A6A0}
+.r{display:flex;align-items:center;gap:10px}.sp{justify-content:space-between}.col{display:flex;flex-direction:column;gap:8px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.hr{height:1px;background:#E4E0DA}.d{width:8px;height:8px;border-radius:50%;background:#111113;box-shadow:0 0 0 3px #D6F23E;flex:none}.d.w{background:#D9541E;box-shadow:0 0 0 3px #F6D5C6}
+.ch{background:#F6F4F1;border-radius:999px;padding:8px 14px;font-size:13px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;color:#141414}.ch.on{background:#111113;color:#fff}
+.bt{background:#111113;color:#fff;border:0;border-radius:999px;padding:0 20px;min-height:48px;font:600 14px 'Instrument Sans',sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px}.bt.l{background:#D6F23E;color:#111113}.bt.g{background:#F6F4F1;color:#141414}.bt.o{background:transparent;color:#111113;border:1.5px solid #111113}
+.ib{width:44px;height:44px;border-radius:50%;border:0;background:#F6F4F1;display:inline-flex;align-items:center;justify-content:center;color:#141414;flex:none;padding:0;box-shadow:0 1px 2px rgba(30,25,20,.06)}.ib.k{background:#111113;color:#fff}
+.it{width:40px;height:40px;border-radius:12px;background:#ECEAE6;display:inline-flex;align-items:center;justify-content:center;flex:none;color:#141414}
+.in{flex:1;border:0;background:transparent;font:14px 'Instrument Sans',sans-serif;color:#141414;outline:0;min-height:48px}.in::placeholder{color:#7D7871}
+.tabs{display:flex;gap:22px;border-bottom:1px solid #D9D5CE}.tabs span{padding:8px 0;color:#6E6A64}.tabs .on{color:#141414;font-weight:600;border-bottom:2px solid #141414;margin-bottom:-1px}
+.pb{height:6px;border-radius:3px;background:#DAD6CF;overflow:hidden}.blk .pb{background:#2B2B2E}.av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex:none}
+.nav{position:absolute;left:16px;right:16px;bottom:22px;display:flex;gap:8px;align-items:center}.pill{flex:1;height:60px;display:flex;align-items:center;justify-content:space-between;background:#F9F8F6;border-radius:999px;padding:6px;box-shadow:0 8px 24px rgba(30,25,20,.12),0 1px 2px rgba(30,25,20,.06)}
+.pill a{height:48px;min-width:44px;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:6px;color:#6E6A64;font-size:13px;font-weight:600;text-decoration:none}.pill a.on{background:#111113;color:#fff;padding:0 14px}.pill a.on svg{color:#D6F23E}
+.fab{width:60px;height:60px;border-radius:50%;background:#111113;color:#fff;border:0;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(30,25,20,.2);flex:none}
+.spn{width:14px;height:14px;border:2px solid #D8D4CD;border-top-color:#111113;border-radius:50%;animation:r 1s linear infinite;flex:none}.tg{width:50px;height:30px;border-radius:999px;background:#D6F23E;position:relative;flex:none}.tg i{position:absolute;right:3px;top:3px;width:24px;height:24px;border-radius:50%;background:#111113}
+@keyframes r{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.spn{animation:none}}</style>
+</helmet>
+<div class="s" style="width:390px;height:844px;background:#2C2A27"><div style="flex:1;padding:28px 20px"><div style="width:100%;height:100%;border-radius:28px;background:#111113;overflow:hidden;flex:none"><svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><circle cx="50" cy="50" r="12" fill="none" stroke="#D6F23E" stroke-width="2"></circle><circle cx="50" cy="50" r="24" fill="none" stroke="#D6F23E" stroke-width="2"></circle><circle cx="50" cy="50" r="36" fill="none" stroke="#D6F23E" stroke-width="2"></circle><circle cx="50" cy="50" r="48" fill="none" stroke="#D6F23E" stroke-width="2"></circle></svg></div></div>
+<div style="background:#F6F4F1;border-radius:32px 32px 0 0;padding:22px 20px 32px;display:flex;flex-direction:column;gap:14px"><div class="r sp"><h1 class="h" style="font-size:24px">Send to Amethyst</h1><span class="m">Cancel</span></div>
+<div class="r" style="background:#ECEAE6;border-radius:20px;padding:10px;gap:12px"><div style="width:48px;height:48px;border-radius:12px;background:#D6F23E;overflow:hidden;flex:none"><svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><path d="M50 12C54 38 62 46 88 50 62 54 54 62 50 88 46 62 38 54 12 50 38 46 46 38 50 12Z" fill="#111113"></path><circle cx="82" cy="18" r="4" fill="#111113"></circle></svg></div><div><div class="ttl">Reel from Instagram</div><div class="m">instagram.com</div></div></div>
+<div class="r" style="gap:8px;overflow:hidden"><span class="ch on">Library</span><span class="ch">Task</span><span class="ch">Ask agent</span></div><div class="r" style="gap:12px"><span class="d w"></span><div><div style="font-weight:500">PC is offline</div><div class="m">It will be sent when your PC is back.</div></div></div><button class="bt l" style="justify-content:space-between">Send<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></button></div></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

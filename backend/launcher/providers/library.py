@@ -8,6 +8,7 @@ from backend.launcher.provider import (
     LauncherAction,
     LauncherResult,
 )
+from backend.launcher.wox_matcher import wox_fuzzy_match
 
 log = logging.getLogger(__name__)
 
@@ -36,10 +37,36 @@ class LibraryProvider(BaseLauncherProvider):
         self, query: str, session_id: str
     ) -> AsyncIterator[LauncherResult]:
         q = query.strip()
-        items = await self._search_library_items(q, limit=8)
+        items = await self._search_library_items(q, limit=25)
+        if not q:
+            for i, item in enumerate(items[:15]):
+                yield self._to_result(item, score=70.0 - i)
+            return
 
-        for i, item in enumerate(items):
-            score = max(85.0 - (i * 2.0), 30.0)
+        scored: list[tuple[dict[str, Any], float]] = []
+        for item in items:
+            title = item.get("title") or ""
+            match = wox_fuzzy_match(title, q)
+            score = match.score if match.is_match else 0.0
+
+            # Tags bonus
+            for t in item.get("tags") or []:
+                tag_match = wox_fuzzy_match(t, q)
+                if tag_match.is_match and tag_match.score * 0.8 > score:
+                    score = tag_match.score * 0.8
+
+            # Excerpt/summary check
+            for text_field in (item.get("summary"), item.get("excerpt")):
+                if text_field:
+                    exc_match = wox_fuzzy_match(text_field[:500], q)
+                    if exc_match.is_match and exc_match.score * 0.6 > score:
+                        score = exc_match.score * 0.6
+
+            if score > 0:
+                scored.append((item, score))
+
+        scored.sort(key=lambda x: x[1], reverse=True)
+        for item, score in scored[:15]:
             yield self._to_result(item, score)
 
     def _to_result(self, item: dict[str, Any], score: float) -> LauncherResult:
@@ -49,6 +76,9 @@ class LibraryProvider(BaseLauncherProvider):
         kind = item.get("kind") or "article"
         site = item.get("site") or (url.split("/")[2] if "//" in url else kind)
         summary = item.get("summary") or item.get("excerpt") or ""
+        thumbnail_url = f"/api/library/{item_id}/thumbnail" if item_id else None
+        tags = item.get("tags") or []
+        created_on = item.get("consumed_on") or item.get("created_at") or "Recently"
 
         # Map kind to icon
         kind_icons = {
@@ -91,14 +121,18 @@ class LibraryProvider(BaseLauncherProvider):
             title=title,
             subtitle=f"{kind.title()} · {site}",
             icon=icon,
-            badge="Library",
+            badge=kind.title(),
             score=score,
             preview_type="markdown",
             preview_data={
+                "id": item_id,
                 "title": title,
                 "url": url,
                 "kind": kind,
                 "site": site,
+                "thumbnail_url": thumbnail_url,
+                "tags": tags,
+                "date_label": created_on,
                 "excerpt": summary[:1200] if summary else "No preview text available.",
             },
             actions=actions,

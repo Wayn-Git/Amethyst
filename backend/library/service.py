@@ -1218,12 +1218,18 @@ class LibraryService:
             except Exception:
                 pass
 
-        # High-res favicon/touch-icon fallback if webpage had no og:image
+        # High-res favicon/touch-icon fallback only for regular webpages (never for social/video feeds)
+        EXCLUDED_FAVICON_HOSTS = (
+            "localhost", "127.0.0.1", "drive.google.com", "google.com",
+            "x.com", "twitter.com", "instagram.com", "instagr.am",
+            "tiktok.com", "youtube.com", "youtu.be", "reddit.com",
+            "redd.it", "threads.net", "pinterest.com", "pin.it",
+        )
         if not thumb_url and url:
             try:
                 from urllib.parse import urlparse
                 host = (urlparse(url).hostname or "").lower()
-                if host and not any(h in host for h in ("localhost", "127.0.0.1")):
+                if host and not any(h in host for h in EXCLUDED_FAVICON_HOSTS):
                     thumb_url = f"https://www.google.com/s2/favicons?domain={host}&sz=128"
             except Exception:
                 pass

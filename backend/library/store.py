@@ -353,6 +353,7 @@ class LibraryStore:
     def create(
         self,
         *,
+        item_id: int | None = None,
         kind: str,
         title: str,
         category: str | None = None,
@@ -365,28 +366,53 @@ class LibraryStore:
         rating: int | None = None,
         source_ref: str | None = None,
     ) -> int:
-        cursor = self.conn.execute(
-            "INSERT INTO library_items (kind, title, category, url, author, site, published_on,"
-            " consumed_on, notes, rating, source_ref, created_at, updated_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                kind,
-                title,
-                category,
-                url,
-                author,
-                site,
-                published_on,
-                consumed_on or _today(),
-                notes,
-                rating,
-                source_ref,
-                _now(),
-                _now(),
-            ),
-        )
+        if item_id is not None:
+            cursor = self.conn.execute(
+                "INSERT OR REPLACE INTO library_items (id, kind, title, category, url, author, site, published_on,"
+                " consumed_on, notes, rating, source_ref, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    item_id,
+                    kind,
+                    title,
+                    category,
+                    url,
+                    author,
+                    site,
+                    published_on,
+                    consumed_on or _today(),
+                    notes,
+                    rating,
+                    source_ref,
+                    _now(),
+                    _now(),
+                ),
+            )
+            created_id = item_id
+        else:
+            cursor = self.conn.execute(
+                "INSERT INTO library_items (kind, title, category, url, author, site, published_on,"
+                " consumed_on, notes, rating, source_ref, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    kind,
+                    title,
+                    category,
+                    url,
+                    author,
+                    site,
+                    published_on,
+                    consumed_on or _today(),
+                    notes,
+                    rating,
+                    source_ref,
+                    _now(),
+                    _now(),
+                ),
+            )
+            created_id = int(cursor.lastrowid)
         self.conn.commit()
-        item_id = int(cursor.lastrowid)
+        item_id = created_id
         try:
             from notifier.library_hook import on_library_item_saved
 
