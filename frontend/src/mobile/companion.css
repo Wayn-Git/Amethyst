@@ -18,3 +18,210 @@
 .companion-nav { position: fixed; bottom: 0; inset-inline: 0; z-index: 60; display: grid; grid-template-columns: repeat(5, 1fr); padding: 8px 4px calc(8px + env(safe-area-inset-bottom)); background: var(--bg); border-top: 1px solid var(--hairline-strong); }
 .companion-nav button { display: flex; flex-direction: column; align-items: center; gap: 4px; border: 0; background: transparent; font-size: 11px; }
 .companion-nav button[aria-current="page"] { color: var(--accent); background: var(--bg-inset); }
+
+/* Transport Status Pill */
+.transport-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  background: var(--bg-inset);
+  border: 1px solid var(--hairline-strong);
+  color: var(--text);
+  min-height: 32px !important;
+  transition: all 0.15s ease;
+}
+.transport-pill:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+}
+.transport-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.transport-dot--direct { background: #22c55e; box-shadow: 0 0 6px rgba(34, 197, 94, 0.6); }
+.transport-dot--relayed { background: #f59e0b; box-shadow: 0 0 6px rgba(245, 158, 11, 0.6); }
+.transport-dot--reconnecting { background: #3b82f6; animation: diag-pulse 1.5s infinite; }
+.transport-dot--offline { background: #ef4444; }
+
+@keyframes diag-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+/* Connection Diagnostics Modal */
+.diag-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.diag-modal-sheet {
+  width: 100%;
+  max-width: 500px;
+  background: var(--bg);
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  border: 1px solid var(--hairline-strong);
+  border-bottom: 0;
+  padding: 20px 16px calc(24px + env(safe-area-inset-bottom));
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.4);
+  max-height: 85dvh;
+  overflow-y: auto;
+}
+.diag-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.diag-modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.diag-modal-title-row h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+.diag-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.diag-status-dot--direct { background: #22c55e; }
+.diag-status-dot--relayed { background: #f59e0b; }
+.diag-status-dot--reconnecting { background: #3b82f6; animation: diag-pulse 1.5s infinite; }
+.diag-status-dot--offline { background: #ef4444; }
+
+.diag-close-btn {
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--text-sub) !important;
+  cursor: pointer;
+  padding: 4px;
+  min-height: auto !important;
+}
+.diag-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.diag-group {
+  background: var(--bg-inset);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.diag-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-sub);
+  padding: 8px 12px 4px;
+}
+.diag-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--hairline-subtle, rgba(255, 255, 255, 0.05));
+  font-size: 13px;
+}
+.diag-row:last-child {
+  border-bottom: 0;
+}
+.diag-label {
+  color: var(--text-sub);
+}
+.diag-val {
+  font-weight: 500;
+  color: var(--text);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.diag-val--mono {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+.diag-val--badge {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.diag-modal-footer {
+  margin-top: 18px;
+}
+.diag-copy-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 500;
+  border-radius: 10px;
+}
+
+/* Tool Confirmation Card */
+.tool-approval-card {
+  margin: 12px 0;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(234, 179, 8, 0.08);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+}
+.tool-approval-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #eab308;
+  margin-bottom: 8px;
+}
+.tool-approval-args {
+  background: var(--bg);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 8px;
+  padding: 10px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  max-height: 140px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+.tool-approval-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.tool-btn-approve {
+  background: #16a34a !important;
+  color: #fff !important;
+  border: 0 !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+}
+.tool-btn-deny {
+  background: #dc2626 !important;
+  color: #fff !important;
+  border: 0 !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+}
+

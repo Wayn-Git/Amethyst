@@ -1,11 +1,11 @@
 import { getBase, getAuthHeaders } from '../api.js'
 import { identity } from '../lib/sync/client.js'
 
-export async function request(path, method = 'GET', body) {
+export async function request(path, method = 'GET', body, timeoutMs = 3500) {
   const response = await fetch(`${getBase()}${path}`, {
     method, headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    signal: AbortSignal.timeout(12000),
+    signal: AbortSignal.timeout(timeoutMs),
   })
   if (!response.ok) {
     const detail = await response.json().catch(() => ({}))
