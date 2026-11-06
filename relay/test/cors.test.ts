@@ -16,16 +16,19 @@ import test from 'node:test';
 
 import { CORS_HEADERS, isBrowserRoute, preflight, withCors } from '../src/cors.ts';
 
-test('the two routes a browser calls are the two that advertise themselves', () => {
+test('the routes a browser calls are the ones that advertise themselves', () => {
 	assert.equal(isBrowserRoute('/pair'), true);
 	assert.equal(isBrowserRoute('/ops'), true);
+	assert.equal(isBrowserRoute('/share'), true);
+	assert.equal(isBrowserRoute('/jobs'), true);
+	assert.equal(isBrowserRoute('/jobs/123'), true);
 });
 
 test('nothing else does', () => {
-	// `/sync` is the machine, `/ig/webhook` is Meta, `/jobs` is the machine
-	// again. None is a browser, and a route that cannot be called from one has
+	// `/sync` is the machine, `/ig/webhook` is Meta.
+	// None is a browser, and a route that cannot be called from one has
 	// no business telling a page it may try.
-	for (const path of ['/sync', '/health', '/ig/webhook', '/jobs', '/share', '/worker/report', '/']) {
+	for (const path of ['/sync', '/health', '/ig/webhook', '/worker/report', '/']) {
 		assert.equal(isBrowserRoute(path), false, `${path} should not be a browser route`);
 	}
 });

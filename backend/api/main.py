@@ -4055,7 +4055,14 @@ async def run_turn(
         # bill two model streams, and the first turn's cancel event is silently
         # replaced -- Stop can only ever reach the second. The delete endpoints
         # already refuse for exactly this reason; the turn endpoint must too.
-        raise HTTPException(409, "a turn is already running for this conversation")
+        # Since a turn now outlives its HTTP connection, "already running"
+        # covers the common case of a client whose socket died and whose page
+        # came right back: the result of that first turn arrives in the
+        # transcript on its own, disconnect or no disconnect.
+        raise HTTPException(
+            409,
+            "a turn is already running for this conversation -- its result will appear in the transcript when it finishes",
+        )
     cancel = asyncio.Event()
     # Whoever cancels the turn sets `cancel_source` first. A cancel with no
     # annotation is exactly the diagnosis gap this Instrumentation exists to
@@ -4063,52 +4070,48 @@ async def run_turn(
     cancel.cancel_source = None
     _active_turns[conversation_id] = cancel
 
-    disconnect_watcher: asyncio.Task | None = None
-    if request is not None:
-        async def _watch_disconnect():
-            try:
-                while not cancel.is_set():
-                    if await request.is_disconnected():
-                        cancel.cancel_source = "disconnect-watcher: request.is_disconnected()"
-                        log.info("client disconnected for conversation %s; cancelling turn", conversation_id)
-                        cancel.set()
-                        break
-                    await asyncio.sleep(0.5)
-            except asyncio.CancelledError:
-                pass
-            except Exception as e:
-                log.debug("disconnect watcher error: %s", e)
-
-        disconnect_watcher = asyncio.create_task(_watch_disconnect())
-
     def release() -> None:
         if _active_turns.get(conversation_id) is cancel:
             del _active_turns[conversation_id]
 
-    background_tasks.add_task(release)
+    # The turn's lifetime is decoupled from the socket that asked for it.
+    # Previously the director loop ran *inside* the SSE generator, so whenever
+    # the client's TCP connection dropped mid-turn (page navigation, an OS
+    # sleep, a stale bundle auto-reloading the page) Starlette cancelled the
+    # generator and the turn died with it -- recorded as "the turn was
+    # cancelled" and blamed in the interface on "the model stream", when in
+    # fact the model had done nothing wrong. The turn now runs in its own
+    # task, pushing frames into a queue; the generator below is only a reader.
+    # A client that vanishes ends the reader and nothing else: the turn keeps
+    # running to its natural end, settles its run row and history, and the
+    # answer is waiting when the page comes back.
+    frames: asyncio.Queue[str | None] = asyncio.Queue()
 
-    async def stream():
+    def push(frame: str) -> None:
+        frames.put_nowait(frame)
+
+    async def pump():
         global _connectors_warm
-        # Whether the reader has been told how the turn ended.
+        # Whether the loop has told anyone how the turn ended.
         settled = False
         # Set once the turn's own clock starts (below). A cancel arriving before
         # that -- during manifest/build/startup -- still wants an elapsed time.
         began: float | None = None
         try:
-            # The first frame goes out before anything that can be slow.
+            # The first frame is queued before anything that can be slow.
             #
             # Building the director starts connectors, and a connector is
             # allowed 180s to answer -- 300s if it says it is waiting on a
             # sign-in. That await used to sit above this generator, so the
             # response had not begun: the browser held an open request with no
-            # bytes in it for minutes and then failed the fetch outright
+            # bytes yet for minutes and then failed the fetch outright
             # ("NetworkError when attempting to fetch resource"), while this
             # conversation stayed registered in `_active_turns` and answered
-            # every retry with 409. Moving it inside the stream means the
-            # socket is alive from the first millisecond, the wait is covered
-            # by keepalives, and a failure to build is an `error` frame the
+            # every retry with 409. Moving it inside the pump means the socket
+            # is alive from the first millisecond, the wait is covered by
+            # keepalives, and a failure to build is an `error` frame the
             # interface can render rather than a dead connection.
-            yield _frame("status", state="starting")
+            push(_frame("status", state="starting"))
             began = time.monotonic()
             # Use shorter deadline for warm connectors — they're already running
             # and just need a quick health check, not a cold start wait.
@@ -4122,16 +4125,16 @@ async def run_turn(
                         build.cancel()
                         settled = True
                         release()
-                        yield _frame("guard", reason="Turn stopped by user.")
+                        push(_frame("guard", reason="Turn stopped by user."))
                         return
                     done, _ = await asyncio.wait({build}, timeout=HEARTBEAT_SECONDS)
                     if done:
                         break
-                    yield _frame("ping")
+                    push(_frame("ping"))
                 if cancel.is_set():
                     settled = True
                     release()
-                    yield _frame("guard", reason="Turn stopped by user.")
+                    push(_frame("guard", reason="Turn stopped by user."))
                     return
                 director = build.result()
                 # Mark connectors as warm for subsequent turns — they've been
@@ -4150,7 +4153,7 @@ async def run_turn(
                 settled = True
                 release()
                 clean_msg = "The agent could not start for this turn." if "input stream" in str(exc).lower() else f"{type(exc).__name__}: {exc}"
-                yield _frame("error", message=clean_msg)
+                push(_frame("error", message=clean_msg))
                 return
 
             run_kwargs = {}
@@ -4191,15 +4194,15 @@ async def run_turn(
                     # the user's to unblock. Tagged so an interface can say so
                     # instead of spinning.
                     waiting = _waiting_on(conversation_id)
-                    yield ": keepalive\n\n"
-                    yield _frame("ping", **({"waiting_on": waiting} if waiting else {}))
+                    push(": keepalive\n\n")
+                    push(_frame("ping", **({"waiting_on": waiting} if waiting else {})))
                     continue
                 if settled and event.type == "error":
                     continue
                 # default=str so one unexpected value in a tool argument degrades
                 # to a string instead of killing the response mid-stream.
                 payload = json.dumps({"type": event.type, **event.data}, default=str)
-                yield f"data: {payload}\n\n"
+                push(f"data: {payload}\n\n")
                 # The stream outlives the answer: memory extraction is a second
                 # model call the loop makes after `done`, and it is not part of
                 # the turn anyone can stop. Holding the registration open across
@@ -4218,20 +4221,23 @@ async def run_turn(
                 # stops leaves the field disabled with nothing on screen to
                 # explain it -- which is the "no response at all" this turn
                 # looks like from the outside.
-                yield _frame("error", message="the turn ended without a result")
+                push(_frame("error", message="the turn ended without a result"))
         except asyncio.CancelledError:
-            # A shutdown, a reload, or Starlette dropping the task. The reader
-            # is still there for one more frame.
+            # A shutdown, a reload, or Starlette dropping the pump task. The
+            # reader is no longer the one on the receiving end of this -- a
+            # client that walked away did not get here, because its exit only
+            # cancelled the reader.
             #
-            # [CANCEL DIAGNOSTIC] This is the path a mid-stream client disconnect
-            # and an external task-kill both take. It eventually surfaces as
-            # state.error "the turn was cancelled" and no other log line, so it
-            # is logged here with everything a diagnosis wants: elapsed time
-            # since the turn started and whether the cancel event was *already*
-            # set by a named caller (Stop endpoint, device intent, watcher)
-            # before the task itself was dropped.
+            # [CANCEL DIAGNOSTIC] This is the path an external task-kill takes
+            # (a mid-stream client disconnect no longer reaches the turn at
+            # all). It eventually surfaces as state.error "the turn was
+            # cancelled" and no other log line, so it is logged here with
+            # everything a diagnosis wants: elapsed time since the turn
+            # started and whether the cancel event was *already* set by a
+            # named caller (Stop endpoint, device intent) before the task
+            # itself was dropped.
             if not cancel.is_set():
-                cancel.cancel_source = "self: stream-task cancelled by Starlette (client TCP drop or server shutdown)"
+                cancel.cancel_source = "self: pump task cancelled by Starlette (server shutdown or task-kill)"
                 cancel.set()
             log.warning(
                 "[CANCEL SOURCE] turn task for %s dropped after %s (cancel source: %r)",
@@ -4240,16 +4246,14 @@ async def run_turn(
                 cancel.cancel_source,
             )
             if not settled:
-                yield _frame("error", message="the server stopped this turn")
+                push(_frame("error", message="the server stopped this turn"))
             raise
         except Exception as exc:
             log.exception("Turn stream failed")
             if not settled:
                 clean_msg = "The model connection was interrupted." if "input stream" in str(exc).lower() else f"Turn failed: {exc}"
-                yield _frame("error", message=clean_msg)
+                push(_frame("error", message=clean_msg))
         finally:
-            if disconnect_watcher and not disconnect_watcher.done():
-                disconnect_watcher.cancel()
             if cancel.is_set() and cancel.cancel_source is None:
                 # A setter without an annotation: the sync/intents control-device
                 # path and anything else that grabs the event out of
@@ -4260,9 +4264,40 @@ async def run_turn(
                     conversation_id,
                 )
             cancel.set()
-            # A backstop for the stream that ends without a terminal frame at
-            # all -- a client that hangs up, or a generator closed early.
+            # A backstop for the turn that ends without a terminal frame at
+            # all. Also the only release call in the request: the turn is
+            # deregistered when *this* task ends, not when the response does,
+            # since the two can now end minutes apart.
             release()
+            # Tell the reader (if any still listens) that the turn is over,
+            # which it only is once the pump says so. Nothing after this can
+            # reach a client, so it is deliberately the last statement.
+            push(None)
+
+    pump_task = asyncio.create_task(pump())
+
+    async def stream():
+        # Only the frames move through here; the turn does not. When the
+        # client's connection drops mid-turn, Starlette cancels exactly this
+        # generator: the reader ends, the pump task above is untouched, and the
+        # turn plays out server-side. (`GET /api/conversations/*/run` and the
+        # control stream serve the settled outcome to whoever reconnects.)
+        try:
+            while True:
+                frame = await frames.get()
+                if frame is None:
+                    break
+                yield frame
+        except asyncio.CancelledError:
+            # Named for the same reason the cancel path is: what used to be an
+            # invisible cancellation that ended the turn and read like a
+            # provider failure is now one info line and a turn that survives it.
+            log.info(
+                "[CLIENT DETACHED] %s: stream reader dropped; turn continues server-side (pump task %s)",
+                conversation_id,
+                "running" if not pump_task.done() else str(pump_task.exception() or "done"),
+            )
+            raise
 
     return StreamingResponse(
         stream(),

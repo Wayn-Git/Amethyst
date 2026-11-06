@@ -81,6 +81,24 @@ find the path a view calls, then search that string in the backend.
 | Health and control | `/api/health`, `/api/ping`, `/api/control/stream`, `/api/control/{action}` |
 | Conversations and turns | `/api/conversations`, `/api/conversations/{id}/turn`, `/turn/stop`, `/messages`, `/branch` |
 | Confirmations and questions | `/api/confirmations`, `/api/questions`, `/api/connector-waits` |
+
+### Turn lifecycle: detached from the HTTP connection
+
+`POST /{id}/turn` starts a *pump task* (`backend/api/main.py`, `run_turn`) that
+runs the whole turn -- director build, model calls, tools, approval waits,
+memory extraction -- and pushes SSE frames into a per-request queue. The
+`StreamingResponse` is only a frame reader. A client whose TCP connection dies
+mid-turn (navigation, sleep, a stale bundle reloading the page) cancels the
+reader and nothing else: the log records `[CLIENT DETACHED]`, the turn keeps
+running, and its run row and transcript settle normally. Cancellation paths
+that still end a turn are the user's Stop (or a device asking to stop), not
+the socket. Because the turn may outlive the response, `_active_turns` is
+deregistered by the pump's `finally`, and a concurrent `POST /turn` that
+arrives while a detached turn is running gets 409. The frontend is
+contract-paired: `views/Chat.jsx` blames the provider only for the backend's
+real transport wording (`input stream`); a bare fetch `network error` reads
+as a client-side connection loss whose turn continues server-side (see
+`FRONTEND.md`).
 | Providers and routing | `/api/providers`, `/api/routing`, `/api/tiers`, `/api/variant/{model}` |
 | Setup and auth | `/api/setup/*`, `/api/auth/openrouter/*`, `/api/auth/microsoft/*` |
 | Capabilities | `/api/capabilities`, `/api/skills/*`, `/api/connectors/*`, `/api/mcp/*` |

@@ -1882,14 +1882,27 @@ export default function Chat() {
         if (!settledRef.current) pushNote('warning', 'Stopped.')
       } else {
         let errMsg = err.message || ''
-        if (typeof errMsg === 'string' && (errMsg.toLowerCase().includes('input stream') || errMsg.toLowerCase().includes('network error'))) {
+        const low = typeof errMsg === 'string' ? errMsg.toLowerCase() : ''
+        if (low.includes('input stream')) {
+          // Words the backend only ever reports for a provider transport
+          // failure -- the model stream itself died mid-chunk.
           errMsg = 'The model stream was interrupted by the provider. Please try again.'
           pushNote('error', errMsg, {
             resumable: true,
             hasPartial: Boolean(liveRef.current.buffer || (liveRef.current.turnEvents && liveRef.current.turnEvents.length > 0)),
           })
+        } else if (low.includes('network error') || low.includes('networkerror')) {
+          // The fetch died, not the model. Since the turn now runs detached
+          // from the socket (backend/api/main.py), this is almost always this
+          // page's own connection dropping -- and the turn finishes server-side
+          // either way, so "the provider failed" would be a lie, and "try
+          // again" would restart a turn that never stopped.
+          errMsg = 'The connection to the server was lost. The turn keeps running — reopen this conversation in a moment to see how it ended.'
+          pushNote('warning', errMsg, {
+            hasPartial: Boolean(liveRef.current.buffer || (liveRef.current.turnEvents && liveRef.current.turnEvents.length > 0)),
+          })
         } else {
-          pushNote('error', errMsg)
+          pushNote('error', errMsg || 'Something went wrong with this turn.')
         }
       }
       /* Whatever went wrong has now been said once. Without this the `finally`
