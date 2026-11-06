@@ -137,6 +137,15 @@ const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
  * scanner and the clipboard can act on. Both carry the relay address and local LAN
  * host address alongside the secret.
  */
+export function normalizeUrl(url) {
+  let u = String(url || '').trim()
+  if (!u) return ''
+  if (!/^https?:\/\//i.test(u)) {
+    u = `http://${u}`
+  }
+  return u.replace(/\/+$/, '')
+}
+
 export function readPayload(text) {
   const raw = String(text ?? '').trim()
   if (!raw) return { secret: '', relayUrl: '' }
@@ -161,10 +170,10 @@ export function readPayload(text) {
     .toUpperCase()
   const res = {
     secret,
-    relayUrl: (fields.get('r') || '').replace(/\/+$/, ''),
+    relayUrl: normalizeUrl(fields.get('r') || ''),
   }
   const h = fields.get('h')
-  if (h) res.hostUrl = h.replace(/\/+$/, '')
+  if (h) res.hostUrl = normalizeUrl(h)
   return res
 }
 
@@ -217,16 +226,16 @@ export async function pair(relayOrOptions, pairSecret, name, { hostUrl: directHo
   let devName = name
 
   if (typeof relayOrOptions === 'object' && relayOrOptions !== null) {
-    base = String(relayOrOptions.relayUrl || '').trim().replace(/\/+$/, '')
-    hostUrl = String(relayOrOptions.hostUrl || '').trim().replace(/\/+$/, '')
+    base = normalizeUrl(relayOrOptions.relayUrl || relayOrOptions.relay || '')
+    hostUrl = normalizeUrl(relayOrOptions.hostUrl || relayOrOptions.host || '')
     secret = readPayload(relayOrOptions.secret || '').secret
     devName = relayOrOptions.name || name
   } else {
-    base = String(relayOrOptions || '').trim().replace(/\/+$/, '')
+    base = normalizeUrl(relayOrOptions || '')
     const payload = readPayload(pairSecret)
     secret = payload.secret
-    if (!hostUrl && payload.hostUrl) hostUrl = payload.hostUrl
-    if (!base && payload.relayUrl) base = payload.relayUrl
+    if (!hostUrl && payload.hostUrl) hostUrl = normalizeUrl(payload.hostUrl)
+    if (!base && payload.relayUrl) base = normalizeUrl(payload.relayUrl)
   }
 
   if (!base && !hostUrl) {
@@ -412,6 +421,10 @@ export async function sync() {
   // Acknowledged late: what was taken last time goes back now, not when it was
   // taken. A tab closed in between re-takes rather than loses.
   const acking = state.pendingAck ?? []
+
+  if (!held.relayUrl) {
+    return { synced: false, reason: 'no relay configured' }
+  }
 
   let payload
   try {

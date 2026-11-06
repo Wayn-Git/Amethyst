@@ -2,7 +2,14 @@
   "appId": "app.amethyst.companion",
   "appName": "Amethyst",
   "webDir": "dist",
-  "server": { "androidScheme": "https" },
-  "android": { "allowMixedContent": false },
-  "ios": { "contentInset": "automatic" }
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true
+  },
+  "ios": {
+    "contentInset": "automatic"
+  }
 }

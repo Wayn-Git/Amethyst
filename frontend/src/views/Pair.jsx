@@ -85,15 +85,15 @@ export default function Pair({ onPaired, onDesktop }) {
       let params
       if (typeof opts === 'object' && opts !== null) {
         params = {
-          relayUrl: opts.relay || opts.relayUrl,
-          hostUrl: opts.host || opts.hostUrl,
+          relayUrl: syncClient.normalizeUrl(opts.relay || opts.relayUrl),
+          hostUrl: syncClient.normalizeUrl(opts.host || opts.hostUrl),
           secret: opts.secret,
           name: deviceName(),
         }
       } else {
         params = {
-          relayUrl: opts,
-          hostUrl: hostUrl || (typeof window !== 'undefined' ? window.location.origin : ''),
+          relayUrl: syncClient.normalizeUrl(opts),
+          hostUrl: syncClient.normalizeUrl(hostUrl || (typeof window !== 'undefined' ? window.location.origin : '')),
           secret: fallbackCode,
           name: deviceName(),
         }
@@ -129,7 +129,7 @@ export default function Pair({ onPaired, onDesktop }) {
       return
     }
     if (code.trim().length >= 16) {
-      run({ relay: relayUrl.trim(), host: hostUrl.trim(), secret: code.trim() })
+      run({ relay: syncClient.normalizeUrl(relayUrl), host: syncClient.normalizeUrl(hostUrl), secret: code.trim() })
       return
     }
     setPhase('scanning')
@@ -162,8 +162,12 @@ export default function Pair({ onPaired, onDesktop }) {
     run({ relay, host, secret: read.secret })
   }, [relayUrl, hostUrl, run])
 
-  const ready = (relayUrl.trim().startsWith('http') || hostUrl.trim().startsWith('http') || (typeof window !== 'undefined' && window.location.origin.startsWith('http')))
-    && syncClient.readPayload(code).secret.length >= 16
+  const hasAddr = Boolean(
+    relayUrl.trim() ||
+    hostUrl.trim() ||
+    (typeof window !== 'undefined' && window.location.origin.startsWith('http'))
+  )
+  const ready = hasAddr && syncClient.readPayload(code).secret.length >= 16
 
   return (
     <div className={`pair-screen ${phase === 'idle' && !typing ? 'is-flow-lime' : ''}`}>
@@ -287,7 +291,7 @@ export default function Pair({ onPaired, onDesktop }) {
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && ready) run({ relay: relayUrl.trim(), host: hostUrl.trim(), secret: code })
+                    if (e.key === 'Enter' && ready) run({ relay: syncClient.normalizeUrl(relayUrl), host: syncClient.normalizeUrl(hostUrl), secret: code })
                   }}
                 />
               </div>
@@ -312,7 +316,7 @@ export default function Pair({ onPaired, onDesktop }) {
               <button
                 type="button"
                 className="pair-auth-btn"
-                onClick={() => run({ relay: relayUrl.trim(), host: hostUrl.trim(), secret: code })}
+                onClick={() => run({ relay: syncClient.normalizeUrl(relayUrl), host: syncClient.normalizeUrl(hostUrl), secret: code })}
                 disabled={!ready}
               >
                 Authorize this phone

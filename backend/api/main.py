@@ -75,7 +75,7 @@ from backend.workers import batch as worker_batch
 # bundle with AMETHYST_CORS_ORIGINS as a comma-separated list. No wildcard: AMETHYST
 # binds to localhost for one user, and a wildcard would let any page that user
 # visits drive their machine through this API.
-DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "capacitor://localhost", "https://localhost"]
+DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "capacitor://localhost", "https://localhost", "http://localhost"]
 
 log = logging.getLogger(__name__)
 
@@ -1011,6 +1011,7 @@ app.add_middleware(RemoteCallerGuard)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
