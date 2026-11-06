@@ -20,6 +20,12 @@ from backend.mcp.composio_service import composio_service
 
 log = logging.getLogger(__name__)
 
+MARKER_FILE_NAME = ".amethyst-library.json"
+MARKER_PAYLOAD = json.dumps(
+    {"app": "amethyst", "type": "library_root", "version": 1},
+    separators=(",", ":"),
+).encode("utf-8")
+
 
 class GoogleDriveBridge:
     """Bridge for Google Drive operations via Composio toolkit."""
@@ -148,6 +154,160 @@ class GoogleDriveBridge:
 
         self._folder_cache[clean] = str(parent_id)
         return str(parent_id)
+
+    async def detect_library_root(
+        self, mode: str = "auto", custom_path: str | None = None
+    ) -> dict[str, Any]:
+        """Detect or verify the Google Drive library root folder.
+
+        In 'auto' mode:
+        1. Checks if a marker file (.amethyst-library.json) exists anywhere in Drive.
+           If found, uses its parent folder.
+        2. If not found, checks if an "Amethyst" folder exists.
+           - If it has a "Library" subfolder, uses "Amethyst/Library".
+           - If it has NO "Library" subfolder, treats it as a pre-existing unverified personal folder
+             and refuses to use it directly, returning a warning.
+        3. If no folder exists, returns standard default "Amethyst/Library".
+
+        In 'custom' mode:
+        Resolves custom_path or folder ID, checks if target exists and if marker is present.
+        """
+        if mode == "custom" and custom_path:
+            clean = custom_path.strip()
+            folder_id: str | None = None
+            if "/" not in clean and len(clean) >= 20 and not clean.startswith("Amethyst"):
+                folder_id = clean
+            else:
+                parts = [p.strip() for p in clean.split("/") if p.strip()]
+                parent = None
+                for part in parts:
+                    parent = await self._find_folder(part, parent)
+                    if not parent:
+                        break
+                folder_id = parent
+
+            if not folder_id:
+                return {
+                    "verified": False,
+                    "folder_id": None,
+                    "folder_path": clean,
+                    "marker_present": False,
+                    "file_count": 0,
+                    "warning": f"Folder '{clean}' was not found in your Google Drive.",
+                }
+
+            # Check if marker file is present in this custom folder
+            has_marker = False
+            try:
+                res = await self._execute(
+                    "GOOGLEDRIVE_FIND_FILE",
+                    {"q": f"'{folder_id}' in parents and name = '{MARKER_FILE_NAME}' and trashed = false"},
+                )
+                files = res.get("files", []) if isinstance(res, dict) else []
+                has_marker = len(files) > 0
+            except Exception:
+                pass
+
+            files_in_folder = await self.list_files_in_folder(folder_id)
+            count = len([f for f in files_in_folder if f.get("name") != MARKER_FILE_NAME])
+
+            return {
+                "verified": True,
+                "folder_id": folder_id,
+                "folder_path": clean,
+                "marker_present": has_marker,
+                "file_count": count,
+                "warning": None if has_marker else "Selected folder does not have an Amethyst marker. Marker will be added upon synchronization.",
+            }
+
+        # Auto detection mode
+        # 1. Look for marker file
+        try:
+            res = await self._execute(
+                "GOOGLEDRIVE_FIND_FILE",
+                {"q": f"name = '{MARKER_FILE_NAME}' and trashed = false"},
+            )
+            files = res.get("files", []) if isinstance(res, dict) else []
+            if files and isinstance(files[0], dict):
+                parents = files[0].get("parents") or []
+                parent_id = parents[0] if parents else None
+                if parent_id:
+                    files_in_folder = await self.list_files_in_folder(str(parent_id))
+                    count = len([f for f in files_in_folder if f.get("name") != MARKER_FILE_NAME])
+                    return {
+                        "verified": True,
+                        "folder_id": str(parent_id),
+                        "folder_path": "Amethyst/Library",
+                        "marker_present": True,
+                        "file_count": count,
+                        "warning": None,
+                    }
+        except Exception as exc:
+            log.debug("Marker search failed: %s", exc)
+
+        # 2. Check for existing "Amethyst" or "amethyst" folder
+        amethyst_folder = await self._find_folder("Amethyst") or await self._find_folder("amethyst")
+        if amethyst_folder:
+            # Check for Library subfolder
+            lib_sub = await self._find_folder("Library", amethyst_folder) or await self._find_folder("library", amethyst_folder)
+            if lib_sub:
+                files_in_folder = await self.list_files_in_folder(lib_sub)
+                count = len([f for f in files_in_folder if f.get("name") != MARKER_FILE_NAME])
+                return {
+                    "verified": True,
+                    "folder_id": lib_sub,
+                    "folder_path": "Amethyst/Library",
+                    "marker_present": False,
+                    "file_count": count,
+                    "warning": None,
+                }
+            else:
+                # Personal unverified folder detected!
+                return {
+                    "verified": False,
+                    "folder_id": None,
+                    "folder_path": "Amethyst/Library",
+                    "marker_present": False,
+                    "file_count": 0,
+                    "warning": (
+                        "Found an existing unverified personal folder named 'amethyst' without an Amethyst Library structure. "
+                        "To protect your personal files, Amethyst will use a dedicated 'Amethyst/Library' folder."
+                    ),
+                }
+
+        # 3. Default path
+        return {
+            "verified": True,
+            "folder_id": None,
+            "folder_path": "Amethyst/Library",
+            "marker_present": False,
+            "file_count": 0,
+            "warning": None,
+        }
+
+    async def ensure_verified_root(
+        self, root_name_or_id: str = "Amethyst/Library", write_marker: bool = True
+    ) -> str:
+        """Find or create designated root folder in Google Drive and verify marker."""
+        root_id = await self.ensure_root_folder(root_name_or_id)
+        if write_marker:
+            try:
+                # Check if marker exists
+                res = await self._execute(
+                    "GOOGLEDRIVE_FIND_FILE",
+                    {"q": f"'{root_id}' in parents and name = '{MARKER_FILE_NAME}' and trashed = false"},
+                )
+                files = res.get("files", []) if isinstance(res, dict) else []
+                if not files:
+                    await self.upload_file(
+                        name=MARKER_FILE_NAME,
+                        content=MARKER_PAYLOAD,
+                        mime_type="application/json",
+                        parent_id=root_id,
+                    )
+            except Exception as exc:
+                log.warning("Could not ensure marker file in root %s: %s", root_id, exc)
+        return root_id
 
     async def _find_folder(self, name: str, parent_id: str | None = None) -> str | None:
         """Search for a folder by name within parent_id."""
