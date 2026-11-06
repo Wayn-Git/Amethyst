@@ -176,10 +176,10 @@
 
   /* ---- Border Radius Tokens ------------------------------------------- */
   --radius-tags: 9999px;
-  --radius-cards: 6px;
+  --radius-cards: var(--radius);
   --radius-links: 4px;
-  --radius-inputs: 9999px;
-  --radius-buttons: 9999px;
+  --radius-inputs: var(--radius);
+  --radius-buttons: var(--radius);
 
   --r-xs: var(--radius-links);
   --r-sm: var(--radius-cards);
@@ -344,35 +344,35 @@
 /* ---- 1. Graphite: ElevenLabs clean warm stone-slate dark --------------- */
 :root[data-theme='graphite'],
 :root[data-theme-mode='dark'] {
-  --canvas: #0c0a09;
-  --canvas-deep: #080706;
-  --raised: #141211;
-  --surface: #1c1917;
-  --surface-2: #292524;
-  --surface-3: #181615;
+  --canvas: oklch(0 0 0);
+  --canvas-deep: oklch(0 0 0);
+  --raised: oklch(0.1450 0 0);
+  --surface: oklch(0.1450 0 0);
+  --surface-2: oklch(0.2300 0 0);
+  --surface-3: oklch(0.2500 0 0);
 
   --tint: 255 255 255;
   --shade: 0 0 0;
 
-  --hairline: rgba(255, 255, 255, 0.08);
-  --hairline-strong: rgba(255, 255, 255, 0.16);
+  --hairline: oklch(0.2600 0 0);
+  --hairline-strong: oklch(0.3200 0 0);
 
-  --text: #fafaf9;
-  --text-dim: #a8a29e;
-  --text-faint: #78716c;
+  --text: oklch(0.9460 0 0);
+  --text-dim: oklch(0.7200 0 0);
+  --text-faint: oklch(0.6000 0 0);
 
-  --accent: #8b5cf6;
-  --accent-hover: #9d71f7;
-  --accent-line: #8b5cf6;
-  --accent-soft: rgba(139, 92, 246, 0.16);
-  --accent-wash: rgba(139, 92, 246, 0.08);
-  --on-accent: #ffffff;
-  --ember: #d8b4fe;
+  --accent: oklch(0.4600 0.2200 266);
+  --accent-hover: oklch(0.5200 0.2100 266);
+  --accent-line: oklch(0.4600 0.2200 266);
+  --accent-soft: color-mix(in oklch, var(--accent) 16%, transparent);
+  --accent-wash: color-mix(in oklch, var(--accent) 8%, transparent);
+  --on-accent: oklch(0.9850 0 0);
+  --ember: oklch(0.9200 0.0400 272);
 
   --live: #2fc888;
   --live-ink: #6fe0ae;
   --confirm: #e9b451;
-  --stop: #ff6b7d;
+  --stop: oklch(0.6900 0.2000 23.9100);
 
   --live-soft: color-mix(in srgb, var(--live) 14%, transparent);
   --confirm-soft: color-mix(in srgb, var(--confirm) 12%, transparent);
@@ -382,7 +382,7 @@
   --stop-line: color-mix(in srgb, var(--stop) 28%, transparent);
 
   --on-stop: #1b0c0e;
-  --glass: rgba(12, 10, 9, 0.88);
+  --glass: oklch(0 0 0 / 0.88);
   --scrim: rgba(0, 0, 0, 0.65);
   --code-literal: #7fdcae;
 
@@ -1360,19 +1360,6 @@ select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--text); }
 .modal-close:active { transform: scale(0.94); }
 
 /* ------------------------------------------------------------ chat shell */
-.amethyst-boardui-notification > button[aria-label="Dismiss notification"] {
-  border-radius: 9999px;
-  background: var(--surface-2, var(--soft));
-  color: var(--text-dim);
-}
-
-.amethyst-boardui-notification .bg-primary {
-  border: 1px solid var(--hairline);
-  background: var(--raised);
-  color: var(--text);
-  box-shadow: var(--shadow-micro);
-}
-
 .chat-main {
   flex: 1;
   min-width: 0;
@@ -9690,6 +9677,7 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
   padding: 14px 10px 0;
   border-right: 1px solid var(--hairline);
   overflow-y: auto;
+  font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
 }
 
 /* The nav's own name, in the same quiet voice the cards use for theirs. */
@@ -9702,6 +9690,7 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--text-faint);
+  font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
 }
 
 .set-nav-item {
@@ -9714,6 +9703,7 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
   font-size: var(--text-xs);
   color: var(--text-dim);
   text-align: left;
+  font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
   transition: background var(--press) var(--ease-out), color var(--press) var(--ease-out);
 }
 .set-nav-item:hover { background: rgb(var(--tint) / 0.05); color: var(--text); }
@@ -9723,7 +9713,14 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
    legible with the label hidden on narrow screens. */
 .set-nav-item.active { background: var(--accent); color: var(--on-accent); }
 
-.set-nav-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.set-nav-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
+}
 
 /* These leave the dialog for a full view rather than selecting a panel inside
    it, and the caret is the only thing that says so before it happens. */
@@ -20997,7 +20994,7 @@ a.text-reveal-wrap {
   overflow: hidden;
   background: var(--canvas-deep);
   color: var(--text);
-  font-family: var(--font-body) !important;
+  font-family: var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
   -webkit-font-smoothing: auto;
   -moz-osx-font-smoothing: auto;
   text-rendering: geometricPrecision;
@@ -21010,7 +21007,7 @@ a.text-reveal-wrap {
 .settings-view textarea,
 .settings-view .codex-card,
 .settings-view .set-box {
-  font-family: var(--font-body);
+  font-family: var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
 }
 
 /* Glass Material Integration for Window Shell */
@@ -21061,6 +21058,7 @@ a.text-reveal-wrap {
 }
 
 .settings-view .set-nav-headline {
+  font-family: var(--font-display, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
   font-size: 17px;
   font-weight: 600;
   color: var(--text);
@@ -21082,11 +21080,11 @@ a.text-reveal-wrap {
 }
 
 .settings-view .set-nav-group-label {
-  font-family: var(--font-body) !important;
+  font-family: var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
   font-size: 11px !important;
   font-weight: 600 !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.06em !important;
+  letter-spacing: 0.04em !important;
   color: var(--text-faint) !important;
   padding: 4px 10px 6px !important;
   margin: 0 !important;
@@ -21100,9 +21098,10 @@ a.text-reveal-wrap {
   gap: 10px !important;
   padding: 0 10px !important;
   border-radius: 8px !important;
-  font-family: var(--font-body) !important;
+  font-family: var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
   font-size: 13px !important;
   font-weight: 400 !important;
+  letter-spacing: -0.01em !important;
   color: var(--text) !important;
   opacity: 1 !important;
   background: transparent !important;
@@ -21113,8 +21112,9 @@ a.text-reveal-wrap {
 }
 
 .settings-view .set-nav-item .set-nav-label {
-  font-family: var(--font-body) !important;
+  font-family: var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
   font-size: 13px !important;
+  letter-spacing: -0.01em !important;
   color: inherit !important;
   opacity: 1 !important;
 }
@@ -21258,7 +21258,7 @@ a.text-reveal-wrap {
   margin: 0 0 20px 0;
   letter-spacing: -0.025em;
   line-height: 1.2;
-  font-family: var(--font-display);
+  font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
 }
 
 /* Universal UI & Component Scaling */
@@ -21372,6 +21372,7 @@ a.text-reveal-wrap {
 
 .settings-view .set-row-title {
   display: block !important;
+  font-family: var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
   font-size: 13.5px !important;
   font-weight: 500 !important;
   color: var(--text) !important;
@@ -21381,6 +21382,7 @@ a.text-reveal-wrap {
 
 .settings-view .set-row-desc {
   display: block !important;
+  font-family: var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
   font-size: 12px !important;
   color: var(--text-dim) !important;
   margin-top: 2px !important;
@@ -21464,7 +21466,7 @@ a.text-reveal-wrap {
 }
 
 .codex-row-title {
-  font-family: var(--font-body);
+  font-family: var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
   font-size: 14px;
   font-weight: 600;
   color: var(--text);
@@ -21472,7 +21474,7 @@ a.text-reveal-wrap {
 }
 
 .codex-row-desc {
-  font-family: var(--font-body);
+  font-family: var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
   font-size: 13px;
   color: var(--text-dim);
   line-height: 1.44;
@@ -22142,11 +22144,13 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 .theme-card-outer {
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: 10px;
-  padding: 6px 6px 8px;
+  border-radius: 12px;
+  padding: 8px 8px 10px;
   cursor: pointer;
   text-align: left;
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -22157,11 +22161,11 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 .theme-card-outer:hover {
   border-color: var(--hairline-strong);
   transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
 }
 
 .theme-card-outer:active {
-  transform: scale(0.99);
+  transform: scale(0.985);
 }
 
 .theme-card-outer.is-active {
@@ -22172,8 +22176,8 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 /* Authentic Miniature Amethyst Window */
 .theme-mini-window {
   width: 100%;
-  height: 64px;
-  border-radius: 6px;
+  height: 98px;
+  border-radius: 9px;
   overflow: hidden;
   position: relative;
   border: 1px solid var(--hairline);
@@ -22181,6 +22185,8 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
   flex-direction: column;
   user-select: none;
   box-sizing: border-box;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
 }
 
 .theme-mini-window.is-compact {
@@ -22190,33 +22196,33 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 }
 
 .theme-mini-chrome {
-  height: 12px;
+  height: 17px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 6px;
+  padding: 0 8px;
   border-bottom: 1px solid var(--hairline);
   flex-shrink: 0;
   box-sizing: border-box;
 }
 
 .theme-mini-window.is-compact .theme-mini-chrome {
-  height: 9px;
+  height: 11px;
   padding: 0 4px;
 }
 
 .theme-mini-dots {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 3.5px;
 }
 
 .theme-mini-dot {
-  width: 3.5px;
-  height: 3.5px;
+  width: 4.5px;
+  height: 4.5px;
   border-radius: 50%;
   display: inline-block;
-  opacity: 0.85;
+  opacity: 0.95;
 }
 
 .theme-mini-window.is-compact .theme-mini-dot {
@@ -22224,11 +22230,15 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
   height: 2.5px;
 }
 
-.theme-mini-title-pill {
-  width: 24px;
-  height: 2px;
-  border-radius: 1px;
+.theme-mini-tab-title {
+  font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 1.5px 6px;
+  border-radius: 4px;
   display: inline-block;
+  line-height: 1;
 }
 
 .theme-mini-body {
@@ -22239,10 +22249,10 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 }
 
 .theme-mini-sidebar {
-  width: 26%;
+  width: 28%;
   height: 100%;
   border-right: 1px solid var(--hairline);
-  padding: 4px 3px;
+  padding: 4px 3px 5px;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -22256,10 +22266,27 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
   gap: 2px;
 }
 
+.theme-mini-logo-box {
+  width: 10px;
+  height: 10px;
+  border-radius: 2.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1px;
+  margin-left: 2px;
+}
+
+.theme-mini-logo-gem {
+  width: 4px;
+  height: 4px;
+  border-radius: 1px;
+}
+
 .theme-mini-nav-item {
-  height: 7px;
-  border-radius: 2px;
-  padding: 0 2px;
+  height: 8.5px;
+  border-radius: 3px;
+  padding: 0 2.5px;
   display: flex;
   align-items: center;
   gap: 2.5px;
@@ -22274,7 +22301,7 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 
 .theme-mini-nav-indicator {
   width: 2px;
-  height: 4.5px;
+  height: 5.5px;
   border-radius: 1px;
   flex-shrink: 0;
   display: inline-block;
@@ -22286,8 +22313,8 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 }
 
 .theme-mini-nav-text {
-  height: 2px;
-  border-radius: 1px;
+  height: 2.5px;
+  border-radius: 1.5px;
   display: inline-block;
 }
 
@@ -22304,8 +22331,8 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 }
 
 .theme-mini-avatar {
-  width: 4.5px;
-  height: 4.5px;
+  width: 5.5px;
+  height: 5.5px;
   border-radius: 50%;
   flex-shrink: 0;
   display: inline-block;
@@ -22314,10 +22341,10 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 .theme-mini-content {
   flex: 1;
   height: 100%;
-  padding: 4px 6px;
+  padding: 5px 6px 5px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 3.5px;
   min-width: 0;
   box-sizing: border-box;
 }
@@ -22328,11 +22355,11 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 }
 
 .theme-mini-user-bubble {
-  height: 8px;
-  border-radius: 3px 3px 1px 3px;
+  height: 10.5px;
+  border-radius: 4.5px 4.5px 1.5px 4.5px;
   margin-left: auto;
-  width: 60%;
-  padding: 0 3px;
+  width: 66%;
+  padding: 0 5px;
   display: flex;
   align-items: center;
   border: 1px solid transparent;
@@ -22340,14 +22367,14 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 }
 
 .theme-mini-window.is-compact .theme-mini-user-bubble {
-  height: 5.5px;
+  height: 6px;
   width: 62%;
   padding: 0 2px;
 }
 
 .theme-mini-bubble-text {
-  height: 2px;
-  border-radius: 1px;
+  height: 2.5px;
+  border-radius: 1.5px;
   display: inline-block;
 }
 
@@ -22356,8 +22383,8 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 }
 
 .theme-mini-assistant-card {
-  border-radius: 3px;
-  padding: 3px 4px;
+  border-radius: 4px;
+  padding: 3.5px 5px;
   display: flex;
   flex-direction: column;
   gap: 2.5px;
@@ -22378,8 +22405,8 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 }
 
 .theme-mini-card-avatar {
-  width: 4px;
-  height: 4px;
+  width: 4.5px;
+  height: 4.5px;
   border-radius: 50%;
   flex-shrink: 0;
   display: inline-block;
@@ -22391,9 +22418,17 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 }
 
 .theme-mini-card-name {
-  height: 2px;
-  border-radius: 1px;
+  height: 2.5px;
+  border-radius: 1.5px;
   display: inline-block;
+}
+
+.theme-mini-card-chip {
+  width: 10px;
+  height: 3px;
+  border-radius: 1.5px;
+  display: inline-block;
+  margin-left: auto;
 }
 
 .theme-mini-window.is-compact .theme-mini-card-name {
@@ -22401,8 +22436,8 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 }
 
 .theme-mini-card-line {
-  height: 2px;
-  border-radius: 1px;
+  height: 2.5px;
+  border-radius: 1.5px;
   display: inline-block;
 }
 
@@ -22412,37 +22447,37 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 
 .theme-mini-input-bar {
   margin-top: auto;
-  height: 7.5px;
-  border-radius: 3px;
+  height: 11px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 3px;
+  padding: 0 4px;
   border: 1px solid transparent;
   box-sizing: border-box;
 }
 
 .theme-mini-window.is-compact .theme-mini-input-bar {
-  height: 5.5px;
+  height: 6px;
   padding: 0 2px;
 }
 
 .theme-mini-input-placeholder {
-  height: 1.5px;
-  border-radius: 0.75px;
+  height: 2px;
+  border-radius: 1px;
   display: inline-block;
 }
 
 .theme-mini-action-pill {
-  width: 6px;
-  height: 4px;
-  border-radius: 1.5px;
+  width: 8px;
+  height: 5px;
+  border-radius: 2px;
   flex-shrink: 0;
   display: inline-block;
 }
 
 .theme-mini-window.is-compact .theme-mini-action-pill {
-  width: 4.5px;
+  width: 5px;
   height: 3px;
 }
 
@@ -22466,15 +22501,34 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
   height: 100%;
   background: var(--hairline-strong);
   flex-shrink: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-mini-split-badge {
+  position: absolute;
+  font-size: 7px;
+  color: var(--accent);
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 /* Theme Card Footer */
 .theme-card-footer {
-  margin-top: 5px;
+  margin-top: 6px;
   padding: 0 2px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .theme-card-title-row {
@@ -22485,7 +22539,8 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 }
 
 .theme-card-label {
-  font-size: 12px;
+  font-family: var(--font-sans);
+  font-size: 13px;
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
@@ -22496,13 +22551,13 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 .theme-card-swatches {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 3.5px;
   flex-shrink: 0;
 }
 
 .theme-swatch-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   border: 1px solid var(--hairline-strong);
   box-sizing: border-box;
@@ -22511,15 +22566,17 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 
 .theme-swatch-dot.is-accent {
   border: none;
-  box-shadow: 0 0 4px var(--accent-soft);
+  box-shadow: 0 0 6px var(--accent-soft);
 }
 
 .theme-card-hint {
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.35;
 }
 
 /* Accent Color Pill Strip */
@@ -24765,35 +24822,35 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 /* ---- 1. Graphite: ElevenLabs clean warm stone-slate dark --------------- */
 :root[data-theme='graphite'],
 :root[data-theme-mode='dark'] {
-  --canvas: #0c0a09;
-  --canvas-deep: #080706;
-  --raised: #141211;
-  --surface: #1c1917;
-  --surface-2: #292524;
-  --surface-3: #181615;
+  --canvas: oklch(0 0 0);
+  --canvas-deep: oklch(0 0 0);
+  --raised: oklch(0.1450 0 0);
+  --surface: oklch(0.1450 0 0);
+  --surface-2: oklch(0.2300 0 0);
+  --surface-3: oklch(0.2500 0 0);
 
   --tint: 255 255 255;
   --shade: 0 0 0;
 
-  --hairline: rgba(255, 255, 255, 0.08);
-  --hairline-strong: rgba(255, 255, 255, 0.16);
+  --hairline: oklch(0.2600 0 0);
+  --hairline-strong: oklch(0.3200 0 0);
 
-  --text: #fafaf9;
-  --text-dim: #a8a29e;
-  --text-faint: #78716c;
+  --text: oklch(0.9460 0 0);
+  --text-dim: oklch(0.7200 0 0);
+  --text-faint: oklch(0.6000 0 0);
 
-  --accent: #8b5cf6;
-  --accent-hover: #9d71f7;
-  --accent-line: #8b5cf6;
-  --accent-soft: rgba(139, 92, 246, 0.16);
-  --accent-wash: rgba(139, 92, 246, 0.08);
-  --on-accent: #ffffff;
-  --ember: #d8b4fe;
+  --accent: oklch(0.4600 0.2200 266);
+  --accent-hover: oklch(0.5200 0.2100 266);
+  --accent-line: oklch(0.4600 0.2200 266);
+  --accent-soft: color-mix(in oklch, var(--accent) 16%, transparent);
+  --accent-wash: color-mix(in oklch, var(--accent) 8%, transparent);
+  --on-accent: oklch(0.9850 0 0);
+  --ember: oklch(0.9200 0.0400 272);
 
   --live: #2fc888;
   --live-ink: #6fe0ae;
   --confirm: #e9b451;
-  --stop: #ff6b7d;
+  --stop: oklch(0.6900 0.2000 23.9100);
 
   --live-soft: color-mix(in srgb, var(--live) 14%, transparent);
   --confirm-soft: color-mix(in srgb, var(--confirm) 12%, transparent);
@@ -24803,7 +24860,7 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
   --stop-line: color-mix(in srgb, var(--stop) 28%, transparent);
 
   --on-stop: #1b0c0e;
-  --glass: rgba(12, 10, 9, 0.88);
+  --glass: oklch(0 0 0 / 0.88);
   --scrim: rgba(0, 0, 0, 0.65);
   --code-literal: #7fdcae;
 
@@ -34121,6 +34178,7 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
   padding: 14px 10px 0;
   border-right: 1px solid var(--hairline);
   overflow-y: auto;
+  font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
 }
 
 /* The nav's own name, in the same quiet voice the cards use for theirs. */
@@ -34133,6 +34191,7 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--text-faint);
+  font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
 }
 
 .set-nav-item {
@@ -34145,6 +34204,7 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
   font-size: var(--text-xs);
   color: var(--text-dim);
   text-align: left;
+  font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
   transition: background var(--press) var(--ease-out), color var(--press) var(--ease-out);
 }
 .set-nav-item:hover { background: rgb(var(--tint) / 0.05); color: var(--text); }
@@ -34154,7 +34214,14 @@ a.md-image:hover { color: var(--text); border-color: var(--hairline-strong); }
    legible with the label hidden on narrow screens. */
 .set-nav-item.active { background: var(--accent); color: var(--on-accent); }
 
-.set-nav-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.set-nav-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
+}
 
 /* These leave the dialog for a full view rather than selecting a panel inside
    it, and the caret is the only thing that says so before it happens. */
@@ -44914,7 +44981,7 @@ a.text-reveal-wrap {
   overflow: hidden;
   background: var(--canvas-deep);
   color: var(--text);
-  font-family: var(--font-body) !important;
+  font-family: var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
   -webkit-font-smoothing: auto;
   -moz-osx-font-smoothing: auto;
   text-rendering: geometricPrecision;
@@ -44927,7 +44994,7 @@ a.text-reveal-wrap {
 .settings-view textarea,
 .settings-view .codex-card,
 .settings-view .set-box {
-  font-family: var(--font-body);
+  font-family: var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
 }
 
 /* Glass Material Integration for Window Shell */
@@ -45018,11 +45085,11 @@ a.text-reveal-wrap {
 }
 
 .settings-view .set-nav-group-label {
-  font-family: var(--font-body) !important;
+  font-family: var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
   font-size: 11px !important;
   font-weight: 600 !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.06em !important;
+  letter-spacing: 0.04em !important;
   color: var(--text-faint) !important;
   padding: 4px 10px 6px !important;
   margin: 0 !important;
@@ -45036,9 +45103,10 @@ a.text-reveal-wrap {
   gap: 10px !important;
   padding: 0 10px !important;
   border-radius: 8px !important;
-  font-family: var(--font-body) !important;
+  font-family: var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
   font-size: 13px !important;
   font-weight: 400 !important;
+  letter-spacing: -0.01em !important;
   color: var(--text) !important;
   opacity: 1 !important;
   background: transparent !important;
@@ -45049,8 +45117,9 @@ a.text-reveal-wrap {
 }
 
 .settings-view .set-nav-item .set-nav-label {
-  font-family: var(--font-body) !important;
+  font-family: var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
   font-size: 13px !important;
+  letter-spacing: -0.01em !important;
   color: inherit !important;
   opacity: 1 !important;
 }
@@ -45155,7 +45224,7 @@ a.text-reveal-wrap {
   margin: 0 0 20px 0;
   letter-spacing: -0.025em;
   line-height: 1.2;
-  font-family: var(--font-display);
+  font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
 }
 
 
@@ -45260,6 +45329,7 @@ a.text-reveal-wrap {
 
 .settings-view .set-row-title {
   display: block !important;
+  font-family: var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
   font-size: 13.5px !important;
   font-weight: 500 !important;
   color: var(--text) !important;
@@ -45269,6 +45339,7 @@ a.text-reveal-wrap {
 
 .settings-view .set-row-desc {
   display: block !important;
+  font-family: var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
   font-size: 12px !important;
   color: var(--text-dim) !important;
   margin-top: 2px !important;

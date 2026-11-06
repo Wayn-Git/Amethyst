@@ -1,34 +1,33 @@
-import { Button as HouseButton } from '../ui/bento/index.jsx'
-import Icon from '../Icon.jsx'
+import React from 'react'
 
-export const MODES = [
-  { id: 'all', label: 'Auto', icon: 'search' },
-  { id: 'commands', label: 'Commands', icon: 'zap', prefix: '>' },
-  { id: 'web', label: 'Web', icon: 'globe', prefix: '> google ' },
-  { id: 'youtube', label: 'YouTube', icon: 'play', prefix: '> youtube ' },
-  { id: 'images', label: 'Images', icon: 'image', prefix: '> images ' },
-  { id: 'library', label: 'Library', icon: 'book', prefix: '> library ' },
-  { id: 'tasks', label: 'Tasks', icon: 'check', prefix: '> task ' },
+export const DAEMON_TABS = [
+  { id: 'all', label: 'All' },
+  { id: 'apps', label: 'Apps' },
+  { id: 'files', label: 'Files' },
+  { id: 'web', label: 'Web' },
+  { id: 'library', label: 'Library' },
+  { id: 'people', label: 'People' },
+  { id: 'actions', label: 'Actions' },
 ]
+export const MODES = DAEMON_TABS
 
-export default function DamonModes({ activeMode, onSelectMode }) {
+export default function DamonModes({ activeTab, onSelectTab }) {
   return (
-    <div className="damon-modes" role="tablist" aria-label="Search filter modes">
-      {MODES.map((mode) => {
-        const isActive = activeMode === mode.id
+    <div className="damon-tabs" role="tablist" aria-label="Search categories">
+      {DAEMON_TABS.map((tab) => {
+        const isActive = activeTab === tab.id
         return (
-          <HouseButton
-            key={mode.id}
+          <button
+            key={tab.id}
             type="button"
             role="tab"
             aria-selected={isActive}
-            className={`damon-mode-pill${isActive ? ' is-active' : ''}`}
-            onClick={() => onSelectMode(mode.id)}
+            className={`damon-tab${isActive ? ' is-active' : ''}`}
+            onClick={() => onSelectTab(tab.id)}
             tabIndex={-1}
           >
-            <Icon name={mode.icon} size={13} />
-            <span>{mode.label}</span>
-          </HouseButton>
+            <span>{tab.label}</span>
+          </button>
         )
       })}
     </div>

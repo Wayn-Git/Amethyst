@@ -289,9 +289,11 @@ export function applyAppearanceSettings(prefs = {}) {
   if (prefs.uiFontStyle) {
     root.style.setProperty('--font-weight-ui', prefs.uiFontStyle)
   }
+  const defaultUiFont = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+
   if (prefs.fontFamily && prefs.fontFamily !== 'system') {
     const familyMap = {
-      inter: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+      inter: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       'plus-jakarta': "'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif",
       geist: "'Geist', 'Inter', -apple-system, sans-serif",
       serif: "Charter, 'Bitstream Charter', 'Sitka Text', Cambria, serif",
@@ -303,11 +305,12 @@ export function applyAppearanceSettings(prefs = {}) {
       root.style.setProperty('--font-display', fam)
       root.style.setProperty('--font-openai-sans', fam)
     }
-  } else if (prefs.fontFamily === 'system') {
-    root.style.removeProperty('--font-sans')
-    root.style.removeProperty('--font-body')
-    root.style.removeProperty('--font-display')
-    root.style.removeProperty('--font-openai-sans')
+  } else {
+    root.style.setProperty('--font-sans', defaultUiFont)
+    root.style.setProperty('--font-body', defaultUiFont)
+    root.style.setProperty('--font-display', defaultUiFont)
+    root.style.setProperty('--font-openai-sans', defaultUiFont)
+    root.style.setProperty('--ui-font', defaultUiFont)
   }
 
   if (prefs.codeFont && prefs.codeFont !== 'system') {
@@ -320,13 +323,13 @@ export function applyAppearanceSettings(prefs = {}) {
     if (codeMap[prefs.codeFont]) {
       root.style.setProperty('--font-mono', codeMap[prefs.codeFont])
     }
-  } else if (prefs.codeFont === 'system') {
-    root.style.removeProperty('--font-mono')
+  } else {
+    root.style.setProperty('--font-mono', "'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace")
   }
 
   if (prefs.contentFont && prefs.contentFont !== 'same') {
     const contentMap = {
-      inter: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+      inter: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       system: "-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif",
       serif: "Charter, 'Bitstream Charter', 'Sitka Text', Cambria, serif",
     }
@@ -334,9 +337,9 @@ export function applyAppearanceSettings(prefs = {}) {
       root.style.setProperty('--font-chat-prose', contentMap[prefs.contentFont])
       root.style.setProperty('--font-body', contentMap[prefs.contentFont])
     }
-  } else if (prefs.contentFont === 'same') {
-    root.style.removeProperty('--font-chat-prose')
-    root.style.removeProperty('--font-body')
+  } else {
+    root.style.setProperty('--font-chat-prose', defaultUiFont)
+    root.style.setProperty('--font-body', defaultUiFont)
   }
 
   if (prefs.contentFontWeight) {
@@ -1281,6 +1284,22 @@ export function AppProvider({ children }) {
       window.open(updateInfo.releaseUrl, '_blank')
     }
   }, [updateInfo.releaseUrl])
+
+  // Automatic background update checking for desktop / web
+  useEffect(() => {
+    const initialTimer = setTimeout(() => {
+      checkForUpdates(false).catch(() => {})
+    }, 8000)
+
+    const intervalTimer = setInterval(() => {
+      checkForUpdates(false).catch(() => {})
+    }, 2 * 60 * 60 * 1000)
+
+    return () => {
+      clearTimeout(initialTimer)
+      clearInterval(intervalTimer)
+    }
+  }, [checkForUpdates])
 
   const value = useMemo(() => ({
     view, setView,

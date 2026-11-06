@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, shell, Notification, globalShortcut } = require('electron');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
@@ -445,20 +445,55 @@ function setupAutoUpdater() {
     autoUpdater.on('update-available', (info) => {
       console.log('[AutoUpdater] Update available:', info.version);
       mainWindow?.webContents.send('desktop:update-available', info);
+
+      if (Notification.isSupported()) {
+        try {
+          const notif = new Notification({
+            title: 'Amethyst Update Downloading',
+            body: `Version ${info.version} is downloading in the background.`,
+            silent: false,
+          });
+          notif.show();
+        } catch (e) {
+          console.warn('[AutoUpdater] Failed to show update-available notification:', e.message);
+        }
+      }
     });
 
     autoUpdater.on('update-downloaded', (info) => {
       console.log('[AutoUpdater] Update downloaded:', info.version);
       mainWindow?.webContents.send('desktop:update-downloaded', info);
+
+      if (Notification.isSupported()) {
+        try {
+          const notif = new Notification({
+            title: 'Amethyst Update Ready',
+            body: `Version ${info.version} is ready to install. Click to restart.`,
+            silent: false,
+          });
+          notif.on('click', () => {
+            autoUpdater.quitAndInstall();
+          });
+          notif.show();
+        } catch (e) {
+          console.warn('[AutoUpdater] Failed to show update-downloaded notification:', e.message);
+        }
+      }
     });
 
     autoUpdater.on('error', (err) => {
       console.warn('[AutoUpdater] Update error:', err == null ? 'unknown' : (err.stack || err).toString());
     });
 
+    // Initial check after boot
     setTimeout(() => {
-      autoUpdater.checkForUpdatesAndNotify();
+      autoUpdater.checkForUpdatesAndNotify().catch(() => {});
     }, 5000);
+
+    // Periodic check every 2 hours
+    setInterval(() => {
+      autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+    }, 2 * 60 * 60 * 1000);
   }
 }
 
@@ -571,6 +606,29 @@ app.whenReady().then(() => {
   }
   initTray();
   setupAutoUpdater();
+
+  // Register global shortcuts for spotlight summoning
+  const toggleSpotlight = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (!mainWindow.isVisible() || mainWindow.isMinimized()) {
+        mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send('palette:toggle', true);
+      } else {
+        mainWindow.webContents.send('palette:toggle');
+      }
+    }
+  };
+
+  try {
+    globalShortcut.register('CommandOrControl+Space', toggleSpotlight);
+    globalShortcut.register('Alt+Space', toggleSpotlight);
+    globalShortcut.register('CommandOrControl+K', toggleSpotlight);
+  } catch (e) {
+    console.warn('[Amethyst Supervisor] Could not register global shortcuts:', e);
+  }
+
   bootSupervisor();
 });
 
@@ -595,6 +653,9 @@ app.on('before-quit', () => {
 
 app.on('will-quit', () => {
   isQuitting = true;
+  try {
+    globalShortcut.unregisterAll();
+  } catch {}
   killBackendProcess();
 });
 

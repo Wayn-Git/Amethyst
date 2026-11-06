@@ -9,6 +9,7 @@ import HalftoneWaveCanvas from './HalftoneWaveCanvas.jsx'
 import FlutedGlassGlow from './FlutedGlassGlow.jsx'
 import MistyForestBackdrop from './MistyForestBackdrop.jsx'
 import { api } from '../api.js'
+import { isNativeMobile } from '../lib/credentials.js'
 import { useApp } from '../store.jsx'
 import './SplashScreenWizard.css'
 
@@ -1959,7 +1960,7 @@ export default function SplashScreenWizard() {
     toast('Setup complete. Welcome to Amethyst!', 'ok')
   }, [browserEnabled, trayEnabled, setOnboardingDone, toast])
 
-  if (onboardingDone) return null
+  if (isNativeMobile() || (typeof window !== 'undefined' && (window.location.pathname.startsWith('/pair') || (window.location.hash || '').includes('pair'))) || onboardingDone) return null
 
   const stepLabels = ['Welcome', 'AI Models', 'Cloud Sync', 'Phone Sharing', 'Connected Apps', 'Ready']
 

@@ -20,6 +20,7 @@ import { triggerConfetti } from '../components/ConfettiCannon.jsx'
 import Integrations from './settings/Integrations.jsx'
 import Configuration from './settings/Configuration.jsx'
 import Storage from './settings/Storage.jsx'
+import Devices from './settings/Devices.jsx'
 
 /* ==========================================================================
    NAVIGATION SECTIONS & THEME DEFINITIONS
@@ -38,7 +39,7 @@ const SECTIONS = [
   { id: 'data', label: 'Data', icon: 'trash', group: 'Personal', desc: 'Local storage, database compaction, clear memories, reset preferences' },
   { id: 'integrations', label: 'Integrations', icon: 'layers', group: 'Integrations', desc: 'MCP servers, connectors, third-party plugin integrations' },
   { id: 'models', label: 'Models', icon: 'cpu', group: 'Integrations', desc: 'Model providers, API keys, reasoning tiers, local Ollama' },
-  { id: 'devices', label: 'Devices', icon: 'link', group: 'Integrations', desc: 'Paired devices, peer-to-peer sync, multi-device encryption' },
+  { id: 'devices', label: 'Connections', icon: 'link', group: 'Integrations', desc: 'Remote device pairing, peer-to-peer sync, control this computer' },
   { id: 'permissions', label: 'Permissions', icon: 'shield', group: 'Coding', desc: 'Safety guards, shell confirmation, filesystem confirmation, network gate' },
   { id: 'about', label: 'About', icon: 'info', group: 'Coding', desc: 'Version, build info, open source licenses and acknowledgments' },
 ]
@@ -1724,20 +1725,24 @@ const THEMES_CONFIG = [
     label: 'System',
     hint: 'Follows OS preference',
     mode: 'auto',
-    canvas: '#121316',
-    sidebar: '#18191d',
-    card: '#202126',
-    accent: '#3b82f6',
+    canvas: '#000000',
+    sidebar: '#080808',
+    card: '#171717',
+    border: '#2e2e2e',
+    accent: '#5d3bf6',
   },
   {
     id: 'graphite',
     label: 'Graphite',
-    hint: 'Neutral dark slate & violet',
+    hint: 'Tweakcn OLED dark & violet',
     mode: 'dark',
-    canvas: '#121316',
-    sidebar: '#18191d',
-    card: '#202126',
-    accent: '#a78bfa',
+    canvas: '#000000',
+    sidebar: '#080808',
+    card: '#171717',
+    border: '#2e2e2e',
+    accent: '#5d3bf6',
+    fg: '#f1f1f1',
+    muted: '#a3a3a3',
   },
   {
     id: 'ink',
@@ -1747,7 +1752,10 @@ const THEMES_CONFIG = [
     canvas: '#0b0d13',
     sidebar: '#10131c',
     card: '#171b26',
+    border: '#232a3b',
     accent: '#38bdf8',
+    fg: '#e2e8f0',
+    muted: '#94a3b8',
   },
   {
     id: 'nocturne',
@@ -1757,7 +1765,10 @@ const THEMES_CONFIG = [
     canvas: '#050608',
     sidebar: '#0a0b10',
     card: '#121318',
+    border: '#1c1e28',
     accent: '#22d3ee',
+    fg: '#f1f5f9',
+    muted: '#828da0',
   },
   {
     id: 'nvidia',
@@ -1767,7 +1778,10 @@ const THEMES_CONFIG = [
     canvas: '#000000',
     sidebar: '#08090a',
     card: '#111215',
+    border: '#1f2228',
     accent: '#76b900',
+    fg: '#f3f4f6',
+    muted: '#8c95a3',
   },
   {
     id: 'paper',
@@ -1777,7 +1791,10 @@ const THEMES_CONFIG = [
     canvas: '#ffffff',
     sidebar: '#f8f9fa',
     card: '#ffffff',
+    border: '#e4e4e7',
     accent: '#2563eb',
+    fg: '#18181b',
+    muted: '#71717a',
   },
   {
     id: 'sand',
@@ -1787,7 +1804,10 @@ const THEMES_CONFIG = [
     canvas: '#faf8f5',
     sidebar: '#f3efe8',
     card: '#ffffff',
+    border: '#e7e0d5',
     accent: '#d97706',
+    fg: '#1c1917',
+    muted: '#78716c',
   },
   {
     id: 'claude',
@@ -1797,7 +1817,10 @@ const THEMES_CONFIG = [
     canvas: '#fbf9f4',
     sidebar: '#f3eee4',
     card: '#ffffff',
+    border: '#e8e2d4',
     accent: '#c2410c',
+    fg: '#262320',
+    muted: '#7c746b',
   },
   {
     id: 'cursor',
@@ -1807,7 +1830,10 @@ const THEMES_CONFIG = [
     canvas: '#f9f9fa',
     sidebar: '#f2f2f4',
     card: '#ffffff',
+    border: '#e2e2e8',
     accent: '#0ea5e9',
+    fg: '#18181b',
+    muted: '#64748b',
   },
 ]
 
@@ -1815,84 +1841,99 @@ function ThemeMiniWindow({ config, compact = false }) {
   if (config.id === 'system' || config.mode === 'auto') {
     return (
       <div className={`theme-mini-window theme-mini-window--split${compact ? ' is-compact' : ''}`}>
-        <div className="theme-mini-split-side theme-mini-split-side--light">
-          <div className="theme-mini-chrome">
+        {/* Left: Light mode (Paper) */}
+        <div className="theme-mini-split-side" style={{ background: '#ffffff', color: '#18181b' }}>
+          <div className="theme-mini-chrome" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)', background: 'rgba(0,0,0,0.02)' }}>
             <div className="theme-mini-dots">
               <span className="theme-mini-dot" style={{ background: '#ff5f56' }} />
               <span className="theme-mini-dot" style={{ background: '#ffbd2e' }} />
               <span className="theme-mini-dot" style={{ background: '#27c93f' }} />
             </div>
-            {!compact && <span className="theme-mini-title-pill" style={{ background: 'rgba(0,0,0,0.14)' }} />}
+            {!compact && <span className="theme-mini-tab-title" style={{ color: 'rgba(0,0,0,0.5)', background: 'rgba(0,0,0,0.05)' }}>Light</span>}
           </div>
           <div className="theme-mini-body">
             <div className="theme-mini-sidebar" style={{ background: '#f8f9fa', borderRight: '1px solid rgba(0,0,0,0.06)' }}>
+              <div className="theme-mini-logo-box" style={{ background: 'rgba(37,99,235,0.12)' }}>
+                <span className="theme-mini-logo-gem" style={{ background: '#2563eb' }} />
+              </div>
               <div className="theme-mini-nav-item is-active" style={{ background: 'rgba(0,0,0,0.06)' }}>
                 <span className="theme-mini-nav-indicator" style={{ background: '#2563eb' }} />
-                <span className="theme-mini-nav-text" style={{ width: '52%', background: 'rgba(0,0,0,0.18)' }} />
+                <span className="theme-mini-nav-text" style={{ width: '56%', background: 'rgba(0,0,0,0.35)' }} />
               </div>
               <div className="theme-mini-nav-item">
-                <span className="theme-mini-nav-text" style={{ width: '68%', background: 'rgba(0,0,0,0.08)' }} />
+                <span className="theme-mini-nav-text" style={{ width: '42%', background: 'rgba(0,0,0,0.14)' }} />
               </div>
               {!compact && (
                 <div className="theme-mini-nav-bottom">
-                  <span className="theme-mini-avatar" style={{ background: 'rgba(0,0,0,0.15)' }} />
+                  <span className="theme-mini-avatar" style={{ background: 'rgba(0,0,0,0.18)' }} />
                 </div>
               )}
             </div>
             <div className="theme-mini-content" style={{ background: '#ffffff' }}>
-              <div className="theme-mini-user-bubble" style={{ background: 'rgba(0,0,0,0.04)', borderColor: 'rgba(0,0,0,0.05)' }}>
-                <span className="theme-mini-bubble-text" style={{ width: '65%', background: 'rgba(0,0,0,0.18)' }} />
+              <div className="theme-mini-user-bubble" style={{ background: 'rgba(0,0,0,0.04)', borderColor: 'rgba(0,0,0,0.06)' }}>
+                <span className="theme-mini-bubble-text" style={{ width: '68%', background: 'rgba(0,0,0,0.38)' }} />
               </div>
-              <div className="theme-mini-assistant-card" style={{ background: '#f8f9fa', borderColor: 'rgba(0,0,0,0.06)' }}>
+              <div className="theme-mini-assistant-card" style={{ background: '#f8f9fa', borderColor: 'rgba(0,0,0,0.07)' }}>
                 <div className="theme-mini-card-header">
                   <span className="theme-mini-card-avatar" style={{ background: '#2563eb' }} />
-                  <span className="theme-mini-card-name" style={{ width: '42%', background: 'rgba(0,0,0,0.18)' }} />
+                  <span className="theme-mini-card-name" style={{ width: '36%', background: 'rgba(0,0,0,0.35)' }} />
+                  <span className="theme-mini-card-chip" style={{ background: 'rgba(0,0,0,0.05)' }} />
                 </div>
-                <span className="theme-mini-card-line" style={{ width: '88%', background: 'rgba(0,0,0,0.16)' }} />
+                <span className="theme-mini-card-line" style={{ width: '92%', background: 'rgba(0,0,0,0.30)' }} />
+                <span className="theme-mini-card-line" style={{ width: '60%', background: 'rgba(0,0,0,0.16)' }} />
               </div>
-              <div className="theme-mini-input-bar" style={{ background: 'rgba(0,0,0,0.03)', borderColor: 'rgba(0,0,0,0.05)' }}>
-                <span className="theme-mini-input-placeholder" style={{ width: '45%', background: 'rgba(0,0,0,0.08)' }} />
+              <div className="theme-mini-input-bar" style={{ background: 'rgba(0,0,0,0.03)', borderColor: 'rgba(0,0,0,0.07)' }}>
+                <span className="theme-mini-input-placeholder" style={{ width: '42%', background: 'rgba(0,0,0,0.18)' }} />
                 <span className="theme-mini-action-pill" style={{ background: '#2563eb' }} />
               </div>
             </div>
           </div>
         </div>
 
-        <div className="theme-mini-split-line" />
+        {/* Center Split Line with Badge */}
+        <div className="theme-mini-split-line">
+          <div className="theme-mini-split-badge">✦</div>
+        </div>
 
-        <div className="theme-mini-split-side theme-mini-split-side--dark">
-          <div className="theme-mini-chrome">
-            {!compact && <span className="theme-mini-title-pill" style={{ background: 'rgba(255,255,255,0.15)', margin: 'auto' }} />}
+        {/* Right: Dark mode (Graphite / Tweakcn OLED) */}
+        <div className="theme-mini-split-side" style={{ background: '#000000', color: '#f1f1f1' }}>
+          <div className="theme-mini-chrome" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}>
+            {!compact && <span className="theme-mini-tab-title" style={{ color: 'rgba(255,255,255,0.6)', background: 'rgba(255,255,255,0.08)', margin: 'auto' }}>Dark</span>}
           </div>
           <div className="theme-mini-body">
-            <div className="theme-mini-sidebar" style={{ background: '#18191d', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="theme-mini-sidebar" style={{ background: '#080808', borderRight: '1px solid rgba(255,255,255,0.07)' }}>
+              <div className="theme-mini-logo-box" style={{ background: 'rgba(93,59,246,0.18)' }}>
+                <span className="theme-mini-logo-gem" style={{ background: '#5d3bf6' }} />
+              </div>
               <div className="theme-mini-nav-item is-active" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                <span className="theme-mini-nav-indicator" style={{ background: '#3b82f6' }} />
-                <span className="theme-mini-nav-text" style={{ width: '52%', background: 'rgba(255,255,255,0.22)' }} />
+                <span className="theme-mini-nav-indicator" style={{ background: '#5d3bf6' }} />
+                <span className="theme-mini-nav-text" style={{ width: '56%', background: 'rgba(255,255,255,0.5)' }} />
               </div>
               <div className="theme-mini-nav-item">
-                <span className="theme-mini-nav-text" style={{ width: '68%', background: 'rgba(255,255,255,0.1)' }} />
+                <span className="theme-mini-nav-text" style={{ width: '42%', background: 'rgba(255,255,255,0.2)' }} />
               </div>
               {!compact && (
                 <div className="theme-mini-nav-bottom">
-                  <span className="theme-mini-avatar" style={{ background: 'rgba(255,255,255,0.2)' }} />
+                  <span className="theme-mini-avatar" style={{ background: 'rgba(255,255,255,0.28)' }} />
                 </div>
               )}
             </div>
-            <div className="theme-mini-content" style={{ background: '#121316' }}>
-              <div className="theme-mini-user-bubble" style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.07)' }}>
-                <span className="theme-mini-bubble-text" style={{ width: '65%', background: 'rgba(255,255,255,0.24)' }} />
+            <div className="theme-mini-content" style={{ background: '#000000' }}>
+              <div className="theme-mini-user-bubble" style={{ background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.1)' }}>
+                <span className="theme-mini-bubble-text" style={{ width: '68%', background: 'rgba(255,255,255,0.5)' }} />
               </div>
-              <div className="theme-mini-assistant-card" style={{ background: '#202126', borderColor: 'rgba(255,255,255,0.08)' }}>
+              <div className="theme-mini-assistant-card" style={{ background: '#171717', borderColor: 'rgba(255,255,255,0.1)' }}>
                 <div className="theme-mini-card-header">
-                  <span className="theme-mini-card-avatar" style={{ background: '#3b82f6' }} />
-                  <span className="theme-mini-card-name" style={{ width: '42%', background: 'rgba(255,255,255,0.22)' }} />
+                  <span className="theme-mini-card-avatar" style={{ background: '#5d3bf6' }} />
+                  <span className="theme-mini-card-name" style={{ width: '36%', background: 'rgba(255,255,255,0.5)' }} />
+                  <span className="theme-mini-card-chip" style={{ background: 'rgba(255,255,255,0.08)' }} />
                 </div>
-                <span className="theme-mini-card-line" style={{ width: '88%', background: 'rgba(255,255,255,0.2)' }} />
+                <span className="theme-mini-card-line" style={{ width: '92%', background: 'rgba(255,255,255,0.42)' }} />
+                <span className="theme-mini-card-line" style={{ width: '60%', background: 'rgba(255,255,255,0.24)' }} />
               </div>
-              <div className="theme-mini-input-bar" style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.07)' }}>
-                <span className="theme-mini-input-placeholder" style={{ width: '45%', background: 'rgba(255,255,255,0.1)' }} />
-                <span className="theme-mini-action-pill" style={{ background: '#3b82f6' }} />
+              <div className="theme-mini-input-bar" style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.1)' }}>
+                <span className="theme-mini-input-placeholder" style={{ width: '42%', background: 'rgba(255,255,255,0.25)' }} />
+                <span className="theme-mini-action-pill" style={{ background: '#5d3bf6' }} />
               </div>
             </div>
           </div>
@@ -1902,9 +1943,13 @@ function ThemeMiniWindow({ config, compact = false }) {
   }
 
   const isLight = config.mode === 'light'
-  const borderHairline = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)'
-  const subtleLine = isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.22)'
-  const dimLine = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.10)'
+  const borderHairline = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.09)'
+  const cardBorder = isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.08)'
+  const primaryLine = isLight ? 'rgba(0,0,0,0.40)' : 'rgba(255,255,255,0.52)'
+  const subtleLine = isLight ? 'rgba(0,0,0,0.22)' : 'rgba(255,255,255,0.30)'
+  const dimLine = isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.16)'
+  const bubbleBg = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.07)'
+  const inputBg = isLight ? '#ffffff' : 'rgba(255,255,255,0.04)'
 
   return (
     <div
@@ -1926,8 +1971,18 @@ function ThemeMiniWindow({ config, compact = false }) {
           <span className="theme-mini-dot" style={{ background: '#ffbd2e' }} />
           <span className="theme-mini-dot" style={{ background: '#27c93f' }} />
         </div>
-        {!compact && <span className="theme-mini-title-pill" style={{ background: subtleLine }} />}
-        <div style={{ width: 12 }} />
+        {!compact && (
+          <span
+            className="theme-mini-tab-title"
+            style={{
+              color: isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.55)',
+              background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)',
+            }}
+          >
+            {config.label}
+          </span>
+        )}
+        <div style={{ width: 14 }} />
       </div>
 
       <div className="theme-mini-body">
@@ -1939,29 +1994,44 @@ function ThemeMiniWindow({ config, compact = false }) {
           }}
         >
           <div
+            className="theme-mini-logo-box"
+            style={{
+              background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)',
+            }}
+          >
+            <span
+              className="theme-mini-logo-gem"
+              style={{ background: config.accent }}
+            />
+          </div>
+
+          <div
             className="theme-mini-nav-item is-active"
             style={{
-              background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.07)',
+              background: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.08)',
             }}
           >
             <span
               className="theme-mini-nav-indicator"
               style={{ background: config.accent }}
             />
-            <span className="theme-mini-nav-text" style={{ width: '52%', background: subtleLine }} />
+            <span className="theme-mini-nav-text" style={{ width: '56%', background: primaryLine }} />
           </div>
+
           <div className="theme-mini-nav-item">
-            <span className="theme-mini-nav-text" style={{ width: '70%', background: dimLine }} />
+            <span className="theme-mini-nav-text" style={{ width: '64%', background: dimLine }} />
           </div>
+
           {!compact && (
             <div className="theme-mini-nav-item">
-              <span className="theme-mini-nav-text" style={{ width: '48%', background: dimLine }} />
+              <span className="theme-mini-nav-text" style={{ width: '44%', background: dimLine }} />
             </div>
           )}
+
           {!compact && (
             <div className="theme-mini-nav-bottom">
               <span className="theme-mini-avatar" style={{ background: subtleLine }} />
-              <span className="theme-mini-nav-text" style={{ width: '42%', background: dimLine }} />
+              <span className="theme-mini-nav-text" style={{ width: '38%', background: dimLine }} />
             </div>
           )}
         </div>
@@ -1970,37 +2040,50 @@ function ThemeMiniWindow({ config, compact = false }) {
           <div
             className="theme-mini-user-bubble"
             style={{
-              background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)',
+              background: bubbleBg,
               borderColor: borderHairline,
             }}
           >
-            <span className="theme-mini-bubble-text" style={{ width: '65%', background: subtleLine }} />
+            <span className="theme-mini-bubble-text" style={{ width: '68%', background: primaryLine }} />
           </div>
 
           <div
             className="theme-mini-assistant-card"
             style={{
               background: config.card,
-              borderColor: borderHairline,
+              borderColor: cardBorder,
+              boxShadow: isLight ? '0 1px 4px rgba(0,0,0,0.04)' : '0 2px 8px rgba(0,0,0,0.3)',
             }}
           >
             <div className="theme-mini-card-header">
               <span className="theme-mini-card-avatar" style={{ background: config.accent }} />
-              <span className="theme-mini-card-name" style={{ width: '38%', background: subtleLine }} />
+              <span className="theme-mini-card-name" style={{ width: '36%', background: primaryLine }} />
+              <span
+                className="theme-mini-card-chip"
+                style={{
+                  background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)',
+                }}
+              />
             </div>
-            <span className="theme-mini-card-line" style={{ width: '88%', background: subtleLine }} />
-            {!compact && <span className="theme-mini-card-line" style={{ width: '58%', background: dimLine }} />}
+            <span className="theme-mini-card-line" style={{ width: '92%', background: subtleLine }} />
+            {!compact && <span className="theme-mini-card-line" style={{ width: '62%', background: dimLine }} />}
           </div>
 
           <div
             className="theme-mini-input-bar"
             style={{
-              background: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.04)',
+              background: inputBg,
               borderColor: borderHairline,
             }}
           >
             <span className="theme-mini-input-placeholder" style={{ width: '42%', background: dimLine }} />
-            <span className="theme-mini-action-pill" style={{ background: config.accent }} />
+            <span
+              className="theme-mini-action-pill"
+              style={{
+                background: config.accent,
+                boxShadow: `0 0 5px ${config.accent}80`,
+              }}
+            />
           </div>
         </div>
       </div>
@@ -2212,7 +2295,7 @@ function Appearance() {
                         className="theme-swatch-dot"
                         style={{
                           background: isSplit
-                            ? 'linear-gradient(135deg, #ffffff 50%, #121316 50%)'
+                            ? 'linear-gradient(135deg, #ffffff 50%, #000000 50%)'
                             : t.canvas,
                         }}
                         title="Canvas"
@@ -2221,7 +2304,7 @@ function Appearance() {
                         className="theme-swatch-dot"
                         style={{
                           background: isSplit
-                            ? 'linear-gradient(135deg, #f8f9fa 50%, #18191d 50%)'
+                            ? 'linear-gradient(135deg, #f8f9fa 50%, #080808 50%)'
                             : t.sidebar,
                         }}
                         title="Sidebar"
@@ -2230,7 +2313,7 @@ function Appearance() {
                         className="theme-swatch-dot"
                         style={{
                           background: isSplit
-                            ? 'linear-gradient(135deg, #f8f9fa 50%, #202126 50%)'
+                            ? 'linear-gradient(135deg, #ffffff 50%, #171717 50%)'
                             : t.card,
                         }}
                         title="Card"
@@ -2302,7 +2385,7 @@ function Appearance() {
                     height: 18,
                     borderRadius: '50%',
                     background: isSplit
-                      ? 'linear-gradient(135deg, #2563eb 50%, #121316 50%)'
+                      ? 'linear-gradient(135deg, #2563eb 50%, #000000 50%)'
                       : meta?.accent || 'var(--accent)',
                     display: 'flex',
                     alignItems: 'center',
@@ -2329,7 +2412,7 @@ function Appearance() {
                       height: 14,
                       borderRadius: 3,
                       background: isSplit
-                        ? 'linear-gradient(90deg, #ffffff 50%, #121316 50%)'
+                        ? 'linear-gradient(90deg, #ffffff 50%, #000000 50%)'
                         : meta?.canvas || 'var(--raised)',
                       border: '1px solid var(--hairline-strong)',
                       flexShrink: 0,
@@ -3037,7 +3120,7 @@ function Models() {
                   </span>
                   {activeProvider.core && <span className="mod-core-tag">Core Gateway</span>}
                 </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 2 }}>
                   {activeProvider.default_model || activeProvider.model || 'Auto Adaptive Fallback'}
                 </div>
               </div>
@@ -3117,7 +3200,7 @@ function Models() {
                         )}
                         {p.core && <span className="mod-core-tag" style={{ fontSize: '10.5px', padding: '1px 6px' }}>Core</span>}
                       </div>
-                      <span className="set-row-desc" style={{ fontFamily: 'var(--font-mono)', fontSize: '11.5px' }}>
+                      <span className="set-row-desc" style={{ fontSize: '11.5px' }}>
                         {p.default_model || p.model || 'OpenAI Compatible Gateway'}
                       </span>
                     </div>
@@ -3846,7 +3929,7 @@ function LearningEditor() {
             After an eligible turn, ask a small model whether the work produced a reusable skill.
             Proposals wait for approval in Capabilities → Skills. Nothing is saved automatically.
           </div>
-          <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 6, fontFamily: 'var(--font-mono)' }}>
+          <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 6, fontWeight: 500 }}>
             {counts.pending || 0} pending · {counts.approved || 0} approved · {counts.rejected || 0} rejected
           </div>
         </div>
@@ -5257,7 +5340,7 @@ function Activity() {
         )}
 
         {/* Card Footer: Interactive Hover Status */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', borderTop: '1px solid rgba(255, 255, 255, 0.04)', fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', borderTop: '1px solid rgba(255, 255, 255, 0.04)', fontSize: '11.5px', color: 'var(--text-dim)' }}>
           <span>
             {hoveredTimelineDay
               ? `${hoveredTimelineDay.fullDateLabel}: ${hoveredTimelineDay.cnt} requests (${hoveredTimelineDay.failed_cnt} failed)`
@@ -5278,7 +5361,7 @@ function Activity() {
             <span>Recent requests</span>
           </div>
 
-          <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', letterSpacing: '0.02em' }}>
+          <div style={{ fontSize: '11.5px', color: 'var(--text-dim)', letterSpacing: '0.01em' }}>
             Newest first
           </div>
         </div>
@@ -5521,7 +5604,7 @@ function About() {
             <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.01em' }}>
               Amethyst 0.1.3-beta
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 2 }}>
               {platformStr}
             </div>
           </div>
@@ -5708,657 +5791,8 @@ function About() {
 
 /* ==========================================================================
    DEVICES (pairing, and what syncs between them)
+   Extracted to ./settings/Devices.jsx
    ========================================================================== */
-
-/**
- * One panel, two situations, because it is the same screen on both.
- *
- * On the machine that holds your data the backend answers, so this shows the
- * paired devices and can open a pairing window. On a phone there is no backend
- * -- the interface is served from anywhere and talks only to the relay -- so it
- * shows the form for entering the code the machine printed.
- *
- * Which one you get is decided by whether the backend is reachable, not by
- * sniffing the user agent: a laptop with its server switched off is in exactly
- * the phone's situation and should be offered exactly the phone's screen.
- */
-function Devices() {
-  const { toast, server } = useApp()
-  const confirm = useConfirm()
-  const hasBackend = server?.phase === 'ready'
-
-  const [devices, setDevices] = useState([])
-  const [pending, setPending] = useState([])
-  const [invite, setInvite] = useState(null)
-  const [activeModalRequest, setActiveModalRequest] = useState(null)
-  const [pairMode, setPairMode] = useState('lan')
-  const [busy, setBusy] = useState(false)
-  /* Where a phone opens this app. Knowing it is what lets the code below be an
-     ordinary https link that a phone's camera opens by itself, instead of an
-     `amethyst://` payload only this app's own scanner can do anything with. */
-  const [appUrl, setAppUrl] = useState('')
-  const [savedAppUrl, setSavedAppUrl] = useState('')
-
-  // The phone's half.
-  const [held, setHeld] = useState(() => syncClient.identity())
-  const [relayUrl, setRelayUrl] = useState(() => syncClient.identity()?.relayUrl || '')
-  const [code, setCode] = useState('')
-  const [pairing, setPairing] = useState(false)
-  const [lastSync, setLastSync] = useState(null)
-
-  const refresh = useCallback(async () => {
-    if (!hasBackend) return
-    try {
-      const { devices: rows, app_url: configured } = await api.devices()
-      setDevices(rows || [])
-      setAppUrl(configured || '')
-      setSavedAppUrl(configured || '')
-
-      const { pending: pendingRows } = await api.pendingDevices()
-      setPending(pendingRows || [])
-    } catch { /* the backend went away mid-look; the empty list is honest */ }
-  }, [hasBackend])
-
-  useEffect(() => {
-    refresh()
-    let interval = null
-    if (invite) {
-      interval = setInterval(refresh, 2500)
-    }
-    return () => { if (interval) clearInterval(interval) }
-  }, [invite, refresh])
-
-  const openPairing = async () => {
-    setBusy(true)
-    try {
-      setInvite(await api.pairDevice(''))
-      await refresh()
-    } catch (err) {
-      toast(err.message, 'bad')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const approvePending = async (requestId) => {
-    try {
-      await api.approvePending(requestId)
-      toast('Device approved and paired.', 'ok')
-      setInvite(null)
-      await refresh()
-    } catch (err) {
-      toast(err.message, 'bad')
-    }
-  }
-
-  const rejectPending = async (requestId) => {
-    try {
-      await api.rejectPending(requestId)
-      toast('Device rejected.', 'ok')
-      await refresh()
-    } catch (err) {
-      toast(err.message, 'bad')
-    }
-  }
-
-  const [editingDeviceId, setEditingDeviceId] = useState(null)
-  const [editingPermissions, setEditingPermissions] = useState({})
-  const [savingPermissions, setSavingPermissions] = useState(false)
-
-  const toggleEditingPermission = (key) => {
-    setEditingPermissions((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }))
-  }
-
-  const savePermissions = async (deviceId) => {
-    setSavingPermissions(true)
-    try {
-      await api.updateDevicePermissions(deviceId, editingPermissions)
-      toast('Device permissions updated.', 'ok')
-      setEditingDeviceId(null)
-      await refresh()
-    } catch (err) {
-      toast(err.message || 'Failed to update permissions', 'bad')
-    } finally {
-      setSavingPermissions(false)
-    }
-  }
-
-  const saveAppUrl = async () => {
-    try {
-      const { app_url: saved } = await api.setAppUrl(appUrl.trim())
-      setAppUrl(saved || '')
-      setSavedAppUrl(saved || '')
-      toast(saved ? 'Saved. New codes will be scannable links.' : 'Cleared', 'ok')
-    } catch (err) {
-      toast(err.message, 'bad')
-    }
-  }
-
-  const revoke = async (device) => {
-    const ok = await confirm({
-      title: `Stop syncing with ${device.name}?`,
-      message: 'It stops being recognised at the relay within one poll. Pair it again to undo this.',
-      confirmLabel: 'Revoke',
-      danger: true,
-    })
-    if (!ok) return
-    try {
-      await api.revokeDevice(device.id)
-      toast(`${device.name} revoked`, 'ok')
-      await refresh()
-    } catch (err) {
-      toast(err.message, 'bad')
-    }
-  }
-
-  const joinFromPhone = async () => {
-    if (!relayUrl.trim() || !code.trim()) return
-    setPairing(true)
-    try {
-      const joined = await syncClient.pair(relayUrl.trim(), code.trim(), navigator.platform || 'phone')
-      setHeld(joined)
-      setCode('')
-      toast('Paired. Your settings will follow you here.', 'ok')
-    } catch (err) {
-      toast(err.message, 'bad')
-    } finally {
-      setPairing(false)
-    }
-  }
-
-  const syncNow = async () => {
-    const result = await syncClient.sync()
-    setLastSync(result)
-    if (result.synced) toast(`Synced. ${result.applied} change(s) applied.`, 'ok')
-    else if (result.reason === 'revoked') toast('This device was revoked on the other machine.', 'bad')
-    else toast(`Not synced: ${result.reason}`, 'bad')
-  }
-
-  const unpair = async () => {
-    const ok = await confirm({
-      title: 'Forget this pairing?',
-      message: 'This browser stops syncing and drops its copy of the key. Revoke it on the machine as well to be sure.',
-      confirmLabel: 'Forget',
-      danger: true,
-    })
-    if (!ok) return
-    await syncClient.forget()
-    setHeld(null)
-    toast('Pairing forgotten', 'ok')
-  }
-
-  if (!hasBackend) {
-    return (
-      <div className="set-panel">
-        <div className="set-section-label">This device</div>
-        {held ? (
-          <div className="set-box" style={{ marginBottom: 24 }}>
-            <div className="set-box-row">
-              <div className="set-row-text">
-                <span className="set-row-title">Paired</span>
-                <span className="set-row-desc">
-                  Syncing with {held.relayUrl}. Changes travel sealed; the relay cannot read them.
-                </span>
-              </div>
-              <HouseButton type="button" className="set-btn-sm" onClick={syncNow}>Sync now</HouseButton>
-            </div>
-            {lastSync ? (
-              <div className="set-box-row">
-                <div className="set-row-text">
-                  <span className="set-row-title">Last sync</span>
-                  <span className="set-row-desc">
-                    {lastSync.synced
-                      ? `${lastSync.applied} applied, ${lastSync.sent} sent`
-                      : `not synced (${lastSync.reason})`}
-                  </span>
-                </div>
-              </div>
-            ) : null}
-            <DangerRow
-              label="Forget this pairing"
-              note="Drops this browser's key and stops it syncing."
-              confirmLabel="Forget"
-              onConfirm={unpair}
-            />
-          </div>
-        ) : (
-          <div className="set-box" style={{ marginBottom: 24 }}>
-            <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
-              <div className="set-row-text">
-                <span className="set-row-title">Pair with your machine</span>
-                <span className="set-row-desc">
-                  On that machine, open Settings → Devices and press <strong>Pair a device</strong>,
-                  then paste the link or the code here. Leave it running — it finishes the
-                  handshake within a few seconds.
-                </span>
-              </div>
-              <HouseInput
-                className="set-input"
-                placeholder="https://amethyst-relay.you.workers.dev"
-                value={relayUrl}
-                onChange={(e) => setRelayUrl(e.target.value)}
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <HouseInput
-                className="set-input"
-                placeholder="the code, or the whole amethyst://pair link"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <HouseButton
-                type="button"
-                className="set-btn-sm"
-                onClick={joinFromPhone}
-                disabled={pairing || !relayUrl.trim() || !code.trim()}
-              >
-                {pairing ? 'Waiting for the machine…' : 'Pair'}
-              </HouseButton>
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  return (
-    <div className="set-panel">
-      <div className="set-section-label">Paired devices</div>
-      <div className="set-box" style={{ marginBottom: 24 }}>
-        {devices.length === 0 ? (
-          <div className="set-box-row">
-            <div className="set-row-text">
-              <span className="set-row-title">Nothing is paired yet</span>
-              <span className="set-row-desc">
-                Pair a phone to carry your preferences to it. Your conversations and files stay here.
-              </span>
-            </div>
-          </div>
-        ) : devices.map((device) => {
-          const perms = device.permissions || {}
-          const isEditing = editingDeviceId === device.id
-          return (
-            <div key={device.id} style={{ borderBottom: '1px solid var(--hairline-strong)', padding: '12px 16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div className="set-row-text">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className="set-row-title">{device.name}</span>
-                    <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 4, background: 'var(--bg-inset)', color: 'var(--text-sub)' }}>
-                      {device.role}
-                    </span>
-                  </div>
-                  <span className="set-row-desc">
-                    Last seen {device.last_seen_at || 'never'}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <HouseButton
-                    type="button"
-                    className="set-btn-sm"
-                    onClick={() => {
-                      if (isEditing) {
-                        setEditingDeviceId(null)
-                      } else {
-                        setEditingDeviceId(device.id)
-                        setEditingPermissions(device.permissions || {})
-                      }
-                    }}
-                  >
-                    {isEditing ? 'Close' : 'Permissions'}
-                  </HouseButton>
-                  <HouseButton type="button" className="set-btn-sm" onClick={() => revoke(device)} style={{ color: 'var(--stop)' }}>
-                    Revoke
-                  </HouseButton>
-                </div>
-              </div>
-
-              {/* Badges of granted scopes */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                {['screen', 'input', 'media', 'files', 'terminal', 'agent', 'power', 'webcam', 'mic', 'root'].map((k) => {
-                  const active = Boolean(perms[k === 'media' ? 'audio' : k])
-                  return (
-                    <span
-                      key={k}
-                      style={{
-                        fontSize: 10,
-                        padding: '2px 6px',
-                        borderRadius: 4,
-                        background: active ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-inset)',
-                        color: active ? 'var(--accent)' : 'var(--text-faint)',
-                        border: `1px solid ${active ? 'rgba(99, 102, 241, 0.3)' : 'transparent'}`,
-                        textTransform: 'capitalize',
-                      }}
-                    >
-                      {k}
-                    </span>
-                  )
-                })}
-              </div>
-
-              {/* Inline Permission Editor */}
-              {isEditing && (
-                <div style={{ marginTop: 12, padding: 12, borderRadius: 6, background: 'var(--bg-inset)', border: '1px solid var(--hairline-strong)' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>
-                    Configure Access Scopes:
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8, marginBottom: 12 }}>
-                    {[
-                      { key: 'screen', label: 'Screen Capture' },
-                      { key: 'input', label: 'Mouse & Keys' },
-                      { key: 'audio', label: 'Media & Audio' },
-                      { key: 'files', label: 'File Transfer' },
-                      { key: 'terminal', label: 'Terminal' },
-                      { key: 'agent', label: 'Agent Tasks' },
-                      { key: 'power', label: 'Power Ops' },
-                      { key: 'webcam', label: 'Webcam' },
-                      { key: 'mic', label: 'Microphone' },
-                      { key: 'root', label: 'Root / Sudo' },
-                    ].map(({ key, label }) => (
-                      <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text)', cursor: 'pointer' }}>
-                        <HouseInput
-                          type="checkbox"
-                          checked={Boolean(editingPermissions[key])}
-                          onChange={() => toggleEditingPermission(key)}
-                        />
-                        {label}
-                      </label>
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                    <HouseButton
-                      type="button"
-                      className="set-btn-sm"
-                      onClick={() => setEditingDeviceId(null)}
-                    >
-                      Cancel
-                    </HouseButton>
-                    <HouseButton
-                      type="button"
-                      className="pair-go"
-                      onClick={() => savePermissions(device.id)}
-                      disabled={savingPermissions}
-                      style={{ padding: '4px 12px', fontSize: 12 }}
-                    >
-                      {savingPermissions ? 'Saving…' : 'Save Scopes'}
-                    </HouseButton>
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      <div className="set-section-label">Add a device</div>
-      {pending.length > 0 && (
-        <div className="set-box" style={{ borderColor: '#f59e0b', background: 'rgba(245, 158, 11, 0.05)', marginBottom: 12 }}>
-          <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 14 }}>⚠️</span>
-              <strong style={{ fontSize: 13, color: '#f59e0b' }}>Device waiting for approval ({pending.length})</strong>
-            </div>
-            {pending.map((p) => (
-              <div key={p.request_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg-inset)', borderRadius: 8, border: '1px solid var(--hairline)' }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-sub)' }}>Role: {p.role} · Token: {p.request_id?.slice(0, 8)}…</div>
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <HouseButton type="button" className="set-btn-sm" onClick={() => setActiveModalRequest(p)} style={{ background: 'var(--accent, #6366f1)', color: '#fff', fontWeight: 600 }}>Review & Approve</HouseButton>
-                  <HouseButton type="button" className="set-btn-sm" onClick={() => approvePending(p.request_id)} style={{ background: '#f59e0b', color: '#000', fontWeight: 600 }}>Quick Approve</HouseButton>
-                  <HouseButton type="button" className="set-btn-sm" onClick={() => rejectPending(p.request_id)} style={{ color: 'var(--stop)' }}>Reject</HouseButton>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      <div className="set-box">
-        <div className="set-box-row">
-          <div className="set-row-text">
-            <span className="set-row-title">Show a pairing code</span>
-            <span className="set-row-desc">
-              Good for five minutes, once. Direct LAN pairing is available automatically over Wi-Fi.
-            </span>
-          </div>
-          <HouseButton type="button" className="set-btn-sm" onClick={openPairing} disabled={busy}>
-            {busy ? 'Opening…' : 'Pair a device'}
-          </HouseButton>
-        </div>
-        {invite ? (
-          <div className="set-box-row pair-invite">
-            {pending.length > 0 && (
-              <div
-                style={{
-                  width: '100%',
-                  maxWidth: 420,
-                  padding: '12px 14px',
-                  marginBottom: 16,
-                  borderRadius: 10,
-                  background: 'rgba(245, 158, 11, 0.12)',
-                  border: '1px solid #f59e0b',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                  animation: 'fadeIn 0.2s ease-out',
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span>⚠️</span> Device waiting for approval
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-sub)', marginTop: 2 }}>
-                    “{pending[0].name}” requested to connect.
-                  </div>
-                </div>
-                <HouseButton
-                  type="button"
-                  className="set-btn-sm"
-                  onClick={() => setActiveModalRequest(pending[0])}
-                  style={{
-                    background: '#f59e0b',
-                    color: '#000',
-                    fontWeight: 700,
-                    padding: '6px 14px',
-                    whiteSpace: 'nowrap',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Review & Approve
-                </HouseButton>
-              </div>
-            )}
-            {/* Mode Switcher */}
-            <div
-              style={{
-                display: 'flex',
-                gap: 6,
-                marginBottom: 16,
-                background: 'var(--bg-inset)',
-                padding: 4,
-                borderRadius: 10,
-                border: '1px solid var(--hairline-strong)',
-                width: '100%',
-                maxWidth: 420,
-              }}
-            >
-              <HouseButton
-                type="button"
-                onClick={() => setPairMode('lan')}
-                style={{
-                  flex: 1,
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: pairMode === 'lan' ? 'var(--raised)' : 'transparent',
-                  color: pairMode === 'lan' ? 'var(--text)' : 'var(--text-sub)',
-                  fontWeight: pairMode === 'lan' ? 700 : 500,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                  transition: 'all 0.15s ease',
-                  boxShadow: pairMode === 'lan' ? '0 1px 4px rgba(0,0,0,0.3)' : 'none',
-                }}
-              >
-                <span>📱</span>
-                <span>Same Wi-Fi (Direct LAN)</span>
-              </HouseButton>
-              <HouseButton
-                type="button"
-                onClick={() => setPairMode('web')}
-                style={{
-                  flex: 1,
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: pairMode === 'web' ? 'var(--raised)' : 'transparent',
-                  color: pairMode === 'web' ? 'var(--text)' : 'var(--text-sub)',
-                  fontWeight: pairMode === 'web' ? 700 : 500,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                  transition: 'all 0.15s ease',
-                  boxShadow: pairMode === 'web' ? '0 1px 4px rgba(0,0,0,0.3)' : 'none',
-                }}
-              >
-                <span>🌐</span>
-                <span>Cloudflare Web</span>
-              </HouseButton>
-            </div>
-
-            {pairMode === 'lan' ? (
-              <p className="pair-invite-hint" style={{ color: 'var(--text-sub)', marginBottom: 12 }}>
-                <strong>Recommended for Phone Controls:</strong> Ultra-low latency touchpad, media, camera feed, and terminal. Make sure your phone is connected to the same Wi-Fi network. If connection times out, allow port 8000 on your firewall (<code>sudo ufw allow 8000/tcp</code>).
-              </p>
-            ) : (
-              <p className="pair-invite-hint" style={{ color: 'var(--text-sub)', marginBottom: 12 }}>
-                <strong>Remote over Internet:</strong> Connects via Cloudflare Pages and the sync relay when you are away from home.
-              </p>
-            )}
-
-            {pairMode === 'web' && !invite.app_url ? (
-              <div
-                style={{
-                  width: '100%',
-                  maxWidth: 420,
-                  padding: '16px',
-                  borderRadius: 12,
-                  background: 'var(--bg-inset)',
-                  border: '1px dashed var(--hairline-strong)',
-                  textAlign: 'center',
-                  marginBottom: 16,
-                }}
-              >
-                <div style={{ fontSize: 28, marginBottom: 8 }}>🌐</div>
-                <strong style={{ fontSize: 13, display: 'block', marginBottom: 6 }}>Cloudflare Web URL not configured</strong>
-                <p style={{ fontSize: 12, color: 'var(--text-sub)', lineHeight: 1.5, marginBottom: 14 }}>
-                  To pair over the web when you are away from home, enter your Cloudflare Pages or Tunnel URL (<code>https://...</code>) in the field below and click <strong>Save</strong>.
-                </p>
-                <HouseButton
-                  type="button"
-                  className="set-btn-sm"
-                  onClick={() => setPairMode('lan')}
-                  style={{ background: 'var(--accent, #6366f1)', color: '#fff', fontWeight: 600, padding: '6px 14px' }}
-                >
-                  📱 Use Same Wi-Fi (Direct LAN)
-                </HouseButton>
-              </div>
-            ) : (
-              (pairMode === 'lan' ? (invite.lan_qr_svg || invite.qr_svg) : invite.web_qr_svg) ? (
-                <>
-                  <div
-                    className="qr-card"
-                    dangerouslySetInnerHTML={{
-                      __html: pairMode === 'lan' ? (invite.lan_qr_svg || invite.qr_svg) : invite.web_qr_svg,
-                    }}
-                  />
-                  <p className="pair-invite-hint">
-                    {pairMode === 'lan' ? (
-                      invite.host_url
-                        ? <>Point your phone’s camera at this. It opens <code>{invite.host_url}</code> directly over your Wi-Fi.</>
-                        : 'Point your phone’s camera at this to pair over local network.'
-                    ) : (
-                      <>Point your phone’s camera at this. It opens <code>{invite.app_url}</code> over the web.</>
-                    )}
-                  </p>
-                </>
-              ) : null
-            )}
-            <span className="set-row-desc">Or enter this code manually on the other device:</span>
-            <code className="rc-code">{invite.secret.match(/.{1,4}/g).join(' ')}</code>
-            <HouseButton
-              type="button"
-              className="set-btn-sm"
-              onClick={() => {
-                const targetLink = pairMode === 'lan' ? (invite.lan_qr || invite.qr) : invite.web_qr
-                if (!targetLink) {
-                  toast('Please configure your Cloudflare Pages URL below first', 'bad')
-                  return
-                }
-                copyText(targetLink)
-                toast('Pairing link copied', 'ok')
-              }}
-            >
-              Copy pairing link
-            </HouseButton>
-            <span className="set-row-desc">
-              All communications between your phone and PC are cryptographically sealed.
-            </span>
-          </div>
-        ) : null}
-        <div className="set-box-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
-          <div className="set-row-text">
-            <span className="set-row-title">Where your phone opens Amethyst</span>
-            <span className="set-row-desc">
-              {appUrl
-                ? 'The pairing code is a link to this address, which your phone’s camera opens by itself.'
-                : 'Enter your deployed Cloudflare Pages URL or Cloudflare Tunnel (cloudflared tunnel --url http://localhost:8000) and click Save to enable internet pairing.'}
-            </span>
-          </div>
-          <HouseInput
-            className="set-input"
-            type="url"
-            placeholder="https://amethyst.example.com"
-            value={appUrl}
-            onChange={(e) => setAppUrl(e.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <HouseButton
-            type="button"
-            className="set-btn-sm"
-            onClick={saveAppUrl}
-            disabled={appUrl.trim() === savedAppUrl}
-          >
-            Save
-          </HouseButton>
-        </div>
-      </div>
-      {activeModalRequest && (
-        <PairingApprovalModal
-          request={activeModalRequest}
-          onDismiss={() => setActiveModalRequest(null)}
-          onResolved={() => {
-            setActiveModalRequest(null)
-            refresh()
-          }}
-        />
-      )}
-    </div>
-  )
-}
 
 /* ==========================================================================
    SHORTCUTS VIEW (Desktop Hotkey & Keyboard Controls)
@@ -6547,6 +5981,7 @@ const PANELS = {
   activity: Activity,
   permissions: Permissions,
   devices: Devices,
+  connections: Devices,
   data: Data,
   about: About,
 }
@@ -6604,7 +6039,7 @@ export default function Settings() {
       {/* Navigation column */}
       <nav className="set-nav" aria-label="Settings navigation">
         <div className="set-nav-header">
-          <h2 className="set-nav-headline">Settings</h2>
+          <h2 className="set-nav-headline" style={{ fontFamily: "var(--font-display, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif)", letterSpacing: '-0.02em' }}>Settings</h2>
         </div>
 
         {/* Live Search Input */}
@@ -6625,7 +6060,7 @@ export default function Settings() {
                 paddingRight: searchQuery ? 28 : 10,
                 height: 34,
                 fontSize: 13,
-                fontFamily: 'var(--font-body)',
+                fontFamily: "var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif)",
                 borderRadius: 9999,
                 background: 'var(--canvas)',
                 border: '1px solid var(--hairline)',
@@ -6656,7 +6091,7 @@ export default function Settings() {
         </div>
 
         {filteredSections.length === 0 ? (
-          <div style={{ padding: '16px 12px', fontSize: 13, color: 'var(--text-dim)', textAlign: 'center', fontFamily: 'var(--font-body)' }}>
+          <div style={{ padding: '16px 12px', fontSize: 13, color: 'var(--text-dim)', textAlign: 'center', fontFamily: "var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif)" }}>
             No matching settings
           </div>
         ) : (
@@ -6669,7 +6104,7 @@ export default function Settings() {
             }, {})
           ).map(([grp, items]) => (
             <div key={grp} className="set-nav-group">
-              <div className="set-nav-group-label">{grp}</div>
+              <div className="set-nav-group-label" style={{ fontFamily: "var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif)", letterSpacing: '0.04em' }}>{grp}</div>
               {items.map((item) => {
                 const isSel = section === item.id
                 return (
@@ -6681,17 +6116,18 @@ export default function Settings() {
                     onClick={() => setSection(item.id)}
                     style={{
                       position: 'relative',
-                      borderRadius: 10,
+                      borderRadius: 8,
                       display: 'flex',
                       alignItems: 'center',
                       gap: 10,
-                      fontFamily: 'var(--font-body)',
+                      fontFamily: "var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif)",
                       fontWeight: isSel ? 600 : 400,
+                      letterSpacing: '-0.01em',
                       opacity: 1,
                     }}
                   >
                     <Icon name={item.icon} size={15} />
-                    <span className="set-nav-label" style={{ opacity: 1, color: isSel ? 'var(--accent)' : 'var(--text)' }}>{item.label}</span>
+                    <span className="set-nav-label" style={{ opacity: 1, color: isSel ? 'var(--accent)' : 'var(--text)', fontFamily: "var(--font-body, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif)", letterSpacing: '-0.01em' }}>{item.label}</span>
                   </HouseButton>
                 )
               })}
@@ -6710,7 +6146,7 @@ export default function Settings() {
         </div>
 
         <div className="set-panel-frame">
-          {section !== 'usage' && section !== 'activity' && section !== 'profile' && section !== 'notifications' && section !== 'appearance' && section !== 'storage' && section !== 'configuration' && (
+          {section !== 'usage' && section !== 'activity' && section !== 'profile' && section !== 'notifications' && section !== 'appearance' && section !== 'storage' && section !== 'configuration' && section !== 'devices' && section !== 'connections' && (
             <h1 className="set-panel-title">
               {SECTIONS.find((s) => s.id === section)?.label}
             </h1>

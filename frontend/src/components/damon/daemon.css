@@ -1,0 +1,1322 @@
+/* ==========================================================================
+   AMETHYST DAEMON & SPOTLIGHT — RECREATED PIXEL-PERFECT FROM DESIGN SPEC
+   ========================================================================== */
+
+/* Outer Backdrop & Floating Overlay */
+.damon-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: max(7vh, 50px);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  user-select: none;
+}
+
+/* Standalone / Native pywebview bar container */
+.damon-overlay.damon-overlay--bare {
+  padding-top: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Glass Frame Wrapper (36px outer radius, 8px outer padding) */
+.damon-glass-frame {
+  width: 820px;
+  max-width: calc(100vw - 32px);
+  padding: 8px;
+  border-radius: 36px;
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.6) inset,
+    0 0 0 1px rgba(14, 15, 18, 0.07),
+    0 30px 60px -24px rgba(14, 15, 18, 0.4);
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.12s ease;
+  outline: none;
+  overflow: hidden;
+}
+
+/* Inner Solid Card (28px radius) */
+.damon-card {
+  width: 100%;
+  background: #ffffff;
+  border-radius: 28px;
+  box-shadow: 0 1px 2px 0 rgba(14, 15, 18, 0.04);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==========================================================================
+   HEADER SEARCH BAR (84px height)
+   ========================================================================== */
+.damon-header {
+  height: 84px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 22px 0 28px;
+  box-shadow: 0 1px 0 0 rgba(14, 15, 18, 0.07);
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.damon-header-leading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.damon-search-icon {
+  color: #0E0F12;
+  flex-shrink: 0;
+}
+
+/* Ask Amethyst Pill in Input */
+.damon-ask-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #2563eb;
+  color: #ffffff;
+  font-family: Geist, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.3);
+  cursor: pointer;
+  border: none;
+  flex-shrink: 0;
+}
+
+.damon-ask-pill:hover {
+  background: #1d4ed8;
+}
+
+.damon-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: Geist, system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 400;
+  color: #0E0F12;
+  letter-spacing: -0.01em;
+  padding: 0;
+  margin: 0;
+}
+
+.damon-input::placeholder {
+  color: rgb(151, 155, 165);
+}
+
+.damon-header-trailing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.damon-hotkey-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Geist Mono, monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgb(91, 95, 104);
+  background: rgb(241, 241, 239);
+  padding: 4px 9px;
+  border-radius: 8px;
+  box-shadow: 0 1px 0 rgba(14, 15, 18, 0.08);
+}
+
+.damon-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: rgb(91, 95, 104);
+  cursor: pointer;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+
+.damon-clear-btn:hover {
+  background: rgba(14, 15, 18, 0.06);
+  color: #0E0F12;
+}
+
+/* ==========================================================================
+   TABS / FILTER BAR (56px height)
+   ========================================================================== */
+.damon-tabs {
+  height: 56px;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 0 20px;
+  box-shadow: 0 1px 0 0 rgba(14, 15, 18, 0.07);
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.damon-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  font-family: Geist, system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgb(91, 95, 104);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.12s ease;
+}
+
+.damon-tab:hover {
+  color: #0E0F12;
+}
+
+.damon-tab.is-active {
+  color: #0E0F12;
+  box-shadow: 0 -2px 0 0 #0E0F12 inset;
+}
+
+/* Filter Chips Bar (e.g. apps/split search) */
+.damon-chips-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 28px;
+  font-size: 13px;
+  color: rgb(91, 95, 104);
+  box-shadow: 0 1px 0 0 rgba(14, 15, 18, 0.07);
+}
+
+.damon-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 8px;
+  background: rgb(245, 245, 243);
+  color: #0E0F12;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.damon-filter-chip:hover {
+  background: rgb(237, 237, 234);
+}
+
+/* ==========================================================================
+   CONTENT SCROLL / CONTAINER
+   ========================================================================== */
+.damon-body {
+  max-height: 490px;
+  min-height: 240px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.damon-body::-webkit-scrollbar {
+  width: 6px;
+}
+.damon-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.damon-body::-webkit-scrollbar-thumb {
+  background: rgba(14, 15, 18, 0.12);
+  border-radius: 999px;
+}
+
+/* Section Header */
+.damon-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 28px 8px;
+  font-family: Geist, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgb(91, 95, 104);
+  flex-shrink: 0;
+}
+
+.damon-section-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.damon-section-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(14, 15, 18, 0.06);
+  color: rgb(91, 95, 104);
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+
+.damon-section-action {
+  font-size: 13px;
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.damon-section-action--clear {
+  color: #dc2626;
+}
+
+.damon-section-action--see-all {
+  color: rgb(91, 95, 104);
+}
+.damon-section-action--see-all:hover {
+  color: #0E0F12;
+}
+
+/* ==========================================================================
+   LIST ROWS (60px height)
+   ========================================================================== */
+.damon-list-container {
+  padding: 0 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.damon-row {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 14px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.08s ease;
+  outline: none;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+}
+
+.damon-row:hover,
+.damon-row.is-selected {
+  background-color: rgb(234, 240, 255);
+}
+
+.damon-row-icon-wrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgba(14, 15, 18, 0.04);
+  color: #0E0F12;
+  overflow: hidden;
+}
+
+.damon-row.is-selected .damon-row-icon-wrap {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+}
+
+.damon-row-img-icon {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.damon-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Geist, system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+.damon-avatar--orange { background: #ea580c; }
+.damon-avatar--green  { background: #16a34a; }
+.damon-avatar--blue   { background: #2563eb; }
+.damon-avatar--purple { background: #7c3aed; }
+
+.damon-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.damon-row-title {
+  font-family: Geist, system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  color: #0E0F12;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.damon-row-subtitle {
+  font-family: Geist, system-ui, sans-serif;
+  font-size: 13px;
+  color: rgb(91, 95, 104);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.damon-row-trailing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  color: rgb(91, 95, 104);
+}
+
+.damon-row-shortcut {
+  font-family: Geist Mono, monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgb(91, 95, 104);
+  background: rgb(241, 241, 239);
+  padding: 3px 7px;
+  border-radius: 6px;
+}
+
+.damon-row.is-selected .damon-row-shortcut {
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+}
+
+/* ==========================================================================
+   CARDS GRID (Continue Where You Left Off & Library Cards)
+   ========================================================================== */
+.damon-cards-grid {
+  display: flex;
+  gap: 14px;
+  padding: 0 28px 12px;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.damon-card-item {
+  width: 220px;
+  flex-shrink: 0;
+  min-height: 84px;
+  padding: 16px 18px;
+  background: rgb(245, 245, 243);
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.1s ease;
+  border: none;
+  text-align: left;
+}
+
+.damon-card-item:hover {
+  background: rgb(239, 239, 235);
+  transform: translateY(-1px);
+}
+
+.damon-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.damon-card-icon-box {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(14, 15, 18, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0E0F12;
+  flex-shrink: 0;
+}
+
+.damon-card-title {
+  font-family: Geist, system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: #0E0F12;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.damon-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: rgb(91, 95, 104);
+}
+
+.damon-tag {
+  font-family: Geist, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 6px;
+}
+
+.damon-tag--reel {
+  background: rgb(234, 240, 255);
+  color: rgb(27, 79, 216);
+}
+
+.damon-tag--note {
+  background: rgb(226, 246, 235);
+  color: rgb(22, 101, 52);
+}
+
+.damon-tag--doc {
+  background: rgb(241, 241, 239);
+  color: rgb(75, 85, 99);
+}
+
+.damon-tag--processing {
+  background: rgb(254, 243, 199);
+  color: rgb(180, 83, 9);
+}
+
+/* ==========================================================================
+   WEATHER WIDGET VIEW (Page 3)
+   ========================================================================== */
+.damon-weather-card {
+  margin: 16px 28px;
+  padding: 26px;
+  background: rgb(245, 245, 243);
+  border-radius: 22px;
+  display: flex;
+  gap: 24px;
+}
+
+.damon-weather-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.damon-weather-loc-tag {
+  font-size: 12px;
+  color: rgb(91, 95, 104);
+  font-weight: 500;
+  text-transform: capitalize;
+  margin-bottom: 4px;
+}
+
+.damon-weather-headline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.damon-weather-city {
+  font-size: 19px;
+  font-weight: 600;
+  color: #0E0F12;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.damon-weather-sub {
+  font-size: 13px;
+  color: rgb(91, 95, 104);
+  margin-top: 2px;
+}
+
+.damon-weather-clock {
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #0E0F12;
+  font-family: Geist, system-ui, sans-serif;
+  line-height: 1;
+}
+
+.damon-weather-clock span {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgb(91, 95, 104);
+  margin-left: 4px;
+}
+
+.damon-weather-hourly {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(14, 15, 18, 0.08);
+}
+
+.damon-hourly-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgb(91, 95, 104);
+}
+
+.damon-hourly-temp {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0E0F12;
+}
+
+.damon-weather-right {
+  width: 140px;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(14, 15, 18, 0.05);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px;
+  position: relative;
+  overflow: hidden;
+}
+
+.damon-radar-center {
+  width: 100%;
+  height: 90px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.damon-radar-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(37, 99, 235, 0.15);
+  background: rgba(37, 99, 235, 0.03);
+}
+.damon-radar-ring--1 { width: 40px; height: 40px; }
+.damon-radar-ring--2 { width: 70px; height: 70px; }
+
+.damon-radar-pin {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.3);
+  z-index: 2;
+}
+
+.damon-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgb(91, 95, 104);
+  background: rgb(245, 245, 243);
+  border: none;
+  cursor: pointer;
+  z-index: 2;
+}
+.damon-refresh-btn:hover {
+  background: rgb(235, 235, 230);
+  color: #0E0F12;
+}
+
+/* ==========================================================================
+   SPLIT PANE FILE PREVIEW (Page 4)
+   ========================================================================== */
+.damon-split-layout {
+  display: flex;
+  min-height: 400px;
+}
+
+.damon-split-left {
+  width: 440px;
+  overflow-y: auto;
+  border-right: 1px solid rgba(14, 15, 18, 0.07);
+}
+
+.damon-split-right {
+  flex: 1;
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: #ffffff;
+}
+
+.damon-preview-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.damon-preview-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #0E0F12;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.damon-preview-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.damon-preview-filename {
+  font-size: 16px;
+  font-weight: 600;
+  color: #0E0F12;
+  word-break: break-all;
+}
+
+.damon-preview-sub {
+  font-size: 13px;
+  color: rgb(91, 95, 104);
+  margin-top: 2px;
+}
+
+.damon-preview-content-card {
+  margin: 16px 0;
+  padding: 16px;
+  background: rgb(245, 245, 243);
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #0E0F12;
+  max-height: 180px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-family: inherit;
+}
+
+.damon-preview-path {
+  font-size: 12px;
+  color: rgb(91, 95, 104);
+  font-family: Geist Mono, monospace;
+  margin-bottom: 16px;
+}
+
+.damon-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.damon-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  background: #0E0F12;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.1s ease;
+}
+
+.damon-btn-primary:hover {
+  opacity: 0.9;
+}
+
+.damon-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 20px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #0E0F12;
+  font-size: 14px;
+  font-weight: 500;
+  border: 1px solid rgba(14, 15, 18, 0.15);
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.damon-btn-secondary:hover {
+  background: rgb(245, 245, 243);
+}
+
+/* ==========================================================================
+   ASK AMETHYST & STREAMING (Page 5)
+   ========================================================================== */
+.damon-ask-view {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.damon-agent-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.damon-agent-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: #0E0F12;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.damon-agent-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0E0F12;
+}
+
+.damon-agent-sub {
+  font-size: 13px;
+  color: rgb(91, 95, 104);
+}
+
+.damon-stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.damon-step-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #0E0F12;
+}
+
+.damon-step-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2563eb;
+  flex-shrink: 0;
+}
+
+.damon-step-dot--pending {
+  background: transparent;
+  border: 1.5px solid rgb(151, 155, 165);
+}
+
+.damon-step-badge {
+  font-size: 11px;
+  font-weight: 500;
+  background: rgba(14, 15, 18, 0.06);
+  color: rgb(91, 95, 104);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.damon-answer-stream {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #0E0F12;
+  white-space: pre-wrap;
+}
+
+.damon-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 16px;
+  background: #2563eb;
+  margin-left: 2px;
+  vertical-align: middle;
+  animation: damonBlink 0.9s infinite;
+}
+
+@keyframes damonBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.damon-followup-chips {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.damon-followup-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgb(245, 245, 243);
+  color: #0E0F12;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.damon-followup-chip:hover {
+  background: rgb(236, 236, 232);
+}
+
+/* ==========================================================================
+   APPROVAL GATE VIEW (Page 6)
+   ========================================================================== */
+.damon-approval-view {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.damon-approval-card {
+  padding: 22px;
+  border-radius: 20px;
+  background: rgb(245, 245, 243);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.damon-approval-lead {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.damon-shield-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #0E0F12;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(14, 15, 18, 0.08);
+  flex-shrink: 0;
+}
+
+.damon-approval-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #0E0F12;
+}
+
+.damon-approval-desc {
+  font-size: 13px;
+  color: rgb(91, 95, 104);
+  margin-top: 2px;
+}
+
+.damon-approval-items {
+  background: #ffffff;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(14, 15, 18, 0.04);
+  display: flex;
+  flex-direction: column;
+}
+
+.damon-approval-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #0E0F12;
+  border-bottom: 1px solid rgba(14, 15, 18, 0.05);
+}
+.damon-approval-item-row:last-child {
+  border-bottom: none;
+}
+
+.damon-approval-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.damon-approval-item-right {
+  color: rgb(91, 95, 104);
+  font-size: 13px;
+}
+
+.damon-approval-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.damon-btn-deny {
+  background: transparent;
+  border: none;
+  color: #dc2626;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 8px 14px;
+  border-radius: 8px;
+}
+
+.damon-btn-deny:hover {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+/* ==========================================================================
+   DOCKED FOOTER (44px height)
+   ========================================================================== */
+.damon-footer {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  box-shadow: 0 -1px 0 0 rgba(14, 15, 18, 0.07);
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.damon-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.damon-footer-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: rgb(91, 95, 104);
+  font-family: Geist, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.1s ease, background 0.1s ease;
+}
+
+.damon-footer-action-btn:hover {
+  color: #0E0F12;
+  background: rgba(14, 15, 18, 0.05);
+}
+
+.damon-footer-hints {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: rgb(91, 95, 104);
+}
+
+.damon-footer-hint-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.damon-footer-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Geist Mono, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgb(58, 61, 69);
+  background: rgb(241, 241, 239);
+  padding: 2px 6px;
+  border-radius: 6px;
+  min-width: 18px;
+  box-shadow: 0 1px 0 rgba(14, 15, 18, 0.08);
+}
+
+/* ==========================================================================
+   DARK THEME OVERRIDES (Amethyst Theme Engine Support)
+   ========================================================================== */
+[data-theme="graphite"] .damon-glass-frame,
+[data-theme="ink"] .damon-glass-frame,
+[data-theme="nocturne"] .damon-glass-frame,
+[data-theme="nvidia"] .damon-glass-frame,
+.dark .damon-glass-frame {
+  background: rgba(22, 23, 27, 0.72);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 30px 60px -24px rgba(0, 0, 0, 0.75);
+}
+
+[data-theme="graphite"] .damon-card,
+[data-theme="ink"] .damon-card,
+[data-theme="nocturne"] .damon-card,
+[data-theme="nvidia"] .damon-card,
+.dark .damon-card {
+  background: #141518;
+  color: #ededed;
+}
+
+[data-theme="graphite"] .damon-header,
+[data-theme="ink"] .damon-header,
+[data-theme="nocturne"] .damon-header,
+[data-theme="nvidia"] .damon-header,
+.dark .damon-header,
+[data-theme="graphite"] .damon-tabs,
+[data-theme="ink"] .damon-tabs,
+[data-theme="nocturne"] .damon-tabs,
+[data-theme="nvidia"] .damon-tabs,
+.dark .damon-tabs,
+[data-theme="graphite"] .damon-footer,
+[data-theme="ink"] .damon-footer,
+[data-theme="nocturne"] .damon-footer,
+[data-theme="nvidia"] .damon-footer,
+.dark .damon-footer {
+  box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="graphite"] .damon-footer,
+[data-theme="ink"] .damon-footer,
+[data-theme="nocturne"] .damon-footer,
+[data-theme="nvidia"] .damon-footer,
+.dark .damon-footer {
+  box-shadow: 0 -1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="graphite"] .damon-input,
+[data-theme="ink"] .damon-input,
+[data-theme="nocturne"] .damon-input,
+[data-theme="nvidia"] .damon-input,
+.dark .damon-input,
+[data-theme="graphite"] .damon-search-icon,
+[data-theme="ink"] .damon-search-icon,
+[data-theme="nocturne"] .damon-search-icon,
+[data-theme="nvidia"] .damon-search-icon,
+.dark .damon-search-icon,
+[data-theme="graphite"] .damon-row-title,
+[data-theme="ink"] .damon-row-title,
+[data-theme="nocturne"] .damon-row-title,
+[data-theme="nvidia"] .damon-row-title,
+.dark .damon-row-title,
+[data-theme="graphite"] .damon-card-title,
+[data-theme="ink"] .damon-card-title,
+[data-theme="nocturne"] .damon-card-title,
+[data-theme="nvidia"] .damon-card-title,
+.dark .damon-card-title,
+[data-theme="graphite"] .damon-weather-city,
+[data-theme="ink"] .damon-weather-city,
+[data-theme="nocturne"] .damon-weather-city,
+[data-theme="nvidia"] .damon-weather-city,
+.dark .damon-weather-city,
+[data-theme="graphite"] .damon-weather-clock,
+[data-theme="ink"] .damon-weather-clock,
+[data-theme="nocturne"] .damon-weather-clock,
+[data-theme="nvidia"] .damon-weather-clock,
+.dark .damon-weather-clock,
+[data-theme="graphite"] .damon-hourly-temp,
+[data-theme="ink"] .damon-hourly-temp,
+[data-theme="nocturne"] .damon-hourly-temp,
+[data-theme="nvidia"] .damon-hourly-temp,
+.dark .damon-hourly-temp,
+[data-theme="graphite"] .damon-preview-filename,
+[data-theme="ink"] .damon-preview-filename,
+[data-theme="nocturne"] .damon-preview-filename,
+[data-theme="nvidia"] .damon-preview-filename,
+.dark .damon-preview-filename,
+[data-theme="graphite"] .damon-agent-title,
+[data-theme="ink"] .damon-agent-title,
+[data-theme="nocturne"] .damon-agent-title,
+[data-theme="nvidia"] .damon-agent-title,
+.dark .damon-agent-title,
+[data-theme="graphite"] .damon-answer-stream,
+[data-theme="ink"] .damon-answer-stream,
+[data-theme="nocturne"] .damon-answer-stream,
+[data-theme="nvidia"] .damon-answer-stream,
+.dark .damon-answer-stream,
+[data-theme="graphite"] .damon-approval-title,
+[data-theme="ink"] .damon-approval-title,
+[data-theme="nocturne"] .damon-approval-title,
+[data-theme="nvidia"] .damon-approval-title,
+.dark .damon-approval-title,
+[data-theme="graphite"] .damon-tab.is-active,
+[data-theme="ink"] .damon-tab.is-active,
+[data-theme="nocturne"] .damon-tab.is-active,
+[data-theme="nvidia"] .damon-tab.is-active,
+.dark .damon-tab.is-active {
+  color: #ededed;
+}
+
+[data-theme="graphite"] .damon-tab.is-active,
+[data-theme="ink"] .damon-tab.is-active,
+[data-theme="nocturne"] .damon-tab.is-active,
+[data-theme="nvidia"] .damon-tab.is-active,
+.dark .damon-tab.is-active {
+  box-shadow: 0 -2px 0 0 #ededed inset;
+}
+
+[data-theme="graphite"] .damon-card-item,
+[data-theme="ink"] .damon-card-item,
+[data-theme="nocturne"] .damon-card-item,
+[data-theme="nvidia"] .damon-card-item,
+.dark .damon-card-item,
+[data-theme="graphite"] .damon-weather-card,
+[data-theme="ink"] .damon-weather-card,
+[data-theme="nocturne"] .damon-weather-card,
+[data-theme="nvidia"] .damon-weather-card,
+.dark .damon-weather-card,
+[data-theme="graphite"] .damon-preview-content-card,
+[data-theme="ink"] .damon-preview-content-card,
+[data-theme="nocturne"] .damon-preview-content-card,
+[data-theme="nvidia"] .damon-preview-content-card,
+.dark .damon-preview-content-card,
+[data-theme="graphite"] .damon-approval-card,
+[data-theme="ink"] .damon-approval-card,
+[data-theme="nocturne"] .damon-approval-card,
+[data-theme="nvidia"] .damon-approval-card,
+.dark .damon-approval-card,
+[data-theme="graphite"] .damon-filter-chip,
+[data-theme="ink"] .damon-filter-chip,
+[data-theme="nocturne"] .damon-filter-chip,
+[data-theme="nvidia"] .damon-filter-chip,
+.dark .damon-filter-chip,
+[data-theme="graphite"] .damon-followup-chip,
+[data-theme="ink"] .damon-followup-chip,
+[data-theme="nocturne"] .damon-followup-chip,
+[data-theme="nvidia"] .damon-followup-chip,
+.dark .damon-followup-chip {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ededed;
+}
+
+[data-theme="graphite"] .damon-row:hover,
+[data-theme="graphite"] .damon-row.is-selected,
+[data-theme="ink"] .damon-row:hover,
+[data-theme="ink"] .damon-row.is-selected,
+[data-theme="nocturne"] .damon-row:hover,
+[data-theme="nocturne"] .damon-row.is-selected,
+[data-theme="nvidia"] .damon-row:hover,
+[data-theme="nvidia"] .damon-row.is-selected,
+.dark .damon-row:hover,
+.dark .damon-row.is-selected {
+  background-color: rgba(37, 99, 235, 0.2);
+}
+
+[data-theme="graphite"] .damon-hotkey-badge,
+[data-theme="ink"] .damon-hotkey-badge,
+[data-theme="nocturne"] .damon-hotkey-badge,
+[data-theme="nvidia"] .damon-hotkey-badge,
+.dark .damon-hotkey-badge,
+[data-theme="graphite"] .damon-footer-kbd,
+[data-theme="ink"] .damon-footer-kbd,
+[data-theme="nocturne"] .damon-footer-kbd,
+[data-theme="nvidia"] .damon-footer-kbd,
+.dark .damon-footer-kbd,
+[data-theme="graphite"] .damon-row-shortcut,
+[data-theme="ink"] .damon-row-shortcut,
+[data-theme="nocturne"] .damon-row-shortcut,
+[data-theme="nvidia"] .damon-row-shortcut,
+.dark .damon-row-shortcut {
+  background: rgba(255, 255, 255, 0.08);
+  color: #a1a1aa;
+}
+
+[data-theme="graphite"] .damon-weather-right,
+[data-theme="ink"] .damon-weather-right,
+[data-theme="nocturne"] .damon-weather-right,
+[data-theme="nvidia"] .damon-weather-right,
+.dark .damon-weather-right,
+[data-theme="graphite"] .damon-split-right,
+[data-theme="ink"] .damon-split-right,
+[data-theme="nocturne"] .damon-split-right,
+[data-theme="nvidia"] .damon-split-right,
+.dark .damon-split-right,
+[data-theme="graphite"] .damon-approval-items,
+[data-theme="ink"] .damon-approval-items,
+[data-theme="nocturne"] .damon-approval-items,
+[data-theme="nvidia"] .damon-approval-items,
+.dark .damon-approval-items {
+  background: #191b1f;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="graphite"] .damon-btn-primary,
+[data-theme="ink"] .damon-btn-primary,
+[data-theme="nocturne"] .damon-btn-primary,
+[data-theme="nvidia"] .damon-btn-primary,
+.dark .damon-btn-primary {
+  background: #ededed;
+  color: #121316;
+}
+
+[data-theme="graphite"] .damon-btn-secondary,
+[data-theme="ink"] .damon-btn-secondary,
+[data-theme="nocturne"] .damon-btn-secondary,
+[data-theme="nvidia"] .damon-btn-secondary,
+.dark .damon-btn-secondary {
+  background: #141518;
+  color: #ededed;
+  border-color: rgba(255, 255, 255, 0.15);
+}

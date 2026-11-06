@@ -37,9 +37,9 @@ public class AppUpdatesPlugin extends Plugin {
                 String token = call.getString("token", "");
                 URL url = new URL(call.getString("url", ""));
                 if (!digest.matches("[0-9a-f]{64}") || token.isEmpty()
-                    || !url.getProtocol().equals("https") || url.getUserInfo() != null
+                    || (!url.getProtocol().equals("https") && !url.getProtocol().equals("http")) || url.getUserInfo() != null
                     || !url.getPath().equals("/api/mobile/update/apk") || url.getQuery() != null) {
-                    throw new Exception("Updates require a paired HTTPS desktop and a valid checksum");
+                    throw new Exception("Updates require a paired desktop and a valid checksum");
                 }
                 if (Build.VERSION.SDK_INT >= 26 && !getContext().getPackageManager().canRequestPackageInstalls()) {
                     getActivity().runOnUiThread(() -> {

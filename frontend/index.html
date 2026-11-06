@@ -22,23 +22,143 @@
     content="One agent over your files, shell, tasks, calendar, and connected services." />
   <meta name="twitter:image" content="/logo.png" />
   <title>AMETHYST · personal operating system</title>
-  <!-- Fonts: Inter variable (300-700) for Apple-aligned UI typography -->
+  <!-- Fonts: Inter and Newsreader for UI and editorial brand typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&display=swap" rel="stylesheet" />
   <!-- The API's own preconnect is added from api.js rather than written here.
          An env placeholder that no build defined stays in the markup verbatim
          as a broken href, and the same-origin build has no second host to
          connect to at all. -->
 
   <style>
-    [data-startup] { font-family: system-ui, sans-serif; padding: 32px; background: var(--bg, Canvas); color: var(--text, CanvasText); min-height: 100vh; box-sizing: border-box; }
-    [data-startup] button { font: inherit; padding: 12px 20px; }
+    :root {
+      --startup-bg: #FAF8F5;
+      --startup-text: #1C1917;
+      --startup-sub: #78716C;
+      --startup-accent: #7C3AED;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --startup-bg: #0F0E13;
+        --startup-text: #F5F3EF;
+        --startup-sub: #9C948E;
+        --startup-accent: #8B5CF6;
+      }
+    }
+    body {
+      margin: 0;
+      background: var(--startup-bg);
+      color: var(--startup-text);
+    }
+    [data-startup="loading"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100dvh;
+      box-sizing: border-box;
+      padding: 24px;
+      background: var(--startup-bg);
+      color: var(--startup-text);
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .startup-lockup {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 8px;
+    }
+    .startup-crystal {
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0;
+      display: block;
+    }
+    .startup-wordmark {
+      margin: 0;
+      font-family: 'Newsreader', 'Times New Roman', Georgia, serif;
+      font-size: 34px;
+      font-weight: 500;
+      letter-spacing: -0.025em;
+      line-height: 1;
+      color: var(--startup-text);
+    }
+    .startup-sub {
+      margin: 4px 0 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--startup-sub);
+      letter-spacing: -0.01em;
+    }
+    [data-startup="error"] {
+      padding: 32px;
+      font-family: 'Inter', -apple-system, sans-serif;
+      min-height: 100dvh;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+    [data-startup="error"] h1 {
+      font-family: 'Newsreader', Georgia, serif;
+      font-size: 26px;
+      font-weight: 500;
+      margin: 0 0 8px;
+    }
+    [data-startup="error"] p {
+      color: var(--startup-sub);
+      font-size: 14px;
+      margin: 0 0 20px;
+      max-width: 340px;
+    }
+    [data-startup="error"] button {
+      font: inherit;
+      padding: 12px 24px;
+      border-radius: 9999px;
+      border: none;
+      background: var(--startup-text);
+      color: var(--startup-bg);
+      cursor: pointer;
+      font-weight: 500;
+    }
   </style>
 </head>
 
 <body>
-  <div id="root"><section data-startup="loading" role="status"><h1>Amethyst</h1><p>Opening your companion…</p></section></div>
+  <div id="root">
+    <section data-startup="loading" role="status" aria-label="Loading Amethyst">
+      <div class="startup-lockup">
+        <svg class="startup-crystal" xmlns="http://www.w3.org/2000/svg" viewBox="524.5 524 560 560" aria-hidden="true">
+          <defs>
+            <linearGradient id="startup-grad-center" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#a855f7" />
+              <stop offset="60%" stop-color="#8b5cf6" />
+              <stop offset="100%" stop-color="#7c3aed" />
+            </linearGradient>
+            <linearGradient id="startup-grad-left" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#c084fc" />
+              <stop offset="100%" stop-color="#9333ea" />
+            </linearGradient>
+            <linearGradient id="startup-grad-right" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#7e22ce" />
+              <stop offset="100%" stop-color="#581c87" />
+            </linearGradient>
+          </defs>
+          <path fill="url(#startup-grad-center)" d="M804 536L684 651L791 1015L768 1018L644 888L572 889L806 1072L1038 887L968 887L843 1018L819 1015L927 651Z" />
+          <path fill="url(#startup-grad-right)" d="M1016 701L928 722L847 986L960 870L1039 846Z" />
+          <path fill="url(#startup-grad-left)" d="M595 701L570 845L651 870L763 985L682 722Z" />
+        </svg>
+        <h1 class="startup-wordmark">Amethyst</h1>
+      </div>
+      <p class="startup-sub">Your personal operating system</p>
+    </section>
+  </div>
   <script type="module" src="/src/bootstrap.js"></script>
 </body>
 

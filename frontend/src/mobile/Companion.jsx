@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api } from '../api.js'
+import { App } from '@capacitor/app'
+import { Capacitor, registerPlugin } from '@capacitor/core'
+import { motion, AnimatePresence } from 'framer-motion'
+import { api, getBase } from '../api.js'
 import { request } from '../dashboard/api.js'
 import RemoteAgent from '../views/remote/RemoteAgent.jsx'
 import RemotePC from '../views/remote/RemotePC.jsx'
@@ -13,8 +16,11 @@ import { getTransportManager } from '../lib/sync/transportManager.js'
 import ConnectionDiagnosticsModal from './ConnectionDiagnosticsModal.jsx'
 import { captures, saveCapture, flushCaptures } from './captures.js'
 import { putRecord, records } from './storage.js'
+import { newerUpdate } from './updates.js'
 import Updates from './Updates.jsx'
 import './companion.css'
+
+const AppUpdates = registerPlugin('AppUpdates')
 
 const tabs = [
   ['today', 'Home', 'sun'],
@@ -40,6 +46,62 @@ export default function Companion({ onUnpair }) {
   const [saving, setSaving] = useState(false)
   const [lastSync, setLastSync] = useState(null)
   const [settings, setSettings] = useState(false)
+  const [availableUpdate, setAvailableUpdate] = useState(null)
+  const [updatingMobile, setUpdatingMobile] = useState(false)
+  const [updateStatus, setUpdateStatus] = useState('')
+
+  const checkMobileUpdate = useCallback(async () => {
+    if (Capacitor.getPlatform() !== 'android') return null
+    try {
+      const installed = await App.getInfo().catch(() => null)
+      if (!installed?.build) return null
+      const latest = await request('/mobile/update').catch(() => null)
+      if (latest && newerUpdate(latest, installed.build)) {
+        setAvailableUpdate(latest)
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          try {
+            new Notification('Amethyst Update Available', {
+              body: `Version ${latest.version} is ready for your Android phone.`,
+              icon: '/icon-192.png',
+            })
+          } catch {}
+        }
+      }
+    } catch (err) {
+      console.warn('[MobileUpdate] Check failed:', err.message)
+    }
+  }, [])
+
+  useEffect(() => {
+    checkMobileUpdate()
+    const interval = setInterval(checkMobileUpdate, 15 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [checkMobileUpdate])
+
+  const handleInstallMobileUpdate = async () => {
+    if (!availableUpdate) return
+    setUpdatingMobile(true)
+    setUpdateStatus('Downloading & verifying update…')
+    try {
+      const result = await AppUpdates.install({
+        url: `${getBase()}/mobile/update/apk`,
+        token: identity()?.token,
+        sha256: availableUpdate.sha256,
+      })
+      if (result.permissionRequired) {
+        setUpdateStatus('Allow install permission, then tap Install again.')
+      } else {
+        setUpdateStatus('Opening Android installer…')
+        setTimeout(() => {
+          setAvailableUpdate(null)
+          setUpdatingMobile(false)
+        }, 3000)
+      }
+    } catch (err) {
+      setUpdateStatus(`Install failed: ${err.message}`)
+      setTimeout(() => setUpdatingMobile(false), 4000)
+    }
+  }
 
   // Initialize Dual-Transport Manager
   useEffect(() => {
@@ -238,11 +300,66 @@ export default function Companion({ onUnpair }) {
             className="companion-icon-btn"
             onClick={() => setSettings((value) => !value)}
             aria-label="Device settings"
+            style={{ position: 'relative' }}
           >
             <Icon name="sliders" size={18} />
+            {availableUpdate && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 3,
+                  right: 3,
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: '#007aff',
+                  boxShadow: '0 0 6px #007aff',
+                }}
+              />
+            )}
           </button>
         </div>
       </header>
+
+      {/* Floating Proactive Mobile Update Notification */}
+      <AnimatePresence>
+        {availableUpdate && (
+          <motion.aside
+            initial={{ opacity: 0, y: -16, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -16, scale: 0.96 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+            className="companion-update-banner"
+            role="alert"
+          >
+            <div className="companion-update-badge-icon">
+              <Icon name="sparkle" size={16} />
+            </div>
+            <div className="companion-update-info">
+              <div className="companion-update-title">Update Ready · v{availableUpdate.version}</div>
+              <div className="companion-update-desc">
+                {updateStatus || 'New update available from your desktop'}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="companion-update-action-btn"
+              disabled={updatingMobile}
+              onClick={handleInstallMobileUpdate}
+            >
+              {updatingMobile ? 'Working…' : 'Install'}
+            </button>
+            <button
+              type="button"
+              className="companion-update-close-btn"
+              onClick={() => setAvailableUpdate(null)}
+              aria-label="Dismiss update notification"
+            >
+              <Icon name="x" size={14} />
+            </button>
+          </motion.aside>
+        )}
+      </AnimatePresence>
 
       {/* Settings Drawer */}
       {settings && (

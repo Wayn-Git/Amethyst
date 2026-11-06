@@ -4,7 +4,7 @@ The visual and motion contracts shared by the shell, views and dashboard:
 colour tokens, themes, typography, spacing, radii, elevation, controls and
 reduced-motion behaviour.
 
-**Verified 2026-10-31 · commit `3c363b7` · dirty working tree.**
+**Verified 2026-11-06 · dirty working tree.**
 
 Related: [FRONTEND.md](../FRONTEND.md), [components/shared.md](shared.md),
 [components/widget-system.md](widget-system.md),
@@ -68,6 +68,11 @@ Shell semantic roles in `index.css`:
 Purple is the brand and primary-action colour. Green, amber and coral are
 status colours; purple is never a status. Dark themes lift the accent because
 `#7132f5` is a light-ground colour and reads too dark on near-black.
+
+The default dark palette (`graphite`) uses the neutral-black Tweakcn theme:
+black canvas, `oklch(0.145 0 0)` cards, an
+`oklch(0.46 0.22 266)` violet primary, and 8px shell control/card corners.
+The other selectable palettes retain their own visual identities.
 
 Bento tones are separate: `light`, `dark` and `accent`, selected per tile with
 `data-tone`. Each tone supplies `--tile-bg`, `--tile-fg` and `--tile-muted`.
@@ -232,4 +237,4 @@ tokens.
 - [sections/today.md](../sections/today.md) — Home surface
 - [`../../ui-design-system.md`](../../ui-design-system.md) — bento design notes
 
-_Last verified: 2026-10-31 · commit `3c363b7` · dirty working tree._
+_Last verified: 2026-11-06 · dirty working tree._

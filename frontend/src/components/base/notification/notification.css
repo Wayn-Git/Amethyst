@@ -1,0 +1,115 @@
+.amethyst-notification-viewport {
+  position: fixed;
+  z-index: 100;
+  display: flex;
+  width: min(386px, calc(100vw - 24px));
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.amethyst-notification-viewport__item { width: 100%; pointer-events: auto; }
+.amethyst-notification-viewport[data-position^="bottom"] { bottom: 24px; }
+.amethyst-notification-viewport[data-position^="top"] { top: 24px; }
+.amethyst-notification-viewport[data-position$="right"], .amethyst-notification-viewport[data-position$="end"] { right: 24px; align-items: flex-end; }
+.amethyst-notification-viewport[data-position$="left"], .amethyst-notification-viewport[data-position$="start"] { left: 24px; align-items: flex-start; }
+.amethyst-notification-viewport[data-position$="center"] { left: 50%; align-items: center; transform: translateX(-50%); }
+
+.amethyst-notification {
+  --notification-status: var(--text-dim);
+  --notification-ring: var(--hairline-strong);
+  position: relative;
+  display: flex;
+  min-height: 128px;
+  align-items: flex-start;
+  gap: 16px;
+  overflow: hidden;
+  padding: 16px 48px 16px 16px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 12px;
+  background: var(--raised);
+  box-shadow: 0 10px 18px rgb(16 24 40 / 0.10), 0 2px 4px rgb(16 24 40 / 0.05);
+  color: var(--text);
+  font-family: var(--font-ui, var(--font-body, sans-serif));
+}
+
+.amethyst-notification--information { --notification-status: var(--accent); --notification-ring: var(--accent-soft); }
+.amethyst-notification--success { --notification-status: var(--live); --notification-ring: var(--live-soft, color-mix(in srgb, var(--live) 18%, var(--raised))); }
+.amethyst-notification--error { --notification-status: var(--stop); --notification-ring: var(--stop-soft); }
+
+.amethyst-notification__icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--notification-ring);
+  border-radius: 50%;
+  background: var(--raised);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--notification-ring) 64%, transparent);
+  color: var(--notification-status);
+}
+
+.amethyst-notification__icon svg { width: 20px; height: 20px; }
+.amethyst-notification__content { min-width: 0; flex: 1; padding-top: 1px; }
+.amethyst-notification__header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.amethyst-notification__title { margin: 0; color: var(--text); font-size: 14px; font-weight: 650; line-height: 20px; }
+.amethyst-notification__timestamp { color: var(--text-faint); font-size: 12px; line-height: 16px; }
+.amethyst-notification__description { margin-top: 2px; color: var(--text-dim); font-size: 14px; line-height: 20px; }
+.amethyst-notification__actions { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; }
+
+.amethyst-notification__action {
+  min-height: auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--text-dim) !important;
+  font-size: 14px !important;
+  font-weight: 550 !important;
+  line-height: 20px !important;
+  transition: color var(--press) var(--ease-out) !important;
+}
+
+.amethyst-notification__action--primary, .amethyst-notification__action--danger { color: var(--accent) !important; }
+.amethyst-notification__action:hover { color: var(--accent-hover, var(--accent)) !important; }
+.amethyst-notification__action:focus-visible, .amethyst-notification__close:focus-visible { outline: none; box-shadow: var(--focus); }
+
+.amethyst-notification__close {
+  position: absolute !important;
+  top: 12px;
+  right: 12px;
+  width: 24px !important;
+  height: 24px !important;
+  padding: 4px !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+  color: var(--text-faint) !important;
+}
+
+.amethyst-notification__close:hover { background: var(--surface-2) !important; color: var(--text-dim) !important; }
+.amethyst-notification__close svg { width: 16px; height: 16px; }
+.amethyst-notification__progress { position: absolute; right: 38px; bottom: 48px; left: 58px; height: 6px; overflow: hidden; border-radius: 999px; background: var(--surface-2); }
+.amethyst-notification__progress::before { display: block; width: 75%; height: 100%; border-radius: inherit; background: var(--accent); content: ""; animation: amethyst-notification-countdown var(--notification-duration) linear var(--notification-delay, 0s) forwards; transform-origin: left; }
+
+.amethyst-notification__avatar { position: relative; flex: none; width: 40px; height: 40px; }
+.amethyst-notification__avatar > *:first-child { width: 40px; height: 40px; }
+.amethyst-notification__presence { position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border: 2px solid var(--raised); border-radius: 50%; }
+.amethyst-notification__presence--online { background: var(--live); }
+.amethyst-notification__presence--busy { background: var(--stop); }
+.amethyst-notification__presence--offline { background: var(--text-faint); }
+
+.amethyst-notification--image { min-height: 104px; padding: 0 48px 0 128px; gap: 16px; }
+.amethyst-notification--image .amethyst-notification__content { padding: 14px 0; }
+.amethyst-notification--image .amethyst-notification__actions { margin-top: 8px; }
+.amethyst-notification__image { position: absolute; top: 0; bottom: 0; left: 0; width: 128px; height: 100%; object-fit: cover; }
+
+@keyframes amethyst-notification-countdown { to { transform: scaleX(0); } }
+
+@media (max-width: 640px) {
+  .amethyst-notification-viewport { right: 12px !important; bottom: 12px !important; left: 12px !important; width: auto; transform: none !important; }
+  .amethyst-notification-viewport[data-position^="top"] { top: 12px; bottom: auto !important; }
+}
+
+@media (prefers-reduced-motion: reduce) { .amethyst-notification__progress::before { animation: none; } }

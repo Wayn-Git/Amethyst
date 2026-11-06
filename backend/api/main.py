@@ -9921,6 +9921,60 @@ async def launcher_action(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/launcher/icon")
+async def launcher_icon(name: str):
+    """Return genuine system or brand icon for an application."""
+    if not name or ".." in name:
+        raise HTTPException(status_code=400, detail="Invalid icon name")
+
+    import glob
+    import os
+    from starlette.responses import FileResponse
+
+    # 1. Direct absolute path if provided
+    if os.path.isabs(name) and os.path.isfile(name):
+        media_type = "image/svg+xml" if name.endswith(".svg") else "image/png"
+        return FileResponse(name, media_type=media_type, headers={"Cache-Control": "public, max-age=86400"})
+
+    clean = name.strip().lower()
+    if clean.endswith(".png") or clean.endswith(".svg") or clean.endswith(".xpm"):
+        clean = os.path.splitext(clean)[0]
+
+    # 2. System icon candidates on Linux
+    search_dirs = [
+        "/usr/share/icons/hicolor/scalable/apps",
+        "/usr/share/icons/hicolor/256x256/apps",
+        "/usr/share/icons/hicolor/128x128/apps",
+        "/usr/share/icons/hicolor/64x64/apps",
+        "/usr/share/icons/hicolor/48x48/apps",
+        "/usr/share/pixmaps",
+    ]
+    for d in search_dirs:
+        for ext in (".svg", ".png"):
+            cand = os.path.join(d, f"{clean}{ext}")
+            if os.path.isfile(cand):
+                media_type = "image/svg+xml" if ext == ".svg" else "image/png"
+                return FileResponse(cand, media_type=media_type, headers={"Cache-Control": "public, max-age=86400"})
+
+    # 3. Simple icons in node_modules
+    simple_icon_path = os.path.abspath(os.path.join(
+        os.path.dirname(__file__), "..", "..", "frontend", "node_modules", "simple-icons", "icons", f"{clean}.svg"
+    ))
+    if os.path.isfile(simple_icon_path):
+        return FileResponse(simple_icon_path, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=86400"})
+
+    # 4. Fallback search in /usr/share/icons
+    matches = glob.glob(f"/usr/share/icons/**/{clean}.*", recursive=True)
+    for m in matches:
+        if os.path.isfile(m):
+            ext = os.path.splitext(m)[1].lower()
+            if ext in (".svg", ".png"):
+                media_type = "image/svg+xml" if ext == ".svg" else "image/png"
+                return FileResponse(m, media_type=media_type, headers={"Cache-Control": "public, max-age=86400"})
+
+    raise HTTPException(status_code=404, detail="Icon not found")
+
+
 # ----------------------------------------------------------------- share
 #
 # One capture-only endpoint so a phone can send AMETHYST a link. See backend/share.py

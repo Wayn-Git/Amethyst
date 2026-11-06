@@ -71,34 +71,30 @@ function LibraryListViewComponent({
 
   const groups = useMemo(() => groupItemsByDate(items), [items])
 
+  const hasMountedRef = useRef(false)
   useEffect(() => {
-    if (!containerRef.current) return
-    const rows = Array.from(containerRef.current.querySelectorAll('.lib-row'))
-    const newRows = rows.filter((r) => {
-      const id = r.getAttribute('data-item-id')
-      if (!id || animatedIdsRef.current.has(id)) return false
-      animatedIdsRef.current.add(id)
-      return true
-    })
-    if (!newRows.length) return
+    if (!containerRef.current || hasMountedRef.current) return
+    hasMountedRef.current = true
+    const rows = Array.from(containerRef.current.querySelectorAll('.lib-row')).slice(0, 20)
+    if (!rows.length) return
 
     const ctx = gsap.context(() => {
       gsap.fromTo(
-        newRows,
-        { autoAlpha: 0, y: 10 },
+        rows,
+        { opacity: 0, y: 6 },
         {
-          autoAlpha: 1,
+          opacity: 1,
           y: 0,
-          duration: 0.3,
-          stagger: { each: 0.02, from: 'start', max: 0.12 },
+          duration: 0.25,
+          stagger: { each: 0.015, from: 'start', max: 0.1 },
           ease: 'power2.out',
-          clearProps: 'transform,visibility,opacity',
+          clearProps: 'transform,opacity',
         }
       )
     }, containerRef)
 
     return () => ctx.revert()
-  }, [items])
+  }, [])
 
   return (
     <div className="lib-list-view" ref={containerRef}>

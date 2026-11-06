@@ -191,6 +191,8 @@ sketch
 # Agent tooling scratch, not part of the project
 .claude/
 .skills/
+.github/skills/
+.github/hooks/
 .playwright-mcp/
 .agent/
 .agents/
@@ -240,3 +242,9 @@ benchmark_results.json
 
 # Local UI design inspirations (kept locally, not in git)
 /UIInspirations/
+
+# Packaged desktop dist
+dist-desktop/
+
+# Codex assistant metadata
+.codex/

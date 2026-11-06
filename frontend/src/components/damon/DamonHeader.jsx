@@ -1,139 +1,66 @@
-import { Button as HouseButton, Input as HouseInput } from '../ui/bento/index.jsx'
+import React from 'react'
 import Icon from '../Icon.jsx'
 
 export default function DamonHeader({
   query,
-  activeMode,
-  intent,
-  flash,
   inputRef,
   onChange,
   onKeyDown,
-  onClearMode,
-  onToggleCapture,
-  capturing,
+  onClear,
+  isAskMode,
+  onToggleAsk,
+  hotkeyLabel = '⌥ Space',
+  placeholder = 'Search apps, files, the web, or ask Amethyst',
 }) {
-  const getModeBadge = () => {
-    switch (activeMode) {
-      case 'youtube':
-        return { label: 'YouTube', icon: 'play', tone: 'yt' }
-      case 'web':
-        return { label: 'Web', icon: 'globe', tone: 'web' }
-      case 'images':
-        return { label: 'Images', icon: 'image', tone: 'img' }
-      case 'commands':
-        return { label: 'Commands', icon: 'zap', tone: 'cmd' }
-      case 'library':
-        return { label: 'Library', icon: 'book', tone: 'lib' }
-      case 'tasks':
-        return { label: 'Tasks', icon: 'check', tone: 'task' }
-      case 'github':
-        return { label: 'GitHub', icon: 'code', tone: 'gh' }
-      default:
-        return null
-    }
-  }
-
-  // The router's badge says what Damon *thinks* the query is. An explicit
-  // mode or prefix can be dismissed; an inferred one is information, not a
-  // control, so it does not pretend to be a button.
-  const badge = intent && intent.mode !== 'home'
-    ? {
-        label: intent.label,
-        icon: intent.icon,
-        tone: intent.tone,
-        explicit: intent.explicit,
-      }
-    : getModeBadge()
-
-  const defaultPlaceholder =
-    intent?.placeholder || (
-      activeMode === 'youtube'
-        ? 'Search YouTube videos…'
-        : activeMode === 'web'
-        ? 'Search the web…'
-        : activeMode === 'images'
-        ? 'Search images…'
-        : activeMode === 'commands'
-        ? 'Search commands…'
-        : activeMode === 'library'
-        ? 'Search library…'
-        : activeMode === 'tasks'
-        ? 'Search tasks…'
-        : 'Search for apps and commands...'
-    )
-
   return (
-    <div className="palette-input damon-header">
-      <div className="damon-input-leading">
-        {badge ? (
-          badge.explicit ? (
-            <HouseButton
-              type="button"
-              className={`damon-badge-tag damon-badge-tag--${badge.tone}`}
-              onClick={onClearMode}
-              title="Press Backspace or Esc to clear mode"
-            >
-              <Icon name={badge.icon} size={13} />
-              <span>{badge.label}</span>
-              <Icon name="x" size={11} />
-            </HouseButton>
-          ) : (
-            <span
-              className={`damon-badge-tag damon-badge-tag--${badge.tone} damon-badge-tag--auto`}
-              title={`Detected intent: ${badge.label}`}
-            >
-              <Icon name={badge.icon} size={13} />
-              <span>{badge.label}</span>
-            </span>
-          )
+    <div className="damon-header palette-input">
+      <div className="damon-header-leading">
+        {isAskMode ? (
+          <button
+            type="button"
+            className="damon-ask-pill"
+            onClick={onToggleAsk}
+            title="Click or press Esc to exit Ask mode"
+          >
+            <Icon name="spark" size={14} />
+            <span>Ask</span>
+          </button>
         ) : (
-          <Icon name="search" size={18} className="damon-search-icon" />
+          <Icon name="search" size={24} className="damon-search-icon" />
         )}
       </div>
 
-      <HouseInput
+      <input
         ref={inputRef}
-        autoFocus
+        type="text"
+        className="damon-input"
         value={query}
-        placeholder={defaultPlaceholder}
+        placeholder={isAskMode ? 'Ask Amethyst anything...' : placeholder}
         onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => { e.stopPropagation(); onKeyDown?.(e) }}
+        onKeyDown={onKeyDown}
+        autoFocus
+        spellCheck={false}
+        autoComplete="off"
         aria-label="Spotlight search and commands"
       />
 
       <div className="damon-header-trailing">
-        {flash && (
-          <span className="palette-flash damon-flash">{flash}</span>
-        )}
         {query ? (
-          <HouseButton
+          <button
             type="button"
             className="damon-clear-btn"
-            onClick={() => onChange('')}
-            title="Clear search"
+            onClick={onClear}
+            title="Clear search (Esc)"
+            aria-label="Clear query"
           >
-            <Icon name="x" size={14} />
-          </HouseButton>
+            <Icon name="x" size={16} />
+          </button>
         ) : (
-          <div className="damon-ask-ai-pill" title="Press Tab to cycle filter modes">
-            <span className="damon-ask-ai-text">Ask AI</span>
-            <kbd className="damon-header-kbd">Tab</kbd>
-          </div>
-        )}
-        {onToggleCapture && (
-          <HouseButton
-            type="button"
-            className={`damon-header-capture-btn widget-buttons${capturing ? ' active' : ''}`}
-            onClick={onToggleCapture}
-            aria-label="Quick capture"
-            title={capturing ? 'Close quick capture' : 'Quick capture'}
-          >
-            <Icon name={capturing ? 'x' : 'edit-3'} size={13} />
-          </HouseButton>
+          <span className="damon-hotkey-badge" aria-hidden="true">
+            {hotkeyLabel}
+          </span>
         )}
       </div>
     </div>
   )
 }
-

@@ -1269,6 +1269,7 @@
   break-inside: avoid;
   margin-bottom: 16px;
   vertical-align: top;
+  contain: layout style;
 }
 
 .skel-lib-card-bento {
@@ -1300,6 +1301,7 @@
   border-radius: var(--radius-cards, 6px);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   overflow: hidden;
+  contain: layout paint;
   transition: transform 140ms var(--lib-ease-out), border-color 140ms var(--lib-ease-out), box-shadow 140ms var(--lib-ease-out);
   cursor: pointer;
   user-select: none;
@@ -1660,9 +1662,12 @@
   object-fit: cover;
   object-position: center top;
   display: block;
-  will-change: transform;
-  transform: translateZ(0);
-  transition: transform 350ms var(--lib-ease-out);
+  opacity: 0;
+  transition: opacity 200ms ease-out, transform 260ms var(--lib-ease-out);
+}
+
+.lib-card-media-img--loaded {
+  opacity: 1;
 }
 
 .lib-card-media--cover .lib-card-media-img {
@@ -1690,12 +1695,16 @@
   pointer-events: none;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0) 35%);
   z-index: 2;
-  opacity: 0.6;
+  opacity: 0;
   transition: opacity 160ms var(--lib-ease-out);
 }
 
-.lib-card:hover .lib-card-media-scrim,
-.lib-card:focus-within .lib-card-media-scrim {
+.lib-card-media-scrim--visible {
+  opacity: 0.6;
+}
+
+.lib-card:hover .lib-card-media-scrim--visible,
+.lib-card:focus-within .lib-card-media-scrim--visible {
   opacity: 0.95;
 }
 

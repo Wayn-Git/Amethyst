@@ -28,7 +28,7 @@ def test_parse_wmctrl_output():
 @pytest.mark.asyncio
 async def test_window_provider_search():
     provider = WindowProvider()
-    with patch("subprocess.run") as mock_run:
+    with patch("shutil.which", return_value="/usr/bin/wmctrl"), patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0, stdout=SAMPLE_WMCTRL_OUTPUT)
         
         # 1. Search 'chat'
@@ -47,7 +47,7 @@ async def test_window_provider_search():
 @pytest.mark.asyncio
 async def test_window_provider_execute():
     provider = WindowProvider()
-    with patch("subprocess.run") as mock_run:
+    with patch("shutil.which", return_value="/usr/bin/wmctrl"), patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0)
         res = await provider.execute("focus", {"win_id": "0x02800003"})
         assert res.get("ok") is True

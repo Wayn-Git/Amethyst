@@ -1,5 +1,4 @@
 import React, { memo, useMemo, useState } from 'react'
-import { motion } from 'framer-motion'
 import LibraryCard from './LibraryCard.jsx'
 import { groupItemsByDate } from './dateUtils.js'
 import LoadMoreSentinel from '../../components/damon/LoadMoreSentinel.jsx'
@@ -170,18 +169,9 @@ function LibraryGridComponent({
               {group.items.map((item, index) => {
                 const { spanClass, variant } = getBentoItemConfig(item, index, group.items.length)
                 return (
-                  <motion.div
+                  <div
                     key={item.id || index}
                     className={`lib-bento-grid-item ${spanClass}`}
-                    initial={{ opacity: 0 }}
-                    animate={{
-                      opacity: 1,
-                      transition: {
-                        duration: 0.24,
-                        delay: Math.min((index % 8) * 0.025, 0.16),
-                        ease: [0.16, 1, 0.3, 1],
-                      },
-                    }}
                   >
                     <LibraryCard
                       item={item}
@@ -206,7 +196,7 @@ function LibraryGridComponent({
                       isDragOver={dragOverId === item.id}
                       isDragged={draggedId === item.id}
                     />
-                  </motion.div>
+                  </div>
                 )
               })}
             </div>

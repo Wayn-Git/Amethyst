@@ -131,3 +131,21 @@ def test_settings_hotkey_endpoint():
     assert patch_res.json().get("hotkey") == "<super>+<space>"
 
 
+def test_launcher_icon_endpoint():
+    client = TestClient(app)
+    # Test valid icon name (e.g. google-chrome or firefox or simple-icons)
+    res = client.get("/api/launcher/icon?name=firefox")
+    if res.status_code == 200:
+        assert "image/" in res.headers.get("content-type", "")
+    else:
+        assert res.status_code == 404
+
+    # Test invalid / traversal name
+    res_invalid = client.get("/api/launcher/icon?name=../secret")
+    assert res_invalid.status_code == 400
+
+    # Test missing name
+    res_missing = client.get("/api/launcher/icon?name=")
+    assert res_missing.status_code == 400
+
+

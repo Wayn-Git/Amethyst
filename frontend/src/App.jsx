@@ -108,6 +108,11 @@ function useDaemonSummon(onPairingRequest) {
       } catch { /* EventSource constructor failure fallback */ }
     }
 
+    const unsubElectron = window.amethystDesktop?.onPaletteToggle?.((forceOpen) => {
+      setOverlay((prev) => (forceOpen ? 'palette' : (prev === 'palette' ? null : 'palette')))
+      window.focus?.()
+    })
+
     if (typeof document !== 'undefined' && document.readyState === 'loading') {
       window.addEventListener('DOMContentLoaded', connect, { once: true })
     } else {
@@ -117,6 +122,7 @@ function useDaemonSummon(onPairingRequest) {
     return () => {
       active = false
       if (timer) clearTimeout(timer)
+      unsubElectron?.()
       window.removeEventListener('DOMContentLoaded', connect)
       if (stream) stream.close()
     }
@@ -168,7 +174,7 @@ function useGlobalKeys() {
           e.stopPropagation()
           setOverlay('palette')
           return
-        } else if (combo === 'mod+space' || combo === 'alt+space') {
+        } else {
           e.preventDefault()
           e.stopPropagation()
           setOverlay(null)

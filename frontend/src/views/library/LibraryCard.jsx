@@ -255,6 +255,11 @@ function LibraryCardComponent({
     return api.thumbnailUrl(item.id)
   }, [isCarousel, slides, currentSlideIndex, item.id])
 
+  const [imgLoaded, setImgLoaded] = useState(false)
+  useEffect(() => {
+    setImgLoaded(false)
+  }, [currentImageUrl])
+
   const handleImageError = useCallback((e) => {
     const cur = slides[currentSlideIndex]
     if (cur?.remoteUrl && e.currentTarget.src !== cur.remoteUrl) {
@@ -489,15 +494,19 @@ function LibraryCardComponent({
             ) : (
               <>
                 <img
-                  className="lib-card-media-img"
+                  className={`lib-card-media-img ${imgLoaded ? 'lib-card-media-img--loaded' : ''}`}
                   src={currentImageUrl}
                   alt=""
                   loading="lazy"
                   decoding="async"
+                  ref={(img) => {
+                    if (img && img.complete && !imgLoaded) setImgLoaded(true)
+                  }}
+                  onLoad={() => setImgLoaded(true)}
                   onError={handleImageError}
                 />
                 {/* Subtle bottom vignette only */}
-                <div className="lib-card-media-scrim" aria-hidden="true" />
+                <div className={`lib-card-media-scrim ${imgLoaded ? 'lib-card-media-scrim--visible' : ''}`} aria-hidden="true" />
 
                 {/* Top-Left Platform Badge */}
                 {(app || item.kind) && (

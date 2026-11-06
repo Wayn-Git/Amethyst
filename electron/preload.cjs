@@ -28,6 +28,11 @@ contextBridge.exposeInMainWorld('amethystDesktop', {
     ipcRenderer.on('desktop:maximized-change', handler);
     return () => ipcRenderer.removeListener('desktop:maximized-change', handler);
   },
+  onPaletteToggle: (callback) => {
+    const handler = (_event, forceOpen) => callback(forceOpen);
+    ipcRenderer.on('palette:toggle', handler);
+    return () => ipcRenderer.removeListener('palette:toggle', handler);
+  },
   setZoomFactor: (factor) => {
     try {
       if (typeof factor === 'number' && Number.isFinite(factor) && factor > 0) {
