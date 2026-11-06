@@ -1,0 +1,358 @@
+/* Klarna-inspired Onboarding and Pairing View */
+
+.pair-screen {
+  min-height: 100dvh;
+  width: 100%;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: max(24px, env(safe-area-inset-top)) 20px max(40px, env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pair-container {
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: auto 0;
+  box-sizing: border-box;
+}
+
+/* Brand Capsule Badge */
+.pair-brand-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #7c3aed, #9333ea);
+  color: #ffffff;
+  padding: 6px 18px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.28);
+  margin-bottom: 8px;
+}
+
+/* Main Display Typography */
+.pair-hero-title {
+  margin: 12px 0 8px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--text);
+}
+
+.pair-hero-sub {
+  margin: 0 0 24px;
+  font-size: 14.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  text-align: center;
+  max-width: 380px;
+}
+
+/* Value Props / Benefit Items */
+.pair-features {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.pair-feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 4px 0;
+}
+
+.pair-feature-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--accent-soft, rgba(124, 58, 237, 0.12));
+  color: var(--accent, #7c3aed);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.pair-feature-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.pair-feature-text strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+
+.pair-feature-text p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+/* Step-by-Step Instructions Card */
+.pair-guide-card {
+  width: 100%;
+  background: var(--surface-raised, #ffffff);
+  border: 1px solid var(--hairline-strong, rgba(0, 0, 0, 0.08));
+  border-radius: 20px;
+  padding: 18px 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  margin-bottom: 24px;
+  box-sizing: border-box;
+}
+
+.pair-guide-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent, #7c3aed);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 12px;
+}
+
+.pair-guide-list {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.pair-guide-list strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Primary and Secondary Action Buttons */
+.pair-actions-stack {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pair-btn-primary {
+  width: 100%;
+  height: 52px;
+  border-radius: 9999px;
+  background: var(--text, #111827);
+  color: var(--canvas, #ffffff);
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.pair-btn-primary:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.pair-btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pair-btn-secondary {
+  width: 100%;
+  height: 48px;
+  border-radius: 9999px;
+  background: var(--surface-raised, #ffffff);
+  color: var(--text);
+  border: 1px solid var(--hairline-strong);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.pair-btn-secondary:active {
+  transform: scale(0.96);
+}
+
+.pair-btn-text {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px;
+  cursor: pointer;
+  text-align: center;
+  transition: color 0.15s ease;
+}
+
+.pair-btn-text:hover {
+  color: var(--text);
+}
+
+/* Manual Entry Box */
+.pair-manual-box {
+  width: 100%;
+  background: var(--surface-raised, #ffffff);
+  border: 1px solid var(--hairline);
+  border-radius: 20px;
+  padding: 18px;
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+  box-sizing: border-box;
+}
+
+.pair-input-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.pair-input-field {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--hairline-strong);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+  box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pair-input-field:focus {
+  outline: none;
+  border-color: var(--accent, #7c3aed);
+  box-shadow: 0 0 0 3px var(--accent-soft, rgba(124, 58, 237, 0.15));
+}
+
+.pair-input-field--code {
+  letter-spacing: 0.12em;
+  font-family: var(--font-mono, monospace);
+  text-transform: uppercase;
+}
+
+.pair-escape-link {
+  margin-top: 20px;
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* Status Cards (Scanning, Pairing, Paired, Trouble) */
+.pair-status-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--surface-raised, #ffffff);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 24px;
+  padding: 32px 24px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-sizing: border-box;
+  margin: auto 0;
+}
+
+.pair-status-icon-badge {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.pair-status-icon-badge--ok {
+  background: rgba(34, 197, 94, 0.14);
+  color: #22c55e;
+}
+
+.pair-status-icon-badge--bad {
+  background: rgba(239, 68, 68, 0.14);
+  color: #ef4444;
+}
+
+.pair-status-card h1 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pair-status-card p {
+  margin: 0 0 20px;
+  font-size: 14.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.pair-firewall-hint {
+  width: 100%;
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.pair-firewall-hint code {
+  display: block;
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: var(--surface-raised);
+  border-radius: 6px;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  color: var(--text);
+  word-break: break-all;
+}

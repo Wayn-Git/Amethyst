@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api.js'
 import { request } from '../dashboard/api.js'
-import Home from '../dashboard/Home.jsx'
 import RemoteAgent from '../views/remote/RemoteAgent.jsx'
 import RemotePC from '../views/remote/RemotePC.jsx'
 import RemoteTerminal from '../views/remote/RemoteTerminal.jsx'
@@ -18,11 +17,11 @@ import Updates from './Updates.jsx'
 import './companion.css'
 
 const tabs = [
-  ['today', 'Today', 'sun'],
+  ['today', 'Home', 'sun'],
   ['library', 'Library', 'book'],
   ['agent', 'Agent', 'chat'],
-  ['activity', 'Activity', 'logs'],
-  ['devices', 'Devices', 'monitor'],
+  ['activity', 'Activity', 'chart-line-up'],
+  ['devices', 'Desktop', 'desktop'],
 ]
 
 export default function Companion({ onUnpair }) {
@@ -32,7 +31,7 @@ export default function Companion({ onUnpair }) {
   const [connection, setConnection] = useState(null)
   const [transportState, setTransportState] = useState(null)
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
-  const [notice, setNotice] = useState('Connecting to desktop…')
+  const [notice, setNotice] = useState('')
   const [library, setLibrary] = useState([])
   const [jobs, setJobs] = useState([])
   const [queue, setQueue] = useState([])
@@ -74,12 +73,12 @@ export default function Companion({ onUnpair }) {
       current = await request('/remote/capabilities', 'GET', undefined, 2500)
       if (active.current && identity()?.deviceId === owner) {
         setConnection(current)
-        setNotice('Desktop connected via Direct LAN')
+        setNotice('Direct Wi-Fi connected')
       }
     } catch (err) {
       if (active.current && identity()?.deviceId === owner) {
         setConnection(null)
-        setNotice('Synced via Cloud Relay. Saved content available.')
+        setNotice('Connected via Cloud Relay')
       }
     }
 
@@ -199,9 +198,29 @@ export default function Companion({ onUnpair }) {
 
   return (
     <div className="companion">
+      {/* Header Search Bar & Transport Pill (Klarna Screenshot 1) */}
       <header className="companion-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <h1>{tabs.find((item) => item[0] === tab)?.[1]}</h1>
+        <div className="companion-search-bar">
+          <Icon name="search" size={18} />
+          <input
+            type="search"
+            placeholder="Search actions, library, notes…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {query && (
+            <button
+              type="button"
+              className="companion-icon-btn"
+              style={{ width: 24, height: 24, border: 0, boxShadow: 'none' }}
+              onClick={() => setQuery('')}
+            >
+              <Icon name="x" size={14} />
+            </button>
+          )}
+        </div>
+
+        <div className="companion-header-actions">
           <button
             type="button"
             className="transport-pill"
@@ -210,137 +229,361 @@ export default function Companion({ onUnpair }) {
           >
             <span className={`transport-dot transport-dot--${currentPath}`} />
             <span>
-              {currentPath === 'direct' ? 'Direct LAN' : currentPath === 'relayed' ? 'Cloud Relay' : 'Offline'}
+              {currentPath === 'direct' ? 'Direct LAN' : currentPath === 'relayed' ? 'Relay' : 'Offline'}
             </span>
           </button>
+
+          <button
+            type="button"
+            className="companion-icon-btn"
+            onClick={() => setSettings((value) => !value)}
+            aria-label="Device settings"
+          >
+            <Icon name="sliders" size={18} />
+          </button>
         </div>
-        <button type="button" onClick={() => setSettings((value) => !value)} aria-label="Device settings">
-          <Icon name="sliders" size={20} />
-        </button>
       </header>
 
-      <div className="companion-status" role="status">
-        {notice}
-        {lastSync && <small>Last saved sync: {new Date(lastSync).toLocaleTimeString()}</small>}
-      </div>
-
+      {/* Settings Drawer */}
       {settings && (
-        <section className="companion-card">
-          <h2>Device Settings</h2>
-          <p>
-            Paired as <strong>{identity()?.name}</strong>. Transport: <em>{currentPath}</em>.
-          </p>
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button type="button" onClick={() => setDiagnosticsOpen(true)}>
-              View Diagnostics
+        <div style={{ padding: '0 16px' }}>
+          <section className="companion-card-group" style={{ padding: 16 }}>
+            <h2 style={{ margin: '0 0 6px', fontSize: 16 }}>Device Pairing</h2>
+            <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--text-dim)' }}>
+              Paired as <strong>{identity()?.name}</strong> · Mode: <em>{currentPath}</em>
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className="pair-btn-secondary"
+                style={{ height: 40, fontSize: 13, flex: 1 }}
+                onClick={() => setDiagnosticsOpen(true)}
+              >
+                Diagnostics
+              </button>
+              <button
+                type="button"
+                className="pair-btn-secondary"
+                style={{ height: 40, fontSize: 13, flex: 1 }}
+                onClick={refresh}
+              >
+                Sync Now
+              </button>
+            </div>
+            <button
+              type="button"
+              className="pair-btn-secondary"
+              onClick={unpair}
+              style={{ marginTop: 10, height: 40, fontSize: 13, color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}
+            >
+              Unpair Phone
             </button>
-            <button type="button" onClick={refresh}>
-              Sync Now
-            </button>
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <button type="button" onClick={unpair} style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.4)' }}>
-              Unpair Device
-            </button>
-          </div>
-        </section>
+          </section>
+          <Updates />
+        </div>
       )}
 
-      {settings && <Updates />}
-
+      {/* Main Touch Content Area */}
       <main className="companion-content">
-        {tab === 'today' && <Home layoutMode="mobile" />}
-
-        {tab === 'library' && (
+        {/* TODAY / HOME TAB (Inspired by Klarna Screenshot 1) */}
+        {tab === 'today' && (
           <>
-            <form className="companion-card" onSubmit={capture}>
-              <h2>Save to your library</h2>
-              <label>
-                Title
-                <input
-                  required
-                  maxLength={400}
-                  value={draft.title}
-                  onChange={(event) => setDraft({ ...draft, title: event.target.value })}
-                />
-              </label>
-              <label>
-                Link
-                <input
-                  type="url"
-                  maxLength={8192}
-                  value={draft.url}
-                  onChange={(event) => setDraft({ ...draft, url: event.target.value })}
-                />
-              </label>
-              <label>
-                Text or notes
-                <textarea
-                  maxLength={100000}
-                  value={draft.text}
-                  onChange={(event) => setDraft({ ...draft, text: event.target.value })}
-                />
-              </label>
-              <button disabled={saving} type="submit">
-                {saving ? 'Saving…' : 'Save capture'}
+            {/* Bento Hero Cards Carousel */}
+            <div className="companion-bento-carousel">
+              {/* Card 1: Connection Status */}
+              <div
+                className="companion-bento-hero"
+                onClick={() => setDiagnosticsOpen(true)}
+              >
+                <div>
+                  <div className="companion-hero-icon-badge">
+                    <Icon name="desktop" size={22} />
+                  </div>
+                  <span className="companion-hero-overline">Desktop Link</span>
+                  <h3 className="companion-hero-title">
+                    {connection ? 'Direct LAN' : currentPath === 'relayed' ? 'Cloud Relay' : 'Offline'}
+                  </h3>
+                </div>
+                <div className="companion-hero-tag">
+                  <Icon name="check-circle" size={14} />
+                  <span>
+                    {transportState?.latencyMs ? `${transportState.latencyMs}ms latency` : 'Encrypted'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Card 2: Agent Shortcut */}
+              <div
+                className="companion-bento-hero"
+                onClick={() => setTab('agent')}
+              >
+                <div>
+                  <div className="companion-hero-icon-badge" style={{ background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(74, 222, 128, 0.2))', color: '#16a34a' }}>
+                    <Icon name="chat" size={22} />
+                  </div>
+                  <span className="companion-hero-overline">Autonomous Agent</span>
+                  <h3 className="companion-hero-title">Amethyst</h3>
+                </div>
+                <div className="companion-hero-tag" style={{ color: 'var(--accent)' }}>
+                  <span>Ask anything →</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions Section (Screenshot 1 "Stores for you" grid style) */}
+            <div className="companion-section-header">
+              <h2>Quick Actions</h2>
+              <button type="button" className="companion-section-link" onClick={() => setTab('devices')}>
+                All controls
               </button>
-            </form>
-            <label className="companion-search">
-              Search saved items
-              <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} />
-            </label>
-            {!visibleLibrary.length && <p>No matching saved items on this device.</p>}
-            {visibleLibrary.map((item, index) => (
-              <article className="companion-card" key={item.uuid || item.id || index}>
-                <h2>{item.title}</h2>
-                <p>{item.summary || item.notes || 'No summary saved.'}</p>
-                {/^https?:\/\//i.test(item.url || '') && (
-                  <a href={item.url} target="_blank" rel="noopener noreferrer">
-                    Open source
-                  </a>
-                )}
-              </article>
-            ))}
+            </div>
+
+            <div className="companion-actions-grid">
+              <div
+                className="companion-action-tile"
+                onClick={() => { setTab('devices'); setDeviceView('pc') }}
+              >
+                <div className="companion-action-tile-icon">
+                  <Icon name="power" size={18} />
+                </div>
+                <span className="companion-action-tile-label">PC Control</span>
+              </div>
+
+              <div
+                className="companion-action-tile"
+                onClick={() => { setTab('devices'); setDeviceView('terminal') }}
+              >
+                <div className="companion-action-tile-icon">
+                  <Icon name="terminal" size={18} />
+                </div>
+                <span className="companion-action-tile-label">Terminal</span>
+              </div>
+
+              <div
+                className="companion-action-tile"
+                onClick={() => { setTab('devices'); setDeviceView('files') }}
+              >
+                <div className="companion-action-tile-icon">
+                  <Icon name="file" size={18} />
+                </div>
+                <span className="companion-action-tile-label">Files</span>
+              </div>
+
+              <div
+                className="companion-action-tile"
+                onClick={() => { setTab('devices'); setDeviceView('media') }}
+              >
+                <div className="companion-action-tile-icon">
+                  <Icon name="music" size={18} />
+                </div>
+                <span className="companion-action-tile-label">Media</span>
+              </div>
+
+              <div
+                className="companion-action-tile"
+                onClick={() => setTab('library')}
+              >
+                <div className="companion-action-tile-icon">
+                  <Icon name="book" size={18} />
+                </div>
+                <span className="companion-action-tile-label">Library</span>
+              </div>
+
+              <div
+                className="companion-action-tile"
+                onClick={() => setDiagnosticsOpen(true)}
+              >
+                <div className="companion-action-tile-icon">
+                  <Icon name="lightning" size={18} />
+                </div>
+                <span className="companion-action-tile-label">Health</span>
+              </div>
+            </div>
+
+            {/* Recent Library Items */}
+            <div className="companion-section-header">
+              <h2>Recent Saves</h2>
+              <button type="button" className="companion-section-link" onClick={() => setTab('library')}>
+                View all ({library.length})
+              </button>
+            </div>
+
+            <div className="companion-card-group">
+              {library.slice(0, 4).map((item, idx) => (
+                <div className="companion-list-row" key={item.uuid || item.id || idx}>
+                  <div className="companion-row-thumb">
+                    <Icon name="book" size={20} />
+                  </div>
+                  <div className="companion-row-info">
+                    <h3>{item.title || 'Untitled save'}</h3>
+                    <p>{item.summary || item.notes || item.url || 'No notes saved'}</p>
+                    {item.url && (
+                      <span className="companion-row-badge">Link</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {!library.length && (
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-dim)', fontSize: 14 }}>
+                  No saved items in library yet.
+                </div>
+              )}
+            </div>
           </>
         )}
 
+        {/* LIBRARY TAB (Klarna Screenshot 2) */}
+        {tab === 'library' && (
+          <>
+            {/* Quick Capture Card */}
+            <section className="companion-card-group" style={{ padding: 18 }}>
+              <h2 style={{ margin: '0 0 10px', fontSize: 17 }}>Save to Library</h2>
+              <form onSubmit={capture} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <input
+                  className="pair-input-field"
+                  placeholder="Title"
+                  required
+                  maxLength={400}
+                  value={draft.title}
+                  onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                />
+                <input
+                  className="pair-input-field"
+                  type="url"
+                  placeholder="URL link (optional)"
+                  maxLength={8192}
+                  value={draft.url}
+                  onChange={(e) => setDraft({ ...draft, url: e.target.value })}
+                />
+                <textarea
+                  className="pair-input-field"
+                  style={{ minHeight: 70, resize: 'vertical' }}
+                  placeholder="Notes or excerpt…"
+                  maxLength={100000}
+                  value={draft.text}
+                  onChange={(e) => setDraft({ ...draft, text: e.target.value })}
+                />
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="pair-btn-primary"
+                  style={{ height: 44, fontSize: 14 }}
+                >
+                  {saving ? 'Saving…' : 'Save Capture'}
+                </button>
+              </form>
+            </section>
+
+            {/* Grouped Library Items (Screenshot 2 list style) */}
+            <div className="companion-section-header">
+              <h2>Saved Items ({visibleLibrary.length})</h2>
+            </div>
+
+            <div className="companion-card-group">
+              {visibleLibrary.map((item, idx) => (
+                <div className="companion-list-row" key={item.uuid || item.id || idx}>
+                  <div className="companion-row-thumb">
+                    <Icon name="book" size={20} />
+                  </div>
+                  <div className="companion-row-info">
+                    <h3>{item.title}</h3>
+                    <p>{item.summary || item.notes || 'No summary saved.'}</p>
+                    {item.url && (
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="companion-row-badge"
+                        style={{ color: 'var(--accent)', textDecoration: 'none' }}
+                      >
+                        Open source →
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {!visibleLibrary.length && (
+                <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)', fontSize: 14 }}>
+                  No matching saved items found.
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* AGENT TAB */}
         {tab === 'agent' && (
           <RemoteAgent onOpenDiagnostics={() => setDiagnosticsOpen(true)} transportState={transportState} />
         )}
 
+        {/* ACTIVITY TAB */}
         {tab === 'activity' && (
           <>
-            <h2>Captures</h2>
-            {!queue.length && <p>No captures queued on this device.</p>}
-            {queue.map((item) => (
-              <article className="companion-card" key={item.id}>
-                <h3>{item.title}</h3>
-                <p>{item.state === 'accepted' ? 'Accepted by desktop; waiting to run' : item.state}</p>
-                {item.error && <p role="alert">{item.error}</p>}
-              </article>
-            ))}
-            <h2>Desktop jobs</h2>
-            {!jobs.length && <p>No saved job activity.</p>}
-            {jobs.map((job) => (
-              <article className="companion-card" key={job.id}>
-                <h3>{job.kind}</h3>
-                <p>{job.state}</p>
-                {job.error && <p>{job.error}</p>}
-              </article>
-            ))}
+            <div className="companion-section-header">
+              <h2>Queued Captures</h2>
+            </div>
+            <div className="companion-card-group">
+              {queue.map((item) => (
+                <div className="companion-list-row" key={item.id}>
+                  <div className="companion-row-thumb">
+                    <Icon name="lightning" size={20} />
+                  </div>
+                  <div className="companion-row-info">
+                    <h3>{item.title}</h3>
+                    <p>{item.state === 'accepted' ? 'Accepted by desktop; processing' : item.state}</p>
+                    {item.error && <span style={{ color: '#ef4444', fontSize: 12 }}>{item.error}</span>}
+                  </div>
+                </div>
+              ))}
+              {!queue.length && (
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-dim)', fontSize: 14 }}>
+                  No pending captures queued.
+                </div>
+              )}
+            </div>
+
+            <div className="companion-section-header" style={{ marginTop: 12 }}>
+              <h2>Desktop Jobs</h2>
+            </div>
+            <div className="companion-card-group">
+              {jobs.map((job) => (
+                <div className="companion-list-row" key={job.id}>
+                  <div className="companion-row-thumb">
+                    <Icon name="desktop" size={20} />
+                  </div>
+                  <div className="companion-row-info">
+                    <h3>{job.kind}</h3>
+                    <p>{job.state}</p>
+                    {job.error && <span style={{ color: '#ef4444', fontSize: 12 }}>{job.error}</span>}
+                  </div>
+                </div>
+              ))}
+              {!jobs.length && (
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-dim)', fontSize: 14 }}>
+                  No active desktop jobs.
+                </div>
+              )}
+            </div>
           </>
         )}
 
+        {/* DEVICES TAB */}
         {tab === 'devices' && (
           <>
-            <section className="companion-card">
-              <h2>My Desktop</h2>
-              <p>
-                {connection
-                  ? 'Connected via Direct LAN'
-                  : 'Connected via Encrypted Cloudflare Relay (saved content available)'}
-              </p>
-              <div className="companion-actions">
+            <section className="companion-card-group" style={{ padding: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div className="companion-hero-icon-badge" style={{ margin: 0, width: 40, height: 40 }}>
+                  <Icon name="desktop" size={20} />
+                </div>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: 16 }}>Desktop Machine</h2>
+                  <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+                    {connection ? 'Connected via Direct LAN' : 'Connected via Encrypted Cloud Relay'}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
                 {[
                   ['overview', 'Overview', null],
                   ['pc', 'PC controls', 'input'],
@@ -353,14 +596,22 @@ export default function Companion({ onUnpair }) {
                     type="button"
                     disabled={permission && (!connection || !permissions[permission])}
                     onClick={() => setDeviceView(id)}
-                    aria-pressed={deviceView === id}
+                    className="pair-btn-secondary"
+                    style={{
+                      height: 36,
+                      fontSize: 13,
+                      padding: '0 14px',
+                      background: deviceView === id ? 'var(--text)' : 'var(--surface-raised)',
+                      color: deviceView === id ? 'var(--canvas)' : 'var(--text)',
+                      width: 'auto',
+                    }}
                   >
                     {label}
                   </button>
                 ))}
               </div>
-              {!connection?.screen_available && <p>Screen capture is unavailable on this connection.</p>}
             </section>
+
             {connection && deviceView === 'pc' && <RemotePC />}
             {connection && deviceView === 'terminal' && permissions.terminal && <RemoteTerminal />}
             {connection && deviceView === 'files' && permissions.files && <RemoteFiles />}
@@ -369,20 +620,25 @@ export default function Companion({ onUnpair }) {
         )}
       </main>
 
+      {/* Floating Bottom Dock Navigation (Klarna Screenshots 1 & 3) */}
       <nav className="companion-nav" aria-label="Companion navigation">
-        {tabs.map(([id, label, icon]) => (
-          <button
-            key={id}
-            type="button"
-            aria-current={tab === id ? 'page' : undefined}
-            onClick={() => setTab(id)}
-          >
-            <Icon name={icon} size={20} />
-            <span>{label}</span>
-          </button>
-        ))}
+        {tabs.map(([id, label, icon]) => {
+          const isCurrent = tab === id
+          return (
+            <button
+              key={id}
+              type="button"
+              aria-current={isCurrent ? 'page' : undefined}
+              onClick={() => setTab(id)}
+            >
+              <Icon name={icon} size={20} />
+              {isCurrent && <span>{label}</span>}
+            </button>
+          )
+        })}
       </nav>
 
+      {/* Connection Diagnostics Modal */}
       <ConnectionDiagnosticsModal
         open={diagnosticsOpen}
         onClose={() => setDiagnosticsOpen(false)}

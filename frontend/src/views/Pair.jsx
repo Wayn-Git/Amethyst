@@ -1,112 +1,71 @@
-import { Button as HouseButton, Input as HouseInput } from '../components/ui/bento/index.jsx'
-/* Pairing, as the first thing a phone sees.
- *
- * This screen exists because the one before it was unreachable. The pairing
- * controls used to live inside Settings, behind a desktop layout and behind a
- * ninety-second wait for a backend that -- on a phone, with the machine at home
- * behind a router -- was never going to answer.
- *
- * So: not paired is not a broken install. It is a device that has not been told
- * what it belongs to yet, and the right thing to show is the question.
- *
- * What changed since the first version of this screen is how much the person
- * has to know. It used to ask for a relay address and a thirty-two character
- * code, both typed, which meant pairing was a configuration exercise. Now the
- * machine's QR code carries both, and there are three ways in, in descending
- * order of how little they ask:
- *
- *   1. The phone's own camera app opens the link. Nothing is typed, and this
- *      screen comes up already knowing everything -- see `fromLink`.
- *   2. The scanner here reads the same code, where the browser has a decoder.
- *   3. The code is typed, which still works and always will, because a camera
- *      that will not focus at 11pm is a real thing.
- */
-
 import { useCallback, useEffect, useRef, useState } from 'react'
-
 import Icon from '../components/Icon.jsx'
 import QrScanner from '../components/QrScanner.jsx'
 import { AsciiSkeleton } from 'ascii-reveal'
 import * as syncClient from '../lib/sync/client.js'
+import './pair.css'
 
-/** Whether a scan is possible here at all.
- *
- * Checked before the camera button is drawn rather than on tap, because the
- * answer is "no" on every iPhone and a button that fails when pressed is worse
- * than one that was never offered. iOS does not need it: the machine's code is
- * an https link, so the system camera app opens the pairing screen directly --
- * one fewer tap than an in-app scanner, not one more.
- */
+/** Whether a scan is possible here at all. */
 function canScan() {
   return typeof window !== 'undefined'
     && 'BarcodeDetector' in window
     && Boolean(navigator.mediaDevices?.getUserMedia)
 }
 
-/* What went wrong, in the words somebody can act on.
- *
- * Each of these used to be the same two-minute wait ending in "the machine
- * never answered", which is the right message for exactly one of them and sends
- * you to check the wrong thing for the rest. */
 const TROUBLE = {
-  /* The one failure that is not worth retrying, and the only one whose fix is
-     on the other machine rather than on this phone. */
   insecure: {
     title: 'This address cannot pair',
-    body: 'Browsers only allow the encryption this needs on an https address. '
-      + 'Open Amethyst over https and scan the code again — on your computer, '
-      + '`cloudflared tunnel --url http://localhost:8000` gives you one in a second.',
+    body: 'Browsers require an https connection for end-to-end encryption. Open Amethyst over https and scan again.',
     retry: 'Try again',
   },
   expired: {
     title: 'That code has expired',
-    body: 'Codes last five minutes. Show a new one on your computer and scan it again.',
-    retry: 'Try another code',
+    body: 'Pairing codes last five minutes. Click "Pair a device" on your PC to generate a fresh code and scan again.',
+    retry: 'Scan new code',
   },
   invalid: {
     title: "That code didn't work",
-    body: 'It may have been mistyped, or already used — each code pairs one device, once.',
+    body: 'It may have been mistyped, or already used. Each code pairs one device, once.',
     retry: 'Try again',
   },
   offline: {
     title: 'No connection',
-    body: 'This device could not reach the relay. Check your signal and try again.',
-    retry: 'Retry',
+    body: 'This device could not reach your PC or the relay. Check that your phone and PC are on the same Wi-Fi, or check your internet connection.',
+    retry: 'Retry connection',
   },
   relay: {
-    title: 'The relay turned this down',
-    body: 'It is reachable but would not take the request. It may be busy — try again in a moment.',
+    title: 'Relay connection busy',
+    body: 'The encrypted mailbox is reachable but busy. Try connecting again in a moment.',
     retry: 'Retry',
   },
   timeout: {
     title: 'Your computer never answered',
-    body: 'It completes pairing while it is running. Check that Amethyst is open on it and that its relay is switched on.',
+    body: 'Check that Amethyst is open on your PC. If on home Wi-Fi, ensure your PC firewall allows port 8000 (sudo ufw allow 8000/tcp).',
     retry: 'Try again',
   },
 }
 
-/** Is there a code in the address bar waiting to be used?
- *
- *  A pure read, safe to call while rendering. Taking it is `takeLink` below,
- *  which is not. */
 function linkWaiting() {
   return typeof window !== 'undefined' && (window.location.hash || '').includes('s=')
 }
 
-/** Read a link the camera app opened, and take it out of the address bar.
- *
- *  Consumed rather than merely read, and once: the code is single use, so a
- *  remount that found it still there would retry a spent one. The secret
- *  arrives in the fragment, which never reached a server -- and it should not
- *  linger in the URL bar or the back stack either, where the next person to
- *  pick up the phone can read it. */
 function takeLink() {
   if (!linkWaiting()) return null
   const read = syncClient.readPayload(window.location.href)
   try {
     window.history.replaceState(null, '', window.location.pathname + window.location.search)
-  } catch { /* no history to rewrite; the value read above is still usable */ }
+  } catch {}
   return read.secret ? read : null
+}
+
+function deviceName() {
+  const ua = navigator.userAgent || ''
+  if (/iPhone/i.test(ua)) return 'iPhone'
+  if (/iPad/i.test(ua)) return 'iPad'
+  if (/Android/i.test(ua)) return 'Android phone'
+  if (/Mac/i.test(ua)) return 'Mac'
+  if (/Windows/i.test(ua)) return 'Windows PC'
+  return 'Mobile phone'
 }
 
 export default function Pair({ onPaired, onDesktop }) {
@@ -144,8 +103,8 @@ export default function Pair({ onPaired, onDesktop }) {
       setTimeout(() => onPaired?.(), 700)
     } catch (err) {
       setTrouble(TROUBLE[err?.reason] || {
-        title: "That didn't work",
-        body: err?.message || 'Something went wrong. Try again.',
+        title: "Connection could not finish",
+        body: err?.message || 'Something went wrong. Check that Amethyst is running on your computer.',
         retry: 'Try again',
       })
       setPhase('trouble')
@@ -185,52 +144,77 @@ export default function Pair({ onPaired, onDesktop }) {
 
   if (phase === 'scanning') {
     return (
-      <Shell>
-        <QrScanner onScan={scanned} onCancel={() => setPhase('idle')} />
-      </Shell>
+      <div className="pair-screen">
+        <div className="pair-container">
+          <div className="pair-status-card">
+            <QrScanner onScan={scanned} onCancel={() => setPhase('idle')} />
+          </div>
+        </div>
+      </div>
     )
   }
 
   if (phase === 'pairing') {
     return (
-      <Shell>
-        <div className="pair-state">
-          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', margin: '8px 0 16px' }} aria-hidden="true">
-            <AsciiSkeleton variant="scan" circle width={44} height={44} />
+      <div className="pair-screen">
+        <div className="pair-container">
+          <div className="pair-status-card">
+            <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', margin: '8px 0 16px' }} aria-hidden="true">
+              <AsciiSkeleton variant="scan" circle width={54} height={54} />
+            </div>
+            <h1>Pairing with your PC…</h1>
+            <p>
+              Waiting for authorization from your desktop. Look at your computer screen and click <strong>Approve</strong>.
+            </p>
           </div>
-          <h1>Pairing with your PC…</h1>
-          <p className="pair-sub">
-            Waiting for approval on your computer. Look at your PC screen to review and approve this connection.
-          </p>
         </div>
-      </Shell>
+      </div>
     )
   }
 
   if (phase === 'paired') {
     return (
-      <Shell>
-        <div className="pair-state pair-state--ok">
-          <Icon name="check" size={32} />
-          <h1>Paired</h1>
-          <p className="pair-sub">This device is connected to your computer.</p>
+      <div className="pair-screen">
+        <div className="pair-container">
+          <div className="pair-status-card">
+            <div className="pair-status-icon-badge pair-status-icon-badge--ok">
+              <Icon name="check-circle" size={36} />
+            </div>
+            <h1>Connected</h1>
+            <p>Your phone is now securely paired with your computer.</p>
+          </div>
         </div>
-      </Shell>
+      </div>
     )
   }
 
   if (phase === 'trouble') {
     return (
-      <Shell>
-        <div className="pair-state pair-state--bad">
-          <Icon name="alert" size={30} />
-          <h1>{trouble.title}</h1>
-          <p className="pair-sub">{trouble.body}</p>
-          <HouseButton type="button" className="pair-go" onClick={() => { setPhase('idle'); setTyping(true) }}>
-            {trouble.retry}
-          </HouseButton>
+      <div className="pair-screen">
+        <div className="pair-container">
+          <div className="pair-status-card">
+            <div className="pair-status-icon-badge pair-status-icon-badge--bad">
+              <Icon name="alert" size={32} />
+            </div>
+            <h1>{trouble.title}</h1>
+            <p>{trouble.body}</p>
+
+            <div className="pair-firewall-hint">
+              <strong>Tip for Home Wi-Fi:</strong>
+              <span>If your computer runs Linux, ensure the firewall allows port 8000:</span>
+              <code>sudo ufw allow 8000/tcp</code>
+            </div>
+
+            <button
+              type="button"
+              className="pair-btn-primary"
+              onClick={() => { setPhase('idle'); setTyping(true) }}
+            >
+              {trouble.retry}
+            </button>
+          </div>
         </div>
-      </Shell>
+      </div>
     )
   }
 
@@ -238,111 +222,153 @@ export default function Pair({ onPaired, onDesktop }) {
     && syncClient.readPayload(code).secret.length >= 16
 
   return (
-    <Shell onDesktop={onDesktop}>
-      <Icon name="link" size={26} />
-      <h1>Connect to your computer</h1>
-      <p className="pair-sub">
-        Your computer keeps your files and runs your work. This device shows what it
-        publishes and can send it more. Everything between them is sealed — the relay
-        carrying it cannot read any of it.
-      </p>
-
-      {!syncClient.canPair() ? (
-        <p className="pair-error">
-          This page is on <code>{typeof window !== 'undefined' ? window.location.protocol : ''}</code>,
-          and browsers only allow the encryption pairing needs over <strong>https</strong>.
-          Nothing below will work until Amethyst is opened over an https address.
-        </p>
-      ) : null}
-
-      <ol className="pair-steps">
-        <li>On your computer, open <strong>Settings → Devices</strong></li>
-        <li>Press <strong>Pair a device</strong></li>
-        <li>{canScan() ? 'Scan the code it shows' : 'Point your camera at the code it shows'}</li>
-      </ol>
-
-      {canScan() ? (
-        <HouseButton type="button" className="pair-go" onClick={() => setPhase('scanning')}>
-          <Icon name="camera" size={18} />
-          Scan the code
-        </HouseButton>
-      ) : null}
-
-      {typing ? (
-        <div className="pair-manual">
-          <label className="pair-label" htmlFor="pair-relay">Computer or Relay address</label>
-          <HouseInput
-            id="pair-relay"
-            className="pair-input"
-            type="url"
-            inputMode="url"
-            autoCapitalize="off"
-            autoCorrect="off"
-            spellCheck={false}
-            placeholder="http://192.168.1.x:8000 or https://relay.domain"
-            value={relayUrl || hostUrl}
-            onChange={(e) => {
-              const val = e.target.value
-              setRelayUrl(val)
-              setHostUrl(val)
-            }}
-          />
-
-          <label className="pair-label" htmlFor="pair-code">Pairing code</label>
-          <HouseInput
-            id="pair-code"
-            className="pair-input pair-input--code"
-            autoCapitalize="characters"
-            autoCorrect="off"
-            spellCheck={false}
-            placeholder="XXXX XXXX XXXX XXXX"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && ready) run({ relay: relayUrl.trim(), host: hostUrl.trim(), secret: code })
-            }}
-          />
-
-          <HouseButton
-            type="button"
-            className="pair-go"
-            onClick={() => run({ relay: relayUrl.trim(), host: hostUrl.trim(), secret: code })}
-            disabled={!ready}
-          >
-            Pair
-          </HouseButton>
+    <div className="pair-screen">
+      <div className="pair-container">
+        {/* Brand Pill */}
+        <div className="pair-brand-pill">
+          <span>AMETHYST</span>
         </div>
-      ) : (
-        <HouseButton type="button" className="pair-secondary" onClick={() => setTyping(true)}>
-          Enter the code instead
-        </HouseButton>
-      )}
-    </Shell>
-  )
-}
 
-/* The frame every state shares. Full height, one column, and its own scroll --
-   a phone keyboard opening must not push the card off the top of the screen. */
-function Shell({ children, onDesktop }) {
-  return (
-    <div className="pair">
-      <div className="pair-card">{children}</div>
-      {onDesktop ? (
-        <HouseButton type="button" className="pair-escape" onClick={onDesktop}>
-          Use the desktop interface
-        </HouseButton>
-      ) : null}
+        {/* Hero Title */}
+        <h1 className="pair-hero-title">A smarter and more secure experience</h1>
+        <p className="pair-hero-sub">
+          Connect your phone to access your library, monitor agent tasks, and control your PC from anywhere.
+        </p>
+
+        {/* Feature / Value Props List (Inspired by Klarna Screenshot 5) */}
+        <div className="pair-features">
+          <div className="pair-feature-item">
+            <div className="pair-feature-icon">
+              <Icon name="shield-check" size={22} />
+            </div>
+            <div className="pair-feature-text">
+              <strong>Private & end-to-end encrypted</strong>
+              <p>Your vault stays private. The relay only carries sealed packets and cannot inspect your content.</p>
+            </div>
+          </div>
+
+          <div className="pair-feature-item">
+            <div className="pair-feature-icon">
+              <Icon name="lightning" size={22} />
+            </div>
+            <div className="pair-feature-text">
+              <strong>Direct Wi-Fi speed</strong>
+              <p>Automatically connects directly over local network with zero cloud delay when at home.</p>
+            </div>
+          </div>
+
+          <div className="pair-feature-item">
+            <div className="pair-feature-icon">
+              <Icon name="check-circle" size={22} />
+            </div>
+            <div className="pair-feature-text">
+              <strong>Complete desktop control</strong>
+              <p>Review and approve tool runs, send turns to your agent, and capture web content on the go.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop Instructions Card */}
+        <div className="pair-guide-card">
+          <div className="pair-guide-header">
+            <Icon name="desktop" size={17} />
+            <span>How to connect</span>
+          </div>
+          <ol className="pair-guide-list">
+            <li>Open <strong>Amethyst</strong> on your computer</li>
+            <li>Go to <strong>Settings → Devices</strong></li>
+            <li>Click <strong>Pair a device</strong> and scan the code</li>
+          </ol>
+        </div>
+
+        {/* Actions Stack */}
+        <div className="pair-actions-stack">
+          {canScan() ? (
+            <button
+              type="button"
+              className="pair-btn-primary"
+              onClick={() => setPhase('scanning')}
+            >
+              <Icon name="camera" size={20} />
+              <span>Scan QR Code</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="pair-btn-primary"
+              onClick={() => setTyping(true)}
+            >
+              <Icon name="link" size={20} />
+              <span>Enter Code Manually</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="pair-btn-text"
+            onClick={() => setTyping((prev) => !prev)}
+          >
+            {typing ? 'Hide manual entry' : 'Or enter code manually'}
+          </button>
+        </div>
+
+        {/* Manual Configuration Box */}
+        {typing && (
+          <div className="pair-manual-box">
+            <label className="pair-input-label" htmlFor="pair-relay">
+              Computer or Relay URL
+            </label>
+            <input
+              id="pair-relay"
+              className="pair-input-field"
+              type="url"
+              inputMode="url"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="http://192.168.1.x:8000 or https://..."
+              value={relayUrl || hostUrl}
+              onChange={(e) => {
+                const val = e.target.value
+                setRelayUrl(val)
+                setHostUrl(val)
+              }}
+            />
+
+            <label className="pair-input-label" htmlFor="pair-code">
+              Pairing Code
+            </label>
+            <input
+              id="pair-code"
+              className="pair-input-field pair-input-field--code"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="XXXX XXXX XXXX XXXX"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && ready) run({ relay: relayUrl.trim(), host: hostUrl.trim(), secret: code })
+              }}
+            />
+
+            <button
+              type="button"
+              className="pair-btn-primary"
+              onClick={() => run({ relay: relayUrl.trim(), host: hostUrl.trim(), secret: code })}
+              disabled={!ready}
+            >
+              Confirm & Connect
+            </button>
+          </div>
+        )}
+
+        {onDesktop && (
+          <button type="button" className="pair-escape-link" onClick={onDesktop}>
+            Use the desktop interface
+          </button>
+        )}
+      </div>
     </div>
   )
-}
-
-/** Something recognisable in `amethyst device`'s list, without asking. */
-function deviceName() {
-  const ua = navigator.userAgent || ''
-  if (/iPhone/i.test(ua)) return 'iPhone'
-  if (/iPad/i.test(ua)) return 'iPad'
-  if (/Android/i.test(ua)) return 'Android phone'
-  if (/Mac/i.test(ua)) return 'Mac'
-  if (/Windows/i.test(ua)) return 'Windows PC'
-  return 'a browser'
 }

@@ -808,6 +808,23 @@ html, body {
   background: var(--sb-bg, #171717);
 }
 
+/* Allow native touch scrolling for mobile viewports and companion frames */
+html:has(.remote-only), html:has(.pair),
+body:has(.remote-only), body:has(.pair),
+html[data-mobile="1"], body[data-mobile="1"] {
+  height: 100% !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 600px), (max-height: 430px) and (orientation: landscape) {
+  html, body {
+    height: 100% !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 /* Every pressable answers the press. 97% is felt rather than seen, which is
    the point: the interface confirms it heard you before anything else does. */
 button:active:not(:disabled) { transform: scale(0.97); }
@@ -23934,27 +23951,31 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
 
 .pair {
   min-height: 100dvh;
+  width: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 24px 16px max(24px, env(safe-area-inset-bottom));
+  justify-content: flex-start;
+  padding: max(24px, env(safe-area-inset-top)) 16px max(32px, env(safe-area-inset-bottom));
   background: var(--canvas-deep);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
 }
 
 .pair-card {
   width: 100%;
-  max-width: 420px;
+  max-width: 440px;
+  margin: auto 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  /* A surface, in the same terms every other card in this interface uses. It
-     had none -- no background, no border, no radius -- which left the whole
-     screen as unstyled text floating on the canvas. */
+  gap: 16px;
   background: var(--raised);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-lg);
-  padding: 22px 20px;
-  box-shadow: var(--shadow-micro);
+  border-radius: 24px;
+  padding: 28px 22px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+  box-sizing: border-box;
 }
 
 .pair-card > svg { color: var(--accent); }
@@ -24013,13 +24034,20 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
   min-height: 50px;
   margin-top: 8px;
   border: none;
-  border-radius: 12px;
-  background: var(--accent);
-  color: #fff;
+  border-radius: 9999px;
+  background: var(--text);
+  color: var(--canvas);
   font: inherit;
   font-size: 1rem;
   font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform 0.15s ease, opacity 0.15s ease;
 }
+.pair-go:active:not(:disabled) { transform: scale(0.96); }
 .pair-go:disabled { opacity: 0.4; }
 
 .pair-error {
@@ -24029,16 +24057,24 @@ kbd, .ui-kbd, .lib-kbd, .wb-search-kbd, .lib-search-hotkey, .lib-hotkey-hint {
   line-height: 1.5;
 }
 
-/* The phone's frame: no rail, no panel, no drawer — just the remote view and
-   the notch to stay out of. */
+/* The phone's frame: full viewport height, vertical flex, clipping bounds so inner content scrolls smoothly */
 .remote-only {
-  min-height: 100dvh;
+  height: 100dvh;
+  max-height: 100dvh;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  padding-top: env(safe-area-inset-top);
+  overflow: hidden;
   background: var(--canvas-deep);
 }
-.remote-only > * { flex: 1 1 auto; min-height: 0; }
+.remote-only > * {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 
 .boot-remote { margin-top: 8px; }
 .rc-actions { display: flex; align-items: center; gap: 8px; }
