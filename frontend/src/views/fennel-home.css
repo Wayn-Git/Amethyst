@@ -1,18 +1,24 @@
+/* Fennel Home — Clean Dashboard View (Screenshot 1)
+ * Fully tokenized with Amethyst design system variables
+ * Perfectly synchronized light and dark mode
+ */
+
 .fennel-home-root {
   display: flex;
   flex-direction: column;
   width: 100%;
   height: 100%;
-  background: var(--bg-canvas, #f8f9fa);
-  color: var(--text, #111827);
+  background: var(--canvas-deep, #f8f9fa);
+  color: var(--text);
   overflow: hidden;
   position: relative;
   font-family: inherit;
 }
 
-[data-theme='dark'] .fennel-home-root,
-.theme-dark .fennel-home-root {
-  background: var(--bg-canvas, #0f1115);
+:root[data-theme-mode='dark'] .fennel-home-root,
+.dark .fennel-home-root,
+:root.dark-mode .fennel-home-root {
+  background: var(--canvas, #0d0f14);
   color: var(--text, #f3f4f6);
 }
 
@@ -26,31 +32,53 @@
   height: 52px;
   min-height: 52px;
   padding: 0 20px;
-  background: var(--bg-surface, #ffffff);
-  border-bottom: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.06));
+  background: var(--surface, #ffffff);
+  border-bottom: 1px solid var(--hairline, rgba(0, 0, 0, 0.08));
   z-index: 20;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-[data-theme='dark'] .fennel-top-bar,
-.theme-dark .fennel-top-bar {
-  background: var(--bg-surface, #14171d);
-  border-bottom-color: var(--border-subtle, rgba(255, 255, 255, 0.06));
+:root[data-theme-mode='dark'] .fennel-top-bar,
+.dark .fennel-top-bar,
+:root.dark-mode .fennel-top-bar {
+  background: var(--surface, #141720);
+  border-bottom-color: var(--hairline, rgba(255, 255, 255, 0.08));
 }
 
 .fennel-top-bar-left {
   display: flex;
   align-items: center;
+  gap: 10px;
+}
+
+.fennel-sidebar-trigger-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid var(--hairline);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.fennel-sidebar-trigger-btn:hover {
+  background: var(--hover, rgba(125, 125, 125, 0.08));
+  color: var(--text);
 }
 
 .fennel-breadcrumb {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--text, #111827);
+  color: var(--text);
 }
 
 .fennel-breadcrumb-icon {
-  color: var(--text-dim, #6b7280);
+  color: var(--text-dim);
 }
 
 .fennel-breadcrumb-title {
@@ -65,15 +93,16 @@
   justify-content: center;
   background: transparent;
   border: none;
-  color: var(--text-dim, #9ca3af);
+  color: var(--text-faint);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
-  transition: color 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .fennel-star-btn:hover {
   color: #f59e0b;
+  transform: scale(1.1);
 }
 
 .fennel-top-bar-center {
@@ -93,28 +122,23 @@
   height: 32px;
   padding: 0 12px;
   border-radius: 8px;
-  background: var(--bg-hover, rgba(0, 0, 0, 0.03));
-  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.08));
-  color: var(--text-dim, #6b7280);
+  background: var(--surface-2, rgba(125, 125, 125, 0.05));
+  border: 1px solid var(--hairline, rgba(125, 125, 125, 0.1));
+  color: var(--text-dim);
   cursor: pointer;
   font-family: inherit;
   font-size: 13px;
-  transition: all 0.15s ease;
-}
-
-[data-theme='dark'] .fennel-search-bar,
-.theme-dark .fennel-search-bar {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.08);
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .fennel-search-bar:hover {
-  background: var(--bg-hover, rgba(0, 0, 0, 0.06));
-  border-color: var(--border, rgba(0, 0, 0, 0.15));
+  background: var(--hover, rgba(125, 125, 125, 0.08));
+  border-color: var(--hairline-strong, var(--border));
+  color: var(--text);
 }
 
 .fennel-search-icon {
-  color: var(--text-dim, #9ca3af);
+  color: var(--text-faint);
 }
 
 .fennel-search-placeholder {
@@ -125,17 +149,11 @@
 .fennel-search-kbd {
   font-size: 11px;
   font-family: var(--font-mono, monospace);
-  color: var(--text-dim, #9ca3af);
-  background: var(--bg-surface, #ffffff);
-  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.1));
+  color: var(--text-faint);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
   padding: 1px 5px;
   border-radius: 4px;
-}
-
-[data-theme='dark'] .fennel-search-kbd,
-.theme-dark .fennel-search-kbd {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .fennel-top-bar-right {
@@ -144,41 +162,48 @@
   gap: 10px;
 }
 
-.fennel-presence-stack {
-  display: flex;
+/* Live Status Badge in place of fake presence avatars */
+.fennel-director-badge {
+  display: inline-flex;
   align-items: center;
-  margin-right: 4px;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--surface-2, rgba(125, 125, 125, 0.06));
+  border: 1px solid var(--hairline, rgba(125, 125, 125, 0.1));
+  font-size: 11.5px;
+  font-weight: 550;
+  color: var(--text);
 }
 
-.fennel-presence-avatar {
+.fennel-director-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+  animation: fennelPulse 2.4s infinite ease-in-out;
+}
+
+/* Theme Toggle Button in Top Bar */
+.fennel-theme-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: 2px solid var(--bg-surface, #ffffff);
-  font-size: 10.5px;
-  font-weight: 700;
-  color: #ffffff;
-  margin-left: -6px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid var(--hairline);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.fennel-presence-avatar:first-child {
-  margin-left: 0;
-}
-
-.fennel-presence-avatar--blue {
-  background: #0ea5e9;
-}
-
-.fennel-presence-avatar--orange {
-  background: #f97316;
-}
-
-.fennel-presence-avatar--green {
-  background: #10b981;
+.fennel-theme-btn:hover {
+  background: var(--hover, rgba(125, 125, 125, 0.08));
+  color: var(--text);
+  border-color: var(--hairline-strong, var(--border));
 }
 
 .fennel-share-btn {
@@ -188,9 +213,9 @@
   height: 30px;
   padding: 0 12px;
   border-radius: 6px;
-  background: var(--bg-surface, #ffffff);
-  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.1));
-  color: var(--text, #111827);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  color: var(--text);
   font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
@@ -198,8 +223,8 @@
 }
 
 .fennel-share-btn:hover {
-  background: var(--bg-hover, rgba(0, 0, 0, 0.04));
-  border-color: var(--border, rgba(0, 0, 0, 0.2));
+  background: var(--hover, rgba(125, 125, 125, 0.06));
+  border-color: var(--hairline-strong, var(--border));
 }
 
 .fennel-overflow-btn {
@@ -211,14 +236,14 @@
   border-radius: 6px;
   background: transparent;
   border: none;
-  color: var(--text-dim, #6b7280);
+  color: var(--text-dim);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .fennel-overflow-btn:hover {
-  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
-  color: var(--text, #111827);
+  background: var(--hover, rgba(125, 125, 125, 0.08));
+  color: var(--text);
 }
 
 /* ==========================================================================
@@ -248,7 +273,7 @@
 .fennel-date {
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-dim, #6b7280);
+  color: var(--text-dim);
   margin-bottom: 6px;
 }
 
@@ -256,14 +281,14 @@
   font-size: 32px;
   font-weight: 700;
   letter-spacing: -0.025em;
-  color: var(--text, #111827);
+  color: var(--text);
   margin: 0 0 8px;
   line-height: 1.15;
 }
 
 .fennel-greeting-sub {
   font-size: 13.5px;
-  color: var(--text-dim, #6b7280);
+  color: var(--text-dim);
   margin: 0;
   line-height: 1.4;
 }
@@ -272,28 +297,42 @@
 .fennel-prompt-card {
   width: 440px;
   max-width: 100%;
-  background: var(--bg-surface, #ffffff);
-  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.08));
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--hairline, rgba(0, 0, 0, 0.08));
   border-radius: 14px;
   padding: 12px 14px 10px;
-  box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.04), 0 8px 24px -4px rgba(0, 0, 0, 0.03);
   display: flex;
   flex-direction: column;
   gap: 8px;
+  transition: box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-[data-theme='dark'] .fennel-prompt-card,
-.theme-dark .fennel-prompt-card {
-  background: var(--bg-surface, #14171d);
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.3);
+.fennel-prompt-card:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft, rgba(0, 102, 204, 0.12)), 0 4px 16px -2px rgba(0, 0, 0, 0.08);
+}
+
+:root[data-theme-mode='dark'] .fennel-prompt-card,
+.dark .fennel-prompt-card,
+:root.dark-mode .fennel-prompt-card {
+  background: var(--surface, #151822);
+  border-color: var(--hairline, rgba(255, 255, 255, 0.09));
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+}
+
+:root[data-theme-mode='dark'] .fennel-prompt-card:focus-within,
+.dark .fennel-prompt-card:focus-within,
+:root.dark-mode .fennel-prompt-card:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft, rgba(99, 102, 241, 0.2)), 0 6px 24px -2px rgba(0, 0, 0, 0.6);
 }
 
 .fennel-prompt-input {
   width: 100%;
   border: none;
   background: transparent;
-  color: var(--text, #111827);
+  color: var(--text);
   font-family: inherit;
   font-size: 13.5px;
   resize: none;
@@ -302,7 +341,7 @@
 }
 
 .fennel-prompt-input::placeholder {
-  color: var(--text-dim, #9ca3af);
+  color: var(--text-faint);
 }
 
 .fennel-prompt-footer {
@@ -310,7 +349,7 @@
   align-items: center;
   justify-content: space-between;
   padding-top: 4px;
-  border-top: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.04));
+  border-top: 1px solid var(--hairline, rgba(0, 0, 0, 0.04));
 }
 
 .fennel-prompt-tools-left {
@@ -319,51 +358,24 @@
   gap: 4px;
 }
 
-.fennel-tool-icon-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  background: transparent;
-  border: none;
-  color: var(--text-dim, #9ca3af);
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.12s ease;
+.fennel-prompt-hint {
+  font-size: 11.5px;
+  color: var(--text-faint);
 }
 
-.fennel-tool-icon-btn:hover {
-  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
-  color: var(--text, #111827);
+.fennel-prompt-hint kbd {
+  font-size: 10.5px;
+  font-family: var(--font-mono, monospace);
+  background: var(--surface-2, rgba(125, 125, 125, 0.08));
+  border: 1px solid var(--hairline);
+  padding: 1px 4px;
+  border-radius: 3px;
 }
 
 .fennel-prompt-tools-right {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.fennel-agent-select-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 26px;
-  padding: 0 8px;
-  border-radius: 6px;
-  background: transparent;
-  border: none;
-  color: var(--text-dim, #6b7280);
-  font-size: 12.5px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.fennel-agent-select-btn:hover {
-  background: var(--bg-hover, rgba(0, 0, 0, 0.04));
-  color: var(--text, #111827);
 }
 
 .fennel-tier-pill {
@@ -373,12 +385,17 @@
   height: 24px;
   padding: 0 8px;
   border-radius: 12px;
-  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
-  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.08));
-  color: var(--text, #111827);
+  background: var(--surface-2, rgba(125, 125, 125, 0.08));
+  border: 1px solid var(--hairline);
+  color: var(--text);
   font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.fennel-tier-pill:hover {
+  background: var(--hover, rgba(125, 125, 125, 0.12));
 }
 
 .fennel-prompt-submit-btn {
@@ -388,12 +405,12 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: var(--accent, #2563eb);
+  background: var(--accent);
   border: none;
   color: #ffffff;
   cursor: pointer;
-  transition: transform 0.15s ease, opacity 0.15s ease;
-  opacity: 0.7;
+  transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease;
+  opacity: 0.65;
 }
 
 .fennel-prompt-submit-btn.is-ready {
@@ -401,7 +418,8 @@
 }
 
 .fennel-prompt-submit-btn:hover {
-  transform: scale(1.05);
+  background: var(--accent-hover, var(--accent));
+  transform: scale(1.08);
 }
 
 /* ==========================================================================
@@ -414,20 +432,36 @@
 }
 
 .fennel-stat-card {
-  background: var(--bg-surface, #ffffff);
-  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.07));
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--hairline, rgba(0, 0, 0, 0.07));
   border-radius: 12px;
   padding: 16px 18px;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 4px 12px -2px rgba(0, 0, 0, 0.02);
+  transition: border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: default;
 }
 
-[data-theme='dark'] .fennel-stat-card,
-.theme-dark .fennel-stat-card {
-  background: var(--bg-surface, #14171d);
-  border-color: rgba(255, 255, 255, 0.07);
+.fennel-stat-card:hover {
+  border-color: var(--hairline-strong, var(--border));
+  box-shadow: 0 6px 20px -4px rgba(0, 0, 0, 0.08);
+}
+
+:root[data-theme-mode='dark'] .fennel-stat-card,
+.dark .fennel-stat-card,
+:root.dark-mode .fennel-stat-card {
+  background: var(--surface, #151822);
+  border-color: var(--hairline, rgba(255, 255, 255, 0.08));
+  box-shadow: 0 2px 8px -1px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme-mode='dark'] .fennel-stat-card:hover,
+.dark .fennel-stat-card:hover,
+:root.dark-mode .fennel-stat-card:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 28px -4px rgba(0, 0, 0, 0.6);
 }
 
 .fennel-stat-header {
@@ -435,18 +469,18 @@
   align-items: center;
   gap: 6px;
   font-size: 12.5px;
-  color: var(--text-dim, #6b7280);
+  color: var(--text-dim);
   font-weight: 500;
 }
 
 .fennel-stat-icon {
-  color: var(--text-dim, #9ca3af);
+  color: var(--text-faint);
 }
 
 .fennel-stat-val {
   font-size: 26px;
   font-weight: 700;
-  color: var(--text, #111827);
+  color: var(--text);
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   margin-top: 4px;
@@ -454,7 +488,7 @@
 
 .fennel-stat-diff {
   font-size: 11.5px;
-  color: var(--text-dim, #9ca3af);
+  color: var(--text-faint);
   line-height: 1.3;
 }
 
@@ -476,20 +510,33 @@
 
 /* Card Foundation */
 .fennel-card {
-  background: var(--bg-surface, #ffffff);
-  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.07));
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--hairline, rgba(0, 0, 0, 0.07));
   border-radius: 14px;
   padding: 18px 20px;
-  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 4px 14px -2px rgba(0, 0, 0, 0.03);
   display: flex;
   flex-direction: column;
   gap: 16px;
+  transition: border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-[data-theme='dark'] .fennel-card,
-.theme-dark .fennel-card {
-  background: var(--bg-surface, #14171d);
-  border-color: rgba(255, 255, 255, 0.07);
+.fennel-card:hover {
+  border-color: var(--hairline-strong, var(--border));
+}
+
+:root[data-theme-mode='dark'] .fennel-card,
+.dark .fennel-card,
+:root.dark-mode .fennel-card {
+  background: var(--surface, #151822);
+  border-color: var(--hairline, rgba(255, 255, 255, 0.08));
+  box-shadow: 0 2px 12px -2px rgba(0, 0, 0, 0.45);
+}
+
+:root[data-theme-mode='dark'] .fennel-card:hover,
+.dark .fennel-card:hover,
+:root.dark-mode .fennel-card:hover {
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 .fennel-card-header {
@@ -507,7 +554,7 @@
 .fennel-card-title {
   font-size: 15px;
   font-weight: 600;
-  color: var(--text, #111827);
+  color: var(--text);
   margin: 0;
   letter-spacing: -0.01em;
 }
@@ -515,29 +562,31 @@
 .fennel-count-pill {
   font-size: 11.5px;
   font-weight: 600;
-  color: var(--text-dim, #6b7280);
-  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+  color: var(--text-dim);
+  background: var(--surface-2, rgba(125, 125, 125, 0.08));
   padding: 2px 7px;
   border-radius: 10px;
 }
 
-[data-theme='dark'] .fennel-count-pill,
-.theme-dark .fennel-count-pill {
+:root[data-theme-mode='dark'] .fennel-count-pill,
+.dark .fennel-count-pill,
+:root.dark-mode .fennel-count-pill {
   background: rgba(255, 255, 255, 0.08);
 }
 
 .fennel-see-all-btn {
   background: transparent;
   border: none;
-  color: var(--text-dim, #6b7280);
+  color: var(--text-dim);
   font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
   transition: color 0.12s ease;
+  font-family: inherit;
 }
 
 .fennel-see-all-btn:hover {
-  color: var(--accent, #2563eb);
+  color: var(--accent);
 }
 
 /* Approvals List */
@@ -552,7 +601,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 0;
-  border-bottom: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.04));
+  border-bottom: 1px solid var(--hairline, rgba(125, 125, 125, 0.06));
 }
 
 .fennel-approval-row:last-child {
@@ -600,7 +649,7 @@
 .fennel-approval-title {
   font-size: 13.5px;
   font-weight: 550;
-  color: var(--text, #111827);
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -608,7 +657,7 @@
 
 .fennel-approval-meta {
   font-size: 12px;
-  color: var(--text-dim, #9ca3af);
+  color: var(--text-faint);
 }
 
 .fennel-approval-actions {
@@ -623,39 +672,36 @@
   padding: 0 14px;
   border-radius: 6px;
   background: transparent;
-  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.12));
-  color: var(--text, #111827);
+  border: 1px solid var(--hairline, rgba(125, 125, 125, 0.15));
+  color: var(--text);
   font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.12s ease;
-}
-
-[data-theme='dark'] .fennel-btn-reject,
-.theme-dark .fennel-btn-reject {
-  border-color: rgba(255, 255, 255, 0.14);
+  font-family: inherit;
 }
 
 .fennel-btn-reject:hover {
-  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
-  border-color: var(--border, rgba(0, 0, 0, 0.25));
+  background: var(--hover, rgba(125, 125, 125, 0.08));
+  border-color: var(--hairline-strong, var(--border));
 }
 
 .fennel-btn-approve {
   height: 30px;
   padding: 0 16px;
   border-radius: 6px;
-  background: var(--accent, #2563eb);
+  background: var(--accent);
   border: none;
   color: #ffffff;
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.12s ease;
+  font-family: inherit;
 }
 
 .fennel-btn-approve:hover {
-  background: #1d4ed8;
+  background: var(--accent-hover, var(--accent));
 }
 
 /* Running Now List */
@@ -686,7 +732,8 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  color: #ffffff;
+  background: var(--accent-soft, rgba(0, 102, 204, 0.12));
+  color: var(--accent);
   flex-shrink: 0;
 }
 
@@ -700,7 +747,7 @@
 .fennel-running-name {
   font-size: 13.5px;
   font-weight: 550;
-  color: var(--text, #111827);
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -708,7 +755,7 @@
 
 .fennel-running-subtitle {
   font-size: 12px;
-  color: var(--text-dim, #9ca3af);
+  color: var(--text-faint);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -720,32 +767,16 @@
   align-items: flex-end;
   gap: 4px;
   flex-shrink: 0;
-  width: 140px;
 }
 
-.fennel-progress-bar-track {
-  width: 100%;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--bg-hover, rgba(0, 0, 0, 0.08));
-  overflow: hidden;
-}
-
-[data-theme='dark'] .fennel-progress-bar-track,
-.theme-dark .fennel-progress-bar-track {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.fennel-progress-bar-fill {
-  height: 100%;
-  border-radius: 2px;
-  background: var(--accent, #2563eb);
-}
-
-.fennel-running-eta {
-  font-size: 11.5px;
-  color: var(--text-dim, #9ca3af);
-  font-variant-numeric: tabular-nums;
+.fennel-badge-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--surface-2, rgba(125, 125, 125, 0.08));
+  border: 1px solid var(--hairline);
+  color: var(--text);
 }
 
 /* Recent Files List */
@@ -764,18 +795,14 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  transition: background 0.12s ease;
+  transition: all 0.12s cubic-bezier(0.16, 1, 0.3, 1);
   text-align: left;
   font-family: inherit;
+  width: 100%;
 }
 
 .fennel-file-row:hover {
-  background: var(--bg-hover, rgba(0, 0, 0, 0.04));
-}
-
-[data-theme='dark'] .fennel-file-row:hover,
-.theme-dark .fennel-file-row:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--hover, rgba(125, 125, 125, 0.07));
 }
 
 .fennel-file-left {
@@ -792,24 +819,9 @@
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  color: #ffffff;
+  background: var(--surface-2, rgba(125, 125, 125, 0.08));
+  color: var(--accent);
   flex-shrink: 0;
-}
-
-.fennel-file-icon--sheet {
-  background: #10b981;
-}
-
-.fennel-file-icon--deck {
-  background: #f59e0b;
-}
-
-.fennel-file-icon--doc {
-  background: #0284c7;
-}
-
-.fennel-file-icon--board {
-  background: #8b5cf6;
 }
 
 .fennel-file-text {
@@ -822,7 +834,7 @@
 .fennel-file-title {
   font-size: 13.5px;
   font-weight: 550;
-  color: var(--text, #111827);
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -830,11 +842,17 @@
 
 .fennel-file-meta {
   font-size: 12px;
-  color: var(--text-dim, #9ca3af);
+  color: var(--text-faint);
 }
 
 .fennel-file-arrow {
-  color: var(--text-dim, #9ca3af);
+  color: var(--text-faint);
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.fennel-file-row:hover .fennel-file-arrow {
+  color: var(--text);
+  transform: translateX(2px);
 }
 
 /* Your Agents Grid */
@@ -851,21 +869,15 @@
   text-align: center;
   padding: 14px 10px;
   border-radius: 10px;
-  background: var(--bg-hover, rgba(0, 0, 0, 0.02));
-  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.06));
+  background: var(--surface-2, rgba(125, 125, 125, 0.04));
+  border: 1px solid var(--hairline, rgba(125, 125, 125, 0.08));
   cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-[data-theme='dark'] .fennel-agent-tile,
-.theme-dark .fennel-agent-tile {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.06);
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .fennel-agent-tile:hover {
-  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
-  border-color: var(--border, rgba(0, 0, 0, 0.15));
+  background: var(--hover, rgba(125, 125, 125, 0.08));
+  border-color: var(--hairline-strong, var(--border));
 }
 
 .fennel-agent-tile-icon {
@@ -879,10 +891,18 @@
   margin-bottom: 8px;
 }
 
+.fennel-agent-tile-icon--primary {
+  background: var(--accent);
+}
+
+.fennel-agent-tile-icon--connector {
+  background: #0284c7;
+}
+
 .fennel-agent-tile-name {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text, #111827);
+  color: var(--text);
   margin-bottom: 4px;
 }
 
@@ -891,7 +911,7 @@
   align-items: center;
   gap: 5px;
   font-size: 11.5px;
-  color: var(--text-dim, #6b7280);
+  color: var(--text-dim);
 }
 
 .fennel-status-dot {
@@ -905,40 +925,72 @@
 .fennel-empty-state {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 16px;
-  color: var(--text-dim, #6b7280);
+  gap: 12px;
+  padding: 20px;
+  color: var(--text-dim);
   font-size: 13px;
   justify-content: center;
+  text-align: left;
+}
+
+.fennel-empty-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--surface-2, rgba(125, 125, 125, 0.08));
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.fennel-empty-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fennel-empty-heading {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.fennel-empty-sub {
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.4;
 }
 
 /* ==========================================================================
    5. FLOATING ASK AMETHYST PILL (Screenshot 1 Bottom Right)
    ========================================================================== */
 .fennel-ask-pill {
-  position: absolute;
+  position: fixed;
   bottom: 24px;
   right: 28px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 38px;
-  padding: 0 16px;
+  height: 40px;
+  padding: 0 18px;
   border-radius: 9999px;
   background: #111827;
   color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 10px 28px -4px rgba(0, 0, 0, 0.28);
   cursor: pointer;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   z-index: 40;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-[data-theme='dark'] .fennel-ask-pill,
-.theme-dark .fennel-ask-pill {
-  background: #1e2029;
-  border-color: rgba(255, 255, 255, 0.18);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+:root[data-theme-mode='dark'] .fennel-ask-pill,
+.dark .fennel-ask-pill,
+:root.dark-mode .fennel-ask-pill {
+  background: #1d212c;
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.6);
 }

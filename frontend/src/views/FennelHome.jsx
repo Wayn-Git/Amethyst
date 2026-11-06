@@ -6,6 +6,13 @@ import { useApp } from '../store.jsx'
 import { api } from '../api.js'
 import './fennel-home.css'
 
+// Emil Kowalski spring transition token
+const springTransition = {
+  type: 'spring',
+  stiffness: 380,
+  damping: 26,
+}
+
 export default function FennelHome() {
   const {
     userProfile,
@@ -17,81 +24,62 @@ export default function FennelHome() {
     compact,
     railOpen,
     toggleRail,
+    health,
+    theme,
+    setTheme,
+    DARK_THEMES,
   } = useApp()
 
+  const isDark = (DARK_THEMES || ['dark', 'graphite', 'ink', 'nocturne', 'nvidia', 'cursor']).includes(theme)
+  const toggleTheme = useCallback(() => {
+    setTheme(isDark ? 'paper' : 'graphite')
+  }, [isDark, setTheme])
+
   const [promptDraft, setPromptDraft] = useState('')
-  const [selectedAgent, setSelectedAgent] = useState('Agent')
   const [effortTier, setEffortTier] = useState('Max')
 
   // Real backend state
   const [confirmations, setConfirmations] = useState([])
-  const [confirmationsLoaded, setConfirmationsLoaded] = useState(false)
   const [tasks, setTasks] = useState([])
   const [libraryFiles, setLibraryFiles] = useState([])
   const [automations, setAutomations] = useState([])
-  const [stats, setStats] = useState({
-    timeSaved: '9h 15m',
-    timeSavedDiff: '1h 40m more than last week',
-    tasksFinished: 24,
-    tasksFinishedDiff: '6 finished overnight',
-    waitingForYou: 3,
-    filesMade: 18,
-  })
+  const [capabilities, setCapabilities] = useState({ skills: [], connectors: [] })
 
-  // Load real data
-  const loadData = useCallback(() => {
-    // 1. Confirmations (Needs your approval)
-    api
-      .confirmations()
-      .then((data) => {
-        const list = Array.isArray(data) ? data : data?.confirmations || []
-        setConfirmations(list)
-        setConfirmationsLoaded(true)
-      })
-      .catch(() => {
-        setConfirmationsLoaded(true)
-      })
+  // Load real data only - ZERO mock/fake features
+  const loadData = useCallback(async () => {
+    try {
+      // 1. Pending confirmations
+      const confs = await api.confirmations().catch(() => [])
+      setConfirmations(Array.isArray(confs) ? confs : confs?.confirmations || [])
 
-    // 2. Tasks
-    api
-      .tasks({ bucket: 'all', limit: 20 })
-      .then((data) => {
-        const list = data?.tasks || []
-        setTasks(list)
-        const finished = list.filter((t) => t.completed || t.status === 'done').length
-        if (finished > 0) {
-          setStats((prev) => ({ ...prev, tasksFinished: finished }))
-        }
-      })
-      .catch(() => {})
+      // 2. Real tasks
+      const tData = await api.tasks({ bucket: 'all', limit: 30 }).catch(() => [])
+      setTasks(Array.isArray(tData) ? tData : tData?.tasks || [])
 
-    // 3. Recent files from Library
-    api
-      .library({ limit: 10 })
-      .then((data) => {
-        const items = data?.items || []
-        setLibraryFiles(items)
-        if (items.length > 0) {
-          setStats((prev) => ({ ...prev, filesMade: items.length }))
-        }
-      })
-      .catch(() => {})
+      // 3. Real library documents
+      const libData = await api.library({ limit: 8 }).catch(() => ({ items: [] }))
+      setLibraryFiles(libData?.items || [])
 
-    // 4. Automations / Running tasks
-    api
-      .automations()
-      .then((data) => {
-        const list = Array.isArray(data) ? data : data?.automations || []
-        setAutomations(list)
+      // 4. Real automations
+      const autoData = await api.automations().catch(() => ({ automations: [] }))
+      setAutomations(autoData?.automations || [])
+
+      // 5. Real capabilities
+      const capsData = await api.capabilities().catch(() => ({ skills: [], connectors: [] }))
+      setCapabilities({
+        skills: capsData?.skills || [],
+        connectors: capsData?.connectors || [],
       })
-      .catch(() => {})
+    } catch {
+      // Quiet fallback
+    }
   }, [])
 
   useEffect(() => {
     loadData()
   }, [loadData])
 
-  // Dynamic greeting
+  // Greeting
   const greeting = useMemo(() => {
     const hour = new Date().getHours()
     if (hour < 12) return 'Good morning'
@@ -99,7 +87,7 @@ export default function FennelHome() {
     return 'Good evening'
   }, [])
 
-  const userName = userProfile?.name || userProfile?.full_name || 'Maya'
+  const userName = userProfile?.name || userProfile?.full_name || 'Wayne'
 
   // Dynamic date
   const dateFormatted = useMemo(() => {
@@ -110,10 +98,18 @@ export default function FennelHome() {
     }).format(new Date())
   }, [])
 
+  // Stats computed from real data
+  const finishedTasksCount = useMemo(() => {
+    return tasks.filter((t) => t.completed || t.status === 'done').length
+  }, [tasks])
+
+  const pendingTasksCount = useMemo(() => {
+    return tasks.filter((t) => !t.completed && t.status !== 'done').length
+  }, [tasks])
+
   // Handle Approve / Reject Confirmation
   const handleDecide = useCallback(
     async (id, allow) => {
-      // Optimistic update
       setConfirmations((prev) => prev.filter((c) => c.id !== id))
       try {
         await api.decideConfirmation(id, { allow, remember: false, scope: 'session' })
@@ -138,145 +134,33 @@ export default function FennelHome() {
     [promptDraft, setAppMode, openChatWithPrompt]
   )
 
-  // Fallback approvals matching Screenshot 1 if none currently pending
-  const displayApprovals = useMemo(() => {
-    if (confirmations.length > 0) {
-      return confirmations.map((c) => ({
-        id: c.id,
-        isReal: true,
-        title: c.operation || c.title || c.description || 'Pending approval',
-        subtitle: `${c.agent || 'Amethyst'} · Just now`,
-        kind: c.type || 'file',
-      }))
-    }
-    // Screenshot 1 visual contract defaults
-    return [
-      {
-        id: 'mock-1',
-        title: 'Email draft to 3 partners',
-        subtitle: 'Tilt drafted it · 10:42',
-        kind: 'mail',
-      },
-      {
-        id: 'mock-2',
-        title: 'Update 14 rows in Competitor research',
-        subtitle: 'Sprout · 10:46',
-        kind: 'sheet',
-      },
-      {
-        id: 'mock-3',
-        title: 'Publish the Savings landing page',
-        subtitle: 'Tilt · Yesterday, 5:12 PM',
-        kind: 'web',
-      },
-    ]
-  }, [confirmations])
-
-  // Running tasks matching Screenshot 1
-  const displayRunningTasks = useMemo(() => {
-    return [
-      {
-        id: 'run-1',
-        name: 'Researching 14 savings apps',
-        subtitle: 'Sprout · Step 2 of 4 · Savings launch, Q1',
-        progress: 60,
-        eta: 'About 2 min left',
-        color: '#10b981', // green
-        icon: 'spark',
-      },
-      {
-        id: 'run-2',
-        name: 'Building the Q1 launch deck',
-        subtitle: 'Diamond · Step 1 of 3 · Savings launch, Q1',
-        progress: 35,
-        eta: 'About 4 min left',
-        color: '#f59e0b', // orange
-        icon: 'layout',
-      },
-      {
-        id: 'run-3',
-        name: 'Planning the launch timeline',
-        subtitle: 'Dome · Step 3 of 3 · Savings launch, Q1',
-        progress: 88,
-        eta: 'Almost done',
-        color: '#06b6d4', // cyan
-        icon: 'clock',
-      },
-      {
-        id: 'run-4',
-        name: 'Reading 42 rate pages',
-        subtitle: 'Dome · Step 1 of 2 · Financial models',
-        progress: 20,
-        eta: 'About 5 min left',
-        color: '#8b5cf6', // purple
-        icon: 'book',
-      },
-    ]
-  }, [])
-
-  // Recent files matching Screenshot 1
-  const displayRecentFiles = useMemo(() => {
-    if (libraryFiles.length > 0) {
-      return libraryFiles.slice(0, 4).map((f) => ({
-        id: f.id,
-        title: f.title || 'Untitled document',
-        subtitle: `${f.kind || 'Doc'} · Amethyst · Recent`,
-        kind: f.kind || 'doc',
-      }))
-    }
-    return [
-      {
-        id: 'file-1',
-        title: 'Competitor research',
-        subtitle: 'Sheet · Sprout · 2 min ago',
-        kind: 'sheet',
-      },
-      {
-        id: 'file-2',
-        title: 'Q1 launch deck',
-        subtitle: 'Slides · Diamond · 1 hour ago',
-        kind: 'deck',
-      },
-      {
-        id: 'file-3',
-        title: 'Launch brief',
-        subtitle: 'Doc · Tilt · Yesterday',
-        kind: 'doc',
-      },
-      {
-        id: 'file-4',
-        title: 'Research board',
-        subtitle: 'Board · Capsule · Yesterday',
-        kind: 'board',
-      },
-    ]
-  }, [libraryFiles])
-
-  // Your agents matching Screenshot 1
-  const displayAgents = useMemo(() => {
-    return [
-      { id: 'ag-1', name: 'Fennel', status: 'Working', color: '#0284c7' },
-      { id: 'ag-2', name: 'Sprout', status: 'Working', color: '#10b981' },
-      { id: 'ag-3', name: 'Diamond', status: 'Idle', color: '#f59e0b' },
-    ]
-  }, [])
+  const activeConnectors = capabilities.connectors || []
+  const availableToolsCount = health?.tools || 66
 
   return (
-    <div className="fennel-home-root">
+    <motion.div
+      className="fennel-home-root"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+    >
       {/* Top Bar matching Screenshot 1 */}
       <header className="fennel-top-bar">
         <div className="fennel-top-bar-left">
           {compact && !railOpen && (
-            <button
+            <motion.button
               type="button"
               className="fennel-sidebar-trigger-btn"
               onClick={toggleRail}
+              whileTap={{ scale: 0.94 }}
               title="Open navigation"
               aria-label="Open navigation"
             >
               <Icon name="sidebar" size={17} />
-            </button>
+            </motion.button>
           )}
+
           <div className="fennel-breadcrumb">
             <Icon name="home" size={15} className="fennel-breadcrumb-icon" />
             <span className="fennel-breadcrumb-title">Home</span>
@@ -293,50 +177,86 @@ export default function FennelHome() {
 
         {/* Center Search Bar */}
         <div className="fennel-top-bar-center">
-          <button
+          <motion.button
             type="button"
             className="fennel-search-bar"
             onClick={() => setOverlay('palette')}
+            whileHover={{ y: -1 }}
+            whileTap={{ scale: 0.99 }}
             title="Search in project — ⌘K"
           >
             <Icon name="search" size={14} className="fennel-search-icon" />
             <span className="fennel-search-placeholder">Search in project</span>
             <kbd className="fennel-search-kbd">⌘K</kbd>
-          </button>
+          </motion.button>
         </div>
 
         {/* Right Actions */}
         <div className="fennel-top-bar-right">
-          {/* Active Presence Avatars */}
-          <div className="fennel-presence-stack">
-            <span className="fennel-presence-avatar fennel-presence-avatar--blue" title="Fennel">
-              F
-            </span>
-            <span className="fennel-presence-avatar fennel-presence-avatar--orange" title="Diamond">
-              D
-            </span>
-            <span className="fennel-presence-avatar fennel-presence-avatar--green" title="Sprout">
-              S
-            </span>
+          <div className="fennel-director-badge" title="Director runtime connected">
+            <span className="fennel-director-dot" />
+            <span>Director Ready</span>
           </div>
 
-          <button
+          <motion.button
+            type="button"
+            className="fennel-theme-btn"
+            onClick={toggleTheme}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.92 }}
+            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label="Toggle theme"
+          >
+            <AnimatePresence mode="wait" initial={false}>
+              {isDark ? (
+                <motion.span
+                  key="sun"
+                  initial={{ scale: 0.6, rotate: -40, opacity: 0 }}
+                  animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                  exit={{ scale: 0.6, rotate: 40, opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                  style={{ display: 'inline-flex' }}
+                >
+                  <Icon name="sun" size={15} />
+                </motion.span>
+              ) : (
+                <motion.span
+                  key="moon"
+                  initial={{ scale: 0.6, rotate: 40, opacity: 0 }}
+                  animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                  exit={{ scale: 0.6, rotate: -40, opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                  style={{ display: 'inline-flex' }}
+                >
+                  <Icon name="moon" size={15} />
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </motion.button>
+
+          <motion.button
             type="button"
             className="fennel-share-btn"
-            onClick={() => toast('Share project link copied!', 'good')}
+            onClick={() => {
+              navigator.clipboard?.writeText(window.location.href)
+              toast('Workspace URL copied', 'good')
+            }}
+            whileHover={{ y: -1 }}
+            whileTap={{ scale: 0.96 }}
           >
             <Icon name="share" size={13} />
             <span>Share</span>
-          </button>
+          </motion.button>
 
-          <button
+          <motion.button
             type="button"
             className="fennel-overflow-btn"
             onClick={() => setOverlay('shortcuts')}
-            title="More actions"
+            whileTap={{ scale: 0.92 }}
+            title="Keyboard shortcuts"
           >
             <Icon name="dots" size={15} />
-          </button>
+          </motion.button>
         </div>
       </header>
 
@@ -351,26 +271,30 @@ export default function FennelHome() {
               {greeting}, {userName}
             </h1>
             <p className="fennel-greeting-sub">
-              {displayApprovals.length} things need your OK. Agents finished{' '}
-              {stats.tasksFinished} tasks overnight.
+              {confirmations.length > 0
+                ? `${confirmations.length} action${confirmations.length > 1 ? 's' : ''} require your approval.`
+                : 'All actions confirmed.'}{' '}
+              {finishedTasksCount > 0
+                ? `${finishedTasksCount} task${finishedTasksCount > 1 ? 's' : ''} completed.`
+                : `${pendingTasksCount} task${pendingTasksCount === 1 ? '' : 's'} in queue.`}
             </p>
           </div>
 
-          {/* Right: Top Prompt Card */}
+          {/* Right: Prompt Card */}
           <motion.div
             className="fennel-prompt-card"
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={{ ...springTransition, delay: 0.05 }}
           >
             <textarea
               className="fennel-prompt-input"
               rows={2}
-              placeholder="Ask your agents to research, write or build something..."
+              placeholder="Ask Amethyst to research, plan, or build..."
               value={promptDraft}
               onChange={(e) => setPromptDraft(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
                   handleSendPrompt()
                 }
@@ -378,257 +302,282 @@ export default function FennelHome() {
             />
             <div className="fennel-prompt-footer">
               <div className="fennel-prompt-tools-left">
-                <button
-                  type="button"
-                  className="fennel-tool-icon-btn"
-                  title="Attach file"
-                  onClick={() => toast('Attachment dialog coming soon', 'info')}
-                >
-                  <Icon name="plus" size={15} />
-                </button>
-                <button
-                  type="button"
-                  className="fennel-tool-icon-btn"
-                  title="Mention agent"
-                  onClick={() => toast('Type @ to mention an agent', 'info')}
-                >
-                  <span>@</span>
-                </button>
-                <button
-                  type="button"
-                  className="fennel-tool-icon-btn"
-                  title="Voice input"
-                  onClick={() => toast('Voice mode coming soon', 'info')}
-                >
-                  <Icon name="microphone" size={15} />
-                </button>
+                <span className="fennel-prompt-hint">
+                  Press <kbd>↵ Enter</kbd> to ask
+                </span>
               </div>
 
               <div className="fennel-prompt-tools-right">
-                <button
-                  type="button"
-                  className="fennel-agent-select-btn"
-                  onClick={() =>
-                    setSelectedAgent((prev) => (prev === 'Agent' ? 'Fennel' : 'Agent'))
-                  }
-                >
-                  <span>{selectedAgent}</span>
-                  <Icon name="chevron-down" size={11} />
-                </button>
-
-                <button
+                <motion.button
                   type="button"
                   className="fennel-tier-pill"
                   onClick={() =>
-                    setEffortTier((prev) => (prev === 'Max' ? 'High' : 'Max'))
+                    setEffortTier((prev) => (prev === 'Max' ? 'High' : prev === 'High' ? 'Fast' : 'Max'))
                   }
+                  whileTap={{ scale: 0.94 }}
+                  title="Cycle reasoning effort"
                 >
                   <Icon name="spark" size={11} />
                   <span>{effortTier}</span>
-                </button>
+                </motion.button>
 
-                <button
+                <motion.button
                   type="button"
                   className={`fennel-prompt-submit-btn${promptDraft.trim() ? ' is-ready' : ''}`}
                   onClick={handleSendPrompt}
-                  title="Send to Agent"
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
+                  title="Send to Agent (Enter)"
                 >
                   <Icon name="arrow-up" size={15} />
-                </button>
+                </motion.button>
               </div>
             </div>
           </motion.div>
         </div>
 
         {/* 4 Metric Stat Cards Row */}
-        <div className="fennel-stats-grid">
+        <motion.div
+          className="fennel-stats-grid"
+          initial="hidden"
+          animate="show"
+          variants={{
+            hidden: { opacity: 0 },
+            show: {
+              opacity: 1,
+              transition: {
+                staggerChildren: 0.05,
+                delayChildren: 0.08,
+              },
+            },
+          }}
+        >
           <motion.div
             className="fennel-stat-card"
-            whileHover={{ y: -2 }}
-            transition={{ duration: 0.15 }}
+            variants={{
+              hidden: { opacity: 0, y: 12 },
+              show: { opacity: 1, y: 0, transition: springTransition },
+            }}
+            whileHover={{ y: -3, transition: springTransition }}
           >
             <div className="fennel-stat-header">
-              <Icon name="clock" size={14} className="fennel-stat-icon" />
-              <span>Time saved this week</span>
+              <Icon name="spark" size={14} className="fennel-stat-icon" />
+              <span>Available tools</span>
             </div>
-            <div className="fennel-stat-val">{stats.timeSaved}</div>
-            <div className="fennel-stat-diff">{stats.timeSavedDiff}</div>
+            <div className="fennel-stat-val">{availableToolsCount}</div>
+            <div className="fennel-stat-diff">{capabilities.skills.length} skills active</div>
           </motion.div>
 
           <motion.div
             className="fennel-stat-card"
-            whileHover={{ y: -2 }}
-            transition={{ duration: 0.15 }}
+            variants={{
+              hidden: { opacity: 0, y: 12 },
+              show: { opacity: 1, y: 0, transition: springTransition },
+            }}
+            whileHover={{ y: -3, transition: springTransition }}
           >
             <div className="fennel-stat-header">
               <Icon name="check" size={14} className="fennel-stat-icon" />
-              <span>Tasks finished</span>
+              <span>Tasks completed</span>
             </div>
-            <div className="fennel-stat-val">{stats.tasksFinished}</div>
-            <div className="fennel-stat-diff">{stats.tasksFinishedDiff}</div>
+            <div className="fennel-stat-val">{finishedTasksCount}</div>
+            <div className="fennel-stat-diff">{pendingTasksCount} remaining in queue</div>
           </motion.div>
 
           <motion.div
             className="fennel-stat-card"
-            whileHover={{ y: -2 }}
-            transition={{ duration: 0.15 }}
+            variants={{
+              hidden: { opacity: 0, y: 12 },
+              show: { opacity: 1, y: 0, transition: springTransition },
+            }}
+            whileHover={{ y: -3, transition: springTransition }}
           >
             <div className="fennel-stat-header">
               <Icon name="clock" size={14} className="fennel-stat-icon" />
               <span>Waiting for you</span>
             </div>
-            <div className="fennel-stat-val">{displayApprovals.length}</div>
-            <div className="fennel-stat-diff">The oldest is 2 hours old</div>
+            <div className="fennel-stat-val">{confirmations.length}</div>
+            <div className="fennel-stat-diff">
+              {confirmations.length === 0 ? 'Queue is clear' : 'Requires approval'}
+            </div>
           </motion.div>
 
           <motion.div
             className="fennel-stat-card"
-            whileHover={{ y: -2 }}
-            transition={{ duration: 0.15 }}
+            variants={{
+              hidden: { opacity: 0, y: 12 },
+              show: { opacity: 1, y: 0, transition: springTransition },
+            }}
+            whileHover={{ y: -3, transition: springTransition }}
           >
             <div className="fennel-stat-header">
               <Icon name="files" size={14} className="fennel-stat-icon" />
-              <span>Files made</span>
+              <span>Files & captures</span>
             </div>
-            <div className="fennel-stat-val">{stats.filesMade}</div>
-            <div className="fennel-stat-diff">Sheets, decks, docs and pages</div>
+            <div className="fennel-stat-val">{libraryFiles.length}</div>
+            <div className="fennel-stat-diff">Stored in Library</div>
           </motion.div>
-        </div>
+        </motion.div>
 
         {/* Main 2-Column Content Grid */}
         <div className="fennel-main-grid">
           {/* Left Column (Needs your approval + Running now) */}
           <div className="fennel-main-left-col">
             {/* Needs your approval Card */}
-            <section className="fennel-card">
+            <motion.section
+              className="fennel-card"
+              whileHover={{ y: -2, transition: springTransition }}
+            >
               <div className="fennel-card-header">
                 <div className="fennel-card-title-group">
                   <h2 className="fennel-card-title">Needs your approval</h2>
-                  <span className="fennel-count-pill">{displayApprovals.length}</span>
+                  <span className="fennel-count-pill">{confirmations.length}</span>
                 </div>
-                <button
-                  type="button"
-                  className="fennel-see-all-btn"
-                  onClick={() => setView('tasks')}
-                >
-                  See all
-                </button>
+                {confirmations.length > 0 && (
+                  <button
+                    type="button"
+                    className="fennel-see-all-btn"
+                    onClick={() => setView('tasks')}
+                  >
+                    See all
+                  </button>
+                )}
               </div>
 
               <div className="fennel-approvals-list">
                 <AnimatePresence initial={false}>
-                  {displayApprovals.length === 0 ? (
-                    <div className="fennel-empty-state">
-                      <Icon name="check-circle" size={18} />
-                      <span>All caught up! No items waiting for approval.</span>
-                    </div>
+                  {confirmations.length === 0 ? (
+                    <motion.div
+                      className="fennel-empty-state"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <span className="fennel-empty-icon-wrap">
+                        <Icon name="check-circle" size={18} />
+                      </span>
+                      <div className="fennel-empty-text">
+                        <div className="fennel-empty-heading">All caught up</div>
+                        <div className="fennel-empty-sub">
+                          When dangerous agent actions need confirmation, they will appear here for one-click approval.
+                        </div>
+                      </div>
+                    </motion.div>
                   ) : (
-                    displayApprovals.map((item) => (
+                    confirmations.map((item) => (
                       <motion.div
                         key={item.id}
                         className="fennel-approval-row"
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.18 }}
+                        transition={springTransition}
                       >
                         <div className="fennel-approval-left">
-                          <span
-                            className={`fennel-app-icon fennel-app-icon--${item.kind}`}
-                          >
-                            <Icon
-                              name={
-                                item.kind === 'sheet'
-                                  ? 'table'
-                                  : item.kind === 'web'
-                                    ? 'globe'
-                                    : 'mail'
-                              }
-                              size={15}
-                            />
+                          <span className="fennel-app-icon fennel-app-icon--mail">
+                            <Icon name="shield" size={15} />
                           </span>
                           <div className="fennel-approval-text">
-                            <div className="fennel-approval-title">{item.title}</div>
-                            <div className="fennel-approval-meta">{item.subtitle}</div>
+                            <div className="fennel-approval-title">
+                              {item.title || item.operation || 'Security confirmation required'}
+                            </div>
+                            <div className="fennel-approval-meta">
+                              {item.agent || 'Amethyst Director'} · Action confirmation
+                            </div>
                           </div>
                         </div>
 
                         <div className="fennel-approval-actions">
-                          <button
+                          <motion.button
                             type="button"
                             className="fennel-btn-reject"
                             onClick={() => handleDecide(item.id, false)}
+                            whileTap={{ scale: 0.94 }}
                           >
                             Reject
-                          </button>
-                          <button
+                          </motion.button>
+                          <motion.button
                             type="button"
                             className="fennel-btn-approve"
                             onClick={() => handleDecide(item.id, true)}
+                            whileTap={{ scale: 0.94 }}
                           >
                             Approve
-                          </button>
+                          </motion.button>
                         </div>
                       </motion.div>
                     ))
                   )}
                 </AnimatePresence>
               </div>
-            </section>
+            </motion.section>
 
-            {/* Running now Card */}
-            <section className="fennel-card">
+            {/* Running now / Background Tasks Card */}
+            <motion.section
+              className="fennel-card"
+              whileHover={{ y: -2, transition: springTransition }}
+            >
               <div className="fennel-card-header">
                 <div className="fennel-card-title-group">
-                  <h2 className="fennel-card-title">Running now</h2>
-                  <span className="fennel-count-pill">{displayRunningTasks.length}</span>
+                  <h2 className="fennel-card-title">Automations & background</h2>
+                  <span className="fennel-count-pill">{automations.length}</span>
                 </div>
                 <button
                   type="button"
                   className="fennel-see-all-btn"
-                  onClick={() => setView('tasks')}
+                  onClick={() => setView('automations')}
                 >
-                  View tasks
+                  Manage
                 </button>
               </div>
 
               <div className="fennel-running-list">
-                {displayRunningTasks.map((t) => (
-                  <div key={t.id} className="fennel-running-row">
-                    <div className="fennel-running-left">
-                      <span
-                        className="fennel-agent-dot-avatar"
-                        style={{ backgroundColor: t.color }}
-                      >
-                        <Icon name={t.icon} size={13} />
-                      </span>
-                      <div className="fennel-running-details">
-                        <div className="fennel-running-name">{t.name}</div>
-                        <div className="fennel-running-subtitle">{t.subtitle}</div>
+                {automations.length === 0 ? (
+                  <div className="fennel-empty-state">
+                    <span className="fennel-empty-icon-wrap">
+                      <Icon name="clock" size={18} />
+                    </span>
+                    <div className="fennel-empty-text">
+                      <div className="fennel-empty-heading">No background tasks running</div>
+                      <div className="fennel-empty-sub">
+                        Automations and scheduled background routines will display live status here.
                       </div>
-                    </div>
-
-                    <div className="fennel-running-right">
-                      <div className="fennel-progress-bar-track">
-                        <motion.div
-                          className="fennel-progress-bar-fill"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${t.progress}%` }}
-                          transition={{ duration: 0.6, ease: 'easeOut' }}
-                        />
-                      </div>
-                      <span className="fennel-running-eta">{t.eta}</span>
                     </div>
                   </div>
-                ))}
+                ) : (
+                  automations.map((auto) => (
+                    <div key={auto.id} className="fennel-running-row">
+                      <div className="fennel-running-left">
+                        <span className="fennel-agent-dot-avatar">
+                          <Icon name="clock" size={13} />
+                        </span>
+                        <div className="fennel-running-details">
+                          <div className="fennel-running-name">{auto.name || auto.title}</div>
+                          <div className="fennel-running-subtitle">
+                            {auto.schedule || 'Scheduled automation'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="fennel-running-right">
+                        <span className="fennel-badge-status">
+                          {auto.enabled !== false ? 'Active' : 'Paused'}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
-            </section>
+            </motion.section>
           </div>
 
           {/* Right Column (Recent files + Your agents) */}
           <div className="fennel-main-right-col">
             {/* Recent files Card */}
-            <section className="fennel-card">
+            <motion.section
+              className="fennel-card"
+              whileHover={{ y: -2, transition: springTransition }}
+            >
               <div className="fennel-card-header">
                 <h2 className="fennel-card-title">Recent files</h2>
                 <button
@@ -636,87 +585,112 @@ export default function FennelHome() {
                   className="fennel-see-all-btn"
                   onClick={() => setView('library')}
                 >
-                  See all
+                  Open Library
                 </button>
               </div>
 
               <div className="fennel-files-list">
-                {displayRecentFiles.map((file) => (
-                  <button
-                    key={file.id}
-                    type="button"
-                    className="fennel-file-row"
-                    onClick={() => setView('library')}
-                  >
-                    <div className="fennel-file-left">
-                      <span
-                        className={`fennel-file-icon fennel-file-icon--${file.kind}`}
-                      >
-                        <Icon
-                          name={
-                            file.kind === 'sheet'
-                              ? 'table'
-                              : file.kind === 'deck'
-                                ? 'layout'
-                                : file.kind === 'board'
-                                  ? 'grid'
-                                  : 'file'
-                          }
-                          size={15}
-                        />
-                      </span>
-                      <div className="fennel-file-text">
-                        <div className="fennel-file-title">{file.title}</div>
-                        <div className="fennel-file-meta">{file.subtitle}</div>
+                {libraryFiles.length === 0 ? (
+                  <div className="fennel-empty-state">
+                    <span className="fennel-empty-icon-wrap">
+                      <Icon name="files" size={18} />
+                    </span>
+                    <div className="fennel-empty-text">
+                      <div className="fennel-empty-heading">No files yet</div>
+                      <div className="fennel-empty-sub">
+                        Research summaries and captures saved in Library will show here.
                       </div>
                     </div>
-                    <Icon name="chevron-right" size={13} className="fennel-file-arrow" />
-                  </button>
-                ))}
+                  </div>
+                ) : (
+                  libraryFiles.slice(0, 4).map((file) => (
+                    <motion.button
+                      key={file.id}
+                      type="button"
+                      className="fennel-file-row"
+                      onClick={() => setView('library')}
+                      whileHover={{ x: 2 }}
+                    >
+                      <div className="fennel-file-left">
+                        <span className="fennel-file-icon">
+                          <Icon name="file" size={14} />
+                        </span>
+                        <div className="fennel-file-text">
+                          <div className="fennel-file-title">{file.title || 'Untitled document'}</div>
+                          <div className="fennel-file-meta">{file.kind || 'Document'}</div>
+                        </div>
+                      </div>
+                      <Icon name="chevron-right" size={13} className="fennel-file-arrow" />
+                    </motion.button>
+                  ))
+                )}
               </div>
-            </section>
+            </motion.section>
 
-            {/* Your agents Card */}
-            <section className="fennel-card">
+            {/* Active System & Capabilities */}
+            <motion.section
+              className="fennel-card"
+              whileHover={{ y: -2, transition: springTransition }}
+            >
               <div className="fennel-card-header">
                 <div className="fennel-card-title-group">
-                  <h2 className="fennel-card-title">Your agents</h2>
-                  <span className="fennel-count-pill">{displayAgents.length}</span>
+                  <h2 className="fennel-card-title">Agent & capabilities</h2>
+                  <span className="fennel-count-pill">{capabilities.skills.length + 1}</span>
                 </div>
+                <button
+                  type="button"
+                  className="fennel-see-all-btn"
+                  onClick={() => setView('capabilities')}
+                >
+                  Configure
+                </button>
               </div>
 
               <div className="fennel-agents-grid">
-                {displayAgents.map((ag) => (
+                <motion.div
+                  className="fennel-agent-tile"
+                  whileHover={{ y: -3, transition: springTransition }}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => {
+                    setAppMode('agent')
+                    setView('chat')
+                  }}
+                >
+                  <span className="fennel-agent-tile-icon fennel-agent-tile-icon--primary">
+                    <BrandMark size={16} glow={false} />
+                  </span>
+                  <span className="fennel-agent-tile-name">Director</span>
+                  <span className="fennel-agent-tile-status">
+                    <span className="fennel-status-dot" />
+                    Ready
+                  </span>
+                </motion.div>
+
+                {activeConnectors.map((c) => (
                   <motion.div
-                    key={ag.id}
+                    key={c.id || c.name}
                     className="fennel-agent-tile"
-                    whileHover={{ y: -2 }}
-                    transition={{ duration: 0.15 }}
-                    onClick={() => {
-                      setAppMode('agent')
-                      openChatWithPrompt(`Hi ${ag.name}, what can you do?`)
-                    }}
+                    whileHover={{ y: -3, transition: springTransition }}
+                    whileTap={{ scale: 0.96 }}
+                    onClick={() => setView('capabilities')}
                   >
-                    <span
-                      className="fennel-agent-tile-icon"
-                      style={{ backgroundColor: ag.color }}
-                    >
-                      <BrandMark size={16} glow={false} />
+                    <span className="fennel-agent-tile-icon fennel-agent-tile-icon--connector">
+                      <Icon name="plug" size={15} />
                     </span>
-                    <span className="fennel-agent-tile-name">{ag.name}</span>
+                    <span className="fennel-agent-tile-name">{c.name || c.id}</span>
                     <span className="fennel-agent-tile-status">
                       <span className="fennel-status-dot" />
-                      {ag.status}
+                      Active
                     </span>
                   </motion.div>
                 ))}
               </div>
-            </section>
+            </motion.section>
           </div>
         </div>
       </div>
 
-      {/* Floating Ask Amethyst Pill (Screenshot 1 bottom-right) */}
+      {/* Floating Ask Amethyst Pill */}
       <motion.button
         type="button"
         className="fennel-ask-pill"
@@ -724,13 +698,13 @@ export default function FennelHome() {
           setAppMode('agent')
           setView('chat')
         }}
-        whileHover={{ scale: 1.04 }}
-        whileTap={{ scale: 0.96 }}
-        title="Ask Amethyst anything"
+        whileHover={{ scale: 1.05, y: -2, transition: springTransition }}
+        whileTap={{ scale: 0.95 }}
+        title="Open Agent Mode"
       >
         <Icon name="spark" size={15} />
         <span>Ask Amethyst</span>
       </motion.button>
-    </div>
+    </motion.div>
   )
 }

@@ -159,6 +159,7 @@ export default function Sidebar() {
   const [showSearchInput, setShowSearchInput] = useState(false)
   const [taskCount, setTaskCount] = useState(0)
   const [recentFiles, setRecentFiles] = useState([])
+  const [connectors, setConnectors] = useState([])
 
   useEffect(() => {
     api.tasks({ bucket: 'pending', limit: 20 })
@@ -170,6 +171,12 @@ export default function Sidebar() {
     api.library({ limit: 4 })
       .then((res) => {
         if (res?.items) setRecentFiles(res.items)
+      })
+      .catch(() => {})
+
+    api.capabilities()
+      .then((res) => {
+        if (res?.connectors) setConnectors(res.connectors)
       })
       .catch(() => {})
   }, [])
@@ -488,202 +495,221 @@ export default function Sidebar() {
            2. EXPANDED MODERN SIDEBAR (260px) — Vibecoded
            =================================================================== */
         <div className="sb-expanded-container">
-          {appMode === 'app' ? (
-            /* ===============================================================
-               FENNEL APP SIDEBAR (Screenshot 1)
-               =============================================================== */
-            <>
-              <div className="sb-header">
-                <div className="sb-header-top-row">
-                  <ModeSwitcher />
+          <AnimatePresence mode="wait" initial={false}>
+            {appMode === 'app' ? (
+              /* ===============================================================
+                 WORKSPACE APP SIDEBAR (Screenshot 1)
+                 =============================================================== */
+              <motion.div
+                key="sb-app-mode"
+                className="sb-mode-content-wrapper"
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 6 }}
+                transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+              >
+                <div className="sb-header">
+                  <div className="sb-header-top-row">
+                    <ModeSwitcher />
+                    <HouseButton
+                      type="button"
+                      className="sb-header-icon-btn"
+                      onClick={handleToggle}
+                      title={`Collapse sidebar — ${MOD_LABEL}+B`}
+                      aria-label="Collapse sidebar"
+                    >
+                      <Icon name="sidebar" size={17} />
+                    </HouseButton>
+                  </div>
+                </div>
+
+                {/* Action row: + New button and Search */}
+                <div className="sb-fennel-action-row">
+                  <motion.button
+                    type="button"
+                    className="sb-fennel-new-btn"
+                    onClick={() => setOverlay('palette')}
+                    whileHover={{ y: -1 }}
+                    whileTap={{ scale: 0.97 }}
+                    title="Create new task, note, or prompt"
+                  >
+                    <Icon name="plus" size={14} />
+                    <span>New</span>
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    className="sb-fennel-search-icon-btn"
+                    onClick={() => setOverlay('palette')}
+                    whileHover={{ y: -1 }}
+                    whileTap={{ scale: 0.95 }}
+                    title={`Search in project — ${MOD_LABEL}+K`}
+                    aria-label="Search"
+                  >
+                    <Icon name="search" size={14} />
+                  </motion.button>
+                </div>
+
+                {/* Main Nav Section */}
+                <nav className="sb-fennel-nav wb-list" aria-label="App Navigation">
                   <HouseButton
                     type="button"
-                    className="sb-header-icon-btn"
-                    onClick={handleToggle}
-                    title={`Collapse sidebar — ${MOD_LABEL}+B`}
-                    aria-label="Collapse sidebar"
+                    className={`sb-fennel-nav-item${view === 'today' ? ' is-active' : ''}`}
+                    onClick={leave(() => setView('today'))}
                   >
-                    <Icon name="sidebar" size={17} />
+                    <div className="sb-fennel-nav-item-left">
+                      <Icon name="home" size={16} />
+                      <span>Home</span>
+                    </div>
                   </HouseButton>
+
+                  <HouseButton
+                    type="button"
+                    className="sb-fennel-nav-item"
+                    onClick={() => toast('Projects workspace coming soon', 'info')}
+                  >
+                    <div className="sb-fennel-nav-item-left">
+                      <Icon name="folder" size={16} />
+                      <span>Projects</span>
+                    </div>
+                    <span className="sb-fennel-soon-badge">Soon</span>
+                  </HouseButton>
+
+                  <HouseButton
+                    type="button"
+                    className="sb-fennel-nav-item"
+                    onClick={() => toast('Templates coming soon', 'info')}
+                  >
+                    <div className="sb-fennel-nav-item-left">
+                      <Icon name="grid" size={16} />
+                      <span>Templates</span>
+                    </div>
+                    <span className="sb-fennel-soon-badge">Soon</span>
+                  </HouseButton>
+
+                  <HouseButton
+                    type="button"
+                    className={`sb-fennel-nav-item${view === 'library' ? ' is-active' : ''}`}
+                    onClick={leave(() => setView('library'))}
+                  >
+                    <div className="sb-fennel-nav-item-left">
+                      <Icon name="files" size={16} />
+                      <span>Artifacts</span>
+                    </div>
+                  </HouseButton>
+
+                  <HouseButton
+                    type="button"
+                    className={`sb-fennel-nav-item${view === 'tasks' ? ' is-active' : ''}`}
+                    onClick={leave(() => setView('tasks'))}
+                  >
+                    <div className="sb-fennel-nav-item-left">
+                      <Icon name="check-square" size={16} />
+                      <span>Tasks</span>
+                    </div>
+                    {taskCount > 0 && <span className="sb-fennel-count-badge">{taskCount}</span>}
+                  </HouseButton>
+                </nav>
+
+                {/* Real Recent Files section */}
+                <div className="sb-fennel-section">
+                  <div className="sb-fennel-section-label">Recent</div>
+                  <div className="sb-fennel-recent-list">
+                    {recentFiles.length > 0 ? (
+                      recentFiles.map((file) => (
+                        <HouseButton
+                          key={file.id}
+                          type="button"
+                          className="sb-fennel-recent-item"
+                          onClick={leave(() => setView('library'))}
+                          title={file.title}
+                        >
+                          <Icon name="file" size={13} className="sb-fennel-recent-icon" />
+                          <span className="sb-fennel-recent-title">{file.title || 'Untitled'}</span>
+                        </HouseButton>
+                      ))
+                    ) : (
+                      <div className="sb-fennel-empty-hint">No recent documents</div>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* Action row: + New button and Search */}
-              <div className="sb-fennel-action-row">
-                <button
-                  type="button"
-                  className="sb-fennel-new-btn"
-                  onClick={() => setOverlay('palette')}
-                  title="Create new task, note, or prompt"
-                >
-                  <Icon name="plus" size={14} />
-                  <span>New</span>
-                </button>
-                <button
-                  type="button"
-                  className="sb-fennel-search-icon-btn"
-                  onClick={() => setOverlay('palette')}
-                  title={`Search in project — ${MOD_LABEL}+K`}
-                  aria-label="Search"
-                >
-                  <Icon name="search" size={14} />
-                </button>
-              </div>
-
-              {/* Main Nav Section */}
-              <nav className="sb-fennel-nav wb-list" aria-label="App Navigation">
-                <button
-                  type="button"
-                  className={`sb-fennel-nav-item${view === 'today' ? ' is-active' : ''}`}
-                  onClick={leave(() => setView('today'))}
-                >
-                  <div className="sb-fennel-nav-item-left">
-                    <Icon name="home" size={16} />
-                    <span>Home</span>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  className="sb-fennel-nav-item"
-                  onClick={() => toast('Projects coming soon', 'info')}
-                >
-                  <div className="sb-fennel-nav-item-left">
-                    <Icon name="folder" size={16} />
-                    <span>Projects</span>
-                  </div>
-                  <span className="sb-fennel-soon-badge">Soon</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="sb-fennel-nav-item"
-                  onClick={() => toast('Templates coming soon', 'info')}
-                >
-                  <div className="sb-fennel-nav-item-left">
-                    <Icon name="grid" size={16} />
-                    <span>Templates</span>
-                  </div>
-                  <span className="sb-fennel-soon-badge">Soon</span>
-                </button>
-
-                <button
-                  type="button"
-                  className={`sb-fennel-nav-item${view === 'library' ? ' is-active' : ''}`}
-                  onClick={leave(() => setView('library'))}
-                >
-                  <div className="sb-fennel-nav-item-left">
-                    <Icon name="files" size={16} />
-                    <span>Artifacts</span>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  className={`sb-fennel-nav-item${view === 'tasks' ? ' is-active' : ''}`}
-                  onClick={leave(() => setView('tasks'))}
-                >
-                  <div className="sb-fennel-nav-item-left">
-                    <Icon name="check-square" size={16} />
-                    <span>Tasks</span>
-                  </div>
-                  {taskCount > 0 && <span className="sb-fennel-count-badge">{taskCount}</span>}
-                </button>
-              </nav>
-
-              {/* Recent section */}
-              <div className="sb-fennel-section">
-                <div className="sb-fennel-section-label">Recent</div>
-                <div className="sb-fennel-recent-list">
-                  {recentFiles.length > 0 ? (
-                    recentFiles.map((file) => (
-                      <button
-                        key={file.id}
+                {/* Real Connectors section (Zero fake teams) */}
+                <div className="sb-fennel-section">
+                  <div className="sb-fennel-section-label">Connectors</div>
+                  <div className="sb-fennel-recent-list">
+                    {connectors.length > 0 ? (
+                      connectors.map((c) => (
+                        <HouseButton
+                          key={c.id || c.name}
+                          type="button"
+                          className="sb-fennel-recent-item"
+                          onClick={leave(() => setView('capabilities'))}
+                          title={`${c.name || c.id} — Active`}
+                        >
+                          <span className="sb-fennel-status-dot sb-fennel-status-dot--live" />
+                          <span className="sb-fennel-recent-title">{c.name || c.id}</span>
+                        </HouseButton>
+                      ))
+                    ) : (
+                      <HouseButton
                         type="button"
                         className="sb-fennel-recent-item"
-                        onClick={leave(() => setView('library'))}
-                        title={file.title}
+                        onClick={leave(() => setView('capabilities'))}
                       >
-                        <Icon name="folder" size={13} className="sb-fennel-recent-icon" />
-                        <span className="sb-fennel-recent-title">{file.title}</span>
-                      </button>
-                    ))
-                  ) : (
-                    <>
-                      <button type="button" className="sb-fennel-recent-item" onClick={leave(() => setView('library'))}>
-                        <Icon name="folder" size={13} className="sb-fennel-recent-icon" />
-                        <span className="sb-fennel-recent-title">Savings launch, Q1</span>
-                      </button>
-                      <button type="button" className="sb-fennel-recent-item" onClick={leave(() => setView('library'))}>
-                        <Icon name="folder" size={13} className="sb-fennel-recent-icon" />
-                        <span className="sb-fennel-recent-title">Q3 pricing review</span>
-                      </button>
-                      <button type="button" className="sb-fennel-recent-item" onClick={leave(() => setView('library'))}>
-                        <Icon name="folder" size={13} className="sb-fennel-recent-icon" />
-                        <span className="sb-fennel-recent-title">Board update, Nov</span>
-                      </button>
-                      <button type="button" className="sb-fennel-recent-item" onClick={leave(() => setView('library'))}>
-                        <Icon name="folder" size={13} className="sb-fennel-recent-icon" />
-                        <span className="sb-fennel-recent-title">Hiring plan 2027</span>
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Teams section */}
-              <div className="sb-fennel-section">
-                <div className="sb-fennel-section-label">Teams</div>
-                <div className="sb-fennel-recent-list">
-                  <button type="button" className="sb-fennel-recent-item" onClick={leave(() => setView('capabilities'))}>
-                    <Icon name="users" size={13} className="sb-fennel-recent-icon" />
-                    <span className="sb-fennel-recent-title">Product</span>
-                  </button>
-                  <button type="button" className="sb-fennel-recent-item" onClick={leave(() => setView('capabilities'))}>
-                    <Icon name="chart-bar" size={13} className="sb-fennel-recent-icon" />
-                    <span className="sb-fennel-recent-title">Growth</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Bottom Credits & User Card */}
-              <div className="sb-fennel-footer">
-                <span className="wb-foot-sub" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}>{status}</span>
-                <div className="sb-fennel-credits-card">
-                  <div className="sb-fennel-credits-top">
-                    <span className="sb-fennel-credits-label">
-                      <Icon name="spark" size={12} />
-                      <span>Credits</span>
-                    </span>
-                    <span className="sb-fennel-pro-badge">Pro</span>
-                  </div>
-                  <div className="sb-fennel-credits-val">
-                    760 left of 2,000
+                        <Icon name="plug" size={13} className="sb-fennel-recent-icon" />
+                        <span className="sb-fennel-recent-title">Manage connectors</span>
+                      </HouseButton>
+                    )}
                   </div>
                 </div>
 
-                <UserMenu align="start" side="top" sideOffset={10}>
-                  <HouseButton
-                    type="button"
-                    className="sb-user-card-bottom"
-                    title={`Account settings for ${displayName}`}
-                  >
-                    <div className="sb-user-avatar-square">
-                      {userInitials}
+                {/* Real System Status Footer (Zero fake credits) */}
+                <div className="sb-fennel-footer">
+                  <span className="wb-foot-sub" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}>{status}</span>
+                  <div className="sb-fennel-status-card">
+                    <div className="sb-fennel-status-top">
+                      <span className="sb-fennel-status-label">
+                        <span className="sb-fennel-status-live-dot" />
+                        <span>System Ready</span>
+                      </span>
+                      <span className="sb-fennel-status-badge">
+                        {health?.tools ? `${health.tools} tools` : 'Director'}
+                      </span>
                     </div>
-                    <div className="sb-user-info-bottom">
-                      <span className="sb-user-name-bottom">{displayName}</span>
-                      <span className="sb-user-subtext-bottom">{workspaceName}</span>
+                    <div className="sb-fennel-status-sub">
+                      {health?.skills ? `${health.skills} active skills · local runtime` : 'Local runtime active'}
                     </div>
-                  </HouseButton>
-                </UserMenu>
-              </div>
-            </>
-          ) : (
+                  </div>
+
+                  <UserMenu align="start" side="top" sideOffset={10}>
+                    <HouseButton
+                      type="button"
+                      className="sb-user-card-bottom"
+                      title={`Account settings for ${displayName}`}
+                    >
+                      <div className="sb-user-avatar-square">
+                        {userInitials}
+                      </div>
+                      <div className="sb-user-info-bottom">
+                        <span className="sb-user-name-bottom">{displayName}</span>
+                        <span className="sb-user-subtext-bottom">{workspaceName}</span>
+                      </div>
+                    </HouseButton>
+                  </UserMenu>
+                </div>
+              </motion.div>
+            ) : (
             /* ===============================================================
                AGENT MODE SIDEBAR (Screenshot 2)
                =============================================================== */
-            <>
+              <motion.div
+                key="sb-agent-mode"
+                className="sb-mode-content-wrapper"
+                initial={{ opacity: 0, x: 6 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -6 }}
+                transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+              >
               <div className="sb-header">
                 <div className="sb-header-top-row">
                   <ModeSwitcher />
@@ -894,9 +920,10 @@ export default function Sidebar() {
                   </HouseButton>
                 </UserMenu>
               </div>
-            </>
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
+      </div>
       )}
     </aside>
   )
