@@ -123,6 +123,54 @@ export default function Companion({ onUnpair }) {
     }
   }, [])
 
+  // Android hardware back gesture listener
+  const navStateRef = useRef({})
+  navStateRef.current = {
+    quickCaptureOpen,
+    settingsOpen,
+    diagnosticsOpen,
+    addWidgetsOpen,
+    tab,
+    librarySubView,
+    activeSession,
+    pcSubView,
+  }
+
+  useEffect(() => {
+    let handle
+    const setupBack = async () => {
+      try {
+        handle = await App.addListener('backButton', () => {
+          const s = navStateRef.current
+          if (s.quickCaptureOpen) {
+            setQuickCaptureOpen(false)
+          } else if (s.settingsOpen) {
+            setSettingsOpen(false)
+          } else if (s.diagnosticsOpen) {
+            setDiagnosticsOpen(false)
+          } else if (s.addWidgetsOpen) {
+            setAddWidgetsOpen(false)
+          } else if (s.tab === 'library' && s.librarySubView) {
+            setLibrarySubView(null)
+            setSelectedLibraryItem(null)
+          } else if (s.tab === 'agent' && s.activeSession) {
+            setActiveSession(null)
+          } else if (s.tab === 'devices' && s.pcSubView) {
+            setPcSubView(null)
+          } else if (s.tab !== 'today') {
+            setTab('today')
+          } else {
+            App.minimizeApp().catch(() => App.exitApp?.())
+          }
+        })
+      } catch {}
+    }
+    setupBack()
+    return () => {
+      handle?.remove?.()
+    }
+  }, [])
+
   const refresh = useCallback(async () => {
     const owner = identity()?.deviceId
     if (!owner) return
@@ -218,17 +266,64 @@ export default function Companion({ onUnpair }) {
       await tick()
     })()
 
-    const timer = setInterval(tick, 30000)
+    const timer = setInterval(tick, 60000)
     const onVis = () => {
       if (document.visibilityState === 'visible') tick()
     }
     document.addEventListener('visibilitychange', onVis)
     window.addEventListener('online', tick)
 
+    // Instant event-driven push sync via WebSocket over LAN
+    let ws = null
+    let reconnectTimer = null
+
+    function connectPushWs() {
+      if (stopped) return
+      const base = getBase()
+      if (!base) return
+
+      const proto = base.startsWith('https') ? 'wss:' : 'ws:'
+      const host = base.replace(/^https?:\/\//, '').replace(/\/api\/?$/, '') || window.location.host
+      const token = identity()?.token || ''
+      const wsUrl = `${proto}//${host}/api/remote/ws?token=${encodeURIComponent(token)}`
+
+      try {
+        ws = new WebSocket(wsUrl)
+        ws.onopen = () => {
+          if (!stopped) setIsOnline(true)
+        }
+        ws.onmessage = (event) => {
+          if (stopped) return
+          try {
+            const data = JSON.parse(event.data)
+            if (data.type === 'sync_event') {
+              tick()
+            }
+          } catch {}
+        }
+        ws.onclose = () => {
+          if (!stopped) {
+            reconnectTimer = setTimeout(connectPushWs, 5000)
+          }
+        }
+        ws.onerror = () => {
+          ws?.close()
+        }
+      } catch {
+        if (!stopped) {
+          reconnectTimer = setTimeout(connectPushWs, 8000)
+        }
+      }
+    }
+
+    connectPushWs()
+
     return () => {
       active.current = false
       stopped = true
       clearInterval(timer)
+      if (reconnectTimer) clearTimeout(reconnectTimer)
+      if (ws) ws.close()
       document.removeEventListener('visibilitychange', onVis)
       window.removeEventListener('online', tick)
     }
@@ -337,109 +432,124 @@ export default function Companion({ onUnpair }) {
         )}
       </AnimatePresence>
 
-      {/* Main Tab Views */}
+      {/* Main Tab Views with Smooth View Transitions */}
       <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {tab === 'today' && (
-          <MobileToday
-            onSelectTab={(targetTab, payload) => {
-              if (targetTab === 'agent') {
-                if (payload) setActiveSession(payload)
-                setTab('agent')
-              } else if (targetTab === 'library') {
-                if (payload) {
-                  setSelectedLibraryItem(payload)
-                  setLibrarySubView('item')
+        <AnimatePresence mode="wait">
+          {tab === 'today' && (
+            <MobileToday
+              key="today"
+              onSelectTab={(targetTab, payload) => {
+                if (targetTab === 'agent') {
+                  if (payload) setActiveSession(payload)
+                  setTab('agent')
+                } else if (targetTab === 'library') {
+                  if (payload) {
+                    setSelectedLibraryItem(payload)
+                    setLibrarySubView('item')
+                  }
+                  setTab('library')
+                } else {
+                  setTab(targetTab)
                 }
-                setTab('library')
-              } else {
-                setTab(targetTab)
-              }
-            }}
-            onOpenAddWidgets={() => setAddWidgetsOpen(true)}
-            onOpenNotifications={() => setSettingsOpen(true)}
-            telemetry={telemetry}
-          />
-        )}
-
-        {tab === 'tasks' && <MobileTasks />}
-
-        {tab === 'agent' && (
-          activeSession ? (
-            <MobileAgentChat
-              session={activeSession}
-              onBack={() => setActiveSession(null)}
-            />
-          ) : (
-            <MobileAgentSessions
-              onSelectSession={(sess) => setActiveSession(sess)}
-              onCreateSession={(title) => {
-                const newSess = { id: `temp-${Date.now()}`, title: title || 'New session' }
-                setActiveSession(newSess)
               }}
-            />
-          )
-        )}
-
-        {tab === 'library' && (
-          librarySubView === 'ask' ? (
-            <MobileAskLibrary
-              onBack={() => setLibrarySubView(null)}
-              onSelectItem={(item) => {
-                setSelectedLibraryItem(item)
-                setLibrarySubView('item')
-              }}
-            />
-          ) : librarySubView === 'item' ? (
-            <MobileLibraryItem
-              item={selectedLibraryItem}
-              onBack={() => {
-                setLibrarySubView(null)
-                setSelectedLibraryItem(null)
-              }}
-              onAskAgent={(item) => {
-                setActiveSession({
-                  id: `temp-${Date.now()}`,
-                  title: `Discussion: ${item?.title || 'Saved Reel'}`,
-                })
-                setTab('agent')
-              }}
-            />
-          ) : (
-            <MobileLibrary
-              onSelectItem={(item) => {
-                setSelectedLibraryItem(item)
-                setLibrarySubView('item')
-              }}
-              onOpenAsk={() => setLibrarySubView('ask')}
-            />
-          )
-        )}
-
-        {tab === 'devices' && (
-          pcSubView === 'terminal' ? (
-            <MobileTerminal
-              onBack={() => setPcSubView(null)}
-              isOnline={Boolean(connection)}
-            />
-          ) : (
-            <MobilePC
+              onOpenAddWidgets={() => setAddWidgetsOpen(true)}
+              onOpenNotifications={() => setSettingsOpen(true)}
               telemetry={telemetry}
-              isOnline={Boolean(connection)}
-              onOpenTerminal={() => setPcSubView('terminal')}
             />
-          )
-        )}
+          )}
+
+          {tab === 'tasks' && <MobileTasks key="tasks" />}
+
+          {tab === 'agent' && (
+            activeSession ? (
+              <MobileAgentChat
+                key={`agent-chat-${activeSession.id || 'new'}`}
+                session={activeSession}
+                onBack={() => setActiveSession(null)}
+              />
+            ) : (
+              <MobileAgentSessions
+                key="agent-sessions"
+                onSelectSession={(sess) => setActiveSession(sess)}
+                onCreateSession={(title) => {
+                  const newSess = { id: `temp-${Date.now()}`, title: title || 'New session' }
+                  setActiveSession(newSess)
+                }}
+              />
+            )
+          )}
+
+          {tab === 'library' && (
+            librarySubView === 'ask' ? (
+              <MobileAskLibrary
+                key="library-ask"
+                onBack={() => setLibrarySubView(null)}
+                onSelectItem={(item) => {
+                  setSelectedLibraryItem(item)
+                  setLibrarySubView('item')
+                }}
+              />
+            ) : librarySubView === 'item' ? (
+              <MobileLibraryItem
+                key={`library-item-${selectedLibraryItem?.id || 'selected'}`}
+                item={selectedLibraryItem}
+                onBack={() => {
+                  setLibrarySubView(null)
+                  setSelectedLibraryItem(null)
+                }}
+                onAskAgent={(item) => {
+                  setActiveSession({
+                    id: `temp-${Date.now()}`,
+                    title: `Discussion: ${item?.title || 'Saved Reel'}`,
+                  })
+                  setTab('agent')
+                }}
+              />
+            ) : (
+              <MobileLibrary
+                key="library-list"
+                onSelectItem={(item) => {
+                  setSelectedLibraryItem(item)
+                  setLibrarySubView('item')
+                }}
+                onOpenAsk={() => setLibrarySubView('ask')}
+              />
+            )
+          )}
+
+          {tab === 'devices' && (
+            pcSubView === 'terminal' ? (
+              <MobileTerminal
+                key="pc-terminal"
+                onBack={() => setPcSubView(null)}
+                isOnline={Boolean(connection)}
+              />
+            ) : (
+              <MobilePC
+                key="pc-overview"
+                telemetry={telemetry}
+                isOnline={Boolean(connection)}
+                onOpenTerminal={() => setPcSubView('terminal')}
+              />
+            )
+          )}
+        </AnimatePresence>
       </main>
 
       {/* Floating Bottom Navigation Dock (Design Flow Screens 2, 3, 5, 7, 10, 11) */}
-      <nav className="m-nav" aria-label="Main navigation">
-        <div className="m-pill">
+      {!librarySubView && !activeSession && !pcSubView && (
+        <nav className="m-nav" aria-label="Main navigation">
+          <div className="m-pill">
           {/* Today Tab */}
           <button
             type="button"
             aria-label="Today"
             className={tab === 'today' ? 'on' : ''}
-            onClick={() => setTab('today')}
+            onClick={() => {
+              setTab('today')
+              setLibrarySubView(null)
+              setPcSubView(null)
+            }}
           >
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <rect width="7" height="7" x="3" y="3" rx="1" />
@@ -455,7 +565,11 @@ export default function Companion({ onUnpair }) {
             type="button"
             aria-label="Agent"
             className={tab === 'agent' ? 'on' : ''}
-            onClick={() => setTab('agent')}
+            onClick={() => {
+              setTab('agent')
+              setLibrarySubView(null)
+              setPcSubView(null)
+            }}
           >
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
@@ -470,7 +584,14 @@ export default function Companion({ onUnpair }) {
             type="button"
             aria-label="Library"
             className={tab === 'library' ? 'on' : ''}
-            onClick={() => setTab('library')}
+            onClick={() => {
+              if (tab === 'library' && librarySubView !== null) {
+                setLibrarySubView(null)
+                setSelectedLibraryItem(null)
+              } else {
+                setTab('library')
+              }
+            }}
           >
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M12 7v14" />
@@ -484,7 +605,11 @@ export default function Companion({ onUnpair }) {
             type="button"
             aria-label="Tasks"
             className={tab === 'tasks' ? 'on' : ''}
-            onClick={() => setTab('tasks')}
+            onClick={() => {
+              setTab('tasks')
+              setLibrarySubView(null)
+              setPcSubView(null)
+            }}
           >
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <circle cx="12" cy="12" r="10" />
@@ -498,7 +623,13 @@ export default function Companion({ onUnpair }) {
             type="button"
             aria-label="PC"
             className={tab === 'devices' ? 'on' : ''}
-            onClick={() => setTab('devices')}
+            onClick={() => {
+              if (tab === 'devices' && pcSubView !== null) {
+                setPcSubView(null)
+              } else {
+                setTab('devices')
+              }
+            }}
           >
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <rect width="20" height="14" x="2" y="3" rx="2" />
@@ -522,6 +653,7 @@ export default function Companion({ onUnpair }) {
           </svg>
         </button>
       </nav>
+      )}
 
       {/* Add Widgets Subview Modal */}
       <AnimatePresence>

@@ -1,5 +1,6 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { saveBundle } from './bundle.js'
+import { saveIdentity } from '../lib/credentials.js'
 
 // Native plugin bridge
 export const Pairing = registerPlugin('Pairing')
@@ -142,7 +143,7 @@ export async function pairDevice({ qrPayload, deviceLabel, onStatusChange }) {
         fp,
         token,
         deviceLabel: label,
-        connectTimeoutMs: 3000,
+        connectTimeoutMs: 8000,
         readTimeoutMs: 120000,
       })
 
@@ -155,6 +156,22 @@ export async function pairDevice({ qrPayload, deviceLabel, onStatusChange }) {
       }
 
       await saveBundle(result.bundle)
+
+      const matchedHost = result?.host || (hosts && hosts[0]) || ''
+      const apiPort = result.bundle?.api_port || 8000
+      const hostUrl = matchedHost ? `http://${matchedHost}:${apiPort}` : ''
+      try {
+        await saveIdentity({
+          deviceId: result.bundle.device_id,
+          token,
+          hostUrl,
+          name: label,
+          permissions: { library: true, agent: true, terminal: true, pc: true },
+        })
+      } catch (e) {
+        console.warn('[PairingClient] Could not save identity:', e)
+      }
+
       return result.bundle
     } catch (err) {
       if (statusListener) {
@@ -234,6 +251,21 @@ export async function pairDevice({ qrPayload, deviceLabel, onStatusChange }) {
       if (response.status === 200) {
         const bundle = await response.json()
         await saveBundle(bundle)
+
+        const apiPort = bundle?.api_port || 8000
+        const hostUrl = host ? `http://${host}:${apiPort}` : ''
+        try {
+          await saveIdentity({
+            deviceId: bundle.device_id,
+            token,
+            hostUrl,
+            name: label,
+            permissions: { library: true, agent: true, terminal: true, pc: true },
+          })
+        } catch (e) {
+          console.warn('[PairingClient] Could not save identity:', e)
+        }
+
         return bundle
       }
 

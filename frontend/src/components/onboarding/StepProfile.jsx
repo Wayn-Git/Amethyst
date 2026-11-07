@@ -272,3 +272,4 @@ export default function StepProfile({ onNext, onBack }) {
     </div>
   )
 }
+

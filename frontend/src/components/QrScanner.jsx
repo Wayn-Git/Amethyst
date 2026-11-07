@@ -6,7 +6,7 @@ import Icon from './Icon.jsx'
  *  leaves the phone's decoder idle most of the time. */
 const SCAN_INTERVAL_MS = 100
 
-export default function QrScanner({ onScan, onCancel }) {
+export default function QrScanner({ onScan, onCancel, inline = false }) {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const [error, setError] = useState(null)
@@ -133,6 +133,60 @@ export default function QrScanner({ onScan, onCancel }) {
       stop()
     }
   }, [onScan, stop])
+
+  if (inline) {
+    return (
+      <div style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'hidden' }}>
+        <video
+          ref={videoRef}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }}
+          playsInline
+          muted
+        />
+        {/* Reticle brackets matching Pair.dc.html */}
+        <svg
+          width="220"
+          height="220"
+          viewBox="0 0 220 220"
+          fill="none"
+          stroke="#fff"
+          strokeWidth="3"
+          strokeLinecap="round"
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            pointerEvents: 'none',
+            zIndex: 2,
+          }}
+          aria-hidden="true"
+        >
+          <path d="M10 50V20a10 10 0 0 1 10-10h30M170 10h30a10 10 0 0 1 10 10v30M210 170v30a10 10 0 0 1-10 10h-30M50 210H20a10 10 0 0 1-10-10v-30" />
+        </svg>
+
+        {/* Laser scanner animation */}
+        <div className="qr-laser-beam" aria-hidden="true" />
+
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 16,
+            left: 0,
+            right: 0,
+            textAlign: 'center',
+            fontSize: 12,
+            color: error ? '#f87171' : '#fff',
+            textShadow: '0 1px 4px rgba(0,0,0,0.8)',
+            zIndex: 3,
+            padding: '0 16px',
+          }}
+        >
+          {error || 'Point the camera at the code'}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="qr-scan">

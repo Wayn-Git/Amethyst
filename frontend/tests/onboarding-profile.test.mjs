@@ -14,3 +14,4 @@ test('StepProfile implements 9 themes and 5 accents matching Settings', () => {
   assert.match(content, /Full name/)
   assert.match(content, /Handle/)
 })
+

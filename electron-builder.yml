@@ -18,8 +18,8 @@ extraResources:
 
 publish:
   provider: github
-  owner: wayn-wayn
-  repo: amethyst
+  owner: Wayn-Git
+  repo: Amethyst
   releaseType: release
 
 mac:

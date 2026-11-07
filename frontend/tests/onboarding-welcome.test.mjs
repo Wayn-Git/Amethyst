@@ -18,3 +18,4 @@ test('StepWelcome source contains 4 floating satellite chips and get-started act
   assert.match(content, /Phone/)
   assert.match(content, /Apps/)
 })
+

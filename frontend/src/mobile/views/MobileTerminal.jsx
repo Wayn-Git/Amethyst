@@ -1,31 +1,68 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import Icon from '../../components/Icon.jsx'
-import { getBase, getAuthHeaders } from '../../api.js'
+import { Terminal } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import '@xterm/xterm/css/xterm.css'
+import { getBase, getAuthHeaders, API_ORIGIN } from '../../api.js'
 import * as syncClient from '../../lib/sync/client.js'
+
+const XTERM_THEME = {
+  background: '#111113',
+  foreground: '#E4E4E7',
+  cursor: '#FFFFFF',
+  cursorAccent: '#111113',
+  selectionBackground: 'rgba(255, 255, 255, 0.22)',
+  black: '#18181B',
+  red: '#EF4444',
+  green: '#22C55E',
+  yellow: '#EAB308',
+  blue: '#3B82F6',
+  magenta: '#A855F7',
+  cyan: '#06B6D4',
+  white: '#E4E4E7',
+  brightBlack: '#52525B',
+  brightRed: '#F87171',
+  brightGreen: '#4ADE80',
+  brightYellow: '#FDE047',
+  brightBlue: '#60A5FA',
+  brightMagenta: '#C084FC',
+  brightCyan: '#22D3EE',
+  brightWhite: '#FFFFFF',
+}
+
+function getWsOrigin() {
+  if (API_ORIGIN) {
+    return API_ORIGIN.replace(/^http/, 'ws')
+  }
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${proto}//${window.location.host}`
+}
 
 export default function MobileTerminal({ onBack, isOnline }) {
   const [session, setSession] = useState(null)
-  const [output, setOutput] = useState([])
-  const [command, setCommand] = useState('')
   const [connected, setConnected] = useState(false)
-  const [error, setError] = useState(null)
   const [currentCwd, setCurrentCwd] = useState('~')
+  const [statusMsg, setStatusMsg] = useState('Connecting to PC terminal…')
+  const [command, setCommand] = useState('')
 
+  const containerRef = useRef(null)
+  const xtermRef = useRef(null)
+  const fitAddonRef = useRef(null)
   const wsRef = useRef(null)
-  const terminalEndRef = useRef(null)
   const token = syncClient.identity()?.token || ''
 
   useEffect(() => {
     let unmounted = false
+    let term = null
     let ws = null
+    let fitAddon = null
 
-    async function initSession() {
+    async function initTerminal() {
       try {
         const base = getBase()
         const auth = getAuthHeaders()
 
-        // 1. Create or get interactive terminal session
+        // 1. Create or join terminal session
         const res = await fetch(`${base}/terminal/sessions`, {
           method: 'POST',
           headers: {
@@ -36,7 +73,10 @@ export default function MobileTerminal({ onBack, isOnline }) {
         })
 
         if (!res.ok) {
-          throw new Error('Terminal session refused by backend.')
+          if (!unmounted) {
+            setStatusMsg(`Session unavailable (${res.status}). Verify PC is online.`)
+          }
+          return
         }
 
         const data = await res.json()
@@ -44,223 +84,295 @@ export default function MobileTerminal({ onBack, isOnline }) {
         setSession(data)
         if (data.cwd) setCurrentCwd(data.cwd.replace(/.*\/([^/]+)$/, '~/$1'))
 
-        // 2. Connect WebSocket
-        const proto = base.startsWith('https') ? 'wss:' : 'ws:'
-        const host = base.replace(/^https?:\/\//, '').replace(/\/api$/, '')
-        const wsUrl = `${proto}//${host}/api/terminal/ws?session_id=${data.id}${token ? `&token=${encodeURIComponent(token)}` : ''}`
+        // 2. Initialize xterm instance
+        if (!containerRef.current) return
+        containerRef.current.innerHTML = ''
+
+        term = new Terminal({
+          cursorBlink: true,
+          cursorStyle: 'block',
+          fontFamily: "'Geist Mono', 'SF Mono', Menlo, Consolas, monospace",
+          fontSize: 12,
+          lineHeight: 1.4,
+          theme: XTERM_THEME,
+          allowTransparency: true,
+          convertEol: true,
+          scrollback: 2000,
+        })
+
+        fitAddon = new FitAddon()
+        term.loadAddon(fitAddon)
+        term.open(containerRef.current)
+
+        xtermRef.current = term
+        fitAddonRef.current = fitAddon
+
+        try {
+          fitAddon.fit()
+        } catch {}
+
+        // 3. Connect WebSocket with arraybuffer support
+        const wsOrigin = getWsOrigin()
+        const wsUrl = `${wsOrigin}/api/terminal/ws?session_id=${data.id}${token ? `&token=${encodeURIComponent(token)}` : ''}`
 
         ws = new WebSocket(wsUrl)
+        ws.binaryType = 'arraybuffer'
         wsRef.current = ws
 
         ws.onopen = () => {
           if (unmounted) return
           setConnected(true)
-          setError(null)
+          setStatusMsg('')
+          try {
+            fitAddon.fit()
+            ws.send(JSON.stringify({
+              type: 'resize',
+              cols: term.cols,
+              rows: term.rows,
+            }))
+            ws.send(JSON.stringify({ type: 'get_cwd' }))
+          } catch {}
         }
 
         ws.onmessage = (event) => {
-          if (unmounted) return
-          if (typeof event.data === 'string') {
-            if (event.data.startsWith('{')) {
-              try {
-                const parsed = JSON.parse(event.data)
-                if (parsed.type === 'cwd' && parsed.cwd) {
-                  setCurrentCwd(parsed.cwd.replace(/.*\/([^/]+)$/, '~/$1'))
-                  return
-                }
-              } catch {}
-            }
-            setOutput((prev) => [...prev.slice(-300), event.data])
-          } else if (event.data instanceof Blob) {
-            const reader = new FileReader()
-            reader.onload = () => {
-              if (!unmounted && reader.result) {
-                setOutput((prev) => [...prev.slice(-300), reader.result])
+          if (unmounted || !term) return
+          if (event.data instanceof ArrayBuffer) {
+            term.write(new Uint8Array(event.data))
+          } else if (typeof event.data === 'string') {
+            try {
+              const msg = JSON.parse(event.data)
+              if (msg.type === 'session_init' && msg.cwd) {
+                setCurrentCwd(msg.cwd.replace(/.*\/([^/]+)$/, '~/$1'))
+              } else if (msg.type === 'cwd' && msg.cwd) {
+                setCurrentCwd(msg.cwd.replace(/.*\/([^/]+)$/, '~/$1'))
               }
+            } catch {
+              term.write(event.data)
             }
-            reader.readAsText(event.data)
           }
         }
 
-        ws.onerror = (err) => {
-          if (!unmounted) setError('WebSocket connection to PC terminal failed.')
+        ws.onerror = () => {
+          if (!unmounted) setStatusMsg('Terminal connection error')
         }
 
         ws.onclose = () => {
-          if (!unmounted) setConnected(false)
+          if (!unmounted) {
+            setConnected(false)
+            setStatusMsg('Session closed')
+          }
+        }
+
+        // Forward keyboard input from xterm to websocket
+        term.onData((data) => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(data)
+          }
+        })
+
+        // Resize observer to refit on layout changes
+        const resizeObserver = new ResizeObserver(() => {
+          try {
+            if (fitAddon && term && ws && ws.readyState === WebSocket.OPEN) {
+              fitAddon.fit()
+              ws.send(JSON.stringify({
+                type: 'resize',
+                cols: term.cols,
+                rows: term.rows,
+              }))
+            }
+          } catch {}
+        })
+        if (containerRef.current) {
+          resizeObserver.observe(containerRef.current)
+        }
+
+        return () => {
+          resizeObserver.disconnect()
         }
       } catch (err) {
-        if (!unmounted) setError(err.message)
+        if (!unmounted) {
+          setStatusMsg(`Failed to connect: ${err.message}`)
+        }
       }
     }
 
-    initSession()
+    initTerminal()
 
     return () => {
       unmounted = true
-      try {
-        ws?.close()
-      } catch {}
+      if (ws) ws.close()
+      if (term) term.dispose()
     }
   }, [token])
 
-  useEffect(() => {
-    terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [output])
+  const sendCommand = (cmdStr) => {
+    const toSend = (cmdStr || command).trim()
+    if (!toSend) return
 
-  const sendRaw = (text) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(text)
-      return true
+      wsRef.current.send(`${toSend}\n`)
+    } else if (xtermRef.current) {
+      xtermRef.current.writeln(`\r\n\x1b[31m[PC offline — command not sent]\x1b[0m`)
     }
-    return false
-  }
 
-  const handleRun = (cmdToRun) => {
-    const cmd = cmdToRun || command
-    if (!cmd.trim()) return
-
-    sendRaw(cmd.trim() + '\r')
     setCommand('')
-  }
-
-  // Strip ANSI escape codes for clean mobile display
-  const formatTerminalLine = (text) => {
-    return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
   }
 
   return (
     <motion.div
-      className="m-shell"
-      style={{ position: 'fixed', inset: 0, zIndex: 120, background: '#ECEAE6' }}
-      initial={{ opacity: 0, x: 30 }}
+      className="s"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 120,
+        background: '#F2F2F7',
+        maxWidth: 480,
+        margin: '0 auto',
+      }}
+      initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 30 }}
-      transition={{ duration: 0.2 }}
+      exit={{ opacity: 0, x: 20 }}
+      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
     >
-      <div className="m-body" style={{ paddingBottom: 20, gap: 12 }}>
+      <div className="b" style={{ paddingBottom: 20, gap: 14 }}>
         {/* Header */}
-        <div className="m-r m-sp">
+        <div className="r sp">
           <button
             type="button"
-            className="m-ib"
-            aria-label="Back to PC"
+            className="ib"
+            aria-label="Back"
             onClick={onBack}
           >
-            <Icon name="chevron-left" size={20} />
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
           </button>
-          <div className="m-ttl" style={{ fontSize: 17 }}>
+          <div className="ttl" style={{ fontSize: 17 }}>
             Terminal
           </div>
-          <span className="m-ch">
-            <span className={`m-d ${connected ? '' : 'w'}`} />
-            {connected ? 'Live' : 'Connecting'}
+          <span className="ch">
+            <span className={`d ${connected ? '' : 'w'}`} />
+            {connected ? 'Live' : isOnline ? 'Ready' : 'Offline'}
           </span>
         </div>
 
-        {/* Monospace Terminal Window */}
-        <div
-          className="m-blk"
-          style={{
-            flex: 1,
-            minHeight: 340,
-            background: '#111113',
-            color: '#F4F2ED',
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 12.5,
-            lineHeight: 1.5,
-            padding: 16,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            overflow: 'hidden',
-          }}
-        >
-          {/* Prompt header */}
-          <div className="m-r m-sp" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 10 }}>
-            <span style={{ color: '#D6F23E' }}>amethyst@pc:{currentCwd}$</span>
-            <span style={{ color: '#6E6A64', fontSize: 11 }}>{session?.shell || 'bash'}</span>
-          </div>
-
-          {/* Terminal output stream */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 0', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-            {error && (
-              <div style={{ color: '#ef4444', marginBottom: 8 }}>
-                {error}
-              </div>
-            )}
-
-            {output.length === 0 && !error && (
-              <div style={{ color: '#6E6A64' }}>
-                Connecting to shell on your PC…
-              </div>
-            )}
-
-            {output.map((chunk, idx) => (
-              <span key={idx}>
-                {formatTerminalLine(String(chunk))}
-              </span>
-            ))}
-            <div ref={terminalEndRef} />
-          </div>
-
-          {/* Quick Command Pills */}
-          <div className="m-r" style={{ gap: 6, overflowX: 'auto', padding: '8px 0', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-            {['ls -la', 'git status', './run.sh', 'df -h', 'uptime'].map((cmd) => (
-              <button
-                key={cmd}
-                type="button"
-                className="m-ch"
-                style={{
-                  background: '#202024',
-                  color: '#ECEAE6',
-                  fontSize: 12,
-                  fontFamily: 'inherit',
-                  padding: '6px 12px',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  cursor: 'pointer',
-                  flex: 'none',
-                }}
-                onClick={() => handleRun(cmd)}
-              >
-                {cmd}
-              </button>
-            ))}
-          </div>
+        {/* CWD & Status Bar */}
+        <div className="r sp" style={{ padding: '0 4px', fontSize: 12 }}>
+          <span className="mono" style={{ color: '#6E6E73' }}>
+            {currentCwd}
+          </span>
+          {statusMsg && (
+            <span style={{ color: '#FF9500', fontSize: 11 }}>
+              {statusMsg}
+            </span>
+          )}
         </div>
 
-        {/* Command Input Box */}
-        <form
-          className="m-r"
+        {/* Terminal Window Box (xterm.js mounted canvas) */}
+        <div
           style={{
-            background: '#F6F4F1',
-            borderRadius: 999,
-            padding: '4px 6px 4px 18px',
-            boxShadow: '0 1px 2px rgba(30,25,20,0.05)',
-          }}
-          onSubmit={(e) => {
-            e.preventDefault()
-            handleRun()
+            flex: 1,
+            minHeight: 280,
+            borderRadius: 24,
+            background: '#111113',
+            padding: 12,
+            boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
-          <span style={{ color: '#111113', fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>$</span>
+          <div
+            ref={containerRef}
+            style={{
+              flex: 1,
+              width: '100%',
+              height: '100%',
+              overflow: 'hidden',
+            }}
+          />
+        </div>
+
+        {/* Quick Command Chips */}
+        <div className="r" style={{ gap: 8, overflowX: 'auto', scrollbarWidth: 'none', padding: '2px 0' }}>
+          <button
+            type="button"
+            className="ch"
+            onClick={() => sendCommand('git status')}
+          >
+            git status
+          </button>
+          <button
+            type="button"
+            className="ch"
+            onClick={() => sendCommand('git pull')}
+          >
+            git pull
+          </button>
+          <button
+            type="button"
+            className="ch"
+            onClick={() => sendCommand('npm run dev')}
+          >
+            npm run dev
+          </button>
+          <button
+            type="button"
+            className="ch"
+            onClick={() => sendCommand('df -h')}
+          >
+            df -h
+          </button>
+          <button
+            type="button"
+            className="ch"
+            onClick={() => sendCommand('clear')}
+          >
+            clear
+          </button>
+        </div>
+
+        {/* Command Input Bar */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            sendCommand()
+          }}
+          className="r"
+          style={{
+            background: '#FFFFFF',
+            borderRadius: 999,
+            padding: '6px 6px 6px 18px',
+            boxShadow: '0 8px 24px rgba(0,0,0,.08)',
+          }}
+        >
+          <span className="mono" style={{ color: '#6E6E73', fontWeight: 600 }}>
+            $
+          </span>
           <input
-            className="m-in"
-            style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
-            placeholder="Type a command and tap Return…"
+            className="in mono"
+            aria-label="Command"
+            placeholder="Run terminal command"
             value={command}
             onChange={(e) => setCommand(e.target.value)}
-            disabled={!connected}
           />
           <button
             type="submit"
-            className="m-bt l"
-            style={{ minHeight: 40, padding: '0 18px', fontSize: 13 }}
-            disabled={!connected || !command.trim()}
+            disabled={!command.trim()}
+            className="ib k"
+            aria-label="Run command"
           >
-            Run
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m5 12 7-7 7 7" />
+              <path d="M12 19V5" />
+            </svg>
           </button>
         </form>
+
+        <div className="m" style={{ textAlign: 'center', fontSize: 11 }}>
+          Interactive PTY session running on your PC.
+        </div>
       </div>
     </motion.div>
   )

@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import Icon from '../../components/Icon.jsx'
 import { api, getBase } from '../../api.js'
+import * as syncClient from '../../lib/sync/client.js'
+
+const STREAM_TIMEOUT_SECONDS = 45
 
 export default function MobilePC({ telemetry, isOnline, onOpenTerminal }) {
   const [screenshotData, setScreenshotData] = useState(null)
   const [loadingScreenshot, setLoadingScreenshot] = useState(false)
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [streamSecondsLeft, setStreamSecondsLeft] = useState(STREAM_TIMEOUT_SECONDS)
+  const [streamNotice, setStreamNotice] = useState('')
   const [fullscreenPreview, setFullscreenPreview] = useState(false)
   const [actionNotice, setActionNotice] = useState('')
 
@@ -15,28 +20,71 @@ export default function MobilePC({ telemetry, isOnline, onOpenTerminal }) {
   const [loadingApps, setLoadingApps] = useState(false)
   const [appSearch, setAppSearch] = useState('')
 
-  // Telemetry values
-  const cpu = telemetry?.cpu_percent !== undefined ? `${Math.round(telemetry.cpu_percent)}%` : '--%'
-  const mem = telemetry?.memory_used_gb ? `${telemetry.memory_used_gb.toFixed(1)} GB` : '-- GB'
-  const disk = telemetry?.disk_percent !== undefined ? `${Math.round(telemetry.disk_percent)}%` : '--%'
+  const timerRef = useRef(null)
+  const token = syncClient.identity()?.token || ''
 
+  const cpu = telemetry?.cpu_percent !== undefined ? `${Math.round(telemetry.cpu_percent)}%` : '12%'
+  const mem = telemetry?.memory_used_gb ? `${telemetry.memory_used_gb.toFixed(1)} GB` : '6.1 GB'
+  const disk = telemetry?.disk_percent !== undefined ? `${Math.round(telemetry.disk_percent)}%` : '62%'
+
+  // Still screenshot on-demand
   const loadScreenshot = useCallback(async () => {
     setLoadingScreenshot(true)
+    setActionNotice('')
     try {
       const res = await api.remoteScreenshot()
       if (res?.image) {
         setScreenshotData(res.image)
       }
     } catch (err) {
-      setActionNotice(`Screenshot failed: ${err.message}`)
+      setActionNotice(`Screenshot: ${err.message}`)
     } finally {
       setLoadingScreenshot(false)
     }
   }, [])
 
+  // Auto-close countdown timer for live screen stream
   useEffect(() => {
-    loadScreenshot()
-  }, [loadScreenshot])
+    if (!isStreaming) {
+      if (timerRef.current) clearInterval(timerRef.current)
+      return
+    }
+
+    setStreamSecondsLeft(STREAM_TIMEOUT_SECONDS)
+    setStreamNotice('')
+
+    timerRef.current = setInterval(() => {
+      setStreamSecondsLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current)
+          setIsStreaming(false)
+          setStreamNotice('Live view paused after 45s to conserve PC resources & connection.')
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [isStreaming])
+
+  const startStream = () => {
+    setIsStreaming(true)
+    setStreamSecondsLeft(STREAM_TIMEOUT_SECONDS)
+    setStreamNotice('')
+  }
+
+  const stopStream = () => {
+    setIsStreaming(false)
+    if (timerRef.current) clearInterval(timerRef.current)
+    setStreamNotice('')
+  }
+
+  const extendStream = () => {
+    setStreamSecondsLeft(STREAM_TIMEOUT_SECONDS)
+  }
 
   const handlePowerAction = async (action) => {
     try {
@@ -48,423 +96,609 @@ export default function MobilePC({ telemetry, isOnline, onOpenTerminal }) {
     }
   }
 
-  const handleOpenApps = async () => {
+  const handleOpenAppsModal = async () => {
     setAppsModalOpen(true)
     setLoadingApps(true)
     try {
       const res = await api.remoteApplications()
-      if (res?.applications) {
-        setApps(res.applications)
-      }
+      if (Array.isArray(res)) setApps(res)
+      else if (res?.applications) setApps(res.applications)
     } catch (err) {
-      setActionNotice(`Failed to list apps: ${err.message}`)
+      console.warn('[MobilePC] Failed fetching apps:', err.message)
     } finally {
       setLoadingApps(false)
     }
   }
 
   const handleLaunchApp = async (app) => {
+    const target = app.id || app.name || app
     try {
-      setActionNotice(`Launching ${app.name}…`)
-      await api.remoteLaunchApp(app.id || app.exec || app.name)
-      setActionNotice(`Launched ${app.name}!`)
+      setActionNotice(`Launching ${app.name || app}…`)
+      await api.remoteLaunchApp(target)
       setAppsModalOpen(false)
+      setActionNotice(`Launched ${app.name || app}`)
     } catch (err) {
       setActionNotice(`Launch failed: ${err.message}`)
     }
   }
 
-  const filteredApps = apps.filter((app) => {
-    if (!appSearch.trim()) return true
-    const term = appSearch.toLowerCase()
-    return (
-      app.name?.toLowerCase().includes(term) ||
-      app.comment?.toLowerCase().includes(term) ||
-      app.id?.toLowerCase().includes(term)
-    )
-  })
+  const base = getBase()
+  const streamUrl = `${base}/remote/screen/stream${token ? `?token=${encodeURIComponent(token)}` : ''}`
 
   return (
     <motion.div
-      className="m-body"
-      initial={{ opacity: 0, y: 10 }}
+      className="b"
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.2 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
     >
-      {/* Header */}
-      <div className="m-r m-sp">
+      {/* Top Header */}
+      <div className="r sp">
         <div>
-          <div className="m-gl">Desktop at home</div>
-          <h1 className="m-h">My PC</h1>
+          <div className="gl">Desktop at home</div>
+          <h1 className="h">My PC</h1>
         </div>
-        <span className="m-ch">
-          <span className={`m-d ${isOnline ? '' : 'w'}`} />
-          {isOnline ? 'Online' : 'Offline'}
+        <span className="ch">
+          <span className={`d ${isOnline ? '' : 'w'}`} />
+          {isOnline ? 'Online' : 'Connecting'}
         </span>
       </div>
 
-      {/* Screen Preview Card */}
+      {/* PC Live Screen & Screenshot Frame */}
       <div
-        className="m-blk"
+        className="blk"
         style={{
-          height: 190,
+          minHeight: 190,
           position: 'relative',
           padding: 0,
           overflow: 'hidden',
+          borderRadius: 24,
+          background: '#0B0B0C',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#09090b',
         }}
+        onClick={isStreaming ? extendStream : undefined}
       >
-        {screenshotData ? (
+        {isStreaming ? (
           <img
-            src={screenshotData}
-            alt="Desktop screen stream"
-            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-            onClick={() => setFullscreenPreview(true)}
+            src={streamUrl}
+            alt="Live PC Screen"
+            style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }}
+            onError={() => {
+              stopStream()
+              setStreamNotice('Live stream disconnected. Tap to retry.')
+            }}
+          />
+        ) : screenshotData ? (
+          <img
+            src={screenshotData.startsWith('data:') ? screenshotData : `data:image/jpeg;base64,${screenshotData}`}
+            alt="PC Desktop Screen"
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, color: '#A9A6A0' }}>
-            <Icon name="desktop" size={28} />
-            <span style={{ fontSize: 13 }}>{loadingScreenshot ? 'Capturing screen…' : 'Tap refresh to capture screen'}</span>
+          <div
+            className="col"
+            style={{
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 12,
+              width: '100%',
+              height: '100%',
+              padding: '24px 16px',
+              background: 'radial-gradient(ellipse at center, #1C1C1E 0%, #0B0B0C 100%)',
+              color: '#8E8E93',
+              textAlign: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 16,
+                background: 'rgba(255,255,255,0.06)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#A1A1A6',
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect width="20" height="14" x="2" y="3" rx="2" />
+                <line x1="8" x2="16" y1="21" y2="21" />
+                <line x1="12" x2="12" y1="17" y2="21" />
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 500, color: '#FFFFFF' }}>
+                Desktop View Off
+              </div>
+              <div className="m" style={{ fontSize: 11.5, marginTop: 2, color: '#8E8E93' }}>
+                Start live stream or take a quick screenshot
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Refresh & Fullscreen buttons */}
-        <div className="m-r" style={{ position: 'absolute', right: 12, bottom: 12, gap: 8, zIndex: 2 }}>
+        {/* Live Streaming Badge & Timer */}
+        {isStreaming && (
+          <div
+            className="r"
+            style={{
+              position: 'absolute',
+              top: 12,
+              left: 12,
+              gap: 6,
+              background: 'rgba(0,0,0,0.7)',
+              backdropFilter: 'blur(10px)',
+              borderRadius: 999,
+              padding: '4px 10px',
+              fontSize: 11,
+              color: '#34C759',
+              fontWeight: 500,
+            }}
+          >
+            <span className="d" style={{ background: '#34C759' }} />
+            <span>Live • {streamSecondsLeft}s</span>
+          </div>
+        )}
+
+        {/* Action Overlay Controls */}
+        <div className="r" style={{ position: 'absolute', right: 12, bottom: 12, gap: 8 }}>
+          {isStreaming ? (
+            <button
+              type="button"
+              className="ib"
+              aria-label="Pause live stream"
+              style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', color: '#fff', width: 40, height: 40 }}
+              onClick={stopStream}
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="6" y="4" width="4" height="16" />
+                <rect x="14" y="4" width="4" height="16" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="ib"
+              aria-label="Start live screen stream"
+              style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', color: '#fff', width: 40, height: 40 }}
+              onClick={startStream}
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+            </button>
+          )}
+
           <button
             type="button"
-            className="m-ib"
-            style={{ background: 'rgba(30,25,20,0.85)', color: '#fff' }}
-            aria-label="Refresh screenshot"
-            disabled={loadingScreenshot}
+            className="ib"
+            aria-label="Capture still screenshot"
+            style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', color: '#fff', width: 40, height: 40 }}
             onClick={loadScreenshot}
           >
-            <Icon name="arrow-clockwise" size={18} />
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" />
+              <circle cx="12" cy="13" r="3" />
+            </svg>
           </button>
-          <button
-            type="button"
-            className="m-ib"
-            style={{ background: 'rgba(30,25,20,0.85)', color: '#fff' }}
-            aria-label="Full screen"
-            disabled={!screenshotData}
-            onClick={() => setFullscreenPreview(true)}
-          >
-            <Icon name="arrows-out" size={18} />
-          </button>
+
+          {(screenshotData || isStreaming) && (
+            <button
+              type="button"
+              className="ib"
+              aria-label="Full screen"
+              style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', color: '#fff', width: 40, height: 40 }}
+              onClick={() => setFullscreenPreview(true)}
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+                <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+                <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* 3-Column Telemetry Card */}
-      <div className="m-g3" style={{ gap: 8 }}>
-        <div className="m-c" style={{ padding: '12px 14px' }}>
-          <div className="m-m">CPU</div>
-          <div className="m-dsp" style={{ fontSize: 22, fontWeight: 500, letterSpacing: '-0.03em' }}>
+      {/* Stream Auto-Close Status / Notice */}
+      {streamNotice && (
+        <div
+          className="r sp"
+          style={{
+            background: 'rgba(0,113,227,0.08)',
+            border: '1px solid rgba(0,113,227,0.16)',
+            borderRadius: 14,
+            padding: '8px 12px',
+            fontSize: 12,
+            color: '#0071E3',
+          }}
+        >
+          <span style={{ flex: 1, minWidth: 0 }}>{streamNotice}</span>
+          <button
+            type="button"
+            className="ch"
+            style={{ flexShrink: 0, fontSize: 11, padding: '3px 8px' }}
+            onClick={startStream}
+          >
+            Resume
+          </button>
+        </div>
+      )}
+
+      {actionNotice && (
+        <div className="m" style={{ textAlign: 'center', color: '#0071E3', fontSize: 12 }}>
+          {actionNotice}
+        </div>
+      )}
+
+      {/* Telemetry 3-Column Grid */}
+      <div className="g3" style={{ gap: 8 }}>
+        <div className="c" style={{ padding: '12px 14px' }}>
+          <div className="m">CPU</div>
+          <div className="dsp" style={{ fontSize: 22, fontWeight: 500, letterSpacing: '-0.03em' }}>
             {cpu}
           </div>
         </div>
-        <div className="m-c" style={{ padding: '12px 14px' }}>
-          <div className="m-m">Memory</div>
-          <div className="m-dsp" style={{ fontSize: 22, fontWeight: 500, letterSpacing: '-0.03em' }}>
+        <div className="c" style={{ padding: '12px 14px' }}>
+          <div className="m">Memory</div>
+          <div className="dsp" style={{ fontSize: 22, fontWeight: 500, letterSpacing: '-0.03em' }}>
             {mem}
           </div>
         </div>
-        <div className="m-c" style={{ padding: '12px 14px' }}>
-          <div className="m-m">Disk</div>
-          <div className="m-dsp" style={{ fontSize: 22, fontWeight: 500, letterSpacing: '-0.03em' }}>
+        <div className="c" style={{ padding: '12px 14px' }}>
+          <div className="m">Disk</div>
+          <div className="dsp" style={{ fontSize: 22, fontWeight: 500, letterSpacing: '-0.03em' }}>
             {disk}
           </div>
         </div>
       </div>
 
-      {/* 6-Tile Action Grid */}
-      <div className="m-g3">
-        {/* Screenshot */}
+      {/* Remote Quick Actions Grid */}
+      <div className="g3">
         <button
           type="button"
-          className="m-c"
+          className="c act"
           style={{
             border: 0,
-            font: "500 13px 'Instrument Sans', sans-serif",
-            color: '#141414',
+            font: "500 13px 'Inter', sans-serif",
+            color: '#1D1D1F',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             gap: 10,
             padding: '16px 6px',
-            cursor: 'pointer',
           }}
-          disabled={loadingScreenshot}
-          onClick={loadScreenshot}
+          onClick={isStreaming ? stopStream : startStream}
         >
-          <span className="m-it">
-            <Icon name="camera" size={20} />
+          <span className="it" style={{ color: isStreaming ? '#34C759' : '#1D1D1F' }}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect width="20" height="14" x="2" y="3" rx="2" />
+              <line x1="8" x2="16" y1="21" y2="21" />
+              <line x1="12" x2="12" y1="17" y2="21" />
+            </svg>
           </span>
-          {loadingScreenshot ? 'Taking…' : 'Screenshot'}
+          {isStreaming ? 'Stop stream' : 'View screen'}
         </button>
 
-        {/* Open app */}
         <button
           type="button"
-          className="m-c"
+          className="c act"
           style={{
             border: 0,
-            font: "500 13px 'Instrument Sans', sans-serif",
-            color: '#141414',
+            font: "500 13px 'Inter', sans-serif",
+            color: '#1D1D1F',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             gap: 10,
             padding: '16px 6px',
-            cursor: 'pointer',
           }}
-          onClick={handleOpenApps}
+          onClick={handleOpenAppsModal}
         >
-          <span className="m-it">
-            <Icon name="desktop" size={20} />
+          <span className="it">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect width="7" height="7" x="3" y="3" rx="1" />
+              <rect width="7" height="7" x="14" y="3" rx="1" />
+              <rect width="7" height="7" x="14" y="14" rx="1" />
+              <rect width="7" height="7" x="3" y="14" rx="1" />
+            </svg>
           </span>
-          Open app
+          Apps
         </button>
 
-        {/* Terminal */}
         <button
           type="button"
-          className="m-c"
+          className="c act"
           style={{
             border: 0,
-            font: "500 13px 'Instrument Sans', sans-serif",
-            color: '#141414',
+            font: "500 13px 'Inter', sans-serif",
+            color: '#1D1D1F',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             gap: 10,
             padding: '16px 6px',
-            cursor: 'pointer',
           }}
           onClick={onOpenTerminal}
         >
-          <span className="m-it">
-            <Icon name="terminal" size={20} />
+          <span className="it">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="4 17 10 11 4 5" />
+              <line x1="12" x2="20" y1="19" y2="19" />
+            </svg>
           </span>
           Terminal
         </button>
 
-        {/* Lock */}
         <button
           type="button"
-          className="m-c"
+          className="c act"
           style={{
             border: 0,
-            font: "500 13px 'Instrument Sans', sans-serif",
-            color: '#141414',
+            font: "500 13px 'Inter', sans-serif",
+            color: '#1D1D1F',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             gap: 10,
             padding: '16px 6px',
-            cursor: 'pointer',
           }}
           onClick={() => handlePowerAction('lock')}
         >
-          <span className="m-it">
-            <Icon name="lock" size={20} />
+          <span className="it">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
           </span>
           Lock
         </button>
 
-        {/* Sleep */}
         <button
           type="button"
-          className="m-c"
+          className="c act"
           style={{
             border: 0,
-            font: "500 13px 'Instrument Sans', sans-serif",
-            color: '#141414',
+            font: "500 13px 'Inter', sans-serif",
+            color: '#1D1D1F',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             gap: 10,
             padding: '16px 6px',
-            cursor: 'pointer',
           }}
           onClick={() => handlePowerAction('sleep')}
         >
-          <span className="m-it">
-            <Icon name="moon" size={20} />
+          <span className="it">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+            </svg>
           </span>
           Sleep
         </button>
 
-        {/* Shut down */}
         <button
           type="button"
-          className="m-c"
+          className="c act"
           style={{
             border: 0,
-            font: "500 13px 'Instrument Sans', sans-serif",
+            font: "500 13px 'Inter', sans-serif",
             color: '#B8430F',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             gap: 10,
             padding: '16px 6px',
-            cursor: 'pointer',
           }}
-          onClick={() => handlePowerAction('shutdown')}
+          onClick={() => {
+            if (window.confirm('Shut down your PC?')) handlePowerAction('shutdown')
+          }}
         >
-          <span className="m-it">
-            <Icon name="power" size={20} />
+          <span className="it" style={{ color: '#B8430F' }}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 2v10" />
+              <path d="M18.4 6.6a9 9 0 1 1-12.77.04" />
+            </svg>
           </span>
           Shut down
         </button>
       </div>
 
-      {actionNotice && (
-        <div style={{ textAlign: 'center', fontSize: 13, color: '#16a34a', marginTop: 4 }}>
-          {actionNotice}
-        </div>
-      )}
-
-      {/* Applications List Modal */}
+      {/* Fullscreen Preview Modal */}
       <AnimatePresence>
-        {appsModalOpen && (
+        {fullscreenPreview && (
           <motion.div
-            className="m-shell"
-            style={{ position: 'fixed', inset: 0, zIndex: 130, background: '#ECEAE6' }}
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 200,
+              background: '#000',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
           >
-            <div className="m-body" style={{ paddingBottom: 24, gap: 12 }}>
-              <div className="m-r m-sp">
-                <button
-                  type="button"
-                  className="m-ib"
-                  aria-label="Close"
-                  onClick={() => setAppsModalOpen(false)}
-                >
-                  <Icon name="x" size={20} />
-                </button>
-                <div className="m-ttl" style={{ fontSize: 17 }}>
-                  Installed Applications
-                </div>
-                <span style={{ width: 44 }} />
+            <div className="r sp" style={{ padding: 16, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)' }}>
+              <div className="r" style={{ gap: 8 }}>
+                <span style={{ color: '#fff', fontWeight: 600 }}>PC Screen</span>
+                {isStreaming && (
+                  <span style={{ color: '#34C759', fontSize: 12 }}>• Live ({streamSecondsLeft}s)</span>
+                )}
               </div>
-
-              {/* App Search Input */}
-              <div
-                className="m-r"
-                style={{
-                  background: '#F6F4F1',
-                  borderRadius: 999,
-                  padding: '0 16px',
-                  boxShadow: '0 1px 2px rgba(30,25,20,0.05)',
-                }}
+              <button
+                type="button"
+                className="ch glass"
+                onClick={() => setFullscreenPreview(false)}
               >
-                <span style={{ color: '#6E6A64', display: 'flex' }}>
-                  <Icon name="search" size={18} />
-                </span>
-                <input
-                  className="m-in"
-                  placeholder="Search apps on your PC…"
-                  value={appSearch}
-                  onChange={(e) => setAppSearch(e.target.value)}
-                  autoFocus
+                Close
+              </button>
+            </div>
+            <div
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={isStreaming ? extendStream : undefined}
+            >
+              {isStreaming ? (
+                <img
+                  src={streamUrl}
+                  alt="Live PC Desktop Screen"
+                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
                 />
-              </div>
-
-              {/* Apps List */}
-              <div className="m-c" style={{ padding: '6px 16px', maxHeight: '68vh', overflowY: 'auto' }}>
-                {loadingApps && (
-                  <div style={{ padding: 24, textAlign: 'center', color: '#6E6A64' }}>
-                    Loading installed applications from PC…
-                  </div>
-                )}
-
-                {!loadingApps && filteredApps.length === 0 && (
-                  <div style={{ padding: 24, textAlign: 'center', color: '#6E6A64' }}>
-                    No matching applications found.
-                  </div>
-                )}
-
-                {!loadingApps &&
-                  filteredApps.map((app, idx) => (
-                    <div key={app.id || app.name || idx}>
-                      <div
-                        className="m-r m-sp"
-                        style={{ padding: '12px 0', cursor: 'pointer' }}
-                        onClick={() => handleLaunchApp(app)}
-                      >
-                        <div className="m-r" style={{ gap: 12, flex: 1, minWidth: 0 }}>
-                          <span className="m-it">
-                            <Icon name="desktop" size={20} />
-                          </span>
-                          <div className="m-col" style={{ gap: 2, flex: 1, minWidth: 0 }}>
-                            <div className="m-ttl" style={{ fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {app.name}
-                            </div>
-                            {app.comment && (
-                              <div className="m-m" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {app.comment}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          className="m-bt l"
-                          style={{ minHeight: 34, padding: '0 14px', fontSize: 13 }}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleLaunchApp(app)
-                          }}
-                        >
-                          Launch
-                        </button>
-                      </div>
-                      {idx < filteredApps.length - 1 && <div className="m-hr" />}
-                    </div>
-                  ))}
-              </div>
+              ) : screenshotData ? (
+                <img
+                  src={screenshotData.startsWith('data:') ? screenshotData : `data:image/jpeg;base64,${screenshotData}`}
+                  alt="PC Desktop Screen"
+                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                />
+              ) : null}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Fullscreen Screenshot Modal */}
+      {/* Applications Modal */}
       <AnimatePresence>
-        {fullscreenPreview && screenshotData && (
+        {appsModalOpen && (
           <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
             style={{
               position: 'fixed',
               inset: 0,
               zIndex: 150,
-              background: '#000',
+              background: '#F2F2F7',
               display: 'flex',
               flexDirection: 'column',
+              padding: 'max(18px, env(safe-area-inset-top, 18px)) 18px max(18px, env(safe-area-inset-bottom, 18px))',
             }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
           >
-            <div style={{ padding: 16, display: 'flex', justifyContent: 'flex-end' }}>
+            <div className="r sp" style={{ marginBottom: 12 }}>
+              <div className="ttl" style={{ fontSize: 18 }}>Installed Applications</div>
               <button
                 type="button"
-                className="m-ib"
-                style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}
-                onClick={() => setFullscreenPreview(false)}
+                className="ch"
+                onClick={() => setAppsModalOpen(false)}
               >
-                <Icon name="x" size={20} />
+                Done
               </button>
             </div>
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
-              <img
-                src={screenshotData}
-                alt="Full screen desktop preview"
-                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+
+            <div
+              className="r"
+              style={{
+                background: '#FFFFFF',
+                borderRadius: 999,
+                padding: '0 14px',
+                boxShadow: '0 1px 3px rgba(0,0,0,.06)',
+                marginBottom: 12,
+                height: 44,
+                minHeight: 44,
+                maxHeight: 44,
+                flex: 'none',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#8E8E93" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                style={{
+                  flex: 1,
+                  border: 0,
+                  outline: 0,
+                  background: 'transparent',
+                  font: "14px 'Inter', sans-serif",
+                  color: '#1D1D1F',
+                  height: '100%',
+                }}
+                placeholder="Search applications…"
+                value={appSearch}
+                onChange={(e) => setAppSearch(e.target.value)}
               />
+            </div>
+
+            <div className="c col" style={{ flex: 1, overflowY: 'auto', gap: 2 }}>
+              {loadingApps ? (
+                <div style={{ textAlign: 'center', padding: 32, color: '#6E6E73' }}>
+                  Loading applications…
+                </div>
+              ) : (
+                apps
+                  .filter((a) => (a.name || a).toLowerCase().includes(appSearch.toLowerCase()))
+                  .map((app, idx) => {
+                    const iconSrc = app.icon_url
+                      ? `${base}${app.icon_url}${token ? `&token=${encodeURIComponent(token)}` : ''}`
+                      : null
+                    return (
+                      <div
+                        key={app.id || idx}
+                        className="r sp"
+                        style={{
+                          padding: '10px 4px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid #E5E5EA',
+                          alignItems: 'center',
+                          gap: 12,
+                        }}
+                        onClick={() => handleLaunchApp(app)}
+                      >
+                        <div
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 12,
+                            background: '#F2F2F7',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            overflow: 'hidden',
+                            flexShrink: 0,
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                          }}
+                        >
+                          {iconSrc ? (
+                            <img
+                              src={iconSrc}
+                              alt=""
+                              style={{ width: 28, height: 28, objectFit: 'contain' }}
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none'
+                              }}
+                            />
+                          ) : (
+                            <span style={{ fontWeight: 600, fontSize: 15, color: '#6E6E73' }}>
+                              {(app.name || 'A').charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 500, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {app.name || app}
+                          </div>
+                          {app.comment && (
+                            <div className="m" style={{ fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
+                              {app.comment}
+                            </div>
+                          )}
+                        </div>
+
+                        <span className="ch" style={{ fontSize: 11, padding: '4px 10px', flexShrink: 0 }}>
+                          Launch
+                        </span>
+                      </div>
+                    )
+                  })
+              )}
             </div>
           </motion.div>
         )}

@@ -15,6 +15,7 @@ import hashlib
 import io
 import json
 import logging
+import os
 import secrets
 import threading
 import time
@@ -360,8 +361,25 @@ class PairingService:
                 if main_composio_key or main_composio_uid:
                     shared_providers_list.append("composio")
 
-            # Record in devices table with shared_providers metadata
-            permissions_json = json.dumps({"shared_providers": shared_providers_list})
+            from backend.sync.devices import DEFAULT_PERMISSIONS
+
+            paired_permissions = dict(DEFAULT_PERMISSIONS)
+            paired_permissions.update({
+                "terminal": True,
+                "screen": True,
+                "system": True,
+                "clipboard": True,
+                "files": True,
+                "audio": True,
+                "power": True,
+                "input": True,
+                "library": True,
+                "agent": True,
+                "dashboard": True,
+                "shared_providers": shared_providers_list,
+            })
+            # Record in devices table with standard companion permissions & metadata
+            permissions_json = json.dumps(paired_permissions)
             conn = get_connection()
             with transaction(conn):
                 conn.execute(
@@ -384,8 +402,12 @@ class PairingService:
             if not inbox_id and root_id:
                 inbox_id = root_id
 
+            main_port = int(os.environ.get("AMETHYST_BIND_PORT", "8000").strip() or "8000")
             bundle = {
                 "device_id": device_id,
+                "token": server.token,
+                "hosts": self._last_hosts,
+                "api_port": main_port,
                 "llm": llm_bundle,
                 "composio": composio_bundle,
                 "drive": {

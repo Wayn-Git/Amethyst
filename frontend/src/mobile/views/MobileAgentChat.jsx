@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import Icon from '../../components/Icon.jsx'
 import { getBundle } from '../bundle.js'
 import { getAvailableModels } from '../llmClient.js'
 import { runAgentTurn } from '../agent/agentLoop.js'
@@ -14,9 +13,9 @@ export default function MobileAgentChat({ session, onBack }) {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [streamingText, setStreamingText] = useState('')
-  const [agentStatus, setAgentStatus] = useState(null) // 'thinking' | 'tool' | 'awaiting_confirmation' | 'interrupted' | 'completed'
+  const [agentStatus, setAgentStatus] = useState(null)
   const [currentToolCall, setCurrentToolCall] = useState(null)
-  const [activeConfirmation, setActiveConfirmation] = useState(null)
+  const [activeConfirmation, setActiveConfirmation] = useState(session?.confirmation || null)
   const [errorBanner, setErrorBanner] = useState(null)
 
   // Model Picker State
@@ -27,13 +26,12 @@ export default function MobileAgentChat({ session, onBack }) {
   const abortControllerRef = useRef(null)
   const messagesEndRef = useRef(null)
 
-  const sessionTitle = session?.title || 'Agent Chat'
+  const sessionTitle = session?.title || 'Hybrid retrieval note'
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
-  // Load bundle and models
   useEffect(() => {
     async function init() {
       try {
@@ -51,7 +49,6 @@ export default function MobileAgentChat({ session, onBack }) {
     init()
   }, [])
 
-  // Load conversation messages from local store
   const loadLocalMessages = useCallback(async (id) => {
     if (!id) return
     try {
@@ -74,7 +71,6 @@ export default function MobileAgentChat({ session, onBack }) {
     scrollToBottom()
   }, [messages, streamingText, currentToolCall, activeConfirmation])
 
-  // Handle user send
   const handleSend = async (textToSend) => {
     const text = (textToSend || input).trim()
     if (!text || sending) return
@@ -90,7 +86,6 @@ export default function MobileAgentChat({ session, onBack }) {
     const controller = new AbortController()
     abortControllerRef.current = controller
 
-    // Add user message to UI immediately for instant responsiveness
     const optimisticMsg = {
       id: `temp_u_${Date.now()}`,
       role: 'user',
@@ -168,14 +163,6 @@ export default function MobileAgentChat({ session, onBack }) {
         loadLocalMessages(conversationId)
       }
     }
-  };
-
-  const handleStop = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-      setSending(false)
-      setAgentStatus('interrupted')
-    }
   }
 
   const handleConfirmDecision = (allowed) => {
@@ -187,74 +174,79 @@ export default function MobileAgentChat({ session, onBack }) {
 
   return (
     <motion.div
-      className="m-shell"
-      style={{ position: 'fixed', inset: 0, zIndex: 120, background: '#ECEAE6' }}
-      initial={{ opacity: 0, x: 30 }}
+      className="s"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 120,
+        background: '#F2F2F7',
+        maxWidth: 480,
+        margin: '0 auto',
+      }}
+      initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 30 }}
-      transition={{ duration: 0.2 }}
+      exit={{ opacity: 0, x: 20 }}
+      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
     >
-      <div className="m-body" style={{ paddingBottom: 20, gap: 12 }}>
-        {/* Header */}
-        <div className="m-r m-sp">
+      <div className="b" style={{ paddingBottom: 20, gap: 12 }}>
+        {/* Top Header Bar */}
+        <div className="r sp">
           <button
             type="button"
-            className="m-ib"
-            aria-label="Back to sessions"
+            className="ib"
+            aria-label="Sessions"
             onClick={onBack}
           >
-            <Icon name="chevron-left" size={20} />
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
           </button>
-          <div
-            className="m-ttl"
-            style={{
-              fontSize: 17,
-              maxWidth: 180,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
+          <div className="ttl" style={{ fontSize: 17, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>
             {sessionTitle}
           </div>
           <button
             type="button"
-            className="m-ib"
-            aria-label="Refresh"
+            className="ib"
+            aria-label="More"
             onClick={() => {
               if (conversationId) loadLocalMessages(conversationId)
             }}
           >
-            <Icon name="arrow-clockwise" size={18} />
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="1" />
+              <circle cx="19" cy="12" r="1" />
+              <circle cx="5" cy="12" r="1" />
+            </svg>
           </button>
         </div>
 
-        {/* Model Picker Bar */}
+        {/* Model Selector Pill */}
         {availableModels.length > 0 && (
           <div
-            className="m-r"
+            className="r"
             style={{
-              background: '#F6F4F1',
-              borderRadius: 12,
-              padding: '6px 10px',
+              background: '#FFFFFF',
+              borderRadius: 999,
+              padding: '6px 14px',
               gap: 8,
-              alignItems: 'center',
-              boxShadow: '0 1px 2px rgba(30,25,20,0.04)',
+              boxShadow: '0 1px 2px rgba(0,0,0,.05)',
             }}
           >
-            <span style={{ color: '#8F8B85', display: 'flex' }}>
-              <Icon name="sparkle" size={16} />
+            <span style={{ color: '#0071E3', display: 'flex' }}>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+              </svg>
             </span>
             <select
-              aria-label="Model selection"
+              aria-label="Select model"
               style={{
                 flex: 1,
-                border: 'none',
+                border: 0,
                 background: 'transparent',
                 fontSize: 13,
                 fontWeight: 500,
-                color: '#111113',
-                outline: 'none',
+                color: '#1D1D1F',
+                outline: 0,
                 cursor: 'pointer',
               }}
               value={selectedModelId || ''}
@@ -272,32 +264,29 @@ export default function MobileAgentChat({ session, onBack }) {
         {/* Error Alert Banner */}
         {errorBanner && (
           <div
-            className="m-c"
+            className="c"
             style={{
               padding: '10px 14px',
               background: '#FEE2E2',
-              borderColor: '#FCA5A5',
-              borderRadius: 12,
+              borderRadius: 14,
               color: '#991B1B',
               fontSize: 13,
-              fontWeight: 500,
             }}
           >
-            <div className="m-r" style={{ gap: 8 }}>
-              <Icon name="shield-alert" size={16} />
+            <div className="r" style={{ gap: 8 }}>
               <div style={{ flex: 1 }}>{errorBanner}</div>
               <button
                 type="button"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#991B1B' }}
+                style={{ background: 'none', border: 0, cursor: 'pointer', color: '#991B1B' }}
                 onClick={() => setErrorBanner(null)}
               >
-                <Icon name="x" size={14} />
+                ✕
               </button>
             </div>
           </div>
         )}
 
-        {/* Message Stream */}
+        {/* Messages Stream */}
         <div
           style={{
             display: 'flex',
@@ -305,6 +294,7 @@ export default function MobileAgentChat({ session, onBack }) {
             gap: 12,
             flex: 1,
             overflowY: 'auto',
+            paddingBottom: 8,
           }}
         >
           {messages.length === 0 && !streamingText && (
@@ -316,7 +306,7 @@ export default function MobileAgentChat({ session, onBack }) {
                 justifyContent: 'center',
                 flex: 1,
                 textAlign: 'center',
-                color: '#6E6A64',
+                color: '#6E6E73',
                 padding: '40px 16px',
                 gap: 12,
               }}
@@ -326,27 +316,29 @@ export default function MobileAgentChat({ session, onBack }) {
                   width: 52,
                   height: 52,
                   borderRadius: '50%',
-                  background: '#F6F4F1',
+                  background: '#FFFFFF',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#141414',
+                  color: '#0071E3',
+                  boxShadow: '0 2px 8px rgba(0,0,0,.06)',
                 }}
               >
-                <Icon name="sparkle" size={24} />
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+                </svg>
               </div>
-              <div className="m-dsp" style={{ fontSize: 20, fontWeight: 600, color: '#141414' }}>
+              <div className="dsp" style={{ fontSize: 20, fontWeight: 600, color: '#1D1D1F' }}>
                 Chat with Amethyst
               </div>
               <div style={{ fontSize: 13, maxWidth: 280, lineHeight: 1.5 }}>
-                Directly search your Drive, manage files, and ask questions.
+                Ask questions, search your Library, and run tasks on your PC.
               </div>
             </div>
           )}
 
           {messages.map((msg, idx) => {
             const isUser = msg.role === 'user'
-            if (msg.role === 'tool') return null // rendered as tool badges below assistant call
 
             return (
               <div
@@ -361,192 +353,164 @@ export default function MobileAgentChat({ session, onBack }) {
                 {isUser ? (
                   <div
                     style={{
+                      alignSelf: 'flex-end',
                       background: '#111113',
                       color: '#fff',
                       borderRadius: '22px 22px 6px 22px',
                       padding: '12px 16px',
-                      maxWidth: '82%',
-                      wordBreak: 'break-word',
+                      maxWidth: 290,
+                      marginTop: 6,
                       lineHeight: 1.4,
+                      wordBreak: 'break-word',
                     }}
                   >
                     {msg.content}
                   </div>
                 ) : (
-                  <div
-                    className="m-c"
-                    style={{
-                      maxWidth: '90%',
-                      padding: '14px 16px',
-                      borderRadius: '22px 22px 22px 6px',
-                      lineHeight: 1.5,
-                      wordBreak: 'break-word',
-                    }}
-                  >
-                    {msg.tool_calls && Array.isArray(msg.tool_calls) && (
-                      <div
-                        style={{
-                          marginBottom: 8,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 4,
-                          fontSize: 12,
-                        }}
-                      >
-                        {msg.tool_calls.map((tc, tcIdx) => (
-                          <div
-                            key={tcIdx}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              background: '#F0ECE1',
-                              padding: '4px 8px',
-                              borderRadius: 8,
-                              color: '#44403C',
-                            }}
-                          >
-                            <Icon name="terminal" size={13} />
-                            <span style={{ fontWeight: 600 }}>{tc.name}</span>
-                            <span
-                              style={{
-                                color: '#78716C',
-                                fontSize: 11,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              ({JSON.stringify(tc.arguments || {})})
-                            </span>
-                          </div>
-                        ))}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: '92%' }}>
+                    {msg.tool_calls && Array.isArray(msg.tool_calls) && msg.tool_calls.map((tc, tcIdx) => (
+                      <span key={tcIdx} className="ch" style={{ alignSelf: 'flex-start' }}>
+                        <span style={{ display: 'flex', color: '#34C759' }}>
+                          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M20 6 9 17l-5-5" />
+                          </svg>
+                        </span>
+                        {tc.name ? `Executed ${tc.name}` : 'Searched Library, 4 items'}
+                      </span>
+                    ))}
+
+                    <p style={{ margin: 0, lineHeight: 1.5, color: '#1D1D1F' }}>
+                      {msg.content}
+                    </p>
+
+                    {/* Artifact note card if artifact present */}
+                    {msg.artifact && (
+                      <div className="c r" style={{ gap: 12, marginTop: 4 }}>
+                        <span className="it">
+                          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+                            <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+                            <path d="M10 9H8" />
+                            <path d="M16 13H8" />
+                            <path d="M16 17H8" />
+                          </svg>
+                        </span>
+                        <div>
+                          <div className="m">Draft note</div>
+                          <div className="ttl">{msg.artifact.title || 'Hybrid retrieval, in short'}</div>
+                        </div>
                       </div>
                     )}
-                    <div>{msg.content}</div>
                   </div>
                 )}
               </div>
             )
           })}
 
-          {/* Active Tool Call in Progress */}
-          {currentToolCall && (
-            <div
-              className="m-c"
+          {/* Animated Agent Status Indicators */}
+          {sending && !streamingText && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="r"
               style={{
-                maxWidth: '90%',
-                padding: '10px 14px',
-                borderRadius: 14,
-                background: '#FAF8F5',
-                borderColor: '#E7E5E4',
+                alignSelf: 'flex-start',
+                gap: 8,
+                padding: '10px 16px',
+                borderRadius: 20,
+                background: 'rgba(255, 255, 255, 0.85)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                border: '1px solid rgba(255, 255, 255, 0.9)',
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.05)',
+                fontSize: 13,
+                fontWeight: 500,
+                color: '#1D1D1F',
               }}
             >
-              <div className="m-r" style={{ gap: 8, fontSize: 12 }}>
-                <span className="m-spn" style={{ width: 14, height: 14 }} />
-                <span style={{ fontWeight: 600, color: '#1C1917' }}>Running tool:</span>
-                <span className="mono" style={{ color: '#0369A1' }}>
-                  {currentToolCall.tool}
-                </span>
-              </div>
-              {currentToolCall.arguments && (
-                <div
-                  className="mono"
-                  style={{
-                    fontSize: 11,
-                    color: '#78716C',
-                    marginTop: 4,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {JSON.stringify(currentToolCall.arguments)}
-                </div>
+              {agentStatus === 'searching' ? (
+                <>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#0071E3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ animation: 'r 2s linear infinite' }}>
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  <span>Searching Library & Drive…</span>
+                </>
+              ) : currentToolCall || agentStatus === 'calling' ? (
+                <>
+                  <span className="spn" style={{ width: 14, height: 14, borderColor: '#D1D1D6', borderTopColor: '#873FFF' }} />
+                  <span>Running {currentToolCall?.tool || 'tool'}…</span>
+                </>
+              ) : (
+                <>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#873FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z" />
+                  </svg>
+                  <span>Thinking…</span>
+                </>
               )}
-            </div>
+            </motion.div>
           )}
 
-          {/* Streaming response */}
+          {/* Streaming Assistant Response */}
           {streamingText && (
-            <div
-              className="m-c"
-              style={{
-                maxWidth: '90%',
-                padding: '14px 16px',
-                borderRadius: '22px 22px 22px 6px',
-                lineHeight: 1.5,
-                wordBreak: 'break-word',
-              }}
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: '92%' }}
             >
-              <div>{streamingText}</div>
-              <span className="m-spn" style={{ width: 12, height: 12, marginTop: 8 }} />
-            </div>
+              <p className="selectable-text" style={{ margin: 0, lineHeight: 1.5, color: '#1D1D1F' }}>
+                {streamingText}
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: 2,
+                    height: 14,
+                    background: '#873FFF',
+                    marginLeft: 4,
+                    verticalAlign: 'middle',
+                    animation: 'p 1s infinite alternate',
+                  }}
+                />
+              </p>
+            </motion.div>
           )}
 
-          {/* Write Confirmation Prompt */}
+          {/* Confirmation / Approval Card ("Wants to run on your PC") */}
           {activeConfirmation && (
-            <div
-              className="m-blk m-col"
-              style={{
-                gap: 12,
-                marginTop: 8,
-                background: '#18181B',
-                color: '#fff',
-                padding: 16,
-                borderRadius: 16,
-              }}
-            >
-              <div className="m-r" style={{ gap: 8, alignItems: 'center' }}>
-                <span className="m-d w" />
-                <span style={{ fontWeight: 600, fontSize: 14 }}>
-                  Action Confirmation Required
+            <div className="blk col" style={{ gap: 12, marginTop: 8 }}>
+              <div className="r">
+                <span className="d w" />
+                <span className="st" style={{ color: '#fff' }}>
+                  Wants to run on your PC
                 </span>
-              </div>
-              <div style={{ fontSize: 13, color: '#D4D4D8', lineHeight: 1.4 }}>
-                {activeConfirmation.reason || 'The agent requested an external write or destructive action.'}
               </div>
               <div
                 className="mono"
                 style={{
                   fontSize: 12,
-                  background: '#27272A',
+                  background: '#222225',
                   padding: '10px 12px',
-                  borderRadius: 10,
-                  wordBreak: 'break-all',
-                  color: '#A1A1AA',
+                  borderRadius: 12,
+                  color: '#A9A6A0',
                 }}
               >
-                <div style={{ color: '#E4E4E7', fontWeight: 600, marginBottom: 2 }}>
-                  Tool: {activeConfirmation.tool}
-                </div>
-                <div>Args: {JSON.stringify(activeConfirmation.args, null, 2)}</div>
+                {activeConfirmation.tool || activeConfirmation.command || 'git status'}
               </div>
-
-              <div className="m-r" style={{ gap: 10 }}>
+              <div className="r">
                 <button
                   type="button"
-                  className="bt l"
-                  style={{
-                    flex: 1,
-                    background: '#D6F23E',
-                    color: '#000',
-                    fontWeight: 600,
-                    borderRadius: 10,
-                  }}
+                  className="bt"
+                  style={{ flex: 1, background: '#fff', color: '#1D1D1F' }}
                   onClick={() => handleConfirmDecision(true)}
                 >
-                  Allow Action
+                  Allow
                 </button>
                 <button
                   type="button"
                   className="bt"
-                  style={{
-                    flex: 1,
-                    background: '#3F3F46',
-                    color: '#fff',
-                    borderRadius: 10,
-                  }}
+                  style={{ flex: 1, background: '#2C2C2E', color: '#fff' }}
                   onClick={() => handleConfirmDecision(false)}
                 >
                   Deny
@@ -558,49 +522,103 @@ export default function MobileAgentChat({ session, onBack }) {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Bottom Input Bar */}
-        <div
-          className="m-r"
+        {/* Suggestion Chips Row */}
+        <div className="r" style={{ marginTop: 'auto', gap: 8, overflowX: 'auto', scrollbarWidth: 'none' }}>
+          <button
+            type="button"
+            className="ch"
+            onClick={() => handleSend('Summarise today')}
+          >
+            Summarise today
+          </button>
+          <button
+            type="button"
+            className="ch"
+            onClick={() => handleSend('Triage inbox')}
+          >
+            Triage inbox
+          </button>
+          <button
+            type="button"
+            className="ch"
+            onClick={() => handleSend('What changed?')}
+          >
+            What changed?
+          </button>
+        </div>
+
+        {/* Input Pill */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            handleSend()
+          }}
+          className="r"
           style={{
-            background: '#F9F8F6',
+            background: '#FFFFFF',
             borderRadius: 999,
-            padding: 6,
-            boxShadow: '0 8px 24px rgba(30,25,20,.1)',
+            padding: '4px 6px',
+            boxShadow: '0 8px 24px rgba(0,0,0,.08)',
+            alignItems: 'center',
+            gap: 6,
+            width: '100%',
+            boxSizing: 'border-box',
           }}
         >
+          <button
+            type="button"
+            className="ib"
+            aria-label="Attach"
+            style={{ width: 38, height: 38, minWidth: 38, flexShrink: 0, background: '#F2F2F7', boxShadow: 'none' }}
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M5 12h14" />
+              <path d="M12 5v14" />
+            </svg>
+          </button>
+
           <input
-            className="m-in"
-            style={{ paddingLeft: 14 }}
-            placeholder={sending ? 'Agent is working…' : 'Message Amethyst…'}
+            className="in"
+            style={{ minWidth: 0, flex: 1, padding: '0 4px', fontSize: 15 }}
+            aria-label="Message Amethyst"
+            placeholder="Message Amethyst"
             value={input}
-            disabled={sending}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSend()
-            }}
           />
-          {sending ? (
-            <button
-              type="button"
-              className="m-ib"
-              style={{ background: '#E11D48', color: '#fff' }}
-              aria-label="Stop"
-              onClick={handleStop}
-            >
-              <Icon name="x" size={18} />
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="m-ib k"
-              aria-label="Send"
-              disabled={!input.trim()}
-              onClick={() => handleSend()}
-            >
-              <Icon name="arrow-up" size={20} />
-            </button>
-          )}
-        </div>
+
+          <button
+            type="button"
+            className="ib"
+            aria-label="Voice"
+            style={{ width: 38, height: 38, minWidth: 38, flexShrink: 0, background: 'transparent', boxShadow: 'none' }}
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <line x1="12" x2="12" y1="19" y2="22" />
+            </svg>
+          </button>
+
+          <button
+            type="submit"
+            disabled={!input.trim() || sending}
+            className="ib k"
+            aria-label="Send"
+            style={{
+              width: 38,
+              height: 38,
+              minWidth: 38,
+              flexShrink: 0,
+              opacity: !input.trim() || sending ? 0.35 : 1,
+              transition: 'opacity 0.2s ease',
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m5 12 7-7 7 7" />
+              <path d="M12 19V5" />
+            </svg>
+          </button>
+        </form>
       </div>
     </motion.div>
   )

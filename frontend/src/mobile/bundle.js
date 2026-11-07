@@ -176,5 +176,15 @@ export async function hasBundle() {
  */
 export async function loadFixtureBundle() {
   await saveBundle(BUNDLE_FIXTURE)
+  try {
+    const { saveIdentity } = await import('../lib/credentials.js')
+    await saveIdentity({
+      deviceId: BUNDLE_FIXTURE.device_id,
+      token: 'tok_fixture_companion_demo',
+      hostUrl: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000',
+      name: 'Amethyst Demo Phone',
+      permissions: { library: true, agent: true, terminal: true, pc: true },
+    })
+  } catch {}
   return BUNDLE_FIXTURE
 }

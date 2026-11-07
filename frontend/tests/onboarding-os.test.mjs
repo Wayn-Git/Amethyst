@@ -21,3 +21,4 @@ test('defaults safely when user agent unknown', () => {
   assert.equal(getClientOSFromUA(''), 'computer')
   assert.equal(getDisclaimerText('computer'), 'Everything stays on this computer until you connect something.')
 })
+

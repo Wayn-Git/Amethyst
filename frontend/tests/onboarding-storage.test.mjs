@@ -11,3 +11,4 @@ test('StepStorage has Composio API key, Google Drive Amethyst root, and optional
   assert.match(content, /Slack/)
   assert.match(content, /GitHub/)
 })
+

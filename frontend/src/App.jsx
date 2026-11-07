@@ -22,7 +22,8 @@ import { COMPONENTS } from './views/registry.js'
 import Pair from './views/Pair.jsx'
 import RemoteOnly from './views/RemoteOnly.jsx'
 import MobilePaired from './mobile/views/MobilePaired.jsx'
-import { getBundle } from './mobile/bundle.js'
+import Companion from './mobile/Companion.jsx'
+import { getBundle, clearBundle } from './mobile/bundle.js'
 import { initShareTarget } from './mobile/shareTarget.js'
 import { initShareQueue, subscribeShareQueue } from './mobile/shareQueue.js'
 import { paired as isPaired } from './lib/sync/client.js'
@@ -30,9 +31,12 @@ import { usePhone } from './hooks/useMediaQuery.js'
 import { safeStorage } from './lib/storage.js'
 import Chat from './views/Chat.jsx'
 import MobileNav from './components/MobileNav.jsx'
-import { isNativeMobile } from './lib/credentials.js'
+import { isNativeMobile, storedIdentity, saveIdentity, removeIdentity } from './lib/credentials.js'
 import { ToastStack } from './components/arc/toast-stack/toast-stack'
 import { useLiquidGlassManager } from './lib/liquid-glass/index.jsx'
+import MobileSplash from './mobile/views/MobileSplash.jsx'
+import MobileOnboarding from './mobile/views/MobileOnboarding.jsx'
+import { AnimatePresence, motion } from 'framer-motion'
 
 /* The workbench.
 
@@ -368,22 +372,58 @@ function wantsDesktop() {
    opens by fetching from a backend the phone may not be able to reach, and the
    ones it can reach are laid out for a screen it does not have. */
 function PhoneApp({ paired, onPaired, onDesktop }) {
-  const { server, retryServer } = useApp()
   const [bundle, setBundle] = useState(null)
   const [loading, setLoading] = useState(true)
   const [hasUnpairedShare, setHasUnpairedShare] = useState(false)
+  const [flow, setFlow] = useState(paired ? 'companion' : 'splash') // 'splash' | 'onboarding' | 'pair' | 'companion'
+  const [direction, setDirection] = useState(1)
 
   const checkBundle = useCallback(async () => {
     try {
       const b = await getBundle()
       setBundle(b)
+      if (b?.device_id) {
+        const id = storedIdentity()
+        const matchedHost = b.hosts?.[0] || safeStorage.getItem('amethyst.pc_host') || ''
+        const apiPort = b.api_port || 8000
+        const computedHost = matchedHost ? (matchedHost.startsWith('http') ? matchedHost : `http://${matchedHost}:${apiPort}`) : ''
+        if (!id?.deviceId || !id?.hostUrl || id.hostUrl.includes('localhost')) {
+          try {
+            await saveIdentity({
+              deviceId: b.device_id,
+              token: b.token || id?.token || 'tok_' + b.device_id,
+              hostUrl: computedHost || (id?.hostUrl && !id.hostUrl.includes('localhost') ? id.hostUrl : ''),
+              name: 'Paired Phone',
+              permissions: { library: true, agent: true, terminal: true, pc: true },
+            })
+          } catch {}
+        }
+      }
+      return b
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    checkBundle()
+    let active = true
+
+    if (paired) {
+      setFlow('companion')
+      checkBundle()
+      return () => { active = false }
+    }
+
+    checkBundle().then((b) => {
+      if (!active) return
+      if (b) {
+        setFlow('companion')
+      } else {
+        setFlow('onboarding')
+      }
+    })
+
+    return () => { active = false }
   }, [checkBundle, paired])
 
   useEffect(() => {
@@ -397,27 +437,6 @@ function PhoneApp({ paired, onPaired, onDesktop }) {
       unsubscribe?.()
     }
   }, [])
-
-  if (loading) {
-    return <BootScreen server={server} onRetry={retryServer} />
-  }
-
-  if (bundle) {
-    return (
-      <MobilePaired
-        bundle={bundle}
-        onUnpair={async () => {
-          setBundle(null)
-          onPaired?.(false)
-        }}
-        onDesktop={onDesktop}
-      />
-    )
-  }
-
-  if (paired) {
-    return <RemoteOnly onDesktop={onDesktop} />
-  }
 
   return (
     <>
@@ -446,7 +465,72 @@ function PhoneApp({ paired, onPaired, onDesktop }) {
           <span>Re-scan QR on your PC</span>
         </div>
       )}
-      <Pair onPaired={() => { checkBundle(); onPaired?.(true) }} onDesktop={onDesktop} />
+
+      <AnimatePresence mode="wait" custom={direction}>
+        {flow === 'splash' && (
+          <MobileSplash key="splash" />
+        )}
+
+        {flow === 'onboarding' && (
+          <MobileOnboarding
+            key="onboarding"
+            direction={direction}
+            onGetStarted={() => {
+              setDirection(1)
+              setFlow('pair')
+            }}
+            onSkip={() => {
+              setDirection(1)
+              setFlow('pair')
+            }}
+            onHaveCode={() => {
+              setDirection(1)
+              setFlow('pair')
+            }}
+          />
+        )}
+
+        {flow === 'pair' && (
+          <Pair
+            key="pair"
+            direction={direction}
+            onPaired={async () => {
+              await checkBundle()
+              onPaired?.(true)
+              setDirection(1)
+              setFlow('companion')
+            }}
+            onBack={() => {
+              setDirection(-1)
+              setFlow('onboarding')
+            }}
+          />
+        )}
+
+        {flow === 'companion' && (
+          <motion.div
+            key="companion"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            style={{ width: '100%', height: '100%' }}
+          >
+            <ErrorBoundary>
+              <Companion
+                onUnpair={async () => {
+                  await clearBundle()
+                  await removeIdentity()
+                  setBundle(null)
+                  onPaired?.(false)
+                  setDirection(-1)
+                  setFlow('onboarding')
+                }}
+              />
+            </ErrorBoundary>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   )
 }

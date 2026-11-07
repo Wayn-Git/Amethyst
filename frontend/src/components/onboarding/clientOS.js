@@ -19,3 +19,4 @@ export function getDisclaimerText(os = null) {
   const targetOS = os || getClientOS()
   return `Everything stays on this ${targetOS} until you connect something.`
 }
+

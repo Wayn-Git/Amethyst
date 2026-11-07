@@ -10,6 +10,7 @@ import shutil
 import signal
 import subprocess
 import time
+import urllib.parse
 from pathlib import Path
 from typing import Any
 
@@ -252,6 +253,93 @@ def kill_process(pid: int, signal_type: str = "SIGTERM") -> dict[str, Any]:
         return {"ok": False, "error": str(e)}
 
 
+def find_application_icon_path(name: str) -> str | None:
+    """Resolve an icon name or path to an absolute image file on the host."""
+    if not name or ".." in name:
+        return None
+    if os.path.isabs(name) and os.path.isfile(name):
+        return name
+
+    raw_name = name.strip()
+    for ext in (".png", ".svg", ".xpm"):
+        if raw_name.endswith(ext):
+            raw_name = raw_name[:-len(ext)]
+            break
+
+    clean = raw_name.lower()
+    aliases = [raw_name]
+    if clean != raw_name:
+        aliases.append(clean)
+
+    if "." in raw_name:
+        last = raw_name.split(".")[-1]
+        aliases.append(last)
+        if last.lower() != last:
+            aliases.append(last.lower())
+        hyphenated = re.sub(r'(?<!^)(?=[A-Z])', '-', last).lower()
+        if hyphenated not in aliases:
+            aliases.append(hyphenated)
+
+    alias_map = {
+        "code": ["visual-studio-code", "vscode", "com.visualstudio.code"],
+        "spotify": ["spotify-client", "com.spotify.Client"],
+        "terminal": ["utilities-terminal", "terminal", "org.gnome.Terminal", "kitty", "alacritty", "ptyxis"],
+        "files": ["system-file-manager", "org.gnome.Nautilus", "file-manager"],
+        "nautilus": ["org.gnome.Nautilus", "system-file-manager"],
+        "settings": ["preferences-system", "gnome-control-center"],
+        "chrome": ["google-chrome", "chromium-browser", "chromium"],
+        "firefox": ["firefox-esr", "org.mozilla.firefox"],
+        "calculator": ["accessories-calculator", "org.gnome.Calculator", "calc"],
+        "evince": ["org.gnome.Evince", "document-viewer", "org.gnome.Papers"],
+        "papers": ["org.gnome.Papers", "org.gnome.Evince", "document-viewer"],
+    }
+    for a in list(aliases):
+        if a.lower() in alias_map:
+            aliases.extend(alias_map[a.lower()])
+
+    home = Path.home()
+    search_dirs = [
+        str(home / "MacTahoe-icon-theme" / "src" / "apps" / "scalable"),
+        str(home / "MacTahoe-icon-theme" / "links" / "apps" / "scalable"),
+        str(home / "MacTahoe-icon-theme" / "bold" / "apps" / "symbolic"),
+        str(home / ".local" / "share" / "icons" / "hicolor" / "scalable" / "apps"),
+        str(home / ".local" / "share" / "icons" / "hicolor" / "256x256" / "apps"),
+        "/usr/share/icons/hicolor/scalable/apps",
+        "/usr/share/icons/hicolor/256x256/apps",
+        "/usr/share/icons/hicolor/128x128/apps",
+        "/usr/share/icons/hicolor/64x64/apps",
+        "/usr/share/icons/hicolor/48x48/apps",
+        "/usr/share/pixmaps",
+    ]
+
+    for candidate_name in aliases:
+        for d in search_dirs:
+            if not os.path.isdir(d):
+                continue
+            for ext in (".svg", ".png"):
+                cand = os.path.join(d, f"{candidate_name}{ext}")
+                if os.path.isfile(cand):
+                    return cand
+
+    # Simple icons in frontend/node_modules
+    for candidate_name in aliases:
+        simple_icon_path = os.path.abspath(os.path.join(
+            os.path.dirname(__file__), "..", "..", "frontend", "node_modules", "simple-icons", "icons", f"{candidate_name}.svg"
+        ))
+        if os.path.isfile(simple_icon_path):
+            return simple_icon_path
+
+    # Fallback search across icon themes
+    for candidate_name in aliases:
+        matches = glob.glob(f"/usr/share/icons/**/{candidate_name}.*", recursive=True)
+        for m in matches:
+            if os.path.isfile(m):
+                ext = os.path.splitext(m)[1].lower()
+                if ext in (".svg", ".png"):
+                    return m
+    return None
+
+
 def list_applications() -> list[dict[str, Any]]:
     """Scan and list common installed desktop applications."""
     app_dirs = [
@@ -279,11 +367,14 @@ def list_applications() -> list[dict[str, Any]]:
                     if name in seen_names:
                         continue
                     seen_names.add(name)
+                    icon_val = icon_match.group(1).strip() if icon_match else ""
+                    icon_url = f"/api/remote/applications/icon?name={urllib.parse.quote(icon_val)}" if icon_val else ""
                     apps.append({
                         "id": desktop_file.name,
                         "name": name,
                         "exec": exec_match.group(1).strip(),
-                        "icon": icon_match.group(1).strip() if icon_match else "",
+                        "icon": icon_val,
+                        "icon_url": icon_url,
                         "comment": comment_match.group(1).strip() if comment_match else "",
                     })
             except Exception:

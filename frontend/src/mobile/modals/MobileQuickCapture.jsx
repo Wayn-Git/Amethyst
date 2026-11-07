@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import Icon from '../../components/Icon.jsx'
 import { saveCapture, flushCaptures } from '../captures.js'
 import { api } from '../../api.js'
 
@@ -30,7 +29,6 @@ export default function MobileQuickCapture({ open, onClose, isOnline, onSaved })
       }
 
       if (target === 'task') {
-        // Direct task creation if connected
         try {
           await api.createTask({
             title: payload.title,
@@ -42,7 +40,6 @@ export default function MobileQuickCapture({ open, onClose, isOnline, onSaved })
           await saveCapture(payload)
         }
       } else {
-        // Save to durable mobile capture queue
         await saveCapture(payload)
         await flushCaptures().catch(() => {})
       }
@@ -59,194 +56,151 @@ export default function MobileQuickCapture({ open, onClose, isOnline, onSaved })
   return (
     <AnimatePresence>
       <motion.div
-        className="m-shell"
+        className="s"
         style={{
           position: 'fixed',
           inset: 0,
           zIndex: 150,
-          background: '#2C2A27',
+          background: 'rgba(0, 0, 0, 0.4)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
           display: 'flex',
           flexDirection: 'column',
+          justifyContent: 'flex-end',
+          maxWidth: 480,
+          margin: '0 auto',
         }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
+        onClick={onClose}
       >
-        {/* Top Header & Graphic Area (Concentric rings) */}
-        <div style={{ flex: 1, padding: '20px 20px 10px', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-            <button
-              type="button"
-              className="m-ib"
-              style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}
-              aria-label="Close"
-              onClick={onClose}
-            >
-              <Icon name="x" size={20} />
-            </button>
-          </div>
-          <div
-            style={{
-              width: '100%',
-              flex: 1,
-              maxHeight: 260,
-              borderRadius: 28,
-              background: '#111113',
-              overflow: 'hidden',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <svg viewBox="0 0 100 100" width="85%" height="85%" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-              <circle cx="50" cy="50" r="12" fill="none" stroke="#D6F23E" strokeWidth="2" />
-              <circle cx="50" cy="50" r="24" fill="none" stroke="#D6F23E" strokeWidth="2" />
-              <circle cx="50" cy="50" r="36" fill="none" stroke="#D6F23E" strokeWidth="2" />
-              <circle cx="50" cy="50" r="48" fill="none" stroke="#D6F23E" strokeWidth="2" />
-            </svg>
-          </div>
-        </div>
-
         {/* Bottom Sheet */}
         <motion.div
           style={{
-            background: '#F6F4F1',
+            background: '#FFFFFF',
             borderRadius: '32px 32px 0 0',
-            padding: '22px 20px 36px',
+            padding: '24px 20px 40px',
             display: 'flex',
             flexDirection: 'column',
             gap: 14,
+            boxShadow: '0 -10px 40px rgba(0,0,0,0.15)',
           }}
-          initial={{ y: 80 }}
+          initial={{ y: '100%' }}
           animate={{ y: 0 }}
-          exit={{ y: 80 }}
+          exit={{ y: '100%' }}
+          transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+          onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="m-r m-sp">
-            <h1 className="m-h" style={{ fontSize: 24 }}>
+          <div className="r sp">
+            <div className="ttl" style={{ fontSize: 18 }}>
               Send to Amethyst
-            </h1>
+            </div>
             <button
               type="button"
-              className="m-m"
-              style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', fontSize: 14 }}
+              className="ib"
+              style={{ width: 36, height: 36, background: '#F2F2F7', boxShadow: 'none' }}
+              aria-label="Close"
               onClick={onClose}
             >
-              Cancel
+              ✕
             </button>
           </div>
 
-          {/* Input Card */}
-          <div
-            className="m-col"
-            style={{
-              background: '#ECEAE6',
-              borderRadius: 20,
-              padding: 12,
-              gap: 8,
-            }}
-          >
-            <div className="m-r" style={{ gap: 12 }}>
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 12,
-                  background: '#D6F23E',
-                  overflow: 'hidden',
-                  flex: 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Icon name={target === 'task' ? 'check-circle' : target === 'agent' ? 'chat' : 'book'} size={22} />
-              </div>
-              <input
-                className="m-in"
-                style={{ fontWeight: 600, fontSize: 15 }}
-                placeholder="Title or headline…"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                autoFocus
-              />
-            </div>
+          {/* Destination Segmented Control */}
+          <div className="seg">
+            <span
+              className={target === 'library' ? 'on' : ''}
+              onClick={() => setTarget('library')}
+            >
+              Save to Library
+            </span>
+            <span
+              className={target === 'task' ? 'on' : ''}
+              onClick={() => setTarget('task')}
+            >
+              New Task
+            </span>
+            <span
+              className={target === 'agent' ? 'on' : ''}
+              onClick={() => setTarget('agent')}
+            >
+              Ask Agent
+            </span>
+          </div>
 
+          {/* Inputs Form */}
+          <form onSubmit={handleSend} className="col" style={{ gap: 10 }}>
             <input
-              className="m-in"
-              style={{ fontSize: 13, minHeight: 36, padding: '0 8px' }}
-              placeholder="URL link (optional)…"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
+              className="in"
+              style={{
+                background: '#F2F2F7',
+                borderRadius: 14,
+                padding: '0 16px',
+                fontSize: 15,
+                fontWeight: 500,
+              }}
+              placeholder={target === 'task' ? 'Task title…' : 'Title / Topic…'}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              autoFocus
             />
+
+            {target !== 'task' && (
+              <input
+                className="in"
+                style={{
+                  background: '#F2F2F7',
+                  borderRadius: 14,
+                  padding: '0 16px',
+                  fontSize: 14,
+                }}
+                placeholder="URL (optional, https://…)"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+              />
+            )}
 
             <textarea
-              className="m-in"
-              style={{
-                fontSize: 13,
-                minHeight: 50,
-                padding: '4px 8px',
-                resize: 'none',
-              }}
-              placeholder="Notes or excerpt (optional)…"
+              placeholder={
+                target === 'task'
+                  ? 'Task notes or context…'
+                  : target === 'agent'
+                    ? 'What would you like the agent to do with this?'
+                    : 'Notes or private summary…'
+              }
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
+              style={{
+                background: '#F2F2F7',
+                border: 0,
+                borderRadius: 14,
+                padding: '12px 16px',
+                fontFamily: 'inherit',
+                fontSize: 14,
+                outline: 0,
+                resize: 'none',
+                minHeight: 80,
+                color: '#1D1D1F',
+              }}
             />
-          </div>
 
-          {/* Destination Selector Chips */}
-          <div className="m-r" style={{ gap: 8 }}>
-            {[
-              ['library', 'Library'],
-              ['task', 'Task'],
-              ['agent', 'Ask agent'],
-            ].map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                className={`m-ch ${target === id ? 'on' : ''}`}
-                onClick={() => setTarget(id)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* Online/Offline status line */}
-          <div className="m-r" style={{ gap: 12 }}>
-            <span className={`m-d ${isOnline ? '' : 'w'}`} />
-            <div>
-              <div style={{ fontWeight: 500, fontSize: 13 }}>
-                {isOnline ? 'Desktop is connected' : 'PC is offline'}
+            {notice && (
+              <div className="m" style={{ color: '#DC2626' }}>
+                {notice}
               </div>
-              <div className="m-m">
-                {isOnline ? 'Will sync instantly with your PC.' : 'It will be sent when your PC is back.'}
-              </div>
-            </div>
-          </div>
+            )}
 
-          {notice && (
-            <div style={{ fontSize: 12, color: '#ef4444' }}>
-              {notice}
-            </div>
-          )}
-
-          {/* Send Button */}
-          <button
-            type="button"
-            disabled={sending || (!title.trim() && !url.trim() && !notes.trim())}
-            className="m-bt l"
-            style={{
-              justifyContent: 'space-between',
-              width: '100%',
-              minHeight: 52,
-              fontSize: 15,
-            }}
-            onClick={handleSend}
-          >
-            <span>{sending ? 'Sending…' : 'Send'}</span>
-            <Icon name="arrow-right" size={20} />
-          </button>
+            <button
+              type="submit"
+              disabled={sending || (!title.trim() && !url.trim() && !notes.trim())}
+              className="bt l"
+              style={{ width: '100%', marginTop: 6 }}
+            >
+              {sending ? 'Saving…' : 'Send'}
+            </button>
+          </form>
         </motion.div>
       </motion.div>
     </AnimatePresence>

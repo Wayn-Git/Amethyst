@@ -33,23 +33,17 @@
 
   <style>
     :root {
-      --startup-bg: #FAF8F5;
-      --startup-text: #1C1917;
-      --startup-sub: #78716C;
-      --startup-accent: #7C3AED;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --startup-bg: #0F0E13;
-        --startup-text: #F5F3EF;
-        --startup-sub: #9C948E;
-        --startup-accent: #8B5CF6;
-      }
+      --startup-bg: #F4F6FB;
+      --startup-text: #1D1D1F;
+      --startup-sub: #3A3A3C;
+      --startup-accent: #0071E3;
     }
     body {
       margin: 0;
       background: var(--startup-bg);
       color: var(--startup-text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      overflow-x: hidden;
     }
     [data-startup="loading"] {
       display: flex;
@@ -59,39 +53,56 @@
       min-height: 100dvh;
       box-sizing: border-box;
       padding: 24px;
-      background: var(--startup-bg);
-      color: var(--startup-text);
+      position: relative;
+      background: radial-gradient(90% 55% at 12% 100%, #FFB68A 0%, rgba(255,182,138,0) 70%),
+                  radial-gradient(90% 60% at 100% 80%, #5B9BFF 0%, rgba(91,155,255,0) 70%),
+                  radial-gradient(80% 50% at 50% 0%, #DCE9FF 0%, rgba(220,233,255,0) 75%),
+                  #F4F6FB;
+      color: #1D1D1F;
       user-select: none;
       -webkit-user-select: none;
+      overflow: hidden;
     }
-    .startup-lockup {
+    .startup-glass-badge {
+      width: 96px;
+      height: 96px;
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.65);
+      -webkit-backdrop-filter: blur(22px) saturate(180%);
+      backdrop-filter: blur(22px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.75);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.95);
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 14px;
-      margin-bottom: 8px;
+      margin-bottom: 20px;
     }
     .startup-crystal {
-      width: 36px;
-      height: 36px;
+      width: 52px;
+      height: 52px;
       flex-shrink: 0;
       display: block;
     }
     .startup-wordmark {
       margin: 0;
-      font-family: 'Newsreader', 'Times New Roman', Georgia, serif;
-      font-size: 34px;
-      font-weight: 500;
-      letter-spacing: -0.025em;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.045em;
       line-height: 1;
-      color: var(--startup-text);
+      color: #1D1D1F;
     }
     .startup-sub {
-      margin: 4px 0 0;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      font-size: 13px;
-      font-weight: 400;
-      color: var(--startup-sub);
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: max(48px, env(safe-area-inset-bottom, 48px));
+      text-align: center;
+      margin: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      color: #3A3A3C;
       letter-spacing: -0.01em;
     }
     [data-startup="error"] {
@@ -106,13 +117,13 @@
       text-align: center;
     }
     [data-startup="error"] h1 {
-      font-family: 'Newsreader', Georgia, serif;
+      font-family: 'Inter', sans-serif;
       font-size: 26px;
-      font-weight: 500;
+      font-weight: 700;
       margin: 0 0 8px;
     }
     [data-startup="error"] p {
-      color: var(--startup-sub);
+      color: #6E6E73;
       font-size: 14px;
       margin: 0 0 20px;
       max-width: 340px;
@@ -122,10 +133,10 @@
       padding: 12px 24px;
       border-radius: 9999px;
       border: none;
-      background: var(--startup-text);
-      color: var(--startup-bg);
+      background: #111113;
+      color: #fff;
       cursor: pointer;
-      font-weight: 500;
+      font-weight: 600;
     }
   </style>
 </head>
@@ -133,30 +144,15 @@
 <body>
   <div id="root">
     <section data-startup="loading" role="status" aria-label="Loading Amethyst">
-      <div class="startup-lockup">
+      <div class="startup-glass-badge">
         <svg class="startup-crystal" xmlns="http://www.w3.org/2000/svg" viewBox="524.5 524 560 560" aria-hidden="true">
-          <defs>
-            <linearGradient id="startup-grad-center" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#a855f7" />
-              <stop offset="60%" stop-color="#8b5cf6" />
-              <stop offset="100%" stop-color="#7c3aed" />
-            </linearGradient>
-            <linearGradient id="startup-grad-left" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#c084fc" />
-              <stop offset="100%" stop-color="#9333ea" />
-            </linearGradient>
-            <linearGradient id="startup-grad-right" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#7e22ce" />
-              <stop offset="100%" stop-color="#581c87" />
-            </linearGradient>
-          </defs>
-          <path fill="url(#startup-grad-center)" d="M804 536L684 651L791 1015L768 1018L644 888L572 889L806 1072L1038 887L968 887L843 1018L819 1015L927 651Z" />
-          <path fill="url(#startup-grad-right)" d="M1016 701L928 722L847 986L960 870L1039 846Z" />
-          <path fill="url(#startup-grad-left)" d="M595 701L570 845L651 870L763 985L682 722Z" />
+          <path fill="#873FFF" d="M804 536L684 651L791 1015L768 1018L644 888L572 889L806 1072L1038 887L968 887L843 1018L819 1015L927 651Z" />
+          <path fill="#873FFF" d="M1016 701L928 722L847 986L960 870L1039 846Z" />
+          <path fill="#873FFF" d="M595 701L570 845L651 870L763 985L682 722Z" />
         </svg>
-        <h1 class="startup-wordmark">Amethyst</h1>
       </div>
-      <p class="startup-sub">Your personal operating system</p>
+      <h1 class="startup-wordmark">Amethyst</h1>
+      <p class="startup-sub">One mind for your digital life.</p>
     </section>
   </div>
   <script type="module" src="/src/bootstrap.js"></script>

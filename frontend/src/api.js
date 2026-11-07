@@ -13,10 +13,20 @@ export function getApiOrigin() {
   if (API_ORIGIN) return API_ORIGIN
   try {
     const raw = storedIdentity()
-    if (raw) {
-      const id = raw
-      if (id?.hostUrl && typeof window !== 'undefined' && window.location.origin !== id.hostUrl) {
-        return id.hostUrl.replace(/\/+$/, '')
+    if (raw?.hostUrl) {
+      const u = raw.hostUrl.replace(/\/+$/, '')
+      if (!u.includes('localhost') && !u.includes('127.0.0.1')) {
+        return u
+      }
+      if (typeof window !== 'undefined' && window.location.origin !== u) {
+        return u
+      }
+    }
+    const pcHost = safeStorage.getItem('amethyst.pc_host')
+    if (pcHost) {
+      const u = pcHost.replace(/\/+$/, '')
+      if (u && !u.includes('localhost')) {
+        return u
       }
     }
   } catch {}
@@ -42,6 +52,23 @@ export function getAuthHeaders() {
     }
   } catch {}
   return {}
+}
+
+export function getAuthToken() {
+  try {
+    const raw = storedIdentity()
+    return raw?.token || ''
+  } catch {
+    return ''
+  }
+}
+
+export function appendAuthToken(url) {
+  if (!url) return ''
+  const token = getAuthToken()
+  if (!token || url.includes('token=')) return url
+  const sep = url.includes('?') ? '&' : '?'
+  return `${url}${sep}token=${encodeURIComponent(token)}`
 }
 
 const BASE = `${API_ORIGIN}/api`
@@ -876,7 +903,7 @@ export const api = {
   converterDelete: (fileId) => j(`/converter/files/${encodeURIComponent(fileId)}`, json('DELETE')),
   converterDownloadUrl: (jobId) => `${getBase()}/converter/download/${encodeURIComponent(jobId)}`,
   converterPreviewUrl: (jobId) => `${getBase()}/converter/preview/${encodeURIComponent(jobId)}`,
-  converterThumbnailUrl: (fileId) => `${getBase()}/converter/thumbnail/${encodeURIComponent(fileId)}`,
+  converterThumbnailUrl: (fileId) => appendAuthToken(`${getBase()}/converter/thumbnail/${encodeURIComponent(fileId)}`),
   converterGenerateQR: (payload) => j('/converter/qr', json('POST', payload)),
 
   skillSearch: (q, conversationId) =>
@@ -975,9 +1002,9 @@ export const api = {
   updateLibrarySettings: (patch) => j('/settings/library', json('PATCH', patch)),
   // A route rather than a path: the browser is never handed a filesystem
   // location, and a missing still is a 404 rather than a broken <img>.
-  thumbnailUrl: (id) => `${getBase()}/library/${id}/thumbnail`,
-  slideUrl: (id, index) => `${getBase()}/library/${id}/slides/${index}`,
-  mediaUrl: (id) => `${getBase()}/library/${id}/media`,
+  thumbnailUrl: (id) => appendAuthToken(`${getBase()}/library/${id}/thumbnail`),
+  slideUrl: (id, index) => appendAuthToken(`${getBase()}/library/${id}/slides/${index}`),
+  mediaUrl: (id) => appendAuthToken(`${getBase()}/library/${id}/media`),
 
   // Export selected library items as a Spotify playlist via the MCP connector.
   exportPlaylist: (itemIds, name = '') =>

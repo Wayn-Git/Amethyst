@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import Icon from '../../components/Icon.jsx'
 import { api } from '../../api.js'
 
 export default function MobileAskLibrary({ onBack, onSelectItem }) {
@@ -57,40 +56,53 @@ export default function MobileAskLibrary({ onBack, onSelectItem }) {
 
   return (
     <motion.div
-      className="m-shell"
-      style={{ position: 'fixed', inset: 0, zIndex: 120, background: '#ECEAE6' }}
-      initial={{ opacity: 0, x: 30 }}
+      className="s"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 120,
+        background: '#F2F2F7',
+        maxWidth: 480,
+        margin: '0 auto',
+      }}
+      initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 30 }}
-      transition={{ duration: 0.2 }}
+      exit={{ opacity: 0, x: 20 }}
+      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
     >
-      <div className="m-body" style={{ paddingBottom: 20 }}>
+      <div className="b" style={{ paddingBottom: 20 }}>
         {/* Header */}
-        <div className="m-r m-sp">
+        <div className="r sp">
           <button
             type="button"
-            className="m-ib"
+            className="ib"
             aria-label="Back to library"
             onClick={onBack}
           >
-            <Icon name="chevron-left" size={20} />
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
           </button>
-          <div className="m-ttl" style={{ fontSize: 17 }}>
+          <div className="ttl" style={{ fontSize: 17 }}>
             Ask Library
           </div>
           <button
             type="button"
-            className="m-ib"
+            className="ib"
             aria-label="Clear chat"
             onClick={() => setAnswers([])}
             disabled={answers.length === 0}
           >
-            <Icon name="trash" size={18} />
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 6h18" />
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+            </svg>
           </button>
         </div>
 
         {/* Mode Selector */}
-        <div className="m-r" style={{ gap: 8 }}>
+        <div className="r" style={{ gap: 8 }}>
           {[
             ['ask', 'Ask'],
             ['semantic', 'Semantic'],
@@ -99,7 +111,7 @@ export default function MobileAskLibrary({ onBack, onSelectItem }) {
             <button
               key={id}
               type="button"
-              className={`m-ch ${mode === id ? 'on' : ''}`}
+              className={`ch ${mode === id ? 'on' : ''}`}
               onClick={() => setMode(id)}
             >
               {label}
@@ -126,67 +138,41 @@ export default function MobileAskLibrary({ onBack, onSelectItem }) {
                 justifyContent: 'center',
                 flex: 1,
                 textAlign: 'center',
-                padding: '40px 20px',
-                color: '#6E6A64',
+                color: '#6E6E73',
+                padding: '40px 16px',
                 gap: 12,
               }}
             >
               <div
                 style={{
-                  width: 56,
-                  height: 56,
+                  width: 52,
+                  height: 52,
                   borderRadius: '50%',
-                  background: '#F6F4F1',
+                  background: '#FFFFFF',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#141414',
+                  color: '#0071E3',
+                  boxShadow: '0 2px 8px rgba(0,0,0,.06)',
                 }}
               >
-                <Icon name="sparkle" size={26} />
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 7v14" />
+                  <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />
+                </svg>
               </div>
-              <div className="m-dsp" style={{ fontSize: 22, fontWeight: 600, color: '#141414' }}>
-                Ask your personal vault
+              <div className="dsp" style={{ fontSize: 20, fontWeight: 600, color: '#1D1D1F' }}>
+                Query your Library
               </div>
               <div style={{ fontSize: 13, maxWidth: 280, lineHeight: 1.5 }}>
-                Query your saved articles, reels, notes, and research using hybrid retrieval.
-              </div>
-
-              {/* Starter chips */}
-              <div
-                className="m-col"
-                style={{ width: '100%', gap: 8, marginTop: 16, maxWidth: 320 }}
-              >
-                {[
-                  'What did I save about machine learning?',
-                  'Summarize my recent research notes',
-                  'Find design references',
-                ].map((prompt, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    className="m-ch"
-                    style={{
-                      justifyContent: 'flex-start',
-                      textAlign: 'left',
-                      padding: '10px 16px',
-                      background: '#F9F8F6',
-                    }}
-                    onClick={() => handleAsk(prompt)}
-                  >
-                    <Icon name="search" size={14} style={{ color: '#888' }} />
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {prompt}
-                    </span>
-                  </button>
-                ))}
+                Ask anything about the articles, videos, and papers you saved.
               </div>
             </div>
           )}
 
           {answers.map((ans, idx) => (
-            <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* User Bubble */}
+            <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/* Question bubble */}
               <div
                 style={{
                   alignSelf: 'flex-end',
@@ -200,124 +186,87 @@ export default function MobileAskLibrary({ onBack, onSelectItem }) {
                 {ans.question}
               </div>
 
-              {/* Cited Answer Card */}
-              <div className="m-c m-col" style={{ gap: 12 }}>
-                <div className="m-r" style={{ gap: 6 }}>
-                  <Icon name="sparkle" size={16} />
-                  <span className="m-m">
-                    {ans.sources.length > 0
-                      ? `From ${ans.sources.length} saved item${ans.sources.length > 1 ? 's' : ''}`
-                      : 'No matches'}
-                  </span>
-                </div>
+              {/* Answer card */}
+              <div
+                className="c"
+                style={{
+                  alignSelf: 'flex-start',
+                  borderRadius: '22px 22px 22px 6px',
+                  maxWidth: '92%',
+                }}
+              >
+                <div style={{ lineHeight: 1.5, color: '#1D1D1F' }}>{ans.text}</div>
 
-                <div style={{ lineHeight: 1.5 }}>{ans.text}</div>
-
-                {/* Real Sources Row */}
-                {ans.sources.length > 0 && (
-                  <div className="m-col" style={{ gap: 8, marginTop: 4 }}>
-                    <div className="m-m" style={{ fontWeight: 600 }}>
-                      Sources
+                {ans.sources && ans.sources.length > 0 && (
+                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #E5E5EA' }}>
+                    <div className="m" style={{ marginBottom: 6, fontWeight: 600 }}>
+                      Sources found:
                     </div>
-                    {ans.sources.map((item, sIdx) => (
-                      <div
-                        key={item.id || item.uuid || sIdx}
-                        className="m-r"
-                        style={{
-                          background: '#ECEAE6',
-                          borderRadius: 16,
-                          padding: '8px 12px',
-                          gap: 10,
-                          cursor: 'pointer',
-                        }}
-                        onClick={() => onSelectItem && onSelectItem(item)}
-                      >
+                    <div className="col" style={{ gap: 6 }}>
+                      {ans.sources.map((s, sIdx) => (
                         <div
+                          key={sIdx}
+                          className="r"
                           style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 8,
-                            background: '#D6F23E',
-                            color: '#111113',
-                            flex: 'none',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
+                            padding: '6px 8px',
+                            background: '#F2F2F7',
+                            borderRadius: 10,
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => {
+                            if (onSelectItem) onSelectItem(s)
                           }}
                         >
-                          <Icon
-                            name={
-                              item.kind === 'reel' || item.kind === 'video'
-                                ? 'play'
-                                : 'book'
-                            }
-                            size={14}
-                          />
+                          <span style={{ fontSize: 12, fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {s.title}
+                          </span>
+                          <span className="m" style={{ fontSize: 11 }}>
+                            View →
+                          </span>
                         </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 500,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {item.title || 'Untitled save'}
-                          </div>
-                          <div className="m-m" style={{ fontSize: 11 }}>
-                            {item.url ? new URL(item.url).hostname : 'Library save'}
-                          </div>
-                        </div>
-                        <Icon name="arrow-up-right" size={14} style={{ color: '#6E6A64' }} />
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
             </div>
           ))}
-
-          {asking && (
-            <div className="m-c m-r" style={{ gap: 10, width: 'fit-content' }}>
-              <span className="m-spn" />
-              <span className="m-m">Searching library…</span>
-            </div>
-          )}
         </div>
 
-        {/* Bottom Input Bar */}
-        <div
-          className="m-r"
+        {/* Query Input Pill */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            handleAsk()
+          }}
+          className="r"
           style={{
-            background: '#F9F8F6',
+            background: '#FFFFFF',
             borderRadius: 999,
             padding: 6,
-            boxShadow: '0 8px 24px rgba(30,25,20,.1)',
+            boxShadow: '0 8px 24px rgba(0,0,0,.1)',
             marginTop: 'auto',
           }}
         >
           <input
-            className="m-in"
+            className="in"
             style={{ paddingLeft: 12 }}
-            placeholder="Ask your library…"
+            placeholder="Ask your library anything…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleAsk()
-            }}
           />
           <button
-            type="button"
-            className="m-ib k"
-            aria-label="Send"
+            type="submit"
             disabled={!query.trim() || asking}
-            onClick={() => handleAsk()}
+            className="ib k"
+            aria-label="Ask"
           >
-            <Icon name="arrow-up" size={20} />
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m5 12 7-7 7 7" />
+              <path d="M12 19V5" />
+            </svg>
           </button>
-        </div>
+        </form>
       </div>
     </motion.div>
   )

@@ -40,24 +40,46 @@ export async function initializeCredentials() {
 }
 
 export function storedIdentity() {
-  if (isNativeMobile()) return nativeIdentity
-  try { return JSON.parse(safeStorage.getItem(IDENTITY_KEY) || 'null') } catch { return null }
+  if (isNativeMobile() && nativeIdentity) return nativeIdentity
+  try {
+    const raw = safeStorage.getItem(IDENTITY_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed) {
+        if (isNativeMobile() && !nativeIdentity) nativeIdentity = parsed
+        return parsed
+      }
+    }
+  } catch {}
+  return nativeIdentity || null
 }
 
 export async function saveIdentity(identity) {
+  nativeIdentity = identity
+  try {
+    safeStorage.setItem(IDENTITY_KEY, JSON.stringify(identity))
+    if (identity?.hostUrl) {
+      safeStorage.setItem('amethyst.pc_host', identity.hostUrl)
+    }
+  } catch {}
   const vault = await nativeVault()
   if (vault) {
-    await vault.set(IDENTITY_KEY, identity)
-    nativeIdentity = identity
-    safeStorage.removeItem(IDENTITY_KEY)
-  } else if (!safeStorage.setItem(IDENTITY_KEY, JSON.stringify(identity))) {
-    throw new Error('Device storage is unavailable. Pairing was not saved.')
+    try {
+      await vault.set(IDENTITY_KEY, identity)
+    } catch {}
   }
 }
 
 export async function removeIdentity() {
-  const vault = await nativeVault()
-  if (vault) await vault.remove(IDENTITY_KEY)
   nativeIdentity = null
-  safeStorage.removeItem(IDENTITY_KEY)
+  try {
+    safeStorage.removeItem(IDENTITY_KEY)
+    safeStorage.removeItem('amethyst.pc_host')
+  } catch {}
+  const vault = await nativeVault()
+  if (vault) {
+    try {
+      await vault.remove(IDENTITY_KEY)
+    } catch {}
+  }
 }

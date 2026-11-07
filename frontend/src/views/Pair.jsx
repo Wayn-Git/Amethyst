@@ -1,12 +1,41 @@
-import { useCallback, useState } from 'react'
-import Icon from '../components/Icon.jsx'
-import { Button } from '../components/ui/bento/index.jsx'
+import React, { useCallback, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import QrScanner from '../components/QrScanner.jsx'
+import AmethystLogo from '../components/AmethystLogo.jsx'
 import { decodeAndValidateQr, pairDevice } from '../mobile/pairingClient.js'
 import { loadFixtureBundle } from '../mobile/bundle.js'
+import '../mobile/companion.css'
 import './pair.css'
 
-export default function Pair({ onPaired, onDesktop }) {
+const pageVariants = {
+  enter: (dir) => ({
+    opacity: 0,
+    scale: 0.96,
+    y: dir > 0 ? 14 : -14,
+  }),
+  center: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: {
+      type: 'spring',
+      stiffness: 380,
+      damping: 30,
+      mass: 0.8,
+    },
+  },
+  exit: (dir) => ({
+    opacity: 0,
+    scale: 0.98,
+    y: dir > 0 ? -10 : 10,
+    transition: {
+      duration: 0.18,
+      ease: [0.16, 1, 0.3, 1],
+    },
+  }),
+}
+
+export default function Pair({ onPaired, onBack, onDesktop, direction = 1 }) {
   // Phases: 'idle' | 'scanning' | 'connecting' | 'waiting_approval' | 'paired' | 'trouble'
   const [phase, setPhase] = useState('idle')
   const [trouble, setTrouble] = useState(null)
@@ -18,8 +47,8 @@ export default function Pair({ onPaired, onDesktop }) {
       setTrouble(null)
       return
     }
-    if (onDesktop) {
-      onDesktop()
+    if (onBack) {
+      onBack()
       return
     }
     if (typeof window !== 'undefined' && window.history.length > 1) {
@@ -76,11 +105,11 @@ export default function Pair({ onPaired, onDesktop }) {
       if (code === 'CONNECTION_REFUSED') {
         title = 'Connection Refused'
         body = `Could not connect to PC on port ${port}. The computer refused the connection.`
-        hint = `Check that Amethyst is running on your PC, the pairing dialog is open, and your PC firewall allows port ${port} (e.g. 'sudo ufw allow ${port}/tcp').`
+        hint = `Check that Amethyst is running on your PC, the pairing dialog is open, and your PC firewall allows port ${port}.`
       } else if (code === 'CONNECT_TIMEOUT') {
         title = 'Connection Timed Out'
         body = `Connection to your PC timed out on port ${port}.`
-        hint = 'Make sure your phone and PC are connected to the same Wi-Fi network. Some guest/public Wi-Fi networks block device-to-device connections.'
+        hint = 'Make sure your phone and PC are connected to the same Wi-Fi network.'
       } else if (code === 'CERT_MISMATCH') {
         title = 'Security Verification Failed'
         body = 'TLS certificate does not match the pairing QR code.'
@@ -96,19 +125,15 @@ export default function Pair({ onPaired, onDesktop }) {
       } else if (code === 'APPROVAL_TIMEOUT') {
         title = 'Approval Timed Out'
         body = 'Approval timed out on your PC.'
-        hint = "The 2-minute pairing window expired before approval was granted. Click 'Add' on your PC to try again."
+        hint = "The pairing window expired before approval was granted. Try again."
       } else if (code === 'TOO_MANY_ATTEMPTS') {
         title = 'Pairing Locked Out'
         body = 'Too many failed pairing attempts (HTTP 429).'
-        hint = 'The PC pairing server has locked out further attempts. Please close and reopen the pairing dialog on your PC.'
+        hint = 'Please close and reopen the pairing dialog on your PC.'
       } else if (code === 'INVALID_TOKEN') {
         title = 'Invalid or Expired Token'
-        body = 'The pairing token was rejected or already used (HTTP 401/400).'
+        body = 'The pairing token was rejected or already used.'
         hint = 'Please scan a fresh QR code from your PC.'
-      } else if (code === 'NO_HOST_RESPONDED') {
-        title = 'No Host Responded'
-        body = 'Phone and PC must be on the same Wi-Fi. Some guest/public networks block this.'
-        hint = `Ensure both devices are on the same local network and firewall allows incoming connections on port ${port}.`
       } else {
         hint = `Ensure phone and PC are on the same Wi-Fi network and firewall allows port ${port}.`
       }
@@ -137,186 +162,215 @@ export default function Pair({ onPaired, onDesktop }) {
   }
 
   return (
-    <div className={`pair-screen ${phase === 'idle' ? 'is-flow-lime' : ''}`}>
-      {/* Top Bar with Circular Back Button */}
-      <header className="pair-top-bar">
-        <Button
-          type="button"
-          className="pair-back-btn"
-          onClick={handleBack}
-          aria-label="Back"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </Button>
-      </header>
+    <motion.div
+      className="m-shell s"
+      style={{
+        position: 'relative',
+        width: '100%',
+        maxWidth: 480,
+        height: '100dvh',
+        margin: '0 auto',
+        overflow: 'hidden',
+        background: '#F2F2F7',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+      custom={direction}
+      variants={pageVariants}
+      initial="enter"
+      animate="center"
+      exit="exit"
+      transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
+    >
+      {/* Background radial gradient from Pair.dc.html */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'radial-gradient(90% 40% at 50% 0%, #D6E6FF 0%, rgba(214,230,255,0) 75%), radial-gradient(70% 30% at 100% 100%, #FFD9C2 0%, rgba(255,217,194,0) 70%), #F2F2F7',
+          pointerEvents: 'none',
+        }}
+      />
 
-      {/* Main Center Area */}
-      <main className="pair-center-content">
-        {phase === 'scanning' ? (
-          <div className="pair-scan-card">
-            <QrScanner
-              onScan={handleScan}
-              onCancel={() => setPhase('idle')}
+      {/* Subtle Noise Texture */}
+      <svg
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', mixBlendMode: 'soft-light', opacity: 0.5, pointerEvents: 'none' }}
+        aria-hidden="true"
+      >
+        <filter id="pair-noise">
+          <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch" />
+          <feColorMatrix type="saturate" values="0" />
+        </filter>
+        <rect width="100%" height="100%" filter="url(#pair-noise)" />
+      </svg>
+
+      <div
+        className="b"
+        style={{
+          flex: 1,
+          padding: 'max(20px, env(safe-area-inset-top, 20px)) 20px max(32px, env(safe-area-inset-bottom, 32px))',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+          position: 'relative',
+          zIndex: 10,
+        }}
+      >
+        {/* Header Bar */}
+        <div className="r sp">
+          <button
+            type="button"
+            className="ib"
+            aria-label="Back"
+            onClick={handleBack}
+            style={{ cursor: 'pointer' }}
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
+          </button>
+          <div className="r" style={{ gap: 6 }}>
+            <span style={{ width: 6, height: 6, borderRadius: 3, background: 'rgba(0,0,0,0.25)' }} />
+            <motion.span
+              layoutId="stepper-active"
+              style={{ width: 22, height: 6, borderRadius: 3, background: '#1D1D1F' }}
+              transition={{ type: 'spring', stiffness: 350, damping: 26 }}
             />
           </div>
-        ) : phase === 'connecting' ? (
-          <div className="pair-dialog-card">
-            <div className="pair-monitor-icon is-pulsing" aria-hidden="true">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="3" width="20" height="14" rx="2.5" />
-                <line x1="8" y1="21" x2="16" y2="21" />
-                <line x1="12" y1="17" x2="12" y2="21" />
-              </svg>
+          <span style={{ width: 44 }} />
+        </div>
+
+        {/* Title & Instructions */}
+        <div style={{ marginTop: 6 }}>
+          <h1 className="h" style={{ fontSize: 'clamp(30px, 8vw, 36px)', lineHeight: 1.05, margin: 0 }}>
+            Connect your PC
+          </h1>
+          <p style={{ margin: '8px 0 0', color: '#3A3A3C', fontSize: 14.5, lineHeight: 1.45, maxWidth: 320 }}>
+            Open Amethyst on your PC, go to Settings, then Phone, and scan the code it shows.
+          </p>
+        </div>
+
+        {/* Viewfinder Box / Scanning Area (Constrained 300px Card) */}
+        <div
+          style={{
+            height: 300,
+            borderRadius: 36,
+            background: '#0B0B0C',
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginTop: 6,
+            overflow: 'hidden',
+            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.16)',
+          }}
+        >
+          {phase === 'scanning' ? (
+            <QrScanner inline onScan={handleScan} onCancel={() => setPhase('idle')} />
+          ) : phase === 'connecting' ? (
+            <div className="col" style={{ alignItems: 'center', color: '#fff', gap: 12 }}>
+              <span className="spn" style={{ width: 26, height: 26, borderColor: '#3A3A3E', borderTopColor: '#fff' }} />
+              <div style={{ fontWeight: 600, fontSize: 15 }}>Connecting to PC…</div>
+              <div className="m" style={{ color: '#A1A1A6' }}>Establishing secure connection</div>
             </div>
-            <h1 className="pair-prompt-title">Connecting to PC…</h1>
-            <p className="pair-prompt-desc">
-              Establishing a secure, pinned TLS connection to your computer.
-            </p>
-          </div>
-        ) : phase === 'waiting_approval' ? (
-          <div className="pair-dialog-card">
-            <div className="pair-monitor-icon is-pulsing" aria-hidden="true">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="3" width="20" height="14" rx="2.5" />
-                <line x1="8" y1="21" x2="16" y2="21" />
-                <line x1="12" y1="17" x2="12" y2="21" />
-              </svg>
-            </div>
-            <h1 className="pair-prompt-title">Waiting for approval on your PC…</h1>
-            <p className="pair-prompt-desc">
-              Look at your computer screen and click <strong>Approve</strong> to pair this phone.
-            </p>
-          </div>
-        ) : phase === 'paired' ? (
-          <div className="pair-dialog-card">
-            <div className="pair-status-glyph is-ok" aria-hidden="true">
-              <Icon name="check-circle" size={44} />
-            </div>
-            <h1 className="pair-prompt-title">Connected</h1>
-            <p className="pair-prompt-desc">Your phone is now securely paired with your PC.</p>
-          </div>
-        ) : phase === 'trouble' ? (
-          <div className="pair-dialog-card" style={{ maxWidth: 380 }}>
-            <div className="pair-status-glyph is-bad" aria-hidden="true">
-              <Icon name="alert" size={38} />
-            </div>
-            <h1 className="pair-prompt-title">{trouble?.title || 'Connection Failed'}</h1>
-            <p className="pair-prompt-desc">{trouble?.body}</p>
-            {trouble?.tried && (
-              <div
-                style={{
-                  margin: '12px 0 6px',
-                  padding: '8px 12px',
-                  background: 'rgba(0, 0, 0, 0.05)',
-                  borderRadius: 8,
-                  fontSize: 12,
-                  color: '#3f3f46',
-                  textAlign: 'left',
-                  wordBreak: 'break-word',
-                  lineHeight: 1.4,
-                  width: '100%',
-                  boxSizing: 'border-box',
-                }}
-              >
-                <div style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#71717a', marginBottom: 2 }}>
-                  Tried addresses
-                </div>
-                <div>{trouble.tried}</div>
+          ) : phase === 'waiting_approval' ? (
+            <div className="col" style={{ alignItems: 'center', color: '#fff', gap: 12, padding: 20 }}>
+              <span className="spn" style={{ width: 26, height: 26, borderColor: '#3A3A3E', borderTopColor: '#0071E3' }} />
+              <div style={{ fontWeight: 600, fontSize: 15 }}>Waiting for approval…</div>
+              <div className="m" style={{ color: '#A1A1A6', textAlign: 'center', maxWidth: 220 }}>
+                Click Approve on your computer screen
               </div>
-            )}
-            {trouble?.hint && (
-              <p style={{ fontSize: 12, color: '#71717a', margin: '8px 0 0', lineHeight: 1.4 }}>
-                {trouble.hint}
-              </p>
-            )}
-          </div>
-        ) : (
-          /* Default IDLE Screen */
-          <>
-            <div style={{ margin: '20px 0 10px', display: 'flex', justifyContent: 'center' }} aria-hidden="true">
-              <svg viewBox="0 0 300 300" width="220" height="220" fill="none" stroke="#111113" strokeWidth="1.5">
-                <circle cx="150" cy="150" r="16" stroke="#111113" strokeWidth="1.5" />
-                <ellipse cx="150" cy="150" rx="120" ry="48" transform="rotate(0 150 150)" />
-                <ellipse cx="150" cy="150" rx="120" ry="48" transform="rotate(45 150 150)" />
-                <ellipse cx="150" cy="150" rx="120" ry="48" transform="rotate(90 150 150)" />
-                <ellipse cx="150" cy="150" rx="120" ry="48" transform="rotate(135 150 150)" />
-                <path d="M70 215 L74 225 L84 229 L74 233 L70 243 L66 233 L56 229 L66 225 Z" fill="#111113" />
-                <path d="M225 65 L229 75 L239 79 L229 83 L225 93 L221 83 L211 79 L221 75 Z" fill="#111113" />
-              </svg>
             </div>
+          ) : phase === 'paired' ? (
+            <div className="col" style={{ alignItems: 'center', color: '#fff', gap: 12 }}>
+              <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#34C759', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              </div>
+              <div style={{ fontWeight: 600, fontSize: 16 }}>Connected</div>
+            </div>
+          ) : phase === 'trouble' ? (
+            <div className="col" style={{ alignItems: 'center', color: '#fff', gap: 8, padding: 20, textAlign: 'center' }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#B8430F', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" x2="12" y1="8" y2="12" />
+                  <line x1="12" x2="12.01" y1="16" y2="16" />
+                </svg>
+              </div>
+              <div style={{ fontWeight: 600, fontSize: 15 }}>{trouble?.title || 'Connection Failed'}</div>
+              <div className="m" style={{ color: '#A1A1A6', fontSize: 12.5, maxWidth: 260 }}>{trouble?.body}</div>
+            </div>
+          ) : (
+            <>
+              {/* Authentic Amethyst Crystal Logo in Center */}
+              <AmethystLogo size={64} color="#873FFF" style={{ opacity: 0.95 }} />
 
-            <h1 className="pair-prompt-title" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 32, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
-              Connect your PC to Amethyst
-            </h1>
-            <p className="pair-prompt-desc" style={{ color: '#141414', opacity: 0.8, fontSize: 15, margin: '8px 0 24px' }}>
-              Open Amethyst on your PC, click Pair Device, and scan the QR code. Both devices must be on the same Wi-Fi network.
-            </p>
-          </>
-        )}
-      </main>
+              {/* Viewfinder Corners from Pair.dc.html */}
+              <svg width="220" height="220" viewBox="0 0 220 220" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" style={{ position: 'absolute', pointerEvents: 'none' }} aria-hidden="true">
+                <path d="M10 50V20a10 10 0 0 1 10-10h30M170 10h30a10 10 0 0 1 10 10v30M210 170v30a10 10 0 0 1-10 10h-30M50 210H20a10 10 0 0 1-10-10v-30" />
+              </svg>
+              <span className="m" style={{ position: 'absolute', bottom: 18, color: '#A1A1A6', fontSize: 12.5 }}>
+                Point the camera at the code
+              </span>
+            </>
+          )}
+        </div>
 
-      {/* Bottom Action Area */}
-      <footer className="pair-bottom-actions">
-        {phase === 'trouble' ? (
-          <Button
-            type="button"
-            className="pair-auth-btn"
-            onClick={() => setPhase('scanning')}
-          >
-            {trouble?.retry || 'Try again'}
-          </Button>
-        ) : phase === 'idle' ? (
-          <>
-            <Button
+        {/* Bottom Actions Area */}
+        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {phase === 'scanning' ? (
+            <button
               type="button"
-              className="pair-auth-btn"
-              style={{
-                background: '#111113',
-                color: '#fff',
-                borderRadius: 999,
-                minHeight: 48,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0 24px',
-              }}
+              className="bt"
+              style={{ width: '100%', justifyContent: 'center', minHeight: 52, fontSize: 15 }}
+              onClick={() => setPhase('idle')}
+            >
+              Cancel scanning
+            </button>
+          ) : phase === 'trouble' ? (
+            <button
+              type="button"
+              className="bt"
+              style={{ width: '100%', justifyContent: 'center', minHeight: 52, fontSize: 15 }}
               onClick={() => setPhase('scanning')}
             >
-              <span>Scan QR Code</span>
-              <span aria-hidden="true">→</span>
-            </Button>
-
-            {/* Test fixture button for sessions D & E */}
-            <Button
+              {trouble?.retry || 'Scan code again'}
+            </button>
+          ) : (
+            <button
               type="button"
-              className="pair-sub-action"
+              className="bt"
+              style={{ width: '100%', justifyContent: 'space-between', minHeight: 52, padding: '0 24px', fontSize: 15 }}
+              onClick={() => setPhase('scanning')}
+            >
+              <span>Scan code</span>
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M5 12h14" />
+                <path d="m12 5 7 7-7 7" />
+              </svg>
+            </button>
+          )}
+
+          {phase === 'idle' && (
+            <button
+              type="button"
+              className="bt glass"
               style={{
-                marginTop: 8,
-                border: '1px dashed #111113',
-                borderRadius: 999,
-                minHeight: 40,
-                color: '#111113',
-                fontWeight: 500,
-                fontSize: 13,
-                background: 'transparent',
-                cursor: 'pointer',
+                width: '100%',
+                minHeight: 50,
+                fontSize: 15,
+                fontWeight: 600,
               }}
               onClick={handleLoadFixture}
               disabled={loadingFixture}
             >
-              {loadingFixture ? 'Loading fixture…' : 'Use test bundle (sessions D & E)'}
-            </Button>
-          </>
-        ) : null}
-
-        {onDesktop && phase === 'idle' && (
-          <Button type="button" className="pair-desktop-link" onClick={onDesktop} style={{ marginTop: 12 }}>
-            Use desktop interface
-          </Button>
-        )}
-      </footer>
-    </div>
+              {loadingFixture ? 'Loading…' : 'Enter code instead'}
+            </button>
+          )}
+        </div>
+      </div>
+    </motion.div>
   )
 }

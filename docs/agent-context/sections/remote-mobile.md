@@ -117,10 +117,19 @@ npm run mobile:android
 npm run mobile:ios
 ```
 
-Companion tabs: `today`, `library`, `agent`, `activity`, `devices`. It reads
+Companion tabs: `today`, `tasks`, `library`, `agent`, `pc`, `terminal`, `settings`. Styled with Apple iOS 18 / Liquid-Glass design system (`companion.css`) with frosted glass pill navigation, fluid gesture/view transitions (`framer-motion`), and live backend data (no mock data). It reads
 through the sync replica and the remote API, caches snapshots in native
 storage, and queues captures when offline.
 
+- `frontend/src/components/AmethystLogo.jsx` — authentic Amethyst crystal facet vector icon.
+- `frontend/src/mobile/companion.css` — Liquid-Glass tokens (`#F2F2F7` surface, `#FFFFFF` rounded-3xl cards, `#111113` dark blocks, `#0071E3` accent, `.glass` blur/saturate, `.pill` dock).
+- `frontend/src/mobile/views/MobileToday.jsx` — live profile, quick telemetry carousel, day schedule, agent activity heatmap, background jobs, unread mail, PR status, and audio playback.
+- `frontend/src/mobile/views/MobileTasks.jsx` — live tasks, week calendar selector, status banner, completion toggle, and quick add.
+- `frontend/src/mobile/views/MobileLibrary.jsx` & `MobileLibraryItem.jsx` — live library feed, collections, real thumbnails, enrichment, tagging, and notes.
+- `frontend/src/mobile/views/MobileAgentSessions.jsx` & `MobileAgentChat.jsx` — live agent conversations, streaming turns, tool chips, approval cards, and voice/attachment controls.
+- `frontend/src/mobile/views/MobilePC.jsx` & `MobileTerminal.jsx` — live PC screenshot/telemetry, app launcher, remote power, and interactive WebSocket terminal.
+- `frontend/src/mobile/views/MobileSettings.jsx` — preferences, connectors, Face ID, pairing diagnostics, and device management.
+- `frontend/src/mobile/modals/MobileQuickCapture.jsx` — frosted liquid glass bottom sheet for saving to library, task, or agent.
 - `frontend/src/lib/sync/transportManager.js` — dual-path network manager probing LAN first (`/api/remote/status` with 1.5s timeout) before falling back to relay (`/ops`).
 - `frontend/src/lib/sync/useSync.js` — visibility sleep (`document.visibilityState === 'hidden'` clears poll timers to prevent Cloudflare D1/Worker quota exhaustion), adaptive backoff (3s burst on user activity, 30s idle, exponential backoff up to 60s with jitter).
 - `frontend/src/mobile/ConnectionDiagnosticsModal.jsx` — Happy-inspired diagnostic sheet showing transport mode, latency, pending outbox, LAN/relay addresses, and copyable diagnostics.

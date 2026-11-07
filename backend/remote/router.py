@@ -6,6 +6,7 @@ import asyncio
 import base64
 import json
 import logging
+import os
 from typing import Any
 
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
@@ -53,6 +54,7 @@ from backend.remote.power import (
 from backend.remote.screen import capture_screenshot, screen_stream_generator
 from backend.security.remote_access import frame_capability, socket_allowed
 from backend.remote.system import (
+    find_application_icon_path,
     get_system_status,
     kill_process,
     launch_application,
@@ -112,6 +114,16 @@ def remote_kill_process(req: KillProcessRequest, request: Request) -> dict[str, 
 @router.get("/applications")
 def remote_applications() -> dict[str, Any]:
     return {"applications": list_applications()}
+
+
+@router.get("/applications/icon")
+def remote_application_icon(name: str):
+    path = find_application_icon_path(name)
+    if path and os.path.isfile(path):
+        media_type = "image/svg+xml" if path.endswith(".svg") else "image/png"
+        return FileResponse(path, media_type=media_type, headers={"Cache-Control": "public, max-age=86400"})
+    svg_fallback = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#6E6E73" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 9 6 6m0-6-6 6"/></svg>'
+    return Response(content=svg_fallback, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=3600"})
 
 
 class LaunchAppRequest(BaseModel):
@@ -373,10 +385,29 @@ def remote_files_delete(filename: str) -> dict[str, Any]:
 
 # -- WebSocket for Real-Time Multiplexing --
 
+_connected_remote_websockets: set[WebSocket] = set()
+
+
+async def broadcast_remote_event(event_type: str, data: dict[str, Any] | None = None) -> None:
+    """Broadcast an event to all connected companion devices instantly over LAN."""
+    if not _connected_remote_websockets:
+        return
+    msg = json.dumps({"type": "sync_event", "event": event_type, "data": data or {}})
+    dead = []
+    for ws in list(_connected_remote_websockets):
+        try:
+            await ws.send_text(msg)
+        except Exception:
+            dead.append(ws)
+    for ws in dead:
+        _connected_remote_websockets.discard(ws)
+
+
 @router.websocket("/ws")
 async def remote_websocket(websocket: WebSocket, token: str | None = None):
     """Multiplexed real-time WebSocket for trackpad, virtual keys, audio, and live status."""
     await websocket.accept()
+    _connected_remote_websockets.add(websocket)
 
     speaker = SpeakerPlayer()
     speaker_started = False
@@ -440,5 +471,6 @@ async def remote_websocket(websocket: WebSocket, token: str | None = None):
     except (WebSocketDisconnect, asyncio.CancelledError):
         pass
     finally:
+        _connected_remote_websockets.discard(websocket)
         if speaker_started:
             await speaker.close()

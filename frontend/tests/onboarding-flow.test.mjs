@@ -25,3 +25,4 @@ test('StepLaunch renders setup summary with verified rows and Open Amethyst CTA'
   assert.match(content, /Storage/)
   assert.match(content, /Mobile/)
 })
+

@@ -17,7 +17,7 @@ def capability(path: str, method: str) -> str | None:
         ("POST", r"/api/remote/actions/[^/]+/decision", "paired"),
         ("GET", r"/api/remote/status", "paired"),
         ("GET", r"/api/remote/processes", "system"),
-        ("GET", r"/api/remote/applications", "system"),
+        ("GET", r"/api/remote/applications(?:/icon)?", "system"),
         ("POST", r"/api/remote/(?:command|applications/launch)", "terminal"),
         ("POST", r"/api/remote/processes/kill", "terminal"),
         ("GET|POST", r"/api/remote/power(?:/[^/]+)?", "power"),

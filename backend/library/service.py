@@ -170,6 +170,9 @@ def as_dict(row, *, include_content: bool = True) -> dict:
     # above this line has to know that.
     tags = _json_list(data.get("tags"))
     resources = _json_list(data.get("resources"))
+    for r in resources:
+        if isinstance(r, dict) and r.get("resolved_url") and str(r.get("url", "")).startswith("https://t.co/"):
+            r["url"] = r["resolved_url"]
     data["entity"] = _json_dict(data.get("entity"))
 
     app_tag = app_tag_for_url(data.get("url"))
@@ -275,6 +278,10 @@ def as_dict(row, *, include_content: bool = True) -> dict:
                 thumb_p = cache_thumb
     if thumb_p and thumb_p.is_file():
         data["thumbnail_path"] = str(thumb_p)
+        data["has_thumbnail"] = True
+        data["thumbnail_url"] = f"/api/library/{item_id}/thumbnail"
+    elif data.get("has_thumbnail") and item_id:
+        data["thumbnail_url"] = f"/api/library/{item_id}/thumbnail"
 
     # 3. Fallback & resolution for media path
     media_p = Path(data["media_path"]) if data.get("media_path") else None
@@ -302,6 +309,9 @@ def as_dict(row, *, include_content: bool = True) -> dict:
                     break
     if media_p and media_p.is_file():
         data["media_path"] = str(media_p)
+        data["media_url"] = f"/api/library/{item_id}/media"
+    elif item_id and (data.get("kind") in ("video", "reel") or data.get("is_reel")):
+        data["media_url"] = f"/api/library/{item_id}/media"
 
     if not data.get("excerpt") and not data.get("summary") and data.get("enriched_at"):
         data["excerpt"] = data.get("notes") or data.get("title") or ""

@@ -160,3 +160,4 @@ export default function StepWelcome({ onStart }) {
     </div>
   )
 }
+

@@ -679,19 +679,33 @@ class LibraryStore:
         return cursor.lastrowid
 
     def get_lists(self) -> list[dict]:
-        """Fetch all lists with member counts."""
+        """Fetch all lists with member counts and optional cover thumbnail."""
         rows = self.conn.execute(
             """
             SELECT l.*,
                    COUNT(DISTINCT m.item_id) as item_count,
-                   COUNT(DISTINCT m.link_id) as link_count
+                   COUNT(DISTINCT m.link_id) as link_count,
+                   (
+                       SELECT m2.item_id 
+                       FROM library_list_members m2
+                       JOIN library_items i2 ON m2.item_id = i2.id
+                       WHERE m2.list_id = l.id AND i2.thumbnail_path IS NOT NULL
+                       ORDER BY m2.position ASC, m2.added_at DESC
+                       LIMIT 1
+                   ) as cover_item_id
             FROM library_lists l
             LEFT JOIN library_list_members m ON l.id = m.list_id
             GROUP BY l.id
             ORDER BY l.is_smart DESC, l.title ASC
             """
         ).fetchall()
-        return [dict(r) for r in rows]
+        result = []
+        for r in rows:
+            d = dict(r)
+            if d.get("cover_item_id"):
+                d["thumbnail_url"] = f"/api/library/{d['cover_item_id']}/thumbnail"
+            result.append(d)
+        return result
 
     def get_list(self, list_id: int) -> dict | None:
         """Fetch a single list by ID."""

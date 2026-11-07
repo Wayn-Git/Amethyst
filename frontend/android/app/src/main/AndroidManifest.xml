@@ -31,11 +31,25 @@
                 <data android:scheme="amethyst" android:host="pair" />
             </intent-filter>
 
-            <!-- Android Share Target for text/plain (URLs, text clips, shared notes) -->
+            <!-- Android Share Target for text, URLs, notes, articles -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/plain" />
+                <data android:mimeType="text/*" />
+            </intent-filter>
+
+            <!-- Android Share Target for images, photos, screenshots -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+
+            <!-- Android Share Target for multiple images/files -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
             </intent-filter>
         </activity>
 

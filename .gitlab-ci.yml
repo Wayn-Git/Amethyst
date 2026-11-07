@@ -4,6 +4,7 @@
 
 stages:
   - notify
+  - release
 
 default:
   image: python:3.12-slim
@@ -37,3 +38,36 @@ digest:
     - if: '$CI_PIPELINE_SOURCE == "web" && $JOB == "digest"'
   script:
     - python -m notifier.digest
+
+release_job:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  before_script: []
+  cache: {}
+  rules:
+    - if: '$CI_COMMIT_TAG'
+  script:
+    - VERSION="${CI_COMMIT_TAG#v}"
+    - echo "Creating GitLab Release for $CI_COMMIT_TAG (version $VERSION)"
+    - |
+      release-cli create --name "Amethyst Release $CI_COMMIT_TAG" \
+        --tag-name "$CI_COMMIT_TAG" \
+        --description "## Amethyst Release $CI_COMMIT_TAG
+
+      ### Mobile Companion (Android v1.0.3)
+      - **Amethyst Companion APK**: Full mobile companion for Today dashboard, Tasks, PC Remote Control, PTY Terminal, and AI Agent Sessions.
+      - **Library Fixes**: Fixed thumbnail 403 Forbidden errors and direct MP4 LAN streaming.
+      - **Authentic Favicons**: Real 36x36 brand favicons and unshortened developer resources.
+      - **Chronological Date Bucketing**: Grouped by Today, Yesterday, This Week, and Monthly shelves with expandable view.
+      - **Aesthetics & Alignment**: Centered header chips, 150px scroll breathing room, and dedicated manual sync.
+
+      ### Desktop Applications (Linux, Windows, macOS)
+      - Instant Spotlight launcher (\`Ctrl+Space\`) with multi-token fuzzy matching.
+      - Hardware acceleration and local LLM runtime connectors.
+      - Direct LAN companion pairing and Google Drive encrypted backup." \
+        --assets-link "{\"name\":\"Amethyst-Companion-1.0.3.apk\",\"url\":\"https://github.com/Wayn-Git/Amethyst/releases/download/${CI_COMMIT_TAG}/Amethyst-Companion-1.0.3.apk\",\"link_type\":\"package\"}" \
+        --assets-link "{\"name\":\"app-debug.apk\",\"url\":\"https://github.com/Wayn-Git/Amethyst/releases/download/${CI_COMMIT_TAG}/app-debug.apk\",\"link_type\":\"package\"}" \
+        --assets-link "{\"name\":\"Amethyst-${VERSION}.AppImage\",\"url\":\"https://github.com/Wayn-Git/Amethyst/releases/download/${CI_COMMIT_TAG}/Amethyst-${VERSION}.AppImage\",\"link_type\":\"package\"}" \
+        --assets-link "{\"name\":\"Amethyst-${VERSION}-linux-x64.tar.gz\",\"url\":\"https://github.com/Wayn-Git/Amethyst/releases/download/${CI_COMMIT_TAG}/Amethyst-${VERSION}-linux-x64.tar.gz\",\"link_type\":\"package\"}" \
+        --assets-link "{\"name\":\"Amethyst-Setup-${VERSION}.exe\",\"url\":\"https://github.com/Wayn-Git/Amethyst/releases/download/${CI_COMMIT_TAG}/Amethyst-Setup-${VERSION}.exe\",\"link_type\":\"package\"}" \
+        --assets-link "{\"name\":\"Amethyst-${VERSION}.dmg\",\"url\":\"https://github.com/Wayn-Git/Amethyst/releases/download/${CI_COMMIT_TAG}/Amethyst-${VERSION}.dmg\",\"link_type\":\"package\"}"

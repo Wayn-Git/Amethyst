@@ -1,0 +1,35 @@
+import React from 'react'
+
+export default function AmethystLogo({
+  size = 28,
+  color = '#873FFF',
+  className = '',
+  style = {},
+}) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="524.5 524 560 560"
+      width={size}
+      height={size}
+      fill="none"
+      className={className}
+      style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0, ...style }}
+      aria-label="Amethyst logo"
+    >
+      <path
+        fill={color === 'currentColor' ? 'currentColor' : color}
+        d="M804 536L684 651L791 1015L768 1018L644 888L572 889L806 1072L1038 887L968 887L843 1018L819 1015L927 651Z"
+      />
+      <path
+        fill={color === 'currentColor' ? 'currentColor' : color}
+        d="M1016 701L928 722L847 986L960 870L1039 846Z"
+      />
+      <path
+        fill={color === 'currentColor' ? 'currentColor' : color}
+        d="M595 701L570 845L651 870L763 985L682 722Z"
+      />
+    </svg>
+  )
+}
+

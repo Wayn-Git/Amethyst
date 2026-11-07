@@ -44,7 +44,7 @@ public class PairingPlugin extends Plugin {
                 String fp = call.getString("fp", "");
                 String token = call.getString("token", "");
                 String deviceLabel = call.getString("deviceLabel", "Mobile Phone");
-                int connectTimeoutMs = call.getInt("connectTimeoutMs", 3000);
+                int connectTimeoutMs = call.getInt("connectTimeoutMs", 8000);
                 int readTimeoutMs = call.getInt("readTimeoutMs", 120000);
 
                 if (hostsArray == null || hostsArray.length() == 0 || port <= 0 || fp.isEmpty() || token.isEmpty()) {
@@ -107,6 +107,7 @@ public class PairingPlugin extends Plugin {
                             String responseBody = readStream(connection.getInputStream());
                             JSObject result = new JSObject();
                             result.put("bundle", new JSObject(responseBody));
+                            result.put("host", host);
                             call.resolve(result);
                             return;
                         } else if (responseCode == 403) {

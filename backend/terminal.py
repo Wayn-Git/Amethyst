@@ -546,6 +546,10 @@ async def terminal_websocket(websocket: WebSocket, session_id: str | None = None
                             session.check_cwd()
                             await queue.put(json.dumps({"type": "cwd", "cwd": session.cwd}))
                             continue
+                        elif msg_type == "input":
+                            data_to_write = parsed.get("data", "")
+                            session.write(data_to_write)
+                            continue
                     except (json.JSONDecodeError, ValueError):
                         pass
                 session.write(text.encode("utf-8"))

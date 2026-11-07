@@ -11,3 +11,4 @@ test('StepMobile has Scan to pair tab, Download app tab, and no Cloudflare refer
   assert.equal(content.includes('cloudflare'), false, 'Should not mention cloudflare')
   assert.equal(content.includes('http-shortcuts'), false, 'Should not mention http-shortcuts')
 })
+

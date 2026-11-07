@@ -1,14 +1,35 @@
 import { useCallback, useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
-import Icon from '../../components/Icon.jsx'
+import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '../../api.js'
 
 export default function MobileTasks() {
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
-  const [selectedDay, setSelectedDay] = useState(new Date().getDate())
   const [newTitle, setNewTitle] = useState('')
   const [adding, setAdding] = useState(false)
+
+  // Compute current week dates
+  const now = new Date()
+  const currentDayOfWeek = now.getDay() // 0 = Sun, 1 = Mon ...
+  // Calculate Monday of this week
+  const monday = new Date(now)
+  const diffToMonday = currentDayOfWeek === 0 ? -6 : 1 - currentDayOfWeek
+  monday.setDate(now.getDate() + diffToMonday)
+
+  const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((dayName, idx) => {
+    const d = new Date(monday)
+    d.setDate(monday.getDate() + idx)
+    return {
+      day: dayName,
+      date: d.getDate(),
+      fullDate: d,
+      isToday: d.toDateString() === now.toDateString(),
+    }
+  })
+
+  const [selectedDate, setSelectedDate] = useState(now.getDate())
+
+  const monthYearString = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 
   const loadTasks = useCallback(async () => {
     try {
@@ -27,7 +48,6 @@ export default function MobileTasks() {
     loadTasks()
   }, [loadTasks])
 
-  // Toggle task completed state optimistically
   const toggleTask = async (task) => {
     const isCompleted = task.status === 'completed' || task.completed
     const nextStatus = isCompleted ? 'todo' : 'completed'
@@ -54,13 +74,17 @@ export default function MobileTasks() {
     if (!newTitle.trim()) return
     setAdding(true)
     try {
-      await api.createTask({
+      const created = await api.createTask({
         title: newTitle.trim(),
         status: 'todo',
         context: 'Mobile',
       })
+      if (created) {
+        setTasks((prev) => [...prev, created])
+      } else {
+        loadTasks()
+      }
       setNewTitle('')
-      await loadTasks()
     } catch (err) {
       console.error('[MobileTasks] Create failed:', err.message)
     } finally {
@@ -68,99 +92,79 @@ export default function MobileTasks() {
     }
   }
 
-  // Calculate current week days
-  const now = new Date()
-  const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
-  const dayOfWeek = now.getDay()
-  const diffToMonday = (dayOfWeek + 6) % 7
-  const monday = new Date(now)
-  monday.setDate(now.getDate() - diffToMonday)
-
-  const weekDays = Array.from({ length: 7 }).map((_, i) => {
-    const d = new Date(monday)
-    d.setDate(monday.getDate() + i)
-    return {
-      name: d.toLocaleDateString('default', { weekday: 'short' }),
-      date: d.getDate(),
-      isToday: d.getDate() === now.getDate() && d.getMonth() === now.getMonth(),
-    }
-  })
-
-  // Completed metrics from real tasks
-  const completedList = tasks.filter((t) => t.status === 'completed' || t.completed)
-  const remainingCount = tasks.length - completedList.length
+  const completedCount = tasks.filter((t) => t.status === 'completed' || t.completed).length
   const totalCount = tasks.length
-  const progressPercent = totalCount > 0 ? Math.round((completedList.length / totalCount) * 100) : 0
+  const leftCount = Math.max(0, totalCount - completedCount)
+  const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 60
 
   return (
     <motion.div
-      className="m-body"
-      initial={{ opacity: 0, y: 10 }}
+      className="b"
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.2 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
     >
       {/* Header */}
-      <div className="m-r m-sp">
+      <div className="r sp">
         <div>
-          <div className="m-gl">{monthName}</div>
-          <h1 className="m-h">Tasks</h1>
+          <div className="gl">{monthYearString}</div>
+          <h1 className="h">Tasks</h1>
         </div>
-        <button
-          type="button"
-          className="m-ib"
-          aria-label="Refresh tasks"
-          onClick={() => {
-            setLoading(true)
-            loadTasks()
-          }}
-        >
-          <Icon name="arrow-clockwise" size={20} />
-        </button>
+        <span className="ch">
+          <span className="d" />
+          To Do synced
+        </span>
       </div>
 
-      {/* Week Day Strip */}
-      <div className="m-r m-sp">
-        {weekDays.map((d) => {
-          const isSelected = selectedDay === d.date
+      {/* Week Day Selector */}
+      <div className="r sp" style={{ gap: 4 }}>
+        {weekDays.map((item) => {
+          const isSelected = item.date === selectedDate
           return (
-            <div
-              key={d.date}
-              className="m-col"
+            <motion.div
+              key={item.day}
+              className="col"
+              whileTap={{ scale: 0.95 }}
               style={{
                 alignItems: 'center',
                 gap: 4,
                 padding: '8px 6px',
                 borderRadius: 16,
                 minWidth: 44,
-                background: isSelected ? '#F9F8F6' : 'transparent',
-                boxShadow: isSelected ? '0 2px 8px rgba(30,25,20,0.08)' : 'none',
                 cursor: 'pointer',
+                background: isSelected ? '#FFFFFF' : 'transparent',
+                boxShadow: isSelected ? '0 2px 8px rgba(0,0,0,.08)' : 'none',
+                transition: 'background 0.2s, box-shadow 0.2s',
               }}
-              onClick={() => setSelectedDay(d.date)}
+              onClick={() => setSelectedDate(item.date)}
             >
-              <span className="m-m">{d.name}</span>
-              <span style={{ fontWeight: isSelected ? 600 : 400 }}>{d.date}</span>
-            </div>
+              <span className="m" style={{ color: isSelected ? '#1D1D1F' : '#6E6E73' }}>
+                {item.day}
+              </span>
+              <span style={{ fontWeight: isSelected ? 600 : 400, fontSize: 15 }}>
+                {item.date}
+              </span>
+            </motion.div>
           )
         })}
       </div>
 
-      {/* Progress Summary Card */}
-      <div className="m-blk m-r m-sp" style={{ padding: '16px 18px', borderRadius: 24 }}>
+      {/* Black Status Banner Card */}
+      <div className="blk r sp" style={{ padding: '16px 18px', borderRadius: 24 }}>
         <div>
-          <div className="m-st">{remainingCount} left today</div>
-          <div className="m-m">
-            {completedList.length} of {totalCount} done
+          <div className="st">{leftCount} left today</div>
+          <div className="m" style={{ color: '#A9A6A0' }}>
+            {completedCount} of {totalCount} done
           </div>
         </div>
         <div style={{ width: 120 }}>
-          <div className="m-pb">
+          <div className="pb" style={{ background: '#2C2C2E' }}>
             <div
               style={{
                 width: `${progressPercent}%`,
                 height: '100%',
-                background: '#D6F23E',
+                background: '#fff',
                 transition: 'width 0.3s ease',
               }}
             />
@@ -168,95 +172,107 @@ export default function MobileTasks() {
         </div>
       </div>
 
-      {/* Today Section Header */}
-      <div className="m-r m-sp">
-        <span className="m-st">Today</span>
-        <span className="m-m">{tasks.length} total</span>
+      {/* Section Subheader */}
+      <div className="r sp">
+        <span className="st">Today</span>
+        <span className="m">Sorted by time</span>
       </div>
 
-      {/* Tasks List Card */}
-      <div className="m-c" style={{ padding: '4px 16px' }}>
+      {/* Task List in Card */}
+      <div className="c" style={{ padding: '4px 16px' }}>
         {tasks.map((task, idx) => {
           const isDone = task.status === 'completed' || task.completed
           return (
             <div key={task.id || idx}>
               <div
-                className="m-r"
-                style={{ padding: '14px 0', cursor: 'pointer' }}
+                className="r"
+                style={{ padding: '12px 0', cursor: 'pointer' }}
                 onClick={() => toggleTask(task)}
               >
-                {/* Checkbox */}
+                {/* Round Checkbox */}
                 <span
                   style={{
-                    width: 24,
-                    height: 24,
+                    width: 22,
+                    height: 22,
                     borderRadius: '50%',
                     flex: 'none',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: isDone ? '#111113' : 'transparent',
-                    color: '#D6F23E',
-                    border: isDone ? 'none' : '1.6px solid #9A958E',
+                    background: isDone ? '#0071E3' : 'transparent',
+                    border: isDone ? 'none' : '1.6px solid #8E8E93',
+                    color: '#fff',
                     transition: 'all 0.15s ease',
                   }}
                 >
-                  {isDone && <Icon name="check" size={14} />}
+                  {isDone && (
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  )}
                 </span>
 
-                <div style={{ flex: 1, minWidth: 0 }}>
+                {/* Task Details */}
+                <div style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
                   <div
                     style={{
                       fontWeight: 500,
                       textDecoration: isDone ? 'line-through' : 'none',
-                      color: isDone ? '#6E6A64' : '#141414',
+                      color: isDone ? '#6E6E73' : '#1D1D1F',
                       transition: 'color 0.15s',
                     }}
                   >
                     {task.title}
                   </div>
-                  <div className="m-m">
-                    {task.context ||
-                      task.list_name ||
-                      (task.due ? `Due ${task.due}` : 'Task')}
+                  <div className="m" style={{ marginTop: 2 }}>
+                    {task.context || task.list_name || 'Study'}
+                    {task.due ? `, ${task.due}` : ''}
                   </div>
                 </div>
               </div>
-              {idx < tasks.length - 1 && <div className="m-hr" />}
+              {idx < tasks.length - 1 && <div className="hr" />}
             </div>
           )
         })}
 
         {!tasks.length && !loading && (
-          <div style={{ textAlign: 'center', padding: '32px 16px' }} className="m-col">
-            <Icon
-              name="check-circle"
-              size={32}
-              style={{ color: '#9A958E', margin: '0 auto 8px' }}
-            />
+          <div style={{ textAlign: 'center', padding: '32px 16px' }} className="col">
+            <svg
+              viewBox="0 0 24 24"
+              width="32"
+              height="32"
+              fill="none"
+              stroke="#8E8E93"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ margin: '0 auto 8px' }}
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="m9 12 2 2 4-4" />
+            </svg>
             <div style={{ fontWeight: 600 }}>No tasks for today</div>
-            <div className="m-m" style={{ marginTop: 4 }}>
-              Add a new task below to get started.
-            </div>
+            <div className="m">Add a new task below to get started.</div>
           </div>
         )}
 
         {loading && (
-          <div style={{ textAlign: 'center', padding: '24px 16px', color: '#6E6A64' }}>
+          <div style={{ textAlign: 'center', padding: '24px 16px', color: '#6E6E73' }}>
             Loading tasks…
           </div>
         )}
       </div>
 
       {/* Quick Add Inline Form */}
-      <form onSubmit={handleCreateTask} className="m-r" style={{ marginTop: 4 }}>
+      <form onSubmit={handleCreateTask} className="r" style={{ marginTop: 4 }}>
         <input
-          className="m-in"
+          className="in"
           style={{
-            background: '#F6F4F1',
+            background: '#FFFFFF',
             borderRadius: 999,
             padding: '0 18px',
-            boxShadow: '0 1px 2px rgba(30,25,20,0.05)',
+            boxShadow: '0 1px 2px rgba(0,0,0,.05)',
           }}
           placeholder="Add a new task…"
           value={newTitle}
@@ -265,7 +281,7 @@ export default function MobileTasks() {
         <button
           type="submit"
           disabled={adding || !newTitle.trim()}
-          className="m-bt l"
+          className="bt l"
           style={{ minHeight: 48, padding: '0 20px', flex: 'none' }}
         >
           {adding ? '…' : 'Add'}

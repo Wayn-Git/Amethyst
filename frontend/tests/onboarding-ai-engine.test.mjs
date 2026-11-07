@@ -10,3 +10,4 @@ test('StepAiEngine probes local Ollama and lists free cloud providers', () => {
   assert.match(content, /Gemini|Google/)
   assert.match(content, /Skip for now/)
 })
+
