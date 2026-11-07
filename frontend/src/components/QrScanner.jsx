@@ -6,7 +6,7 @@ import Icon from './Icon.jsx'
  *  leaves the phone's decoder idle most of the time. */
 const SCAN_INTERVAL_MS = 100
 
-export default function QrScanner({ onScan, onCancel, onManual }) {
+export default function QrScanner({ onScan, onCancel }) {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const [error, setError] = useState(null)
@@ -28,8 +28,8 @@ export default function QrScanner({ onScan, onCancel, onManual }) {
         if (!cancelled) {
           setError(
             typeof window !== 'undefined' && window.isSecureContext === false
-              ? 'Camera requires HTTPS or localhost on mobile browsers. Open via https:// or enter code manually.'
-              : 'Camera access is not supported on this browser. Please enter code manually.'
+              ? 'Camera requires HTTPS or localhost on mobile browsers.'
+              : 'Camera access is not supported on this device.'
           )
         }
         return
@@ -43,13 +43,11 @@ export default function QrScanner({ onScan, onCancel, onManual }) {
           video: { facingMode: { ideal: 'environment' } },
         })
       } catch (err) {
-        // Denied, or no camera. Both are ordinary answers, not faults: the
-        // typed code is still there behind this.
         if (!cancelled) {
           setError(
             err?.name === 'NotAllowedError'
-              ? 'Camera access was declined. You can type the code instead.'
-              : 'No camera available here. You can type the code instead.'
+              ? 'Camera access was declined. Please allow camera permissions to scan the pairing QR code.'
+              : 'No camera available on this device.'
           )
         }
         return
@@ -164,24 +162,6 @@ export default function QrScanner({ onScan, onCancel, onManual }) {
         >
           Cancel
         </button>
-        {onManual && (
-          <button
-            type="button"
-            style={{
-              background: '#fff',
-              color: '#111113',
-              border: '1.5px solid #111113',
-              borderRadius: 999,
-              padding: '10px 18px',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-            onClick={onManual}
-          >
-            Enter code instead
-          </button>
-        )}
       </div>
     </div>
   )

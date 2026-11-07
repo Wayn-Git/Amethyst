@@ -21,14 +21,16 @@ import { byDigit, byId, forRoutes } from './nav.js'
 import { COMPONENTS } from './views/registry.js'
 import Pair from './views/Pair.jsx'
 import RemoteOnly from './views/RemoteOnly.jsx'
+import MobilePaired from './mobile/views/MobilePaired.jsx'
+import { getBundle } from './mobile/bundle.js'
 import { paired as isPaired } from './lib/sync/client.js'
 import { usePhone } from './hooks/useMediaQuery.js'
 import { safeStorage } from './lib/storage.js'
 import Chat from './views/Chat.jsx'
 import MobileNav from './components/MobileNav.jsx'
 import { isNativeMobile } from './lib/credentials.js'
-import { Notification, NotificationViewport } from './components/base/notification/notification'
-import { useBoardUINotifications } from './lib/boardui-notifications.js'
+import { ToastStack } from './components/arc/toast-stack/toast-stack'
+import { useLiquidGlassManager } from './lib/liquid-glass/index.jsx'
 
 /* The workbench.
 
@@ -338,26 +340,6 @@ function RailScrim({ onClose }) {
   )
 }
 
-function Toasts() {
-  const { notifications, dismissNotification } = useBoardUINotifications()
-
-  return (
-    <>
-      <NotificationViewport position="bottom-right">
-        {notifications.map((notification) => (
-          <Notification
-            key={notification.id}
-            {...notification}
-            className="amethyst-boardui-notification"
-            autoDismissDuration={notification.autoDismissDuration ?? 3500}
-            introDelay={0}
-            onDismiss={() => dismissNotification(notification.id)}
-          />
-        ))}
-      </NotificationViewport>
-    </>
-  )
-}
 
 /* The escape hatch, and why it is sticky.
 
@@ -384,15 +366,53 @@ function wantsDesktop() {
    opens by fetching from a backend the phone may not be able to reach, and the
    ones it can reach are laid out for a screen it does not have. */
 function PhoneApp({ paired, onPaired, onDesktop }) {
-  if (!paired) return <Pair onPaired={onPaired} onDesktop={onDesktop} />
-  return <RemoteOnly onDesktop={onDesktop} />
+  const [bundle, setBundle] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  const checkBundle = useCallback(async () => {
+    try {
+      const b = await getBundle()
+      setBundle(b)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    checkBundle()
+  }, [checkBundle, paired])
+
+  if (loading) {
+    return <BootScreen />
+  }
+
+  if (bundle) {
+    return (
+      <MobilePaired
+        bundle={bundle}
+        onUnpair={async () => {
+          setBundle(null)
+          onPaired?.(false)
+        }}
+        onDesktop={onDesktop}
+      />
+    )
+  }
+
+  if (paired) {
+    return <RemoteOnly onDesktop={onDesktop} />
+  }
+
+  return <Pair onPaired={() => { checkBundle(); onPaired?.(true) }} onDesktop={onDesktop} />
 }
 
 export default function App() {
   const {
     view, setView, server, retryServer, compact, railOpen, closeRail, panel, panelWidth, panelExpanded,
-    betaPages, openChatWithPrompt, sidebar, setSidebar,
+    betaPages, openChatWithPrompt, sidebar, setSidebar, glassMaterial,
   } = useApp()
+
+  useLiquidGlassManager(glassMaterial)
 
   const prevViewRef = useRef(view)
   const prevSidebarExpandedRef = useRef(null)
@@ -737,7 +757,7 @@ export default function App() {
         <SplashScreenWizard />
         <ConfirmDialogHost />
         {approvalModal}
-        <Toasts />
+        <ToastStack position="bottom-right" />
       </div>
     </div>
   )

@@ -1,144 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import Icon from '../components/Icon.jsx'
+import { Button } from '../components/ui/bento/index.jsx'
 import QrScanner from '../components/QrScanner.jsx'
-import * as syncClient from '../lib/sync/client.js'
+import { decodeAndValidateQr, pairDevice } from '../mobile/pairingClient.js'
+import { loadFixtureBundle } from '../mobile/bundle.js'
 import './pair.css'
 
-/** Whether a scan is possible here at all. */
-function canScan() {
-  return typeof window !== 'undefined'
-    && 'BarcodeDetector' in window
-    && Boolean(navigator.mediaDevices?.getUserMedia)
-}
-
-const TROUBLE = {
-  insecure: {
-    title: 'This address cannot pair',
-    body: 'Browsers require an https connection for end-to-end encryption. Open Amethyst over https and scan again.',
-    retry: 'Try again',
-  },
-  expired: {
-    title: 'That code has expired',
-    body: 'Pairing codes last five minutes. Click "Pair a device" on your PC to generate a fresh code and scan again.',
-    retry: 'Scan new code',
-  },
-  invalid: {
-    title: "That code didn't work",
-    body: 'It may have been mistyped, or already used. Each code pairs one device, once.',
-    retry: 'Try again',
-  },
-  offline: {
-    title: 'No connection',
-    body: 'This device could not reach your PC or the relay. Check that your phone and PC are on the same Wi-Fi, or check your internet connection.',
-    retry: 'Retry connection',
-  },
-  relay: {
-    title: 'Relay connection busy',
-    body: 'The encrypted mailbox is reachable but busy. Try connecting again in a moment.',
-    retry: 'Retry',
-  },
-  timeout: {
-    title: 'Your computer never answered',
-    body: 'Check that Amethyst is open on your PC. If on home Wi-Fi, ensure your PC firewall allows port 8000 (sudo ufw allow 8000/tcp).',
-    retry: 'Try again',
-  },
-}
-
-function linkWaiting() {
-  return typeof window !== 'undefined' && (window.location.hash || '').includes('s=')
-}
-
-function takeLink() {
-  if (!linkWaiting()) return null
-  const read = syncClient.readPayload(window.location.href)
-  try {
-    window.history.replaceState(null, '', window.location.pathname + window.location.search)
-  } catch {}
-  return read.secret ? read : null
-}
-
-function deviceName() {
-  const ua = navigator.userAgent || ''
-  if (/iPhone/i.test(ua)) return 'iPhone'
-  if (/iPad/i.test(ua)) return 'iPad'
-  if (/Android/i.test(ua)) return 'Android phone'
-  if (/Mac/i.test(ua)) return 'Mac'
-  if (/Windows/i.test(ua)) return 'Windows PC'
-  return 'Mobile phone'
-}
-
 export default function Pair({ onPaired, onDesktop }) {
-  const held = syncClient.identity()
-
-  const [phase, setPhase] = useState('idle') // 'idle' | 'scanning' | 'pairing' | 'paired' | 'trouble'
+  // Phases: 'idle' | 'scanning' | 'connecting' | 'waiting_approval' | 'paired' | 'trouble'
+  const [phase, setPhase] = useState('idle')
   const [trouble, setTrouble] = useState(null)
-  const [typing, setTyping] = useState(false)
-  const [relayUrl, setRelayUrl] = useState(() => held?.relayUrl || '')
-  const [hostUrl, setHostUrl] = useState(() => held?.hostUrl || '')
-  const [code, setCode] = useState('')
-  const [pendingSecret, setPendingSecret] = useState(null)
-
-  const run = useCallback(async (opts, fallbackCode) => {
-    setPhase('pairing')
-    setTrouble(null)
-    try {
-      let params
-      if (typeof opts === 'object' && opts !== null) {
-        params = {
-          relayUrl: syncClient.normalizeUrl(opts.relay || opts.relayUrl),
-          hostUrl: syncClient.normalizeUrl(opts.host || opts.hostUrl),
-          secret: opts.secret,
-          name: deviceName(),
-        }
-      } else {
-        params = {
-          relayUrl: syncClient.normalizeUrl(opts),
-          hostUrl: syncClient.normalizeUrl(hostUrl || (typeof window !== 'undefined' ? window.location.origin : '')),
-          secret: fallbackCode,
-          name: deviceName(),
-        }
-      }
-      await syncClient.pair(params)
-      setPhase('paired')
-      setTimeout(() => onPaired?.(), 700)
-    } catch (err) {
-      setTrouble(TROUBLE[err?.reason] || {
-        title: "Connection could not finish",
-        body: err?.message || 'Something went wrong. Check that Amethyst is running on your computer.',
-        retry: 'Try again',
-      })
-      setPhase('trouble')
-    }
-  }, [hostUrl, onPaired])
-
-  const started = useRef(false)
-  useEffect(() => {
-    if (started.current) return
-    started.current = true
-    const start = takeLink()
-    if (!start) return
-    setCode(start.secret)
-    if (start.relayUrl) setRelayUrl(start.relayUrl)
-    if (start.hostUrl) setHostUrl(start.hostUrl)
-    setPendingSecret(start)
-  }, [])
-
-  const handleAuthorize = () => {
-    if (pendingSecret?.secret) {
-      run(pendingSecret)
-      return
-    }
-    if (code.trim().length >= 16) {
-      run({ relay: syncClient.normalizeUrl(relayUrl), host: syncClient.normalizeUrl(hostUrl), secret: code.trim() })
-      return
-    }
-    setPhase('scanning')
-  }
+  const [loadingFixture, setLoadingFixture] = useState(false)
 
   const handleBack = () => {
-    if (phase === 'scanning' || phase === 'trouble' || typing) {
+    if (phase === 'scanning' || phase === 'trouble') {
       setPhase('idle')
-      setTyping(false)
       setTrouble(null)
       return
     }
@@ -151,29 +27,73 @@ export default function Pair({ onPaired, onDesktop }) {
     }
   }
 
-  const scanned = useCallback((raw) => {
-    const read = syncClient.readPayload(raw)
-    if (!read.secret) { setPhase('idle'); return }
-    const relay = read.relayUrl || relayUrl
-    const host = read.hostUrl || hostUrl
-    setCode(read.secret)
-    if (read.relayUrl) setRelayUrl(read.relayUrl)
-    if (read.hostUrl) setHostUrl(read.hostUrl)
-    run({ relay, host, secret: read.secret })
-  }, [relayUrl, hostUrl, run])
+  const handleScan = useCallback(async (raw) => {
+    setTrouble(null)
 
-  const hasAddr = Boolean(
-    relayUrl.trim() ||
-    hostUrl.trim() ||
-    (typeof window !== 'undefined' && window.location.origin.startsWith('http'))
-  )
-  const ready = hasAddr && syncClient.readPayload(code).secret.length >= 16
+    let qrPayload
+    try {
+      qrPayload = decodeAndValidateQr(raw)
+    } catch (err) {
+      setTrouble({
+        title: err.code === 'EXPIRED_QR'
+          ? 'That code has expired'
+          : err.code === 'WRONG_VERSION'
+            ? 'Unsupported pairing version'
+            : 'Invalid QR code',
+        body: err.message,
+        retry: 'Scan new code',
+      })
+      setPhase('trouble')
+      return
+    }
+
+    setPhase('connecting')
+    try {
+      await pairDevice({
+        qrPayload,
+        onStatusChange: (nextState) => {
+          if (nextState === 'waiting_approval') {
+            setPhase('waiting_approval')
+          }
+        },
+      })
+
+      setPhase('paired')
+      setTimeout(() => onPaired?.(), 600)
+    } catch (err) {
+      const msg = err.message || 'Could not complete pairing with PC.'
+      setTrouble({
+        title: err.code === 'NO_HOST_RESPONDED'
+          ? 'Connection Failed'
+          : err.code === 'DENIED'
+            ? 'Pairing Denied'
+            : err.code === 'APPROVAL_TIMEOUT'
+              ? 'Approval Timed Out'
+              : 'Connection Failed',
+        body: msg,
+        retry: 'Try again',
+      })
+      setPhase('trouble')
+    }
+  }, [onPaired])
+
+  const handleLoadFixture = async () => {
+    if (loadingFixture) return
+    setLoadingFixture(true)
+    try {
+      await loadFixtureBundle()
+      setPhase('paired')
+      setTimeout(() => onPaired?.(), 500)
+    } finally {
+      setLoadingFixture(false)
+    }
+  }
 
   return (
-    <div className={`pair-screen ${phase === 'idle' && !typing ? 'is-flow-lime' : ''}`}>
+    <div className={`pair-screen ${phase === 'idle' ? 'is-flow-lime' : ''}`}>
       {/* Top Bar with Circular Back Button */}
       <header className="pair-top-bar">
-        <button
+        <Button
           type="button"
           className="pair-back-btn"
           onClick={handleBack}
@@ -182,7 +102,7 @@ export default function Pair({ onPaired, onDesktop }) {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
           </svg>
-        </button>
+        </Button>
       </header>
 
       {/* Main Center Area */}
@@ -190,15 +110,11 @@ export default function Pair({ onPaired, onDesktop }) {
         {phase === 'scanning' ? (
           <div className="pair-scan-card">
             <QrScanner
-              onScan={scanned}
+              onScan={handleScan}
               onCancel={() => setPhase('idle')}
-              onManual={() => {
-                setPhase('idle')
-                setTyping(true)
-              }}
             />
           </div>
-        ) : phase === 'pairing' ? (
+        ) : phase === 'connecting' ? (
           <div className="pair-dialog-card">
             <div className="pair-monitor-icon is-pulsing" aria-hidden="true">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -207,9 +123,23 @@ export default function Pair({ onPaired, onDesktop }) {
                 <line x1="12" y1="17" x2="12" y2="21" />
               </svg>
             </div>
-            <h1 className="pair-prompt-title">Authorizing with your computer…</h1>
+            <h1 className="pair-prompt-title">Connecting to PC…</h1>
             <p className="pair-prompt-desc">
-              Waiting for authorization from your desktop. Look at your computer screen and click <strong>Approve</strong>.
+              Establishing a secure, pinned TLS connection to your computer.
+            </p>
+          </div>
+        ) : phase === 'waiting_approval' ? (
+          <div className="pair-dialog-card">
+            <div className="pair-monitor-icon is-pulsing" aria-hidden="true">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2.5" />
+                <line x1="8" y1="21" x2="16" y2="21" />
+                <line x1="12" y1="17" x2="12" y2="21" />
+              </svg>
+            </div>
+            <h1 className="pair-prompt-title">Waiting for approval on your PC…</h1>
+            <p className="pair-prompt-desc">
+              Look at your computer screen and click <strong>Approve</strong> to pair this phone.
             </p>
           </div>
         ) : phase === 'paired' ? (
@@ -218,7 +148,7 @@ export default function Pair({ onPaired, onDesktop }) {
               <Icon name="check-circle" size={44} />
             </div>
             <h1 className="pair-prompt-title">Connected</h1>
-            <p className="pair-prompt-desc">Your phone is now securely paired with your computer.</p>
+            <p className="pair-prompt-desc">Your phone is now securely paired with your PC.</p>
           </div>
         ) : phase === 'trouble' ? (
           <div className="pair-dialog-card">
@@ -227,15 +157,9 @@ export default function Pair({ onPaired, onDesktop }) {
             </div>
             <h1 className="pair-prompt-title">{trouble?.title || 'Connection Failed'}</h1>
             <p className="pair-prompt-desc">{trouble?.body}</p>
-            {trouble?.title?.includes('computer') && (
-              <div className="pair-firewall-box">
-                <span>Linux firewall hint:</span>
-                <code>sudo ufw allow 8000/tcp</code>
-              </div>
-            )}
           </div>
         ) : (
-          /* Default IDLE Screen: Exact match to Screen 1 from Amethyst Mobile Flow */
+          /* Default IDLE Screen */
           <>
             <div style={{ margin: '20px 0 10px', display: 'flex', justifyContent: 'center' }} aria-hidden="true">
               <svg viewBox="0 0 300 300" width="220" height="220" fill="none" stroke="#111113" strokeWidth="1.5">
@@ -253,49 +177,8 @@ export default function Pair({ onPaired, onDesktop }) {
               Connect your PC to Amethyst
             </h1>
             <p className="pair-prompt-desc" style={{ color: '#141414', opacity: 0.8, fontSize: 15, margin: '8px 0 24px' }}>
-              Open Amethyst on your PC, go to Settings, then Phone, and scan the code it shows.
+              Open Amethyst on your PC, click Pair Device, and scan the QR code. Both devices must be on the same Wi-Fi network.
             </p>
-
-            {typing && (
-              <div className="pair-manual-card">
-                <label className="pair-input-label" htmlFor="pair-relay-input">
-                  Computer or Relay Address
-                </label>
-                <input
-                  id="pair-relay-input"
-                  className="pair-text-input"
-                  type="url"
-                  inputMode="url"
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  placeholder="http://192.168.1.x:8000"
-                  value={relayUrl || hostUrl}
-                  onChange={(e) => {
-                    const val = e.target.value
-                    setRelayUrl(val)
-                    setHostUrl(val)
-                  }}
-                />
-
-                <label className="pair-input-label" htmlFor="pair-code-input">
-                  Pairing Code
-                </label>
-                <input
-                  id="pair-code-input"
-                  className="pair-text-input pair-code-input"
-                  autoCapitalize="characters"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  placeholder="XXXX XXXX XXXX XXXX"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && ready) run({ relay: syncClient.normalizeUrl(relayUrl), host: syncClient.normalizeUrl(hostUrl), secret: code })
-                  }}
-                />
-              </div>
-            )}
           </>
         )}
       </main>
@@ -303,59 +186,61 @@ export default function Pair({ onPaired, onDesktop }) {
       {/* Bottom Action Area */}
       <footer className="pair-bottom-actions">
         {phase === 'trouble' ? (
-          <button
+          <Button
             type="button"
             className="pair-auth-btn"
-            onClick={() => { setPhase('idle'); setTyping(true) }}
+            onClick={() => setPhase('scanning')}
           >
             {trouble?.retry || 'Try again'}
-          </button>
+          </Button>
         ) : phase === 'idle' ? (
-          typing ? (
-            <>
-              <button
-                type="button"
-                className="pair-auth-btn"
-                onClick={() => run({ relay: syncClient.normalizeUrl(relayUrl), host: syncClient.normalizeUrl(hostUrl), secret: code })}
-                disabled={!ready}
-              >
-                Authorize this phone
-              </button>
-              <button
-                type="button"
-                className="pair-sub-action"
-                onClick={() => setTyping(false)}
-              >
-                Cancel manual entry
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                className="pair-auth-btn"
-                style={{ background: '#111113', color: '#fff', borderRadius: 999, minHeight: 48, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' }}
-                onClick={handleAuthorize}
-              >
-                <span>Scan code</span>
-                <span aria-hidden="true">→</span>
-              </button>
-              <button
-                type="button"
-                className="pair-sub-action"
-                style={{ border: '1.5px solid #111113', borderRadius: 999, minHeight: 48, color: '#111113', fontWeight: 600 }}
-                onClick={() => setTyping(true)}
-              >
-                Enter code instead
-              </button>
-            </>
-          )
+          <>
+            <Button
+              type="button"
+              className="pair-auth-btn"
+              style={{
+                background: '#111113',
+                color: '#fff',
+                borderRadius: 999,
+                minHeight: 48,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0 24px',
+              }}
+              onClick={() => setPhase('scanning')}
+            >
+              <span>Scan QR Code</span>
+              <span aria-hidden="true">→</span>
+            </Button>
+
+            {/* Test fixture button for sessions D & E */}
+            <Button
+              type="button"
+              className="pair-sub-action"
+              style={{
+                marginTop: 8,
+                border: '1px dashed #111113',
+                borderRadius: 999,
+                minHeight: 40,
+                color: '#111113',
+                fontWeight: 500,
+                fontSize: 13,
+                background: 'transparent',
+                cursor: 'pointer',
+              }}
+              onClick={handleLoadFixture}
+              disabled={loadingFixture}
+            >
+              {loadingFixture ? 'Loading fixture…' : 'Use test bundle (sessions D & E)'}
+            </Button>
+          </>
         ) : null}
 
         {onDesktop && phase === 'idle' && (
-          <button type="button" className="pair-desktop-link" onClick={onDesktop}>
+          <Button type="button" className="pair-desktop-link" onClick={onDesktop} style={{ marginTop: 12 }}>
             Use desktop interface
-          </button>
+          </Button>
         )}
       </footer>
     </div>
