@@ -41,7 +41,6 @@ from backend.workers.accounts import (
 )
 from backend.workers.reports import WorkerReportStore
 from backend.workers.router import (
-    CLOUDFLARE,
     LOCAL,
     ExecutionRequest,
     choose,
@@ -139,20 +138,19 @@ def test_one_interactive_task_stays_on_this_machine(db, lanes):
     assert choose(ExecutionRequest(interactive=True), settings=lanes).lane == LOCAL
 
 
-def test_durable_offline_work_goes_to_the_relay(db, lanes):
+def test_durable_offline_work_goes_to_subagent(db, lanes):
     decision = choose(
         ExecutionRequest(task="url_ingest", interactive=False, offline_ok=True), settings=lanes
     )
-    assert decision.lane == CLOUDFLARE
+    assert decision.lane == SUBAGENT
 
 
-def test_the_relay_is_not_offered_work_it_cannot_run(db, lanes):
-    """It runs three registered job kinds; `gmail` is not one of them."""
+def test_durable_offline_work_falls_back_to_local_when_subagent_unconfigured(db):
+    empty = WorkerSettings(accounts={}, relay_url="")
     decision = choose(
-        ExecutionRequest(task="gmail", interactive=False, offline_ok=True), settings=lanes
+        ExecutionRequest(task="url_ingest", interactive=False, offline_ok=True), settings=empty
     )
-    assert decision.lane != CLOUDFLARE
-    assert "does not run" in decision.rejected[CLOUDFLARE]
+    assert decision.lane == LOCAL
 
 
 def test_work_needing_this_machines_data_never_leaves_it(db, lanes):
@@ -648,27 +646,6 @@ def test_an_oversized_result_is_replaced_rather_than_truncated(db):
     store = WorkerReportStore()
     store.apply({"job_id": "big", "state": "completed", "result": {"blob": "x" * 400_000}})
     assert store.get("big").result["truncated"] is True
-
-
-async def test_the_poller_writes_reports_down_and_acknowledges_them_late(db, monkeypatch):
-    """The round trip's last leg: what /sync handed over becomes a local row."""
-    from backend.instagram.relay import RelayPoller
-
-    poller = RelayPoller()
-    taken = poller._collect_workers(
-        {
-            "workers": [
-                {"job_id": "w1", "state": "completed", "result": {"ok": 1}},
-                {"job_id": "w2", "state": "running", "progress": {"done": 1}},
-                {"job_id": "w3", "state": "not-a-state"},
-            ]
-        }
-    )
-    assert taken == 2
-    assert WorkerReportStore().get("w1").result == {"ok": 1}
-    # `w2` is still running: acknowledging it would mark it synced at the relay
-    # while the result is still to come. `w3` is garbage and must not block it.
-    assert sorted(poller._pending_worker_ack) == ["w1", "w3"]
 
 
 # ------------------------------------------------------------------ security

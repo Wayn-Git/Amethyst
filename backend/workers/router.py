@@ -37,15 +37,8 @@ from backend.workers.accounts import AUTOMATION, SUBAGENT, WorkerSettings, load_
 
 #: This process. Always available, and the only lane that can touch local data.
 LOCAL = "local"
-#: The always-on Worker. For work whose deadline a closed laptop cannot meet.
-CLOUDFLARE = "cloudflare"
 
-LANES = (LOCAL, CLOUDFLARE, AUTOMATION, SUBAGENT)
-
-#: Job kinds the relay actually registers (`relay/src/jobs/types/index.ts`).
-#: Cloudflare is only a lane for work it already knows how to run -- a task not
-#: in this set routes past it rather than being dispatched into a 400.
-RELAY_KINDS = frozenset({"url_ingest", "document_fetch", "media_fetch"})
+LANES = (LOCAL, AUTOMATION, SUBAGENT)
 
 #: Above one node the work is a fan-out, which is the case the sub-agent account
 #: exists for. At one node the dispatch round trip costs more than the work.
@@ -117,12 +110,6 @@ def _available(lane: str, request: ExecutionRequest, settings: WorkerSettings) -
         return ""
     if request.needs_local_data:
         return "the work needs this machine's data"
-    if lane == CLOUDFLARE:
-        if not settings.relay_url:
-            return "no relay is configured"
-        if request.task and request.task not in RELAY_KINDS:
-            return f"the relay does not run '{request.task}'"
-        return ""
     account = settings.account(lane)
     if not account.enabled:
         return "the account is switched off"
@@ -151,20 +138,20 @@ def _preference(request: ExecutionRequest) -> list[tuple[str, str]]:
         wanted.append((LOCAL, "the work needs this machine's data"))
     elif request.scheduled:
         wanted.append((AUTOMATION, "a scheduled automation"))
-        wanted.append((CLOUDFLARE, "recurring work that should survive a closed laptop"))
+        wanted.append((LOCAL, "scheduled work fallback"))
     elif request.fanout >= FANOUT:
         # Smart routing: if tasks are fast (<3s each), run locally to avoid
         # remote overhead. If slow or many, use remote for parallelism.
         total_estimated = request.estimated_seconds * request.fanout
         if request.fanout >= 10 or total_estimated > 30:
             wanted.append((SUBAGENT, f"{request.fanout} tasks ({total_estimated:.0f}s estimated)"))
-            wanted.append((CLOUDFLARE, "a batch that need not wait for this machine"))
+            wanted.append((LOCAL, "batch work local fallback"))
         elif request.fanout >= FANOUT:
             wanted.append((LOCAL, f"{request.fanout} fast tasks, local is quicker"))
             wanted.append((SUBAGENT, f"fallback for {request.fanout} tasks"))
     elif request.offline_ok and not request.interactive:
-        wanted.append((CLOUDFLARE, "durable work with nobody waiting"))
         wanted.append((SUBAGENT, "durable work with nobody waiting"))
+        wanted.append((LOCAL, "durable work with nobody waiting"))
     elif request.interactive:
         wanted.append((LOCAL, "one task with somebody waiting"))
 

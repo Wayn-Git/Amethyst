@@ -165,16 +165,6 @@ def load_workers() -> WorkerSettings:
         raw = {}
 
     relay = str(raw.get("relay_url") or "").strip()
-    if not relay:
-        # One mailbox. The Instagram relay is already deployed, already holds a
-        # token this machine rotates, and is already polled every fifteen
-        # seconds -- a second Worker would be a second thing to keep alive.
-        try:
-            from backend.config import load_instagram
-
-            relay = (load_instagram().relay_url or "").strip()
-        except Exception:
-            relay = ""
 
     return WorkerSettings(
         accounts={name: _account_from(name, raw.get(name)) for name in ACCOUNTS},

@@ -28,7 +28,6 @@ from backend.workers.accounts import (
 from backend.workers.batch import KIND, BadBatch, BatchSpec, Node, enqueue
 from backend.workers.reports import WorkerReport, WorkerReportStore
 from backend.workers.router import (
-    CLOUDFLARE,
     LANES,
     LOCAL,
     ExecutionDecision,
@@ -40,7 +39,6 @@ __all__ = [
     "AUTOMATION",
     "BadBatch",
     "BatchSpec",
-    "CLOUDFLARE",
     "ExecutionDecision",
     "ExecutionRequest",
     "KIND",
