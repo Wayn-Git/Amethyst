@@ -309,17 +309,17 @@ def test_a_code_on_screen_is_reported_as_open():
 
 def test_stale_devices_are_pruned(conn):
     dev1, _ = devices.register(conn, "old-never-seen")
-    dev2, _ = devices.register(conn, "new-never-seen")
+    dev2, _ = devices.register(conn, "in-progress-never-seen")
     dev3, _ = devices.register(conn, "active-recently")
     dev4, _ = devices.register(conn, "active-long-ago")
 
     # Set timestamps
     conn.execute(
-        "UPDATE devices SET created_at = datetime('now', '-20 days') WHERE id = ?",
+        "UPDATE devices SET created_at = datetime('now', '-48 hours') WHERE id = ?",
         (dev1.id,)
     )
     conn.execute(
-        "UPDATE devices SET created_at = datetime('now', '-2 days') WHERE id = ?",
+        "UPDATE devices SET created_at = datetime('now', '-1 hour') WHERE id = ?",
         (dev2.id,)
     )
     conn.execute(
@@ -332,11 +332,11 @@ def test_stale_devices_are_pruned(conn):
     )
     conn.commit()
 
-    pruned = devices.prune_stale_devices(conn, max_unseen_days=14)
-    assert pruned == 2
+    pruned = devices.prune_stale_devices(conn, never_seen_ttl_hours=24)
+    assert pruned == 1  # only dev1 (never seen and > 24h old)
 
     live_ids = {d.id for d in devices.live(conn)}
     assert dev1.id not in live_ids
-    assert dev4.id not in live_ids
-    assert dev2.id in live_ids
+    assert dev2.id in live_ids  # in progress (< 24h) preserved
     assert dev3.id in live_ids
+    assert dev4.id in live_ids

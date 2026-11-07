@@ -278,25 +278,27 @@ def revoke(conn: sqlite3.Connection, device_id: str) -> bool:
     return revoked
 
 
-def prune_stale_devices(conn: sqlite3.Connection, max_unseen_days: int = 14) -> int:
-    """Revoke devices that were created but never seen, or unseen for a long period."""
+def prune_stale_devices(conn: sqlite3.Connection, never_seen_ttl_hours: int = 24) -> int:
+    """Revoke devices from never-completed pairings (last_seen_at IS NULL) older than 24h.
+
+    Never revokes devices where pairing is still in progress (< 24h old), nor completed
+    devices. Unseen active devices are handled by relay collect() without destructive revocation.
+    """
     _ensure_schema(conn)
     cursor = conn.execute(
         """
         UPDATE devices
         SET revoked_at = datetime('now')
         WHERE revoked_at IS NULL
-          AND (
-            (last_seen_at IS NULL AND created_at < datetime('now', ?))
-            OR (last_seen_at < datetime('now', ?))
-          )
+          AND last_seen_at IS NULL
+          AND created_at < datetime('now', ?)
         """,
-        (f"-{max_unseen_days} days", f"-{max_unseen_days * 2} days"),
+        (f"-{never_seen_ttl_hours} hours",),
     )
     revoked = cursor.rowcount
     if revoked:
         conn.commit()
-        log.info("auto-revoked %d stale device(s)", revoked)
+        log.info("auto-revoked %d never-completed pairing(s)", revoked)
     return revoked
 
 
@@ -327,11 +329,19 @@ def mirror(conn: sqlite3.Connection) -> list[dict]:
     Token *hashes*, not tokens. The relay has to recognise a device without being
     able to impersonate one, which is the same reason it is given Meta's exact
     bytes rather than a parsed object -- it is a participant, not a trusted one.
+    Includes last_seen_at and created_at so the relay's collect() can ignore
+    inactive devices without destructive local revocation.
     """
     return [
-        {"id": row[0], "role": row[1], "token_hash": row[2]}
+        {
+            "id": row[0],
+            "role": row[1],
+            "token_hash": row[2],
+            "last_seen_at": row[3],
+            "created_at": row[4],
+        }
         for row in conn.execute(
-            "SELECT id, role, token_hash FROM devices WHERE revoked_at IS NULL"
+            "SELECT id, role, token_hash, last_seen_at, created_at FROM devices WHERE revoked_at IS NULL"
         )
     ]
 

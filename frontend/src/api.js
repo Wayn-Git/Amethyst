@@ -399,6 +399,11 @@ export const api = {
   getPhoneLlmSettings: () => j('/settings/phone-llm'),
   savePhoneLlmSettings: (cfg) => j('/settings/phone-llm', json('POST', cfg)),
   deletePhoneLlmSettings: () => j('/settings/phone-llm', json('DELETE')),
+  getPhoneComposioSettings: () => j('/settings/phone-composio'),
+  savePhoneComposioSettings: (cfg) => j('/settings/phone-composio', json('POST', cfg)),
+  deletePhoneComposioSettings: () => j('/settings/phone-composio', json('DELETE')),
+  getPhonePairingSettings: () => j('/settings/phone-pairing'),
+  savePhonePairingSettings: (cfg) => j('/settings/phone-pairing', json('POST', cfg)),
 
   // Remote PC & System Telemetry
   remoteStatus: () => j('/remote/status'),

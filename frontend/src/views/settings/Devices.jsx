@@ -46,6 +46,16 @@ const SCOPE_DEFINITIONS = [
   { key: 'root', label: 'Root / Sudo', icon: 'shield' },
 ]
 
+function formatSharedProviderItem(p) {
+  if (!p) return ''
+  if (typeof p === 'string') return p
+  if (typeof p === 'object' && p !== null) {
+    if (p.provider && p.model) return `${p.provider} (${p.model})`
+    return p.provider || p.model || p.name || JSON.stringify(p)
+  }
+  return String(p)
+}
+
 export default function Devices() {
   const { toast, server } = useApp()
   const confirm = useConfirm()
@@ -92,6 +102,17 @@ export default function Devices() {
   const [phoneProviderInput, setPhoneProviderInput] = useState('anthropic')
   const [phoneModelInput, setPhoneModelInput] = useState('claude-3-5-haiku-20241022')
   const [savingPhoneLlm, setSavingPhoneLlm] = useState(false)
+
+  // CONTRACT v2 Phone Composio State
+  const [phoneComposio, setPhoneComposio] = useState(null)
+  const [phoneComposioKeyInput, setPhoneComposioKeyInput] = useState('')
+  const [phoneComposioUserIdInput, setPhoneComposioUserIdInput] = useState('')
+  const [savingPhoneComposio, setSavingPhoneComposio] = useState(false)
+
+  // Use separate phone-only keys setting (default false)
+  const [useSeparateKeys, setUseSeparateKeys] = useState(false)
+  const [revokedModalData, setRevokedModalData] = useState(null)
+
   const [v2Pairing, setV2Pairing] = useState(null)
   const [v2Status, setV2Status] = useState(null)
 
@@ -113,6 +134,17 @@ export default function Devices() {
       setPhoneLlm(pCfg)
       if (pCfg?.provider) setPhoneProviderInput(pCfg.provider)
       if (pCfg?.model) setPhoneModelInput(pCfg.model)
+
+      const pComp = await api.getPhoneComposioSettings()
+      setPhoneComposio(pComp)
+      if (pComp?.user_id) setPhoneComposioUserIdInput(pComp.user_id)
+
+      try {
+        const pairingCfg = await api.getPhonePairingSettings()
+        setUseSeparateKeys(Boolean(pairingCfg?.use_separate_keys))
+      } catch {
+        // ignore
+      }
     } catch {
       // Backend went away mid-look
     } finally {
@@ -145,11 +177,29 @@ export default function Devices() {
     return () => clearInterval(pollInterval)
   }, [showAddModal, v2Pairing])
 
+  const toggleSeparateKeys = async () => {
+    const next = !useSeparateKeys
+    setUseSeparateKeys(next)
+    try {
+      await api.savePhonePairingSettings({ use_separate_keys: next })
+      toast(next ? 'Separate phone keys enabled' : 'Auto-capture PC config enabled', 'ok')
+      await refresh()
+    } catch (err) {
+      setUseSeparateKeys(!next)
+      toast(err.message || 'Failed to update setting', 'bad')
+    }
+  }
+
   const openPairing = async () => {
-    // CONTRACT v2: Missing phone LLM key blocks pairing and explains why
-    if (!phoneLlm?.has_key) {
-      toast('Pairing blocked: Separate phone-only LLM key is missing. Set it below in Phone Settings first.', 'bad')
-      return
+    if (useSeparateKeys) {
+      if (!phoneLlm?.has_key) {
+        toast('Pairing blocked: Separate phone-only LLM key is missing. Set it below in Phone Settings first.', 'bad')
+        return
+      }
+      if (!phoneComposio?.has_key || !phoneComposio?.has_user_id) {
+        toast('Pairing blocked: Separate phone-only Composio credentials are missing. Set them below in Phone Settings first.', 'bad')
+        return
+      }
     }
     setBusy(true)
     try {
@@ -237,6 +287,50 @@ export default function Devices() {
     }
   }
 
+  const savePhoneComposio = async () => {
+    if (!phoneComposioKeyInput.trim() && !phoneComposio?.has_key) {
+      toast('Please enter a dedicated phone Composio API key.', 'bad')
+      return
+    }
+    if (!phoneComposioUserIdInput.trim() && !phoneComposio?.has_user_id) {
+      toast('Please enter a phone Composio User ID.', 'bad')
+      return
+    }
+    setSavingPhoneComposio(true)
+    try {
+      await api.savePhoneComposioSettings({
+        api_key: phoneComposioKeyInput.trim() || undefined,
+        user_id: phoneComposioUserIdInput.trim() || undefined,
+      })
+      setPhoneComposioKeyInput('')
+      toast('Phone-only Composio credentials saved in keychain.', 'ok')
+      await refresh()
+    } catch (err) {
+      toast(err.message || 'Failed to save phone Composio settings', 'bad')
+    } finally {
+      setSavingPhoneComposio(false)
+    }
+  }
+
+  const clearPhoneComposio = async () => {
+    const ok = await confirm({
+      title: 'Delete Phone-only Composio Credentials?',
+      message: 'This removes the phone-only Composio credentials from this computer. Phone pairing will be blocked until new credentials are added.',
+      confirmLabel: 'Delete Credentials',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await api.deletePhoneComposioSettings()
+      setPhoneComposioKeyInput('')
+      setPhoneComposioUserIdInput('')
+      toast('Phone-only Composio credentials removed.', 'ok')
+      await refresh()
+    } catch (err) {
+      toast(err.message, 'bad')
+    }
+  }
+
   const approvePending = async (requestId) => {
     try {
       await api.approvePending(requestId)
@@ -306,19 +400,37 @@ export default function Devices() {
   }
 
   const revoke = async (device) => {
+    let shared = []
+    try {
+      const perms = typeof device.permissions === 'string' ? JSON.parse(device.permissions || '{}') : (device.permissions || {})
+      if (Array.isArray(perms.shared_providers)) shared = perms.shared_providers
+    } catch {
+      // fallback
+    }
+
+    const checklistText = shared.length
+      ? shared.map((p) => `• [ ] ${formatSharedProviderItem(p)}`).join('\n')
+      : '• [ ] Model provider keys\n• [ ] Composio key'
+
     const ok = await confirm({
       title: `Revoke ${device.name}?`,
       message:
         `This will forget ${device.name} locally on this computer.\n\n` +
-        'IMPORTANT: Revoking does NOT rotate or delete API keys at your provider. ' +
-        'Remember to manually delete or rotate your phone-only key in your LLM provider console.',
+        `Revoking on this computer forgets the device locally, but does NOT rotate or delete any API keys at your providers.\n\n` +
+        `Shared keys to rotate:\n${checklistText}\n\n` +
+        `Please manually rotate or delete these keys at your providers.`,
       confirmLabel: 'Revoke Device',
       danger: true,
     })
     if (!ok) return
     try {
-      await api.revokeDeviceV2(device.id)
-      toast(`${device.name} revoked locally. Reminder: Delete key at provider!`, 'ok')
+      const res = await api.revokeDeviceV2(device.id)
+      const providersToRotate = (res?.shared_providers && res.shared_providers.length) ? res.shared_providers : shared
+      setRevokedModalData({
+        deviceName: device.name,
+        providers: providersToRotate.length ? providersToRotate : ['LLM Provider', 'Composio'],
+      })
+      toast(`${device.name} revoked locally.`, 'ok')
       await refresh()
     } catch (err) {
       toast(err.message, 'bad')
@@ -690,6 +802,43 @@ export default function Devices() {
                     </div>
                   </div>
 
+                  {/* Section: Phone Companion Security / Separate Keys (CONTRACT v2) */}
+                  <div className="conn-section" style={{ marginTop: 24 }}>
+                    <div className="conn-section-head">
+                      <span className="conn-section-title">Phone Companion Security</span>
+                    </div>
+
+                    <div className="conn-card">
+                      <div className="conn-card-row">
+                        <div className="conn-row-left">
+                          <div className="conn-row-icon-box" aria-hidden="true">
+                            <Icon name="shield" size={17} />
+                          </div>
+                          <div className="conn-row-text">
+                            <span className="conn-row-title">Use separate phone-only keys</span>
+                            <span className="conn-row-desc">
+                              Require dedicated LLM and Composio credentials for the phone companion instead of auto-capturing PC keys.
+                            </span>
+                          </div>
+                        </div>
+                        <motion.button
+                          type="button"
+                          className={`conn-switch ${useSeparateKeys ? 'is-on' : ''}`}
+                          onClick={toggleSeparateKeys}
+                          aria-pressed={useSeparateKeys}
+                          aria-label="Use separate phone-only keys toggle"
+                          whileTap={{ scale: 0.94 }}
+                        >
+                          <motion.span
+                            className="conn-switch-knob"
+                            animate={{ x: useSeparateKeys ? 20 : 0 }}
+                            transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+                          />
+                        </motion.button>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Section: Dedicated Phone LLM Key (CONTRACT v2) */}
                   <div className="conn-section" style={{ marginTop: 24 }}>
                     <div className="conn-section-head">
@@ -701,12 +850,12 @@ export default function Devices() {
                             fontWeight: 600,
                             padding: '2px 8px',
                             borderRadius: 6,
-                            background: phoneLlm?.has_key ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                            color: phoneLlm?.has_key ? '#22c55e' : '#ef4444',
-                            border: `1px solid ${phoneLlm?.has_key ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                            background: phoneLlm?.has_key ? 'rgba(34, 197, 94, 0.15)' : (useSeparateKeys ? 'rgba(239, 68, 68, 0.15)' : 'rgba(161, 161, 170, 0.15)'),
+                            color: phoneLlm?.has_key ? '#22c55e' : (useSeparateKeys ? '#ef4444' : '#a1a1aa'),
+                            border: `1px solid ${phoneLlm?.has_key ? 'rgba(34, 197, 94, 0.3)' : (useSeparateKeys ? 'rgba(239, 68, 68, 0.3)' : 'rgba(161, 161, 170, 0.3)')}`,
                           }}
                         >
-                          {phoneLlm?.has_key ? 'Key Configured' : 'Missing — Pairing Blocked'}
+                          {phoneLlm?.has_key ? 'Key Configured' : (useSeparateKeys ? 'Missing — Pairing Blocked' : 'Not Set (Using PC Keys)')}
                         </span>
                       </div>
                     </div>
@@ -782,6 +931,98 @@ export default function Devices() {
                               </motion.button>
                             )}
                           </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section: Dedicated Phone Composio Credentials (CONTRACT v2) */}
+                  <div className="conn-section" style={{ marginTop: 24 }}>
+                    <div className="conn-section-head">
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                        <span className="conn-section-title">Phone Companion Composio (Contract v2)</span>
+                        <span
+                          style={{
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            padding: '2px 8px',
+                            borderRadius: 6,
+                            background: phoneComposio?.has_key && phoneComposio?.has_user_id ? 'rgba(34, 197, 94, 0.15)' : (useSeparateKeys ? 'rgba(239, 68, 68, 0.15)' : 'rgba(161, 161, 170, 0.15)'),
+                            color: phoneComposio?.has_key && phoneComposio?.has_user_id ? '#22c55e' : (useSeparateKeys ? '#ef4444' : '#a1a1aa'),
+                            border: `1px solid ${phoneComposio?.has_key && phoneComposio?.has_user_id ? 'rgba(34, 197, 94, 0.3)' : (useSeparateKeys ? 'rgba(239, 68, 68, 0.3)' : 'rgba(161, 161, 170, 0.3)')}`,
+                          }}
+                        >
+                          {phoneComposio?.has_key && phoneComposio?.has_user_id ? 'Credentials Configured' : (useSeparateKeys ? 'Missing — Pairing Blocked' : 'Not Set (Using PC Keys)')}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="conn-card">
+                      <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        <div className="conn-row-text">
+                          <span className="conn-row-title">Dedicated Phone-only Composio Credentials</span>
+                          <span className="conn-row-desc">
+                            Create a separate Composio project, connect only Google Drive, and use that project's key.
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                          <div>
+                            <label style={{ fontSize: 11.5, color: 'var(--text-sub)', marginBottom: 4, display: 'block' }}>
+                              User ID {phoneComposio?.has_user_id ? '(Stored in OS keychain)' : '(Required before pairing)'}
+                            </label>
+                            <HouseInput
+                              className="set-input"
+                              placeholder="e.g. default or phone_user"
+                              value={phoneComposioUserIdInput}
+                              onChange={(e) => setPhoneComposioUserIdInput(e.target.value)}
+                              spellCheck={false}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: 11.5, color: 'var(--text-sub)', marginBottom: 4, display: 'block' }}>
+                              API Key {phoneComposio?.has_key ? '(Stored in OS keychain — enter new key to replace)' : '(Required before pairing)'}
+                            </label>
+                            <HouseInput
+                              className="set-input"
+                              type="password"
+                              placeholder={phoneComposio?.has_key ? '••••••••••••••••••••' : 'comp_...'}
+                              value={phoneComposioKeyInput}
+                              onChange={(e) => setPhoneComposioKeyInput(e.target.value)}
+                              autoComplete="off"
+                              spellCheck={false}
+                              style={{ fontFamily: 'var(--font-mono)' }}
+                            />
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                          <motion.button
+                            type="button"
+                            className="conn-btn-sm"
+                            style={{ background: '#007aff', color: '#fff', border: 'none', height: 34, padding: '0 16px', fontWeight: 600 }}
+                            onClick={savePhoneComposio}
+                            disabled={
+                              savingPhoneComposio ||
+                              (!phoneComposioKeyInput.trim() && phoneComposioUserIdInput.trim() === (phoneComposio?.user_id || ''))
+                            }
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.96 }}
+                          >
+                            {savingPhoneComposio ? 'Saving…' : 'Save'}
+                          </motion.button>
+                          {(phoneComposio?.has_key || phoneComposio?.has_user_id) && (
+                            <motion.button
+                              type="button"
+                              className="conn-btn-sm is-danger"
+                              style={{ height: 34, padding: '0 12px' }}
+                              onClick={clearPhoneComposio}
+                              whileHover={{ scale: 1.03 }}
+                              whileTap={{ scale: 0.96 }}
+                            >
+                              Clear
+                            </motion.button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1061,7 +1302,10 @@ export default function Devices() {
                 </div>
 
                 {/* Inner Display Box with Animated Crossfade */}
-                <div className="conn-modal-inner-box">
+                <div
+                  className="conn-modal-inner-box"
+                  style={v2Status?.status === 'pending_approval' ? { height: 'auto', minHeight: 220, padding: '16px 12px' } : undefined}
+                >
                   <AnimatePresence mode="wait">
                     {modalTab === 'phone' ? (
                       <motion.div
@@ -1073,15 +1317,47 @@ export default function Devices() {
                         style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       >
                         {v2Status?.status === 'pending_approval' ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '20px 16px', gap: 12, width: '100%' }}>
-                            <div style={{ fontSize: 32 }}>📱</div>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '12px 10px', gap: 10, width: '100%' }}>
+                            <div style={{ fontSize: 28 }}>📱</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>
                               Pair &lsquo;{v2Status.device_label}&rsquo;?
                             </div>
-                            <div style={{ fontSize: 12, color: 'var(--text-sub)', maxWidth: 300, lineHeight: 1.4 }}>
-                              A phone on your local Wi-Fi presented a valid token. Approving will deliver your companion bundle.
+                            <div style={{ fontSize: 11.5, color: 'var(--text-sub)', maxWidth: 320, lineHeight: 1.4 }}>
+                              A phone on your local Wi-Fi presented a valid token. Approving will share these credentials:
                             </div>
-                            <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+
+                            <div style={{ width: '100%', maxWidth: 330, background: 'rgba(255, 255, 255, 0.04)', borderRadius: 8, padding: '10px 12px', border: '1px solid var(--hairline)', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 6, fontSize: 11.5 }}>
+                              <div style={{ fontWeight: 600, color: 'var(--text-sub)', textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.04em' }}>
+                                Shared with this phone:
+                              </div>
+                              {Array.isArray(v2Status.shared_providers) && v2Status.shared_providers.length > 0 ? (
+                                v2Status.shared_providers.map((p, idx) => {
+                                  const provName = typeof p === 'object' && p !== null ? p.provider : String(p)
+                                  const modelName = typeof p === 'object' && p !== null ? p.model : null
+                                  return (
+                                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text)' }}>
+                                      <span style={{ color: '#007aff' }}>•</span>
+                                      <span>
+                                        <strong>{provName}</strong>
+                                        {modelName && <span style={{ color: 'var(--text-sub)', marginLeft: 6 }}>({modelName})</span>}
+                                      </span>
+                                    </div>
+                                  )
+                                })
+                              ) : (
+                                <div style={{ color: 'var(--text)' }}>• Configured LLM provider</div>
+                              )}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text)' }}>
+                                <span style={{ color: '#007aff' }}>•</span>
+                                <span>Composio account: <strong>{v2Status.composio_user_id || 'None'}</strong></span>
+                              </div>
+                            </div>
+
+                            <div style={{ fontSize: 11, color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.25)', borderRadius: 6, padding: '8px 10px', maxWidth: 330, lineHeight: 1.35, textAlign: 'left' }}>
+                              ⚠️ {v2Status.warning || 'This phone will be able to use these keys. If it is lost, rotate them.'}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                               <motion.button
                                 type="button"
                                 className="conn-btn-sm"
@@ -1270,6 +1546,64 @@ export default function Devices() {
           }}
         />
       )}
+
+      {/* Revoked Credentials Checklist Modal */}
+      <AnimatePresence>
+        {revokedModalData && (
+          <motion.div
+            className="conn-modal-backdrop"
+            style={{ zIndex: 100010 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setRevokedModalData(null)
+            }}
+          >
+            <motion.div
+              className="conn-modal"
+              style={{ maxWidth: 440, padding: 24, textAlign: 'left' }}
+              initial={{ scale: 0.94, opacity: 0, y: 14 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.94, opacity: 0, y: 14 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div style={{ fontSize: 24 }}>🛡️</div>
+                <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
+                  {revokedModalData.deviceName} Revoked
+                </h3>
+              </div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-sub)', marginBottom: 16, lineHeight: 1.5 }}>
+                {revokedModalData.deviceName} was removed locally. <strong>Revoke does not rotate or delete any keys at your providers.</strong> Any keys previously shared with this phone remain active until manually rotated.
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>
+                Checklist of shared credentials to rotate:
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-inset)', padding: 12, borderRadius: 8, border: '1px solid var(--hairline)', marginBottom: 18 }}>
+                {revokedModalData.providers.map((p, idx) => (
+                  <label key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text)', cursor: 'pointer' }}>
+                    <input type="checkbox" style={{ cursor: 'pointer' }} />
+                    <span>{formatSharedProviderItem(p)}</span>
+                  </label>
+                ))}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <motion.button
+                  type="button"
+                  className="conn-btn-sm"
+                  style={{ background: '#007aff', color: '#fff', border: 'none', fontWeight: 600, padding: '7px 20px' }}
+                  onClick={() => setRevokedModalData(null)}
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
+                >
+                  Done
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

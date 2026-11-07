@@ -1035,9 +1035,16 @@ app.include_router(widget_router)
 from backend.api.today import router as today_router
 app.include_router(today_router)
 
-from backend.pairing import pairing_v2_router, phone_llm_settings_router
+from backend.pairing import (
+    pairing_v2_router,
+    phone_composio_settings_router,
+    phone_llm_settings_router,
+    phone_pairing_settings_router,
+)
 app.include_router(pairing_v2_router)
 app.include_router(phone_llm_settings_router)
+app.include_router(phone_composio_settings_router)
+app.include_router(phone_pairing_settings_router)
 
 
 

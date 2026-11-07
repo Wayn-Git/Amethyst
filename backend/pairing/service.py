@@ -22,13 +22,19 @@ from typing import Any
 
 import segno
 
-from backend.config import load_drive_inbox_settings
+from backend.config import configured_providers, load_drive_inbox_settings, load_tiers
 from backend.db.connection import get_connection, transaction
 from backend.mcp.composio_service import composio_service
 from backend.pairing.cert import get_or_create_tls_cert
-from backend.pairing.config import get_phone_llm_config, has_phone_llm_key
+from backend.pairing.config import (
+    get_phone_composio_config,
+    get_phone_llm_config,
+    get_use_separate_keys,
+    has_phone_llm_key,
+)
 from backend.pairing.network import get_lan_ipv4_addresses
 from backend.pairing.server import PairingServer
+from backend.secrets import resolve_api_key
 
 log = logging.getLogger(__name__)
 
@@ -56,13 +62,31 @@ class PairingService:
         Raises:
             ValueError: If phone-only LLM API key is missing.
         """
-        # Requirement 4: Separate phone-only LLM key in settings.
-        # If missing, block pairing and explain why.
-        if not has_phone_llm_key():
-            raise ValueError(
-                "Phone-only LLM API key is required before pairing. "
-                "Please configure a dedicated phone LLM key in Settings."
-            )
+        # When separate phone-only keys setting is ON, block pairing if they're missing.
+        # Default is OFF, where pairing auto-captures existing PC configuration.
+        if get_use_separate_keys():
+            if not has_phone_llm_key():
+                raise ValueError(
+                    "Phone-only LLM API key is required when separate keys are enabled. "
+                    "Please configure a dedicated phone LLM key in Settings."
+                )
+
+            phone_composio_cfg = get_phone_composio_config()
+            if not phone_composio_cfg["api_key"] or not phone_composio_cfg["user_id"]:
+                if not phone_composio_cfg["api_key"] and not phone_composio_cfg["user_id"]:
+                    raise ValueError(
+                        "Phone-only Composio API key and User ID are required when separate keys are enabled. "
+                        "Please configure dedicated phone Composio credentials in Settings."
+                    )
+                if not phone_composio_cfg["api_key"]:
+                    raise ValueError(
+                        "Phone-only Composio API key is required when separate keys are enabled. "
+                        "Please configure a dedicated phone Composio API key in Settings."
+                    )
+                raise ValueError(
+                    "Phone-only Composio User ID is required when separate keys are enabled. "
+                    "Please configure a dedicated phone Composio User ID in Settings."
+                )
 
         with self._lock:
             # Terminate any existing server
@@ -135,6 +159,47 @@ class PairingService:
                 "expires_in": 120,
             }
 
+    def _get_shared_credentials_preview(self) -> dict[str, Any]:
+        """Summarize what will be shared upon approval WITHOUT exposing any secret values."""
+        if get_use_separate_keys():
+            phone_cfg = get_phone_llm_config()
+            phone_composio = get_phone_composio_config()
+            return {
+                "shared_providers": [
+                    {
+                        "provider": phone_cfg["provider"],
+                        "model": phone_cfg["model"],
+                    }
+                ],
+                "composio_user_id": phone_composio.get("user_id", ""),
+            }
+
+        configured = configured_providers()
+        tiers = load_tiers()
+        default_tier = tiers.get("default")
+
+        providers = []
+        for name, cfg in configured.items():
+            model = (
+                default_tier.model
+                if (default_tier and default_tier.provider == name and default_tier.model)
+                else (cfg.default_model or "")
+            )
+            providers.append({
+                "provider": name,
+                "model": model,
+            })
+
+        composio_uid = (
+            composio_service._get_stable_user_id()
+            if hasattr(composio_service, "_get_stable_user_id")
+            else ""
+        )
+        return {
+            "shared_providers": providers,
+            "composio_user_id": composio_uid,
+        }
+
     def get_status(self) -> dict[str, Any]:
         """Poll the status of the active pairing server."""
         with self._lock:
@@ -152,10 +217,14 @@ class PairingService:
 
             remaining = max(0, int(server.exp - now))
             if server.pending_device_label:
+                preview = self._get_shared_credentials_preview()
                 return {
                     "status": "pending_approval",
                     "device_label": server.pending_device_label,
                     "remaining_seconds": remaining,
+                    "shared_providers": preview["shared_providers"],
+                    "composio_user_id": preview["composio_user_id"],
+                    "warning": "This phone will be able to use these keys. If it is lost, rotate them.",
                 }
 
             return {
@@ -182,49 +251,146 @@ class PairingService:
             device_id = f"phone_{secrets.token_hex(8)}"
             token_hash = hashlib.sha256(server.token.encode("utf-8")).hexdigest()
 
-            # Record in devices table
+            if get_use_separate_keys():
+                phone_cfg = get_phone_llm_config()
+                phone_composio_cfg = get_phone_composio_config()
+                if not phone_cfg.get("api_key"):
+                    raise ValueError("Phone-only LLM API key is missing.")
+                if not phone_composio_cfg.get("api_key") or not phone_composio_cfg.get("user_id"):
+                    raise ValueError(
+                        "Phone-only Composio credentials (API key and User ID) are missing."
+                    )
+
+                llm_bundle = {
+                    "providers": [
+                        {
+                            "provider": phone_cfg["provider"],
+                            "model": phone_cfg["model"],
+                            "api_key": phone_cfg["api_key"],
+                        }
+                    ],
+                    "default": 0,
+                    "provider": phone_cfg["provider"],
+                    "model": phone_cfg["model"],
+                    "api_key": phone_cfg["api_key"],
+                }
+                composio_bundle = {
+                    "api_key": phone_composio_cfg["api_key"],
+                    "user_id": phone_composio_cfg["user_id"],
+                }
+                shared_providers_list = [phone_cfg["provider"], "composio"]
+            else:
+                configured = configured_providers()
+                tiers = load_tiers()
+                default_tier = tiers.get("default")
+
+                if default_tier and default_tier.provider in configured:
+                    default_provider_name = default_tier.provider
+                    default_model = default_tier.model
+                    default_api_key = (
+                        resolve_api_key(
+                            ref=configured[default_tier.provider].api_key_ref,
+                            env=configured[default_tier.provider].api_key_env,
+                        )
+                        or ""
+                    )
+                elif configured:
+                    first_name = next(iter(configured))
+                    first_cfg = configured[first_name]
+                    default_provider_name = first_name
+                    default_model = first_cfg.default_model or ""
+                    default_api_key = (
+                        resolve_api_key(
+                            ref=first_cfg.api_key_ref,
+                            env=first_cfg.api_key_env,
+                        )
+                        or ""
+                    )
+                else:
+                    default_provider_name = ""
+                    default_model = ""
+                    default_api_key = ""
+
+                default_idx = 0
+                providers_list = []
+                for idx, (name, cfg) in enumerate(configured.items()):
+                    if name == default_provider_name:
+                        default_idx = idx
+                    p_key = resolve_api_key(ref=cfg.api_key_ref, env=cfg.api_key_env) or ""
+                    p_model = (
+                        default_tier.model
+                        if (default_tier and default_tier.provider == name and default_tier.model)
+                        else (cfg.default_model or "")
+                    )
+                    item = {
+                        "provider": name,
+                        "model": p_model,
+                        "api_key": p_key,
+                    }
+                    if cfg.base_url:
+                        item["base_url"] = cfg.base_url
+                    providers_list.append(item)
+
+                llm_bundle = {
+                    "providers": providers_list,
+                    "default": default_idx,
+                    "provider": default_provider_name,
+                    "model": default_model,
+                    "api_key": default_api_key,
+                }
+
+                main_composio_key = composio_service.get_api_key() or ""
+                main_composio_uid = (
+                    composio_service._get_stable_user_id()
+                    if hasattr(composio_service, "_get_stable_user_id")
+                    else ""
+                )
+                if not main_composio_key or not main_composio_uid:
+                    phone_composio = get_phone_composio_config()
+                    if not main_composio_key:
+                        main_composio_key = phone_composio.get("api_key") or ""
+                    if not main_composio_uid:
+                        main_composio_uid = phone_composio.get("user_id") or ""
+
+                composio_bundle = {
+                    "api_key": main_composio_key,
+                    "user_id": main_composio_uid,
+                }
+                shared_providers_list = [p["provider"] for p in providers_list]
+                if main_composio_key or main_composio_uid:
+                    shared_providers_list.append("composio")
+
+            # Record in devices table with shared_providers metadata
+            permissions_json = json.dumps({"shared_providers": shared_providers_list})
             conn = get_connection()
             with transaction(conn):
                 conn.execute(
                     """
                     INSERT INTO devices (id, name, role, token_hash, permissions, created_at)
-                    VALUES (?, ?, 'control', ?, '{}', datetime('now'))
+                    VALUES (?, ?, 'control', ?, ?, datetime('now'))
                     ON CONFLICT(id) DO UPDATE SET
                         name = excluded.name,
                         token_hash = excluded.token_hash,
+                        permissions = excluded.permissions,
                         revoked_at = NULL,
                         last_seen_at = datetime('now')
                     """,
-                    (device_id, label, token_hash),
+                    (device_id, label, token_hash, permissions_json),
                 )
 
-            # Build bundle according to CONTRACT v2:
-            # {"device_id":"...", "llm":{provider,model,api_key}, "composio":{api_key,user_id},
-            #  "drive":{root_folder_id,inbox_folder_id}, "prompts":{summary}}
-            phone_cfg = get_phone_llm_config()
             drive_cfg = load_drive_inbox_settings()
-
-            composio_key = composio_service.get_api_key() or ""
-            composio_uid = (
-                composio_service._get_stable_user_id()
-                if hasattr(composio_service, "_get_stable_user_id")
-                else ""
-            )
+            root_id = drive_cfg.root_folder_id or ""
+            inbox_id = drive_cfg.inbox_folder_id or ""
+            if not inbox_id and root_id:
+                inbox_id = root_id
 
             bundle = {
                 "device_id": device_id,
-                "llm": {
-                    "provider": phone_cfg["provider"],
-                    "model": phone_cfg["model"],
-                    "api_key": phone_cfg["api_key"],
-                },
-                "composio": {
-                    "api_key": composio_key,
-                    "user_id": composio_uid,
-                },
+                "llm": llm_bundle,
+                "composio": composio_bundle,
                 "drive": {
-                    "root_folder_id": drive_cfg.root_folder_id or "",
-                    "inbox_folder_id": drive_cfg.inbox_folder_id or "",
+                    "root_folder_id": root_id,
+                    "inbox_folder_id": inbox_id,
                 },
                 "prompts": {
                     "summary": DEFAULT_SUMMARY_PROMPT,
@@ -259,24 +425,53 @@ class PairingService:
             return {"ok": True, "status": "cancelled"}
 
     def revoke_device(self, device_id: str) -> dict[str, Any]:
-        """Revoke a paired device locally and return provider key reminder.
-
-        Requirement 5: Revoke forgets the device locally and shows a reminder
-        to delete the phone-only key at the provider. Say plainly in the UI
-        that it does not rotate keys.
-        """
+        """Revoke a paired device locally and return checklist of shared provider keys."""
         conn = get_connection()
+        row = conn.execute("SELECT permissions FROM devices WHERE id = ?", (device_id,)).fetchone()
+        shared_providers: list[str] = []
+        if row and row["permissions"]:
+            try:
+                perms = json.loads(row["permissions"])
+                if isinstance(perms, dict) and "shared_providers" in perms:
+                    shared_providers = perms["shared_providers"]
+            except Exception:
+                pass
+
+        if not shared_providers:
+            configured = configured_providers()
+            shared_providers = list(configured.keys())
+            if composio_service.get_api_key():
+                shared_providers.append("composio")
+
         with transaction(conn):
             cur = conn.execute("DELETE FROM devices WHERE id = ?", (device_id,))
             deleted = cur.rowcount > 0
+
+        providers_str = (
+            ", ".join(
+                p if isinstance(p, str) else f"{p.get('provider', '')} ({p.get('model', '')})"
+                for p in shared_providers
+            )
+            if shared_providers
+            else "none"
+        )
 
         return {
             "ok": True,
             "device_id": device_id,
             "forgotten_locally": deleted,
+            "shared_providers": shared_providers,
+            "checklist": [
+                {
+                    "provider": p if isinstance(p, str) else p.get("provider", str(p)),
+                    "rotated": False,
+                }
+                for p in shared_providers
+            ],
             "reminder": (
-                "Please remember to delete or rotate your phone-only API key in your LLM provider's console. "
-                "Revoking on the PC forgets the device locally but does NOT rotate or delete keys at your provider."
+                "Revoking on this computer forgets the device locally, but does NOT rotate or delete any API keys. "
+                f"Keys for the following services were shared: {providers_str}. "
+                "Please manually rotate or delete them at your providers."
             ),
         }
 

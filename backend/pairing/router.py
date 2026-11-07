@@ -9,9 +9,14 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.pairing.config import (
+    clear_phone_composio_config,
     clear_phone_llm_config,
+    get_phone_composio_config,
     get_phone_llm_config,
+    get_use_separate_keys,
+    set_phone_composio_config,
     set_phone_llm_config,
+    set_use_separate_keys,
 )
 from backend.pairing.service import pairing_service
 
@@ -19,12 +24,25 @@ log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/pairing/v2", tags=["pairing-v2"])
 settings_router = APIRouter(prefix="/api/settings/phone-llm", tags=["pairing-v2-settings"])
+composio_settings_router = APIRouter(prefix="/api/settings/phone-composio", tags=["pairing-v2-composio-settings"])
+pairing_settings_router = APIRouter(prefix="/api/settings/phone-pairing", tags=["pairing-v2-settings"])
+
+
+class PhonePairingSettingsRequest(BaseModel):
+    use_separate_keys: bool
 
 
 class PhoneLLMConfigRequest(BaseModel):
     provider: str
     model: str
     api_key: str | None = None
+
+
+class PhoneComposioConfigRequest(BaseModel):
+    api_key: str | None = None
+    user_id: str | None = None
+    phone_composio_api_key: str | None = None
+    phone_composio_user_id: str | None = None
 
 
 class ApprovePairingRequest(BaseModel):
@@ -122,3 +140,64 @@ def delete_phone_llm_settings() -> dict[str, Any]:
     """Clear phone-only LLM configuration and key."""
     clear_phone_llm_config()
     return {"ok": True}
+
+
+# --- Phone-only Composio Settings Endpoints ---
+
+
+@composio_settings_router.get("")
+def get_phone_composio_settings() -> dict[str, Any]:
+    """Get current phone-only Composio configuration."""
+    cfg = get_phone_composio_config()
+    return {
+        "user_id": cfg["user_id"],
+        "phone_composio_user_id": cfg["user_id"],
+        "has_key": cfg["has_key"],
+        "has_user_id": cfg["has_user_id"],
+    }
+
+
+@composio_settings_router.post("")
+def update_phone_composio_settings(body: PhoneComposioConfigRequest) -> dict[str, Any]:
+    """Save phone-only Composio configuration and credentials."""
+    try:
+        api_key = body.api_key if body.api_key is not None else body.phone_composio_api_key
+        user_id = body.user_id if body.user_id is not None else body.phone_composio_user_id
+        cfg = set_phone_composio_config(
+            api_key=api_key,
+            user_id=user_id,
+        )
+        return {
+            "ok": True,
+            "user_id": cfg["user_id"],
+            "phone_composio_user_id": cfg["user_id"],
+            "has_key": cfg["has_key"],
+            "has_user_id": cfg["has_user_id"],
+        }
+    except Exception as exc:
+        log.exception("Error saving phone Composio settings")
+        raise HTTPException(status_code=500, detail=f"Failed to save settings: {exc}")
+
+
+@composio_settings_router.delete("")
+def delete_phone_composio_settings() -> dict[str, Any]:
+    """Clear phone-only Composio configuration and credentials."""
+    clear_phone_composio_config()
+    return {"ok": True}
+
+
+# --- Phone Pairing General Settings ---
+
+
+@pairing_settings_router.get("")
+def get_phone_pairing_settings() -> dict[str, Any]:
+    """Get phone pairing configuration."""
+    return {"use_separate_keys": get_use_separate_keys()}
+
+
+@pairing_settings_router.post("")
+def update_phone_pairing_settings(body: PhonePairingSettingsRequest) -> dict[str, Any]:
+    """Update phone pairing configuration."""
+    val = set_use_separate_keys(body.use_separate_keys)
+    return {"ok": True, "use_separate_keys": val}
+
