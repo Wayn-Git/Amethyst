@@ -1851,30 +1851,12 @@ def main(argv: list[str] | None = None) -> int:
         "--route", default="dm-reel", choices=["dm-reel", "dm-link", "mention", "unsupported"]
     )
     sample.add_argument("--url", default="http://127.0.0.1:8000")
-    sample.add_argument(
-        "--relay", action="store_true",
-        help="post at the relay instead, exercising the whole path Meta will take"
-    )
-    rly = ig.add_parser(
-        "relay", help="the always-on receiver that catches deliveries while this machine is off"
-    )
-    rly.add_argument("--url", help="https://amethyst-relay.<you>.workers.dev")
-    rly.add_argument("--token", help="the RELAY_TOKEN the Worker was deployed with")
-    rly.add_argument("--on", action="store_true", help="start polling it")
-    rly.add_argument("--off", action="store_true", help="stop polling it")
-    rly.add_argument("--forget", action="store_true", help="drop the URL and the token")
-    rly.add_argument("--sync", action="store_true", help="go and look now")
     marks.set_defaults(func=cmd_bookmarks)
     instagram.set_defaults(func=cmd_instagram)
 
     syn = sub.add_parser(
-        "sync", help="cross-device sync: where it stands, and switching it on"
+        "sync", help="cross-device sync: show paired devices and status"
     )
-    syn.add_argument("--url", help="https://amethyst-relay.<you>.workers.dev")
-    syn.add_argument("--token", help="the RELAY_TOKEN the Worker was deployed with")
-    syn.add_argument("--on", action="store_true", help="start syncing")
-    syn.add_argument("--off", action="store_true", help="stop syncing")
-    syn.add_argument("--now", action="store_true", help="sync immediately rather than waiting")
     syn.set_defaults(func=cmd_sync)
 
     dev = sub.add_parser(

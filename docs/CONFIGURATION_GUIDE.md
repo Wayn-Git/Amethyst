@@ -207,56 +207,9 @@ Workers AI.
 Meta requires webhook deliveries to receive a `200 OK` within seconds. If your laptop is asleep or offline, Meta will retry and eventually **permanently disable your subscription**.
 The Cloudflare Worker in `relay/` solves this:
 - **Always awake on Cloudflare's free edge** (100,000 free requests/day, D1 database).
-- Catches Instagram reels, DMs, mentions, and mobile share links 24/7.
-- Holds them securely in Cloudflare D1 until your laptop opens, which then pulls, verifies the cryptographic signature, transcribes audio, and saves them to your Library!
-
-### Step-by-Step Deployment (Takes 3 Minutes):
-
-Two names in `relay/wrangler.jsonc` are the maintainer's own and will not exist
-on your account: `"name": "psok-relay"` (the Worker — which is also your
-hostname) and `database_name`/`database_id` (the D1 database). Give both your
-own, or the commands below will address a database that is not yours.
-
-```bash
-# 1. Navigate to relay directory and install dependencies
-cd relay
-npm install
-
-# 2. Create the Cloudflare D1 database (free)
-npx wrangler d1 create amethyst-relay
-```
-The command outputs a `database_id`. Open `relay/wrangler.jsonc` and set
-`database_name` and `database_id` to the database you just created — both of
-them. The binding is by id, so a wrong `database_name` reads as if it were
-addressing your database and silently is not.
-
-```bash
-# 3. Create the database tables
-#    `npm run schema` runs `wrangler d1 execute <name>`, so use the name you chose:
-npx wrangler d1 execute amethyst-relay --remote --file=./schema.sql
-
-# 4. Set the 3 Worker secrets
-npx wrangler secret put APP_SECRET       # Your Meta App Secret from developers.facebook.com
-npx wrangler secret put VERIFY_TOKEN     # Any random string you choose (e.g. my-secret-verify-token)
-npx wrangler secret put RELAY_TOKEN      # A random token for AMETHYST sync (e.g. openssl rand -hex 32)
-
-# 5. Deploy the worker!
-npm run deploy
-```
-The deploy command prints your worker URL, `https://<worker-name>.<you>.workers.dev`.
-The Worker's own name is what appears in the hostname — the shipped one,
-`psok-relay`, is a name older than this project and is kept only so the
-maintainer's existing deployment does not have to be rebuilt.
-
-### Connecting the Relay to Meta & AMETHYST:
-1. **In Meta App Dashboard (Instagram Webhooks)**:
-   - **Callback URL**: `https://amethyst-relay.<your-name>.workers.dev/ig/webhook`
-   - **Verify Token**: The exact string you gave to `VERIFY_TOKEN`.
-   - **Fields**: Subscribe to `messages` and `mentions`.
-2. **In AMETHYST**:
-   ```bash
-   amethyst instagram relay --url https://amethyst-relay.<your-name>.workers.dev --token <RELAY_TOKEN> --on
-   ```
+- Catches mobile share links 24/7 directly to your Google Drive inbox folder (`<root>/inbox/<id>.json`).
+- Your desktop Amethyst backend automatically drains the Drive inbox when running, deduplicates jobs, fetches content, and enriches it into your Library.
+- Mobile companion pairs locally over LAN HTTPS on port 8443 with certificate pinning (Contract v2), completely eliminating Cloudflare relay and third-party servers.
 
 ---
 

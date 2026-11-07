@@ -196,49 +196,15 @@ hours, so a confirmation the laptop wanted to send on Monday cannot be sent on
 Wednesday. And the 60-day access token refreshes only while it is still valid;
 once lapsed there is no recovery but a re-paste by hand.
 
-### The relay
+### Capture & Sync Architecture
 
-`relay/` is a Cloudflare Worker that answers the 200, holds the delivery in a
-free D1 queue, sends the receipt, and keeps the token alive. AMETHYST collects from
-it on a fifteen-second poll and processes everything exactly as it would a
-direct delivery. `relay/README.md` is the setup, in full.
+The Cloudflare relay has been retired. Amethyst companion captures links offline
+directly through Google Drive via Composio (`backend/drive/inbox.py`). The PC backend
+drains the Drive inbox whenever it is running. Phone pairing runs locally over LAN
+HTTPS (port 8443) with certificate pinning via Contract v2 (`backend/pairing/`).
 
-It is free with no card and needs no domain: Workers' free plan is 100k requests
-a day with no cold start, D1 is 5GB, and `*.workers.dev` is a stable HTTPS
-hostname. A laptop polling every fifteen seconds is about 5,800 requests a day.
-
-```bash
-cd relay && npm install
-npx wrangler d1 create amethyst-relay        # put the id in wrangler.jsonc
-npm run schema
-npx wrangler secret put APP_SECRET       # Meta's app secret
-npx wrangler secret put VERIFY_TOKEN     # any string; Meta gets the same one
-npx wrangler secret put RELAY_TOKEN      # openssl rand -hex 32
-npm run deploy
-
-amethyst instagram relay --url https://amethyst-relay.<you>.workers.dev \
-                     --token <the RELAY_TOKEN> --on
-```
-
-**The relay is always on and it is never trusted.** It stores the bytes Meta
-signed and the signature header verbatim, and `backend/instagram/relay.py`
-verifies that signature again here before anything reaches the library. That is
-why the raw bytes are relayed rather than a parsed object: a parsed object cannot
-be checked. A compromised relay can lose a reel; it cannot invent one.
-
-What does live in D1: queued deliveries for minutes, the Instagram access token,
-the share token, the allowlist. The access token can read your DMs and post as
-you, and it is there because the receipt and the token refresh cannot happen
-anywhere else. The relay token is as sensitive as it, because `/sync` returns it.
-
-What does not: library text, media, the index, conversations, memory, provider
-keys.
-
-### With the relay, nothing here is reachable from the internet
-
-That is the real prize. Meta talks to the Worker; AMETHYST talks *out* to the Worker.
-No inbound port, no tunnel, no NAT hole, no exact-path bypass rule to get wrong.
-Keep `amethyst serve` on `127.0.0.1` and there is nothing to publish.
+For direct Instagram webhooks, point Meta's webhook callback directly at your
+Amethyst server via an ordinary reverse proxy or secure tunnel (e.g. Tailscale or ngrok).
 
 ## Reaching the interface from a phone, with Cloudflare
 
@@ -294,13 +260,12 @@ whether a relay is catching for them.
 
 ### On a phone
 
-The library is just the site, behind the Access login. To *send* something without
-opening it, an iOS Shortcut or an Android sharing app posting JSON is enough --
-and with a relay deployed it can post there instead, so a share survives the
-laptop being off exactly as a reel does:
+To send links directly from mobile, use the Amethyst Mobile Companion app
+(which writes to Google Drive when offline and syncs automatically) or an
+HTTP Shortcut posting to `/api/share/capture`:
 
 ```
-URL     https://amethyst-relay.<you>.workers.dev/share
+URL     https://<your-amethyst-host>/api/share/capture
 Method  POST
 Headers Authorization: Bearer <amethyst share-token --new>
 Body    {"url": "<the shared link>"}

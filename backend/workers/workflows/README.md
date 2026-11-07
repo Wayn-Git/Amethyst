@@ -61,15 +61,7 @@ would be a briefing that is subtly wrong rather than one that fails.
      workflow: subagent.yml
      source_repo: you/amethyst
      source_ref: main
-   relay_url: https://amethyst-relay.<you>.workers.dev
    allow_paid_models: false
-   ```
-
-6. **Set the relay's side** of the worker token, once:
-
-   ```
-   cd relay && npx wrangler secret put WORKER_TOKEN
-   npm run schema        # adds the worker_reports table
    ```
 
 Check it with `POST /api/workers/{account}/check`, which asks GitHub whether the

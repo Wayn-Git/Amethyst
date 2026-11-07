@@ -142,17 +142,7 @@ poll that collects deliveries:
   acknowledged before its result is applied is one a sync that died halfway
   would throw away. Acknowledging one twice is a no-op.
 - A capture that raises something unexpected holds the job instead of
-  acknowledging it, so the next poll is offered it again. A kind this machine
-  does not know — a relay deployed ahead of it — is acknowledged, because a row
-  nothing here can ever apply must not be re-offered forever.
-
-What it deliberately does not do yet is collect **staged bytes**. R2 is
-commented out in `relay/wrangler.jsonc` (it is the one Cloudflare product that
-wants a card), so `document_fetch` and `media_fetch` report `staged: false` on
-every deployment that has not turned it on, and the machine refetches the URL
-with its own pipeline — which is what the relay's own comment says will happen.
-`GET /jobs/{id}/artifact/{key}` is written and waiting on the relay side for
-when that changes.
+  acknowledging it, so the next poll is offered it again.
 
 ## Crashes
 

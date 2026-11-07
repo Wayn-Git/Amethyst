@@ -86,18 +86,12 @@ The route accepts four body shapes so that whatever a share target emits works:
 JSON `{"url":…}`, `?url=…` as a query parameter, a bare `text/plain` body, and
 form fields.
 
-### 4. The phone, through the Cloudflare relay
+### 4. The phone, through the Google Drive inbox
 
-`POST https://amethyst-relay.<you>.workers.dev/share` with the same token. The
-Worker holds the delivery in D1, and `_take_share` in
-`backend/instagram/relay.py` re-checks the token **on this machine** before a
-row is written — the relay echoes back the token it verified, and nothing out
-there is authoritative about what enters the library.
-
-This is the path that works with the laptop closed. It 404s until the share
-token has been pushed up on a `/sync` (every fifteen seconds while the machine
-is awake, or `amethyst instagram relay --sync`), because until then the relay
-does not know who is allowed to be answered. See [relay/README.md](../../relay/README.md).
+When mobile companion shares offline, it writes the job directly to Google Drive
+`<root>/inbox/<id>.json`. The desktop backend's `DriveInboxPoller` (`backend/drive/inbox.py`)
+drains and enriches these inbox items whenever the PC is running, verifying content
+and deduplicating by URL hash and Drive file existence.
 
 ### 5. Instagram
 
