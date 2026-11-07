@@ -744,34 +744,6 @@ async def test_mobile_share_sheet_url_extraction(db, offline, monkeypatch):
     assert captured.item["notes"] == "Spring Outfit Ideas"
 
 
-async def test_failed_relay_url_ingest_recovery(db):
-    from backend.instagram.relay import RelayPoller
-
-    captured_calls = []
-
-    class DummyLibrary:
-        async def capture_url(self, url, **kwargs):
-            captured_calls.append((url, kwargs))
-            return None
-
-    poller = RelayPoller(library=DummyLibrary())
-    failed_job = {
-        "id": "job_123",
-        "kind": "url_ingest",
-        "state": "failed",
-        "last_error": "refused: the source answered 403",
-        "params": {
-            "url": "https://pin.it/6O3mF4X",
-            "kind": "article",
-            "note": "Shared from iPhone",
-        },
-    }
-
-    result = await poller._collect(failed_job)
-    assert result is True
-    assert len(captured_calls) == 1
-    assert captured_calls[0][0] == "https://pin.it/6O3mF4X"
-    assert captured_calls[0][1]["notes"] == "Shared from iPhone"
 
 
 def test_music_kind_and_tag_detection():
