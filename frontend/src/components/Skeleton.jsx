@@ -366,12 +366,12 @@ function useElapsed(since) {
   return since ? Math.max(0, Math.round((now - since) / 1000)) : 0
 }
 
-export function BootScreen({ server, onRetry, onRemote }) {
+export function BootScreen({ server = {}, onRetry, onRemote } = {}) {
   // `server.since ?? Date.now()` read the clock during render, which makes the
   // component impure and the elapsed count restart on every re-render. The
   // hook holds the fallback instead, where it is read once.
-  const seconds = useElapsed(server.since)
-  const down = server.phase === 'down'
+  const seconds = useElapsed(server?.since)
+  const down = server?.phase === 'down'
   const slow = seconds >= 4
 
   return (
@@ -383,7 +383,7 @@ export function BootScreen({ server, onRetry, onRemote }) {
         <h1 className="boot-title">{down ? 'The backend did not answer' : 'Waking the backend'}</h1>
         <p className="boot-note">
           {down
-            ? server.error
+            ? server?.error
             : slow
               ? 'A container that has been idle is starting up. This is the slow path and it'
                 + ' only happens on the first request after a quiet spell.'

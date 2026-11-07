@@ -366,6 +366,7 @@ function wantsDesktop() {
    opens by fetching from a backend the phone may not be able to reach, and the
    ones it can reach are laid out for a screen it does not have. */
 function PhoneApp({ paired, onPaired, onDesktop }) {
+  const { server, retryServer } = useApp()
   const [bundle, setBundle] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -383,7 +384,7 @@ function PhoneApp({ paired, onPaired, onDesktop }) {
   }, [checkBundle, paired])
 
   if (loading) {
-    return <BootScreen />
+    return <BootScreen server={server} onRetry={retryServer} />
   }
 
   if (bundle) {
