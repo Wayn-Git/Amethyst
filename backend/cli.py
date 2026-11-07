@@ -1046,19 +1046,6 @@ def _print_services(args: argparse.Namespace) -> None:
     """
     lines: list[str] = []
     try:
-        from backend.config import load_instagram
-
-        relay = load_instagram()
-        if relay.relay_enabled and relay.relay_url:
-            lines.append(f"  relay:       on — {relay.relay_url}")
-        elif relay.relay_url:
-            lines.append("  relay:       configured but switched off (amethyst sync --on)")
-        else:
-            lines.append("  relay:       not set up — phone pairing needs one")
-    except Exception:
-        lines.append("  relay:       unknown (could not read the configuration)")
-
-    try:
         from backend.db.connection import get_connection as _conn
         from backend.sync import devices as _devices
 
@@ -1637,20 +1624,7 @@ def _send_sample(args: argparse.Namespace, _json, asyncio) -> int:
 
     raw = _json.dumps(_sample_body(args.route)).encode()
     digest = hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
-    if args.relay:
-        # The whole path Meta will take: the relay verifies the signature with
-        # its own copy of the app secret, queues the delivery, and this machine
-        # collects it on the next sync. A mismatch between the two copies of the
-        # app secret shows up here as a 403 rather than as silence weeks later.
-        from backend.config import load_instagram
-
-        base = load_instagram().relay_url
-        if not base:
-            print("no relay is configured. Set one with: amethyst instagram relay --url ...")
-            return 1
-        url = base.rstrip("/") + "/ig/webhook"
-    else:
-        url = args.url.rstrip("/") + "/api/instagram/webhook"
+    url = args.url.rstrip("/") + "/api/instagram/webhook"
     try:
         response = httpx.post(
             url,

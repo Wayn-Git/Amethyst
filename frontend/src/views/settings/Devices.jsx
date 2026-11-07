@@ -1073,7 +1073,7 @@ export default function Devices() {
                           <div className="conn-row-text">
                             <span className="conn-row-title">Web pairing address</span>
                             <span className="conn-row-desc">
-                              {appUrl ? `Configured for ${appUrl}` : 'Set Cloudflare Pages or Tunnel URL for remote pairing'}
+                              {appUrl ? `Configured for ${appUrl}` : 'Set tunnel URL for remote pairing'}
                             </span>
                           </div>
                         </div>

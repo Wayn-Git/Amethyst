@@ -13,17 +13,12 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
   const panelRef = useRef(null)
   useModalDismiss(open, onClose)
 
-  const [activeTab, setActiveTab] = useState('bookmarklet') // 'bookmarklet' | 'phone' | 'instagram'
+  const [activeTab, setActiveTab] = useState('bookmarklet') // 'bookmarklet' | 'phone'
   const origin = typeof window === 'undefined' ? '' : window.location.origin
 
   // Share token state
   const [shareStatus, setShareStatus] = useState(null)
   const [shareToken, setShareToken] = useState('')
-
-  // Instagram state
-  const [igState, setIgState] = useState(null)
-  const [relayForm, setRelayForm] = useState({ url: '', token: '' })
-  const [relaySyncing, setRelaySyncing] = useState(false)
 
   // Load share status
   useEffect(() => {
@@ -33,19 +28,6 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
       .then(setShareStatus)
       .catch(() => setShareStatus({ enabled: false }))
   }, [open])
-
-  // Load Instagram state
-  const loadInstagram = useCallback(async () => {
-    try {
-      setIgState(await api.instagram())
-    } catch {
-      /* ignore */
-    }
-  }, [])
-
-  useEffect(() => {
-    if (open) loadInstagram()
-  }, [open, loadInstagram])
 
   if (!open) return null
 
@@ -67,41 +49,6 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
       setShareToken('')
       setShareStatus({ enabled: false })
       toast('Sharing disabled', 'ok')
-    } catch (err) {
-      toast(err.message, 'bad')
-    }
-  }
-
-  const syncRelay = async () => {
-    setRelaySyncing(true)
-    try {
-      const result = await api.syncInstagramRelay()
-      const total = (result.pulled || 0) + (result.jobs || 0)
-      toast(
-        result.synced
-          ? `Synced ${total} item${total === 1 ? '' : 's'}`
-          : result.error || 'Could not reach relay',
-        result.synced ? 'ok' : 'bad'
-      )
-      setIgState(await api.instagram())
-    } catch (err) {
-      toast(err.message, 'bad')
-    } finally {
-      setRelaySyncing(false)
-    }
-  }
-
-  const saveRelay = async (e) => {
-    e?.preventDefault()
-    try {
-      const next = await api.setInstagramRelay({
-        url: relayForm.url || undefined,
-        token: relayForm.token || undefined,
-        enabled: true,
-      })
-      setIgState(next)
-      setRelayForm({ url: '', token: '' })
-      toast('Relay connection saved', 'ok')
     } catch (err) {
       toast(err.message, 'bad')
     }
@@ -158,14 +105,6 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
               >
                 <Icon name="link" size={14} />
                 <span>Phone / Shortcuts</span>
-              </HouseButton>
-              <HouseButton
-                type="button"
-                className={`lib-modal-tab ${activeTab === 'instagram' ? 'lib-modal-tab--active' : ''}`}
-                onClick={() => setActiveTab('instagram')}
-              >
-                <Icon name="camera" size={14} />
-                <span>Instagram Relay</span>
               </HouseButton>
             </div>
           </div>
@@ -264,67 +203,6 @@ export function CaptureIntegrationsModal({ open, onClose, toast }) {
                     </div>
                   </div>
                 )}
-              </div>
-            )}
-
-            {activeTab === 'instagram' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
-                  Automatically pull saved posts, reels, and carousels from your Instagram relay container.
-                </p>
-
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderRadius: 8, background: 'var(--surface-2)', border: '1px solid var(--hairline)' }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-                      Relay Status
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 2 }}>
-                      {igState?.relay?.configured ? `Connected: ${igState.relay.url}` : 'Not connected'}
-                    </div>
-                  </div>
-
-                  <HouseButton
-                    type="button"
-                    className="lib-btn"
-                    disabled={relaySyncing}
-                    onClick={syncRelay}
-                  >
-                    <Icon name="refresh" size={13} />
-                    <span>{relaySyncing ? 'Syncing...' : 'Sync Now'}</span>
-                  </HouseButton>
-                </div>
-
-                <form onSubmit={saveRelay} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div className="lib-form-group">
-                    <label className="lib-form-label" htmlFor="lib-relay-url">Relay Endpoint URL</label>
-                    <HouseInput
-                      id="lib-relay-url"
-                      type="url"
-                      className="lib-form-input"
-                      placeholder="http://localhost:8081"
-                      value={relayForm.url}
-                      onChange={(e) => setRelayForm({ ...relayForm, url: e.target.value })}
-                    />
-                  </div>
-                  <div className="lib-form-group">
-                    <label className="lib-form-label" htmlFor="lib-relay-token">Relay Bearer Token</label>
-                    <HouseInput
-                      id="lib-relay-token"
-                      type="password"
-                      className="lib-form-input"
-                      placeholder="••••••••••••"
-                      value={relayForm.token}
-                      onChange={(e) => setRelayForm({ ...relayForm, token: e.target.value })}
-                    />
-                  </div>
-                  <HouseButton
-                    type="submit"
-                    className="lib-btn lib-btn--primary"
-                    style={{ alignSelf: 'flex-start' }}
-                  >
-                    Save Relay Connection
-                  </HouseButton>
-                </form>
               </div>
             )}
           </div>

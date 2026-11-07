@@ -978,8 +978,6 @@ _INSTAGRAM_SETTINGS = {
     "enrich": ("instagram.enrich", True),
     "reply_on_save": ("instagram.reply_on_save", False),
     "token_expires_on": ("instagram.token_expires_on", ""),
-    "relay_url": ("instagram.relay_url", ""),
-    "relay_enabled": ("instagram.relay_enabled", False),
     "cookies_from_browser": ("instagram.cookies_from_browser", ""),
 }
 
@@ -1013,11 +1011,6 @@ class InstagramSettings:
     #: assumed -- even though it is what makes the loop feel alive.
     reply_on_save: bool = False
     token_expires_on: str = ""
-    #: Where the always-on receiver lives, scheme and host, no trailing slash.
-    #: Empty means Meta posts straight at this machine, which only works while
-    #: it is awake and reachable -- see docs/deployment.md.
-    relay_url: str = ""
-    relay_enabled: bool = False
     #: Which browser on this machine yt-dlp reads a session out of when it
     #: opens an Instagram permalink. Empty means anonymous, which Instagram
     #: mostly refuses now. Read at fetch time; never copied anywhere.
@@ -1039,8 +1032,6 @@ class InstagramSettings:
             "enrich": self.enrich,
             "reply_on_save": self.reply_on_save,
             "token_expires_on": self.token_expires_on,
-            "relay_url": self.relay_url,
-            "relay_enabled": self.relay_enabled,
             "cookies_from_browser": self.cookies_from_browser,
         }
 
