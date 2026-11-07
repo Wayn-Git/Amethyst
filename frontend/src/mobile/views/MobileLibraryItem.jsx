@@ -262,7 +262,7 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent }) {
         <div className="m-r" style={{ gap: 8, marginTop: 4 }}>
           <Icon name="sparkle" size={16} />
           <span className="m-m" style={{ flex: 1 }}>
-            {item?.model || 'Summarised with Local model'}
+            {(typeof item?.model === 'object' && item?.model !== null ? (item.model.model || item.model.provider || JSON.stringify(item.model)) : item?.model) || 'Summarised with Local model'}
           </span>
           <button
             type="button"

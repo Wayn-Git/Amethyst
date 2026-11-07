@@ -2748,7 +2748,11 @@ export default function Chat() {
     [health?.connector_errors, awaitingSignIn],
   )
 
-  const shownModel = (active?.model ?? draftModel ?? '').split('/').pop() || 'Auto'
+  const rawActiveModel = active?.model ?? draftModel ?? ''
+  const safeModelStr = typeof rawActiveModel === 'object' && rawActiveModel !== null
+    ? (rawActiveModel.model || rawActiveModel.provider || JSON.stringify(rawActiveModel))
+    : String(rawActiveModel)
+  const shownModel = safeModelStr.split('/').pop() || 'Auto'
     // How many connectors are actually switched on for the next message. Rides on
   // the + chip in place of the dock that used to spell the same fact out.
   const liveTools = useMemo(

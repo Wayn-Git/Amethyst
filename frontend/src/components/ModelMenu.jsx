@@ -28,11 +28,27 @@ function rememberModel(selection) {
   safeStorage.setItem(RECENT_MODELS_KEY, JSON.stringify(next.slice(0, RECENT_MODELS_LIMIT)))
 }
 
+export function isModelFree(m, provider) {
+  if (m?.free === true) return true
+  const id = (m?.id || '').toLowerCase()
+  if (id.endsWith(':free') || id.includes(':free') || id.endsWith('-free')) return true
+  if (provider === 'ollama') return true
+  return false
+}
+
 /* Fallback model definitions for providers that don't serve a live GET /models endpoint */
 const FALLBACK_MODELS = {
   'opencode-zen': [
-    { id: 'mimo-v2.6-flash-free', context_length: 131072 },
+    { id: 'mimo-v2.6-flash-free', context_length: 131072, free: true },
     { id: 'big-pickle', context_length: 131072 },
+  ],
+  openrouter: [
+    { id: 'meta-llama/llama-3.3-70b-instruct:free', context_length: 131072, free: true },
+    { id: 'google/gemini-2.0-flash-thinking-exp:free', context_length: 1048576, free: true },
+    { id: 'deepseek/deepseek-r1:free', context_length: 131072, free: true },
+  ],
+  kilocode: [
+    { id: 'kilo-auto/free', context_length: 131072, free: true },
   ],
   nvidia: [
     { id: 'deepseek-ai/deepseek-v4.1-flash', context_length: 131072 },
@@ -201,11 +217,47 @@ export default function ModelMenu({
       }
 
       if (pModels.length > 0) {
-        groups.push({ provider: p, models: pModels })
+        const sorted = [...pModels].sort((a, b) => {
+          const aFree = isModelFree(a, p)
+          const bFree = isModelFree(b, p)
+          if (aFree && !bFree) return -1
+          if (!aFree && bFree) return 1
+          return 0
+        })
+        groups.push({ provider: p, models: sorted })
       }
     }
 
     return groups
+  }, [providers, selectedProvider, modelMap, defaults, query])
+
+  const freeModels = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const list = []
+    const seen = new Set()
+
+    for (const p of providers) {
+      if (selectedProvider !== 'all' && selectedProvider !== p) continue
+
+      let pModels = modelMap[p] || FALLBACK_MODELS[p] || []
+      if (pModels.length === 0 && defaults[p]) {
+        pModels = [{ id: defaults[p], context_length: 131072 }]
+      }
+
+      for (const m of pModels) {
+        if (isModelFree(m, p)) {
+          const key = `${p}:${m.id}`
+          if (!seen.has(key)) {
+            seen.add(key)
+            if (!q || m.id.toLowerCase().includes(q) || p.toLowerCase().includes(q)) {
+              list.push({ ...m, provider: p, free: true })
+            }
+          }
+        }
+      }
+    }
+
+    return list
   }, [providers, selectedProvider, modelMap, defaults, query])
 
   const hasExactMatch = useMemo(() => {
@@ -318,11 +370,91 @@ export default function ModelMenu({
             )}
 
             {groupedModels.length === 0 && !loading && (
-              <div className="model-menu-empty">
-                {query ? 'No models match your search.' : 'No models available.'}
+              <div className="model-menu-empty" style={{ padding: '24px 16px', textAlign: 'center' }}>
+                <div style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 6 }}>
+                  {query ? 'No models match your search.' : 'No models connected.'}
+                </div>
+                {!query && (
+                  <div style={{ fontSize: 11.5, color: 'var(--text-subtle, #888)' }}>
+                    Add an API key in Settings &gt; Models to connect a provider.
+                  </div>
+                )}
               </div>
             )}
 
+            {/* 1. Pinned Free Models Section */}
+            {freeModels.length > 0 && (
+              <div className="model-menu-group model-menu-group--free">
+                <div className="model-menu-group-head">
+                  <span className="model-menu-group-name" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--ok, #10b981)' }}>
+                    <Icon name="sparkle" size={13} />
+                    <span>Free Models</span>
+                  </span>
+                  <span
+                    className="model-menu-group-count"
+                    style={{
+                      background: 'rgba(16, 185, 129, 0.12)',
+                      color: 'var(--ok, #10b981)',
+                      padding: '1px 6px',
+                      borderRadius: 10,
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {freeModels.length}
+                  </span>
+                </div>
+                {freeModels.map((m) => {
+                  const isSelected = m.id === model && m.provider === provider
+                  return (
+                    <HouseButton
+                      key={`free:${m.provider}:${m.id}`}
+                      type="button"
+                      className={`model-menu-item${isSelected ? ' is-active' : ''}`}
+                      onClick={() =>
+                        selectModel({
+                          provider: m.provider,
+                          model: m.id,
+                          capabilities: m.capabilities,
+                          context_length: m.context_length,
+                        })
+                      }
+                    >
+                      <span className="model-menu-item-icon">
+                        <AiProviderIcon model={m.id} provider={m.provider} size={16} />
+                      </span>
+                      <span className="model-menu-item-text">
+                        <span className="model-menu-item-name">{m.id}</span>
+                        <span className="model-menu-item-meta">
+                          {fmtContext(m.context_length)}
+                          <span
+                            style={{
+                              marginLeft: 6,
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                              fontSize: 9.5,
+                              fontWeight: 700,
+                              background: 'rgba(16, 185, 129, 0.15)',
+                              color: 'var(--ok, #059669)',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.04em',
+                            }}
+                          >
+                            Free
+                          </span>
+                          <span style={{ marginLeft: 6, opacity: 0.8 }}>· {m.provider}</span>
+                        </span>
+                      </span>
+                      {isSelected && (
+                        <Icon name="check" size={15} className="model-menu-check" />
+                      )}
+                    </HouseButton>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* 2. Recent Models Section */}
             {!query.trim() && recentAvailable.length > 0 && (
               <div className="model-menu-group model-menu-group--recent">
                 <div className="model-menu-group-head">
@@ -347,6 +479,7 @@ export default function ModelMenu({
               </div>
             )}
 
+            {/* 3. Provider Groups */}
             {groupedModels.map((group) => (
               <div key={group.provider} className="model-menu-group">
                 <div className="model-menu-group-head">
@@ -358,6 +491,7 @@ export default function ModelMenu({
 
                 {group.models.map((m) => {
                   const isSelected = m.id === model && group.provider === provider
+                  const isFree = isModelFree(m, group.provider)
                   return (
                     <HouseButton
                       key={m.id}
@@ -372,7 +506,23 @@ export default function ModelMenu({
                         <span className="model-menu-item-name">{m.id}</span>
                         <span className="model-menu-item-meta">
                           {fmtContext(m.context_length)}
-                          {m.free ? ' · free' : ''}
+                          {isFree && (
+                            <span
+                              style={{
+                                marginLeft: 6,
+                                padding: '1px 5px',
+                                borderRadius: 4,
+                                fontSize: 9.5,
+                                fontWeight: 700,
+                                background: 'rgba(16, 185, 129, 0.15)',
+                                color: 'var(--ok, #059669)',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.04em',
+                              }}
+                            >
+                              Free
+                            </span>
+                          )}
                         </span>
                       </span>
                       {isSelected && (

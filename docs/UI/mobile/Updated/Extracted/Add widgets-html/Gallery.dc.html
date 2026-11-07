@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Add widgets</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}*{box-sizing:border-box}
+.s{position:relative;width:390px;height:844px;background:#F2F2F7;color:#1D1D1F;font-family:'Inter','Inter',system-ui,sans-serif;font-size:14px;line-height:1.4;display:flex;flex-direction:column;overflow:hidden}
+.b{flex:1;padding:20px 18px 104px;display:flex;flex-direction:column;gap:14px;overflow:hidden}.dsp{font-family:'Inter','Inter',system-ui,sans-serif}
+.h{font-family:'Inter','Inter',sans-serif;font-size:32px;font-weight:600;letter-spacing:-.04em;line-height:1.05;margin:0}.gl{font-style:italic;color:#6E6E73;font-size:24px;line-height:1.1;letter-spacing:-.02em}
+.m{color:#6E6E73;font-size:12px}.mono{font-family:'JetBrains Mono',monospace}.ttl{font-size:15px;font-weight:600;margin:0;letter-spacing:-.01em}.st{font-family:'Inter',sans-serif;font-size:19px;font-weight:600;letter-spacing:-.03em}
+.c{background:#FFFFFF;border-radius:24px;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.05)}.blk{background:#111113;color:#fff;border-radius:28px;padding:18px}.blk .m{color:#A9A6A0}
+.r{display:flex;align-items:center;gap:10px}.sp{justify-content:space-between}.col{display:flex;flex-direction:column;gap:8px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.hr{height:1px;background:#E5E5EA}.d{width:8px;height:8px;border-radius:50%;background:#111113;box-shadow:0 0 0 3px #0071E3;flex:none}.d.w{background:#D9541E;box-shadow:0 0 0 3px #F6D5C6}
+.ch{background:#FFFFFF;border-radius:999px;padding:8px 14px;font-size:13px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;color:#1D1D1F}.ch.on{background:#111113;color:#fff}
+.bt{background:#111113;color:#fff;border:0;border-radius:999px;padding:0 20px;min-height:48px;font:600 14px 'Inter',sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px}.bt.l{background:#0071E3;color:#111113}.bt.g{background:#FFFFFF;color:#1D1D1F}.bt.o{background:transparent;color:#111113;border:1.5px solid #111113}
+.ib{width:44px;height:44px;border-radius:50%;border:0;background:#FFFFFF;display:inline-flex;align-items:center;justify-content:center;color:#1D1D1F;flex:none;padding:0;box-shadow:0 1px 2px rgba(0,0,0,.06)}.ib.k{background:#111113;color:#fff}
+.it{width:40px;height:40px;border-radius:12px;background:#F2F2F7;display:inline-flex;align-items:center;justify-content:center;flex:none;color:#1D1D1F}
+.in{flex:1;border:0;background:transparent;font:14px 'Inter',sans-serif;color:#1D1D1F;outline:0;min-height:48px}.in::placeholder{color:#6E6E73}
+.tabs{display:flex;gap:22px;border-bottom:1px solid #D1D1D6}.tabs span{padding:8px 0;color:#6E6E73}.tabs .on{color:#1D1D1F;font-weight:600;border-bottom:2px solid #1D1D1F;margin-bottom:-1px}
+.pb{height:6px;border-radius:3px;background:#E5E5EA;overflow:hidden}.blk .pb{background:#2C2C2E}.av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex:none}
+.nav{position:absolute;left:16px;right:16px;bottom:22px;display:flex;gap:8px;align-items:center}.pill{flex:1;height:60px;display:flex;align-items:center;justify-content:space-between;background:#FFFFFF;border-radius:999px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.12),0 1px 2px rgba(0,0,0,.06)}
+.pill a{height:48px;min-width:44px;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:6px;color:#6E6E73;font-size:13px;font-weight:600;text-decoration:none}.pill a.on{background:#111113;color:#fff;padding:0 14px}.pill a.on svg{color:#0071E3}
+.fab{width:60px;height:60px;border-radius:50%;background:#111113;color:#fff;border:0;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,.2);flex:none}
+.spn{width:14px;height:14px;border:2px solid #D8D4CD;border-top-color:#111113;border-radius:50%;animation:r 1s linear infinite;flex:none}.tg{width:50px;height:30px;border-radius:999px;background:#0071E3;position:relative;flex:none}.tg i{position:absolute;right:3px;top:3px;width:24px;height:24px;border-radius:50%;background:#111113}
+@keyframes r{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.spn{animation:none}}
+.h{font-size:34px;font-weight:700;letter-spacing:-.035em}.gl{font-style:normal;text-transform:uppercase;letter-spacing:.08em;font-size:11px;font-weight:600;color:#6E6E73}
+.glass{background:rgba(255,255,255,.55);-webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%);border:1px solid rgba(255,255,255,.65);box-shadow:0 10px 30px rgba(0,0,0,.12),inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(255,255,255,.25)}
+.glass.hi{background:rgba(255,255,255,.82)}.glass.dk{background:rgba(28,28,30,.42);border-color:rgba(255,255,255,.2);box-shadow:0 10px 30px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.35);color:#fff}
+.pill{background:rgba(255,255,255,.58);-webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%);border:1px solid rgba(255,255,255,.7);box-shadow:0 10px 30px rgba(0,0,0,.14),inset 0 1px 0 rgba(255,255,255,.95)}
+.pill a.on{background:rgba(255,255,255,.92);color:#0058B8;box-shadow:0 1px 4px rgba(0,0,0,.14),inset 0 1px 0 #fff}.pill a.on svg{color:#0071E3}
+.fab{background:rgba(0,113,227,.9);-webkit-backdrop-filter:blur(16px) saturate(180%);backdrop-filter:blur(16px) saturate(180%);border:1px solid rgba(255,255,255,.4);box-shadow:0 10px 28px rgba(0,113,227,.35),inset 0 1px 0 rgba(255,255,255,.5)}
+.bt.l{background:#0071E3;color:#fff}.d{background:#34C759;box-shadow:0 0 0 3px rgba(52,199,89,.22);animation:p 2s ease-in-out infinite}.d.w{background:#FF9500;box-shadow:0 0 0 3px rgba(255,149,0,.22)}
+.tg{background:#34C759}.tg i{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.seg{display:flex;background:#E5E5EA;border-radius:10px;padding:2px}.seg span{flex:1;text-align:center;padding:7px 0;border-radius:8px;font-size:13px;color:#3A3A3C}.seg .on{background:#fff;color:#1D1D1F;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.cnt{color:#6E6E73;font-size:12px}.ch.on .cnt{color:#A1A1A6}.mn{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.06em;color:#6E6E73}
+@keyframes p{50%{opacity:.4}}@media (prefers-reduced-motion:reduce){.d{animation:none}}</style>
+</helmet>
+<div class="s" style="width:390px;height:844px"><div class="b" style="padding-bottom:20px"><div class="r sp"><button class="ib" aria-label="Back" style=""><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></button><div class="ttl" style="font-size:17px">Add widgets</div><button class="bt" style="min-height:40px;font-size:13px">Done</button></div><div class="r" style="background:#FFFFFF;border-radius:999px;padding:0 8px 0 18px;box-shadow:0 1px 2px rgba(0,0,0,.05)"><span style="color:#6E6E73;display:flex"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg></span><input class="in" aria-label="Search widgets" placeholder="Search widgets"></div><div class="r" style="gap:8px;overflow:hidden"><span class="ch on">All</span><span class="ch">Glance</span><span class="ch">Comms</span><span class="ch">Dev</span></div>
+<div class="c" style="padding:4px 16px"><div class="r" style="padding:12px 0;gap:12px"><span class="it"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg></span><div style="flex:1"><div style="font-weight:500">Weather</div><div class="m">Small, medium, large</div></div><button class="bt l" style="min-height:36px;padding:0 14px;font-size:13px" aria-label="Add Weather">Add</button></div><div class="hr"></div><div class="r" style="padding:12px 0;gap:12px"><span class="it"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div style="flex:1"><div style="font-weight:500">Inbox</div><div class="m">Unread and drafts</div></div><button class="bt l" style="min-height:36px;padding:0 14px;font-size:13px" aria-label="Add Inbox">Add</button></div><div class="hr"></div><div class="r" style="padding:12px 0;gap:12px"><span class="it"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M13 6h3a2 2 0 0 1 2 2v7"></path><line x1="6" x2="6" y1="9" y2="21"></line></svg></span><div style="flex:1"><div style="font-weight:500">Pull requests</div><div class="m">Open PRs and CI</div></div><button class="bt l" style="min-height:36px;padding:0 14px;font-size:13px" aria-label="Add Pull requests">Add</button></div><div class="hr"></div><div class="r" style="padding:12px 0;gap:12px"><span class="it"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7v14"></path><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"></path></svg></span><div style="flex:1"><div style="font-weight:500">Library daily</div><div class="m">One saved item a day</div></div><button class="bt l" style="min-height:36px;padding:0 14px;font-size:13px" aria-label="Add Library daily">Add</button></div><div class="hr"></div><div class="r" style="padding:12px 0;gap:12px"><span class="it"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"></path><path d="M20 3v4"></path><path d="M22 5h-4"></path></svg></span><div style="flex:1"><div style="font-weight:500">Agent jobs</div><div class="m">Live progress</div></div><button class="bt l" style="min-height:36px;padding:0 14px;font-size:13px" aria-label="Add Agent jobs">Add</button></div><div class="hr"></div><div class="r" style="padding:12px 0;gap:12px"><span class="it"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></span><div style="flex:1"><div style="font-weight:500">Music</div><div class="m">Now playing on PC</div></div><button class="bt l" style="min-height:36px;padding:0 14px;font-size:13px" aria-label="Add Music">Add</button></div></div></div><p style="margin: 0; position: absolute; left: 390px; top: 407px">style: 'normal',
+          display: 'swap'
+        }
+      // ...and 7 more font sources
+      ]
+    }
+  },
+  composer: {</p></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

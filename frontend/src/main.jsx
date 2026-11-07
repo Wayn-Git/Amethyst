@@ -1,3 +1,4 @@
+// build: 2026-11-07-v3
 import './dev/widgets/transport.js'
 import { StrictMode, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -23,12 +24,14 @@ import './views/library/library.css'
 import './styles/converter.css'
 import './components/nexus-ui/questions.css'
 import './styles/ui-system.css'
+import './lib/liquid-glass/liquid-glass.css'
 import App from './App.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import { initializeCredentials, isNativeMobile } from './lib/credentials.js'
 import { initializeNative } from './mobile/native.js'
 import CommandPalette from './components/CommandPalette.jsx'
 import { AppProvider } from './store.jsx'
+import { ToastStackProvider } from './components/arc/toast-stack/toast-stack'
 
 /* One bundle, two shapes.
 
@@ -71,9 +74,9 @@ createRoot(document.getElementById('root')).render(
     {/* Outside AppProvider: the store reads useNavigate/useLocation to make
         the URL the source of truth for which view is open. */}
     {isDevWidgets ? <Suspense fallback={null}><DevWidgets /></Suspense> : isDevUI ? <Suspense fallback={null}><DevUI /></Suspense> : <BrowserRouter>
-      <ErrorBoundary><AppProvider>
+      <ErrorBoundary><ToastStackProvider><AppProvider>
         {SPOTLIGHT ? <CommandPalette bare /> : <App />}
-      </AppProvider></ErrorBoundary>
+      </AppProvider></ToastStackProvider></ErrorBoundary>
     </BrowserRouter>}
   </StrictMode>,
 )

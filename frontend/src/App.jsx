@@ -23,6 +23,8 @@ import Pair from './views/Pair.jsx'
 import RemoteOnly from './views/RemoteOnly.jsx'
 import MobilePaired from './mobile/views/MobilePaired.jsx'
 import { getBundle } from './mobile/bundle.js'
+import { initShareTarget } from './mobile/shareTarget.js'
+import { initShareQueue, subscribeShareQueue } from './mobile/shareQueue.js'
 import { paired as isPaired } from './lib/sync/client.js'
 import { usePhone } from './hooks/useMediaQuery.js'
 import { safeStorage } from './lib/storage.js'
@@ -369,6 +371,7 @@ function PhoneApp({ paired, onPaired, onDesktop }) {
   const { server, retryServer } = useApp()
   const [bundle, setBundle] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [hasUnpairedShare, setHasUnpairedShare] = useState(false)
 
   const checkBundle = useCallback(async () => {
     try {
@@ -382,6 +385,18 @@ function PhoneApp({ paired, onPaired, onDesktop }) {
   useEffect(() => {
     checkBundle()
   }, [checkBundle, paired])
+
+  useEffect(() => {
+    initShareTarget()
+    const stopQueue = initShareQueue()
+    const unsubscribe = subscribeShareQueue((jobs) => {
+      setHasUnpairedShare(jobs.some((j) => j.authError))
+    })
+    return () => {
+      stopQueue?.()
+      unsubscribe?.()
+    }
+  }, [])
 
   if (loading) {
     return <BootScreen server={server} onRetry={retryServer} />
@@ -404,7 +419,36 @@ function PhoneApp({ paired, onPaired, onDesktop }) {
     return <RemoteOnly onDesktop={onDesktop} />
   }
 
-  return <Pair onPaired={() => { checkBundle(); onPaired?.(true) }} onDesktop={onDesktop} />
+  return (
+    <>
+      {hasUnpairedShare && (
+        <div
+          role="alert"
+          style={{
+            position: 'fixed',
+            top: 16,
+            left: 20,
+            right: 20,
+            zIndex: 9999,
+            padding: '12px 16px',
+            background: '#ef4444',
+            color: '#fff',
+            borderRadius: 12,
+            fontSize: 13,
+            fontWeight: 600,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <Icon name="alert-triangle" size={18} />
+          <span>Re-scan QR on your PC</span>
+        </div>
+      )}
+      <Pair onPaired={() => { checkBundle(); onPaired?.(true) }} onDesktop={onDesktop} />
+    </>
+  )
 }
 
 export default function App() {

@@ -446,8 +446,8 @@ function StepEngine({ toast, setupStatus, onRefreshStatus, onNext }) {
   )
 
   const ollama = setupStatus?.ollama
-  const isConfigured = (slug) => configuredProviders.some((p) => p.name === slug && p.enabled)
-  const hasAnyModel = configuredProviders.some((p) => p.enabled) || detectedList.some((d) => d.status === 'connected')
+  const isConfigured = (slug) => configuredProviders.some((p) => p.name === slug && p.enabled && p.has_key)
+  const hasAnyModel = configuredProviders.some((p) => p.enabled && p.has_key) || detectedList.some((d) => d.status === 'connected')
 
   const handleVerifyAndSaveWithKey = async (rawKey, targetPreset = currentPreset) => {
     const keyToUse = (rawKey !== undefined ? rawKey : apiKey).trim()

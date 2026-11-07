@@ -21,6 +21,7 @@ import Integrations from './settings/Integrations.jsx'
 import Configuration from './settings/Configuration.jsx'
 import Storage from './settings/Storage.jsx'
 import Devices from './settings/Devices.jsx'
+import { LiquidGlass, GlisseButton, GlisseSwitch } from '../lib/liquid-glass/index.jsx'
 
 /* ==========================================================================
    NAVIGATION SECTIONS & THEME DEFINITIONS
@@ -2878,22 +2879,49 @@ function Appearance() {
               <div className="codex-row">
                 <div className="codex-row-info">
                   <span className="codex-row-title">Glass material</span>
-                  <span className="codex-row-desc">Translucency of window material across menus</span>
+                  <span className="codex-row-desc">
+                    Window material translucency (Liquid Glass applies Kelvin Zhang's refraction engine everywhere)
+                  </span>
                 </div>
                 <div className="codex-seg-group">
-                  {['off', 'subtle', 'full'].map((m) => (
+                  {[
+                    { id: 'off', label: 'Off' },
+                    { id: 'subtle', label: 'Subtle' },
+                    { id: 'full', label: 'Liquid Glass (Full)' },
+                  ].map(({ id, label }) => (
                     <HouseButton
-                      key={m}
+                      key={id}
                       type="button"
-                      className={`codex-seg-item${(glassMaterial || 'full') === m ? ' is-active' : ''}`}
-                      onClick={() => setGlassMaterial(m)}
-                      style={{ textTransform: 'capitalize' }}
+                      className={`codex-seg-item${(glassMaterial || 'full') === id ? ' is-active' : ''}`}
+                      onClick={() => setGlassMaterial(id)}
                     >
-                      {m}
+                      {label}
                     </HouseButton>
                   ))}
                 </div>
               </div>
+
+              {(glassMaterial || 'full') === 'full' && (
+                <div className="liquid-glass-preview-container">
+                  <div className="liquid-glass-preview-stage-bg" />
+                  <div className="liquid-glass-preview-grid-pattern" />
+                  <div className="liquid-glass-preview-backdrop-text">AMETHYST REFRACTION</div>
+                  <LiquidGlass className="liquid-glass-preview-card">
+                    <div className="liquid-glass-preview-header">
+                      <span className="liquid-glass-preview-title">Liquid Glass Material</span>
+                      <span className="liquid-glass-preview-badge">Kelvin Zhang · Glisse</span>
+                    </div>
+                    <div className="liquid-glass-preview-body">
+                      Notice the rainbow chromatic dispersion at the curved edges and the specular light rim. The vibrant backdrop text and gradients bend under Snell's law in real time.
+                    </div>
+                    <div className="liquid-glass-preview-controls">
+                      <GlisseButton variant="glass">Glisse Button</GlisseButton>
+                      <GlisseButton variant="filled">Filled Action</GlisseButton>
+                      <GlisseSwitch aria-label="Liquid switch" defaultChecked />
+                    </div>
+                  </LiquidGlass>
+                </div>
+              )}
 
               <div className="codex-row">
                 <div className="codex-row-info">
@@ -3077,12 +3105,14 @@ function Models() {
     }
   }
 
-  const activeProvider = providers.find((p) => p.enabled) || providers[0]
+  const configuredProviders = useMemo(() => providers.filter((p) => p.has_key), [providers])
+  const unconfiguredPresets = useMemo(() => providers.filter((p) => !p.has_key), [providers])
+  const activeProvider = useMemo(() => configuredProviders.find((p) => p.enabled) || null, [configuredProviders])
 
   return (
     <div className="set-panel">
       {/* Active Model Status Hero Banner */}
-      {activeProvider && (
+      {activeProvider ? (
         <div
           className="set-box"
           style={{
@@ -3142,14 +3172,66 @@ function Models() {
             </div>
           </div>
         </div>
+      ) : (
+        <div
+          className="set-box"
+          style={{
+            marginBottom: 24,
+            padding: '16px 20px',
+            background: 'var(--raised)',
+            border: '1px solid var(--hairline)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 14,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: '10px',
+                background: 'var(--surface-2, var(--surface))',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '1px solid var(--hairline)',
+                flexShrink: 0,
+                color: 'var(--text-dim)',
+              }}
+            >
+              <Icon name="plugs-connected" size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
+                No Model Connected
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 2 }}>
+                Connect an AI provider or enter an API key below to enable chat turns.
+              </div>
+            </div>
+          </div>
+
+          <HouseButton
+            type="button"
+            className="set-btn-sm is-primary"
+            onClick={() => setShowAddModal(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <Icon name="plus" size={12} />
+            <span>Connect Provider</span>
+          </HouseButton>
+        </div>
       )}
 
       {/* Category: Configured Providers */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 2px 10px' }}>
         <div>
-          <span className="set-section-label" style={{ margin: 0 }}>Configured Providers ({providers.length})</span>
+          <span className="set-section-label" style={{ margin: 0 }}>Configured Providers ({configuredProviders.length})</span>
           <span style={{ display: 'block', fontSize: '11.5px', color: 'var(--text-dim)', marginTop: 2 }}>
-            Manage endpoints, default models, and priority fallback routing.
+            Connected endpoints with active credentials and routing priority.
           </span>
         </div>
         <HouseButton
@@ -3164,12 +3246,12 @@ function Models() {
       </div>
 
       <div className="set-box" style={{ marginBottom: 24 }}>
-        {providers.length === 0 ? (
+        {configuredProviders.length === 0 ? (
           <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '13px' }}>
-            No providers configured. Click &ldquo;Add Provider&rdquo; above to connect an endpoint.
+            No providers connected with keys. Add an API key to a preset below or click &ldquo;Add Provider&rdquo;.
           </div>
         ) : (
-          providers.map((p, idx) => {
+          configuredProviders.map((p, idx) => {
             const lat = latencies[p.name]
             const isExpanded = expandedProvider === p.name
             const modelsList = providerModelsMap[p.name] || []
@@ -3333,6 +3415,62 @@ function Models() {
           })
         )}
       </div>
+
+      {/* Category: Available Presets */}
+      {unconfiguredPresets.length > 0 && (
+        <>
+          <div style={{ margin: '0 2px 10px' }}>
+            <span className="set-section-label" style={{ margin: 0 }}>
+              Available Presets ({unconfiguredPresets.length})
+            </span>
+            <span style={{ display: 'block', fontSize: '11.5px', color: 'var(--text-dim)', marginTop: 2 }}>
+              Built-in provider configurations ready to connect with an API key.
+            </span>
+          </div>
+
+          <div className="set-box" style={{ marginBottom: 24 }}>
+            {unconfiguredPresets.map((p, idx) => (
+              <div
+                key={p.name}
+                className="set-box-row"
+                style={{
+                  borderBottom: idx < unconfiguredPresets.length - 1 ? '1px solid var(--hairline)' : 'none',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div className="set-row-left">
+                  <div className="set-row-icon-box" style={{ opacity: 0.75 }}>
+                    <AiProviderIcon provider={p.name} size={16} />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span className="set-row-title" style={{ textTransform: 'capitalize', fontSize: '13.5px' }}>
+                        {p.name}
+                      </span>
+                      {p.core && <span className="mod-core-tag" style={{ fontSize: '10.5px', padding: '1px 6px' }}>Core</span>}
+                    </div>
+                    <span className="set-row-desc" style={{ fontSize: '11.5px' }}>
+                      {p.default_model || 'OpenAI Compatible Gateway'}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <HouseButton
+                    type="button"
+                    className="set-btn-sm"
+                    onClick={() => setEditProvider(p)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11.5 }}
+                  >
+                    <Icon name="key" size={11} />
+                    <span>Add Key</span>
+                  </HouseButton>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Category: Cognitive Tiers */}
       <div className="set-section-label">Cognitive Tier Assignments</div>

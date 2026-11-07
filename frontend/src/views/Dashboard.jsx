@@ -172,9 +172,9 @@ export default function Dashboard() {
                 <div className="set-row" key={name}>
                   <span>
                     {name}
-                    <span className="set-sub">{tier.provider}</span>
+                    <span className="set-sub">{typeof tier?.provider === 'object' && tier?.provider !== null ? JSON.stringify(tier.provider) : (tier?.provider || '')}</span>
                   </span>
-                  <span className="set-row-tail mono">{tier.model}</span>
+                  <span className="set-row-tail mono">{typeof tier?.model === 'object' && tier?.model !== null ? JSON.stringify(tier.model) : (tier?.model || '')}</span>
                 </div>
               ))}
             </div>

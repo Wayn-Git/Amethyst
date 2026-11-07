@@ -1,0 +1,60 @@
+.viewport { position: fixed; z-index: 9999; bottom: var(--space-6, 1.5rem); width: min(22.5rem, calc(100% - var(--space-8, 2rem))); pointer-events: none; }
+.bottom-right { right: var(--space-6, 1.5rem); }
+.bottom-left { left: var(--space-6, 1.5rem); }
+.bottom-center { right: 0; left: 0; margin-inline: auto; }
+.contained { position: absolute; z-index: 2; bottom: var(--space-4, 1rem); }
+.contained.bottom-right { right: var(--space-4, 1rem); }
+.contained.bottom-left { left: var(--space-4, 1rem); }
+@media (max-width: 30rem) { .viewport:not(.contained) { right: 0; bottom: var(--space-4, 1rem); left: 0; margin-inline: auto; } }
+
+/* Toasts hang from the bottom of the list. Its height covers the gaps between open toasts, so hover survives the space between them. */
+.list { position: relative; margin: 0; padding: 0; list-style: none; pointer-events: auto; }
+/* Tucked toasts scale from their top edge, so exactly the peek shows above the toast in front. */
+.item { position: absolute; right: 0; bottom: 0; left: 0; transform-origin: 50% 0; }
+.card { position: absolute; inset: 0; overflow: hidden; border: 1px solid var(--border, var(--hairline-strong, rgba(255, 255, 255, 0.1))); border-radius: var(--radius-panel, var(--radius-xl, 12px)); background: var(--surface-raised, var(--raised, #ffffff)); color: var(--foreground, var(--text, #1d1d1f)); box-shadow: var(--shadow-raised, 0 10px 18px rgba(16, 24, 40, 0.1), 0 2px 4px rgba(16, 24, 40, 0.05)); container-type: inline-size; touch-action: pan-y; -webkit-tap-highlight-color: transparent; transition: background-color var(--duration-standard, 0.24s) var(--ease-standard, ease), border-color var(--duration-standard, 0.24s) var(--ease-standard, ease); }
+.item[data-front="true"] .card, .item[data-expanded="true"] .card { box-shadow: var(--shadow-floating, 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)); }
+/* Tucked toasts sit a step back in tone as well as scale. */
+.item[data-front="false"][data-expanded="false"] .card { background: var(--surface-muted, var(--surface-2, #f5f5f7)); }
+.card[data-dragging] { cursor: grabbing; user-select: none; }
+
+.content { display: flex; align-items: flex-start; gap: var(--space-3, 0.75rem); padding: var(--space-3, 0.75rem) var(--space-3, 0.75rem) var(--space-3, 0.75rem) var(--space-4, 1rem); }
+.icon { position: relative; display: grid; width: 18px; height: 20px; flex: none; place-items: center; color: var(--text-muted, var(--text-dim, #6e6e73)); transition: color var(--duration-fast, 0.16s) var(--ease-standard, ease); }
+.icon[data-type="success"] { color: var(--success, var(--ok, var(--live, #149e61))); }
+.icon[data-type="info"] { color: var(--info, var(--accent, #0066cc)); }
+.icon[data-type="warning"] { color: var(--warning, var(--warn, #b25e00)); }
+.icon[data-type="error"] { color: var(--danger, var(--destructive, var(--stop, #ef4444))); }
+.glyph { grid-area: 1 / 1; display: grid; place-items: center; }
+.glyph svg { display: block; }
+/* The spinner turns only while something is loading; the icon swap is its stop. */
+.spinner { display: block; width: 15px; height: 15px; border: 1.75px solid currentColor; border-right-color: transparent; border-radius: var(--radius-pill, 9999px); animation: spin .8s linear infinite; }
+
+.copy { position: relative; min-width: 0; flex: 1; font-size: var(--text-sm, 14px); letter-spacing: var(--tracking-body, normal); line-height: 20px; }
+.title { position: relative; display: block; font-weight: 500; }
+.line { display: block; }
+.description { display: block; margin-top: 2px; color: var(--text-secondary, var(--text-dim, #7a7a7a)); }
+
+/* Clips only while its width folds, so the focus ring stays whole at rest. */
+.actionSlot { display: flex; flex: none; justify-content: flex-end; margin-top: -4px; }
+.actionSlot[data-moving="true"] { overflow: hidden; }
+.action, .close { flex: none; border: 1px solid transparent; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: scale var(--duration-spring, 0.2s) var(--ease-spring, ease), background-color var(--duration-fast, 0.16s) var(--ease-standard, ease), border-color var(--duration-fast, 0.16s) var(--ease-standard, ease), color var(--duration-fast, 0.16s) var(--ease-standard, ease); }
+.action { height: 28px; padding: 0 var(--space-3, 0.75rem); border-color: var(--border, var(--hairline, #e0e0e0)); border-radius: var(--radius-pill, 9999px); background: var(--surface, var(--apple-pearl, #ffffff)); color: var(--foreground, var(--text, #1d1d1f)); font-size: var(--text-sm, 14px); font-weight: 500; white-space: nowrap; }
+.close { display: grid; width: 28px; height: 28px; margin: -4px -2px 0 0; place-items: center; border-radius: var(--radius-pill, 9999px); background: transparent; color: var(--text-muted, var(--text-faint, #7a7a7a)); }
+@media (hover: hover) and (pointer: fine) {
+  .action:hover { border-color: var(--border-strong, var(--hairline-strong, #d2d2d7)); background: var(--surface-muted, var(--surface-2, #f5f5f7)); }
+  .close:hover { background: var(--surface-muted, var(--surface-2, #f5f5f7)); color: var(--foreground, var(--text, #1d1d1f)); }
+}
+/* Quick press, spring release. */
+.action:active, .close:active { scale: .96; transition-duration: var(--duration-instant, 0.12s); transition-timing-function: var(--ease-standard, ease); }
+/* A narrow toast keeps its copy wide: the action drops under the copy instead of squeezing it. */
+@container (max-width: 21rem) {
+  .content { flex-wrap: wrap; row-gap: var(--space-2, 0.5rem); }
+  .actionSlot { order: 1; flex-basis: 100%; justify-content: flex-start; margin-top: 0; padding-left: calc(18px + var(--space-3, 0.75rem)); }
+}
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+@keyframes spin { to { rotate: 360deg; } }
+@media (prefers-reduced-motion: reduce) {
+  .card, .icon, .action, .close { transition: none; }
+  .action:active, .close:active { scale: none; }
+  .spinner { animation: none; }
+}

@@ -25,6 +25,7 @@
       "files": [
         "src/components/ui/**",
         "src/components/base/**",
+        "src/components/arc/**",
         "src/components/application/modals/**",
         "src/dashboard/primitives.jsx"
       ],

@@ -26,7 +26,7 @@ permissions and integrations.
 | `storage` | Personal | Disk usage, chat cleanup, worktrees, archived conversations |
 | `notifications` | Personal | Desktop alerts, sound, turn completion, briefing, BoardUI |
 | `shortcuts` | Personal | Keyboard shortcuts, global launcher hotkey |
-| `appearance` | Personal | Themes, accent, text scaling, loader, glass |
+| `appearance` | Personal | Themes, accent, text scaling, loader, glass (Liquid Glass engine) |
 | `profile` | Personal | Display name, full name, email, avatar |
 | `usage` | Personal | Token usage, provider telemetry, latency |
 | `activity` | Personal | Recent tasks, session turns, audit log |
@@ -108,7 +108,8 @@ the operation key, not the tool name, is the unit.
 - Pair a device (LAN or relay).
 - Approve/reject pending requests.
 - Edit permissions per device.
-- Revoke a device.
+- Revoke a device (with reminder to delete provider keys).
+- Configure dedicated phone-only LLM and Composio credentials in OS keychain.
 - Show the host app URL for pairing links.
 
 See [sections/remote-mobile.md](remote-mobile.md) and
@@ -164,4 +165,4 @@ Rules:
 - [sections/capabilities.md](capabilities.md)
 - [sections/remote-mobile.md](remote-mobile.md)
 
-_Last verified: 2026-11-04 · commit `f52a7d1` · dirty working tree._
+_Last verified: 2026-11-07 · commit `3c363b7` · dirty working tree._

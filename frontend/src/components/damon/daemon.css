@@ -174,13 +174,13 @@ body.spotlight-only-mode #root {
   pointer-events: none;
 }
 
-:root[data-theme-mode='dark'] .palette.damon-spotlight,
-:root[data-theme='graphite'] .palette.damon-spotlight,
-:root[data-theme='ink'] .palette.damon-spotlight,
-:root[data-theme='nocturne'] .palette.damon-spotlight,
-:root[data-theme='nvidia'] .palette.damon-spotlight,
-.dark .palette.damon-spotlight,
-.dark-mode .palette.damon-spotlight {
+:root:not([data-glass='full'])[data-theme-mode='dark'] .palette.damon-spotlight,
+:root:not([data-glass='full'])[data-theme='graphite'] .palette.damon-spotlight,
+:root:not([data-glass='full'])[data-theme='ink'] .palette.damon-spotlight,
+:root:not([data-glass='full'])[data-theme='nocturne'] .palette.damon-spotlight,
+:root:not([data-glass='full'])[data-theme='nvidia'] .palette.damon-spotlight,
+.dark:not([data-glass='full']) .palette.damon-spotlight,
+.dark-mode:not([data-glass='full']) .palette.damon-spotlight {
   background: rgba(20, 21, 26, 0.94) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   box-shadow:
@@ -188,9 +188,9 @@ body.spotlight-only-mode #root {
     0 32px 80px -16px rgba(0, 0, 0, 0.85) !important;
 }
 
-:root[data-theme-mode='light'] .palette.damon-spotlight,
-:root[data-theme='paper'] .palette.damon-spotlight,
-:root[data-theme='sand'] .palette.damon-spotlight {
+:root:not([data-glass='full'])[data-theme-mode='light'] .palette.damon-spotlight,
+:root:not([data-glass='full'])[data-theme='paper'] .palette.damon-spotlight,
+:root:not([data-glass='full'])[data-theme='sand'] .palette.damon-spotlight {
   background: rgba(255, 255, 255, 0.96) !important;
   border: 1px solid rgba(0, 0, 0, 0.1) !important;
   box-shadow:

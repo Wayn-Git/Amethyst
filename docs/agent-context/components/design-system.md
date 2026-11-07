@@ -78,6 +78,14 @@ Bento tones are separate: `light`, `dark` and `accent`, selected per tile with
 `data-tone`. Each tone supplies `--tile-bg`, `--tile-fg` and `--tile-muted`.
 `widgetTone()` in `frontend/src/dashboard/layout.js` assigns tones by widget id.
 
+## Glass Material (Liquid Glass)
+
+`frontend/src/store.jsx` and Settings own the `glassMaterial` preference (`off`, `subtle`, `full`), reflected on `document.documentElement` as `data-glass`.
+
+- `full` (Liquid Glass): Implements Kelvin Zhang's [Glisse](https://github.com/0kzh/glisse) liquid glass refraction engine (`frontend/src/lib/liquid-glass/engine.js`). In Chromium / Electron, it creates an SVG displacement map with chromatic dispersion (scaled R, G, B channels) applied to `backdrop-filter: blur(...) var(--lg-filter)`, paired with dynamic 2D canvas specular rim highlights (`--lg-rim`). `liquidGlassManager.js` automatically attaches the lens to modals, settings, the spotlight palette, and dropdown menus.
+- `subtle`: Standard lightweight frosted glass (`blur(16px)`).
+- `off`: Solid opaque surfaces without backdrop blur.
+
 ## Typography
 
 Shell tokens declare Satoshi, Plus Jakarta Sans and Inter as the UI stack, with
@@ -237,4 +245,4 @@ tokens.
 - [sections/today.md](../sections/today.md) — Home surface
 - [`../../ui-design-system.md`](../../ui-design-system.md) — bento design notes
 
-_Last verified: 2026-11-06 · dirty working tree._
+_Last verified: 2026-11-07 · commit `3c363b7` · dirty working tree._

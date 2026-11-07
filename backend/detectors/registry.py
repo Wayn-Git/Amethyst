@@ -245,10 +245,10 @@ class HermesDetector(BaseDetector):
 
 
         home = Path.home()
-        paths.extend([
+        paths: list[Path] = [
             home / ".hermes" / "config.yaml",
             home / ".config" / "hermes" / "config.yaml",
-        ])
+        ]
         if sys.platform == "win32":
             userprofile = os.environ.get("USERPROFILE")
             if userprofile:

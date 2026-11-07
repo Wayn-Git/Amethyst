@@ -140,6 +140,16 @@ async def test_hermes_detector(mock_hermes_dir):
 
 
 @pytest.mark.asyncio
+async def test_hermes_candidate_paths_without_env(monkeypatch):
+    monkeypatch.delenv("HERMES_CONFIG", raising=False)
+    monkeypatch.delenv("HERMES_CONFIG_DIR", raising=False)
+    detector = HermesDetector()
+    paths = detector._get_candidate_paths()
+    assert isinstance(paths, list)
+    assert len(paths) >= 2
+
+
+@pytest.mark.asyncio
 async def test_kilo_detector(mock_kilo_dir):
     detector = KiloCodeDetector()
     results = await detector.detect()

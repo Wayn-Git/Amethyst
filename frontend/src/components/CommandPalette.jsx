@@ -22,6 +22,7 @@ import { evaluateMath } from './damon/calculator.js'
 import { woxFuzzyMatch } from './damon/woxMatcher.js'
 import { request as dashboardRequest } from '../dashboard/api.js'
 import './damon/daemon.css'
+import { useLiquidGlassManager, attachLiquidGlass } from '../lib/liquid-glass/index.jsx'
 
 const RECENTS_KEY = 'amethyst.spotlight.recents'
 const WEATHER_SYNONYMS = ['weather', 'forecast', 'temperature', 'temp', 'rain']
@@ -47,7 +48,9 @@ function saveRecents(list) {
 
 export default function CommandPalette({ bare = false }) {
   const app = useApp()
-  const { overlay, setOverlay, toast } = app
+  const { overlay, setOverlay, toast, glassMaterial } = app
+
+  useLiquidGlassManager(glassMaterial)
 
   const open = bare || overlay === 'palette'
 
@@ -128,6 +131,13 @@ export default function CommandPalette({ bare = false }) {
   }, [closePalette])
 
   useModalDismiss(open, handleDismiss)
+
+  // Direct liquid glass attachment for instant refraction on mount
+  useEffect(() => {
+    if (!open || glassMaterial !== 'full' || !panelRef.current) return
+    const cleanup = attachLiquidGlass(panelRef.current)
+    return () => cleanup?.()
+  }, [open, glassMaterial])
 
   // Auto-scroll selected row into view
   useEffect(() => {

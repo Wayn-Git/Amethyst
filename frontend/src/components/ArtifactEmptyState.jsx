@@ -137,7 +137,7 @@ function EnvironmentTab() {
           {health.tiers && Object.keys(health.tiers).length > 0 && (
             <li className="artifact-env-item">
               <span className="artifact-env-label">Tiers</span>
-              <span>{Object.entries(health.tiers).map(([k, v]) => `${k}: ${v.provider}/${v.model}`).join(', ')}</span>
+              <span>{Object.entries(health.tiers).map(([k, v]) => `${k}: ${typeof v?.provider === 'object' ? JSON.stringify(v.provider) : v?.provider}/${typeof v?.model === 'object' ? JSON.stringify(v.model) : v?.model}`).join(', ')}</span>
             </li>
           )}
         </ul>

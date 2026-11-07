@@ -35,6 +35,18 @@ const LUNA_PATH =
 const AUTO_WAND_PATH =
   'M14.5 2.5a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L8.2 22.8a1 1 0 0 1-.7.3H2.5a1 1 0 0 1-1-1v-5a1 1 0 0 1 .3-.7L14.5 2.5zm1.4 2.8L4.5 16.7v2.8h2.8L18.7 8.1l-2.8-2.8zM18 1.5l.5 1.5 1.5.5-1.5.5-.5 1.5-.5-1.5-1.5-.5 1.5-.5.5-1.5zm4 5l.4 1.1 1.1.4-1.1.4-.4 1.1-.4-1.1-1.1-.4 1.1-.4.4-1.1z'
 
+const CEREBRAS_PATH =
+  'M2 2h9v9H2V2zm11 0h9v9h-9V2zM2 13h9v9H2v-9zm11 0h9v9h-9v-9zm2 2v5h5v-5h-5zm-11 0v5h5v-5H4zm0-11v5h5V4H4zm11 0v5h5V4h-5z'
+
+const TOGETHER_PATH =
+  'M19.5 9.5a4.5 4.5 0 0 0-4.5-4.5H9a4.5 4.5 0 0 0 0 9h6a4.5 4.5 0 0 0 4.5-4.5zm-15 5a4.5 4.5 0 0 0 4.5 4.5h6a4.5 4.5 0 0 0 0-9H9a4.5 4.5 0 0 0-4.5 4.5z'
+
+const FIREWORKS_PATH =
+  'M12 2l1.6 4.9 5.1.4-3.9 3.4 1.2 5-4-2.5-4 2.5 1.2-5-3.9-3.4 5.1-.4L12 2zm-7 14l.8 2.4 2.5.2-1.9 1.7.6 2.5-2-1.2-2 1.2.6-2.5-1.9-1.7 2.5-.2L5 16zm14 0l.8 2.4 2.5.2-1.9 1.7.6 2.5-2-1.2-2 1.2.6-2.5-1.9-1.7 2.5-.2L19 16z'
+
+const NEUTRAL_CHIP_PATH =
+  'M7 2h10a3 3 0 0 1 3 3v2h2v2h-2v2h2v2h-2v2h2v2h-2v2a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-2H2v-2h2v-2H2v-2h2v-2H2V7h2V5a3 3 0 0 1 3-3zm1 4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H8zm1 3h6v6H9V9z'
+
 export default function AiProviderIcon({
   provider,
   name,
@@ -176,8 +188,53 @@ export default function AiProviderIcon({
       return { path: OPENCODE_PATH, viewBox: '0 0 24 24' }
     }
 
-    // Fallback: provider name matching or general code icon
-    return { path: KILOCODE_PATH, viewBox: '0 0 24 24' }
+    // OpenRouter
+    if (target.includes('openrouter')) {
+      return { path: si.siOpenrouter?.path, viewBox: '0 0 24 24' }
+    }
+
+    // xAI / Grok
+    if (target.includes('xai') || target.includes('grok')) {
+      return { path: si.siX?.path, viewBox: '0 0 24 24' }
+    }
+
+    // Cerebras
+    if (target.includes('cerebras')) {
+      return { path: CEREBRAS_PATH, viewBox: '0 0 24 24' }
+    }
+
+    // Together AI
+    if (target.includes('together')) {
+      return { path: TOGETHER_PATH, viewBox: '0 0 24 24' }
+    }
+
+    // Fireworks AI
+    if (target.includes('fireworks')) {
+      return { path: FIREWORKS_PATH, viewBox: '0 0 24 24' }
+    }
+
+    // ModelScope
+    if (target.includes('modelscope')) {
+      return { path: si.siModelscope?.path, viewBox: '0 0 24 24' }
+    }
+
+    // OVHcloud
+    if (target.includes('ovh')) {
+      return { path: si.siOvh?.path, viewBox: '0 0 24 24' }
+    }
+
+    // Hugging Face
+    if (target.includes('huggingface') || target.includes('hf.co')) {
+      return { path: si.siHuggingface?.path, viewBox: '0 0 24 24' }
+    }
+
+    // Replicate
+    if (target.includes('replicate')) {
+      return { path: si.siReplicate?.path, viewBox: '0 0 24 24' }
+    }
+
+    // Fallback: neutral AI processor/chip icon
+    return { path: NEUTRAL_CHIP_PATH, viewBox: '0 0 24 24' }
   }, [modelStr, provStr])
 
   const iconColor = color || 'currentColor'

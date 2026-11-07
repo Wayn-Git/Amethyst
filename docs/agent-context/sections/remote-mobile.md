@@ -50,8 +50,10 @@ CONTRACT v2 runs zero-relay, self-hosted pairing (`backend/pairing/`):
 - Constant-time token verification, burned on first valid use, max 5 attempts lockout, 2-minute lifetime.
 - Host prompts "Pair '<device_label>'? Approve / Deny" in UI.
 - On Approve, returns bundle `{"device_id", "llm", "composio", "drive", "prompts"}` and shuts server down.
-- Separate phone-only LLM key in Settings is mandatory.
-- Revoke forgets the device locally and reminds user to delete the key at the provider (does not rotate provider keys).
+- Auto-captures existing PC LLM providers (`llm.providers[]`, `llm.default`) and main Composio credentials by default. Backward-compatible `llm.provider`, `llm.model`, `llm.api_key` alias default provider.
+- Optional hardening setting: "Use separate phone-only keys" (default OFF). When ON, pairing enforces dedicated phone-only LLM and Composio credentials and blocks pairing if missing.
+- Approve prompt on PC lists shared provider names/models and Composio account without exposing keys, warning that keys must be rotated if the phone is lost.
+- Revoke forgets the device locally, presents checklist of shared provider keys, and states plainly that Revoke does not rotate keys.
 
 ## Permissions
 

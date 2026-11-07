@@ -29,11 +29,11 @@ history before navigation; a wide one can show all four.
 and panel toggles. It uses Electron IPC when present, then `window.pywebview.api`,
 then browser fullscreen.
 
-Global transient notifications are rendered by BoardUI's `Notification` inside
-`NotificationViewport` in `App.jsx`. Page code sends messages through the shared
-`toast` function in `store.jsx`; Today layout undo actions use the same
-notification helper. The persisted notification center on Today is a separate
-backend-backed feature.
+Global transient notifications are rendered by `ToastStack` in `App.jsx`
+(`frontend/src/components/arc/toast-stack/toast-stack.tsx`). Page code sends
+messages through the shared `toast` function in `store.jsx` or `useToastStack()`;
+Today layout undo actions use the same notification helper. The persisted
+notification center on Today is a separate backend-backed feature.
 
 `PanelResizer.jsx` is the draggable right-panel edge. Pointer events and
 `setPointerCapture` keep the drag alive outside the four-pixel strip. Width is

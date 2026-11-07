@@ -1,0 +1,343 @@
+@import "glisse/styles.css";
+
+/* ==========================================================================
+   AMETHYST LIQUID GLASS (GLISSE INTEGRATION)
+   Faithful port of Kelvin Zhang's Glisse: https://github.com/0kzh/glisse
+   Active when Settings -> Glass material is set to "full".
+   ========================================================================== */
+
+/* Light Themes */
+:root[data-theme='light'],
+:root[data-theme='paper'],
+:root[data-theme='apple'],
+:root[data-theme-mode='light'] {
+  --lg-glass: rgba(255, 255, 255, 0.50);
+  --lg-glass-active: rgba(240, 240, 245, 0.85);
+  --lg-edge: rgba(0, 0, 0, 0.12);
+  --lg-drop: rgba(0, 0, 0, 0.12);
+  --lg-rim-shine: 0.35;
+  --lg-blur: 16px;
+  --lg-glass-bend: 0.50;
+  --lg-glass-dispersion: 0.45;
+}
+
+/* Dark Themes */
+:root,
+:root[data-theme='dark'],
+:root[data-theme='graphite'],
+:root[data-theme='ink'],
+:root[data-theme='nocturne'],
+:root[data-theme='nvidia'],
+:root[data-theme-mode='dark'],
+.dark,
+.dark-mode {
+  --lg-glass: rgba(20, 22, 30, 0.52);
+  --lg-glass-active: rgba(36, 40, 52, 0.75);
+  --lg-edge: rgba(255, 255, 255, 0.16);
+  --lg-drop: rgba(0, 0, 0, 0.60);
+  --lg-rim-shine: 0.22;
+  --lg-blur: 24px;
+  --lg-glass-bend: 0.50;
+  --lg-glass-dispersion: 0.45;
+}
+
+/* ==========================================================================
+   LIQUID GLASS APPLICATION-WIDE SURFACES
+   ========================================================================== */
+
+[data-glass="full"] .lg-glass,
+[data-glass="full"] .amethyst-liquid-glass,
+[data-glass="full"] [data-liquid-glass],
+[data-glass="full"] .settings-view,
+[data-glass="full"] .palette.damon-spotlight,
+:root[data-glass="full"] .palette.damon-spotlight,
+[data-glass="full"] .confirm-modal-window,
+[data-glass="full"] .arc-wizard-bezel,
+[data-glass="full"] .pairing-approval-modal,
+[data-glass="full"] .app-tb-dropdown,
+[data-glass="full"] .plus-menu,
+[data-glass="full"] .ac-dropdown,
+[data-glass="full"] .ctx-menu,
+[data-glass="full"] .dropdown-menu,
+[data-glass="full"] .menu-popup,
+[data-glass="full"] .sb-mini-flyout,
+[data-glass="full"] [data-slot='dialog-content'],
+[data-glass="full"] [data-slot='dropdown-menu-content'],
+[data-glass="full"] [data-slot='popover-content'],
+[data-glass="full"] .model-picker-dropdown {
+  background-color: var(--lg-glass) !important;
+  background-image: var(--lg-rim, none) !important;
+  background-size: 100% 100% !important;
+  background-repeat: no-repeat !important;
+  -webkit-backdrop-filter: blur(var(--lg-blur, 20px)) var(--lg-filter, saturate(180%)) !important;
+  backdrop-filter: blur(var(--lg-blur, 20px)) var(--lg-filter, saturate(180%)) !important;
+  border: 1px solid var(--lg-edge) !important;
+  box-shadow:
+    0 24px 64px -12px var(--lg-drop),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.22) !important;
+}
+
+/* Settings View Atmosphere under Liquid Glass */
+[data-glass="full"] .settings-view {
+  position: relative;
+  overflow-x: hidden;
+}
+
+[data-glass="full"] .settings-view::before {
+  content: '';
+  position: absolute;
+  top: 10%;
+  left: 20%;
+  width: 550px;
+  height: 550px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(113, 50, 245, 0.22) 0%, rgba(0, 112, 243, 0.16) 45%, transparent 70%);
+  filter: blur(70px);
+  pointer-events: none;
+  z-index: 0;
+  animation: liquidMeshFloat 12s ease-in-out infinite alternate;
+}
+
+[data-glass="full"] .settings-view::after {
+  content: '';
+  position: absolute;
+  bottom: 12%;
+  right: 15%;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.18) 0%, rgba(20, 184, 166, 0.14) 45%, transparent 70%);
+  filter: blur(70px);
+  pointer-events: none;
+  z-index: 0;
+  animation: liquidMeshFloat 15s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes liquidMeshFloat {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(50px, -30px) scale(1.12); }
+  100% { transform: translate(-30px, 40px) scale(0.96); }
+}
+
+[data-glass="full"] .settings-view > * {
+  position: relative;
+  z-index: 1;
+}
+
+[data-glass="full"] .settings-view .set-nav {
+  background: color-mix(in srgb, var(--surface-2) 50%, transparent) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  backdrop-filter: blur(20px) !important;
+  border-right: 1px solid var(--lg-edge) !important;
+}
+
+[data-glass="full"] .settings-view .set-content {
+  background: transparent !important;
+}
+
+/* Translucent cards so the liquid glass material shows through */
+[data-glass="full"] .settings-view .codex-card,
+[data-glass="full"] .settings-view .set-box,
+[data-glass="full"] .settings-view .codex-sec,
+[data-glass="full"] .settings-view .set-group,
+[data-glass="full"] .settings-view .codex-group {
+  background: color-mix(in srgb, var(--surface-1, #18191f) 42%, transparent) !important;
+  border: 1px solid var(--lg-edge, rgba(255, 255, 255, 0.10)) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  backdrop-filter: blur(12px) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25) !important;
+}
+
+/* Spotlight Command Palette under Liquid Glass */
+[data-glass="full"] .damon-overlay {
+  background: color-mix(in srgb, var(--damon-overlay-bg, #08090c) 45%, transparent) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+
+[data-glass="full"] .palette.damon-spotlight {
+  border-radius: 18px !important;
+}
+
+[data-glass="full"] .palette.damon-spotlight .damon-search-row,
+[data-glass="full"] .palette.damon-spotlight .damon-content-split,
+[data-glass="full"] .palette.damon-spotlight .damon-panel-right,
+[data-glass="full"] .palette.damon-spotlight .damon-split-right,
+[data-glass="full"] .palette.damon-spotlight .damon-body,
+[data-glass="full"] .palette.damon-spotlight .damon-card {
+  background: transparent !important;
+}
+
+[data-glass="full"] .palette.damon-spotlight .damon-tabs {
+  background: color-mix(in srgb, var(--damon-tabs-bg, #14151b) 40%, transparent) !important;
+  border-bottom: 1px solid var(--lg-edge) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+[data-glass="full"] .palette.damon-spotlight .damon-preview-content-card,
+[data-glass="full"] .palette.damon-spotlight .damon-card-item,
+[data-glass="full"] .palette.damon-spotlight .damon-weather-right {
+  background: color-mix(in srgb, var(--damon-surface-card, #181920) 45%, transparent) !important;
+  border: 1px solid var(--lg-edge) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+[data-glass="full"] .palette.damon-spotlight .damon-footer {
+  background: color-mix(in srgb, var(--damon-footer-bg, #101115) 50%, transparent) !important;
+  border-top: 1px solid var(--lg-edge) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+/* Tool Confirm Modal */
+[data-glass="full"] .confirm-modal-window {
+  border-radius: 16px !important;
+}
+
+/* Subtle Glass Material */
+[data-glass="subtle"] .settings-view,
+[data-glass="subtle"] .palette.damon-spotlight,
+[data-glass="subtle"] .confirm-modal-window,
+[data-glass="subtle"] .arc-wizard-bezel,
+[data-glass="subtle"] .app-tb-dropdown,
+[data-glass="subtle"] .plus-menu,
+[data-glass="subtle"] .ac-dropdown,
+[data-glass="subtle"] .ctx-menu,
+[data-glass="subtle"] .dropdown-menu {
+  background-color: color-mix(in srgb, var(--canvas-deep, #141519) 86%, transparent) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(140%) !important;
+  backdrop-filter: blur(16px) saturate(140%) !important;
+}
+
+/* Solid Glass Off Material */
+[data-glass="off"] .settings-view,
+[data-glass="off"] .palette.damon-spotlight,
+[data-glass="off"] .confirm-modal-window,
+[data-glass="off"] .arc-wizard-bezel,
+[data-glass="off"] .app-tb-dropdown,
+[data-glass="off"] .plus-menu,
+[data-glass="off"] .ac-dropdown,
+[data-glass="off"] .ctx-menu,
+[data-glass="off"] .dropdown-menu {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background-image: none !important;
+}
+
+/* ==========================================================================
+   SETTINGS LIQUID GLASS SHOWCASE PREVIEW
+   ========================================================================== */
+
+.liquid-glass-preview-container {
+  position: relative;
+  width: 100%;
+  min-height: 280px;
+  border-radius: 18px;
+  overflow: hidden;
+  padding: 36px 24px;
+  margin-top: 14px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #090a0f;
+  border: 1px solid var(--hairline-strong);
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* Backdrop graphic elements that get bent and split by liquid glass */
+.liquid-glass-preview-stage-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(at 15% 20%, #7928ca 0px, transparent 55%),
+    radial-gradient(at 85% 25%, #ff0080 0px, transparent 50%),
+    radial-gradient(at 50% 85%, #0070f3 0px, transparent 55%),
+    radial-gradient(at 80% 80%, #00dfd8 0px, transparent 50%);
+  opacity: 0.85;
+}
+
+.liquid-glass-preview-grid-pattern {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-size: 32px 32px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.12) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.12) 1px, transparent 1px);
+  mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+}
+
+.liquid-glass-preview-backdrop-text {
+  position: absolute;
+  font-family: var(--font-display, 'Inter', sans-serif);
+  font-size: 84px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: rgba(255, 255, 255, 0.15);
+  user-select: none;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.liquid-glass-preview-card {
+  position: relative;
+  z-index: 3;
+  width: min(480px, 100%);
+  padding: 24px 28px;
+  border-radius: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: #ffffff;
+  box-shadow:
+    0 24px 60px -10px rgba(0, 0, 0, 0.65),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.35);
+}
+
+.liquid-glass-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  padding-bottom: 12px;
+}
+
+.liquid-glass-preview-badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.liquid-glass-preview-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.liquid-glass-preview-body {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.liquid-glass-preview-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}

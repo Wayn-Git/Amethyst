@@ -1,6 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
-
-const listeners = new Set();
+import { showToast, dismissToast } from "../components/arc/toast-stack/toast-stack";
 
 function parseMessage(message) {
   const text = message.trim().replace(/^\d{3}:\s*/, "");
@@ -20,40 +18,49 @@ function parseMessage(message) {
   return { title: text };
 }
 
-export function showBoardUINotification(payload, tone = "info") {
-  const content = typeof payload === "string"
-    ? parseMessage(payload)
-    : payload.title || payload.description
-      ? payload
-      : parseMessage(payload.message || "");
-  const item = {
-    id: payload.id || crypto.randomUUID(),
-    ...content,
-    status: payload.status,
-    type: payload.type || payload.tone || tone,
-    action: payload.action,
-    actions: payload.actions,
-    autoDismissDuration: payload.duration ?? payload.autoDismissDuration ?? 3500,
-  };
+function mapTone(tone = "info") {
+  const val = String(tone).toLowerCase();
+  if (["ok", "good", "success"].includes(val)) return "success";
+  if (["bad", "error", "danger"].includes(val)) return "error";
+  if (["amber", "warn", "warning"].includes(val)) return "warning";
+  if (val === "loading") return "loading";
+  return "info";
+}
 
-  listeners.forEach((fn) => fn(item));
-  return item.id;
+export function showBoardUINotification(payload, tone = "info") {
+  if (typeof payload === "string") {
+    return showToast(payload, tone);
+  }
+  const content = payload.title || payload.description
+    ? payload
+    : parseMessage(payload.message || "");
+
+  const action = payload.action && typeof payload.action === "object" && payload.action.label
+    ? {
+        label: payload.action.label,
+        onClick: (id) => payload.action.onClick?.(id),
+      }
+    : payload.actions && payload.actions[0]
+    ? {
+        label: payload.actions[0].label,
+        onClick: (id) => payload.actions[0].onClick?.(id),
+      }
+    : undefined;
+
+  return showToast({
+    id: payload.id,
+    title: content.title || "",
+    description: content.description,
+    type: mapTone(payload.type || payload.tone || payload.status || tone),
+    action,
+    duration: payload.duration ?? payload.autoDismissDuration,
+  });
 }
 
 export function useBoardUINotifications() {
-  const [notifications, setNotifications] = useState([]);
-
-  useEffect(() => {
-    const handler = (item) => {
-      setNotifications((prev) => [...prev.filter((n) => n.id !== item.id), item]);
-    };
-    listeners.add(handler);
-    return () => listeners.delete(handler);
-  }, []);
-
-  const dismiss = useCallback((id) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-  }, []);
-
-  return { notifications, dismissNotification: dismiss };
+  return {
+    notifications: [],
+    dismissNotification: dismissToast,
+  };
 }
+

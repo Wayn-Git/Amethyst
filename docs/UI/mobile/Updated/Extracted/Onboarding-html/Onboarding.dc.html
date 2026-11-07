@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Onboarding</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}*{box-sizing:border-box}
+.s{position:relative;width:390px;height:844px;background:#F2F2F7;color:#1D1D1F;font-family:'Inter','Inter',system-ui,sans-serif;font-size:14px;line-height:1.4;display:flex;flex-direction:column;overflow:hidden}
+.b{flex:1;padding:20px 18px 104px;display:flex;flex-direction:column;gap:14px;overflow:hidden}.dsp{font-family:'Inter','Inter',system-ui,sans-serif}
+.h{font-family:'Inter','Inter',sans-serif;font-size:32px;font-weight:600;letter-spacing:-.04em;line-height:1.05;margin:0}.gl{font-style:italic;color:#6E6E73;font-size:24px;line-height:1.1;letter-spacing:-.02em}
+.m{color:#6E6E73;font-size:12px}.mono{font-family:'JetBrains Mono',monospace}.ttl{font-size:15px;font-weight:600;margin:0;letter-spacing:-.01em}.st{font-family:'Inter',sans-serif;font-size:19px;font-weight:600;letter-spacing:-.03em}
+.c{background:#FFFFFF;border-radius:24px;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.05)}.blk{background:#111113;color:#fff;border-radius:28px;padding:18px}.blk .m{color:#A9A6A0}
+.r{display:flex;align-items:center;gap:10px}.sp{justify-content:space-between}.col{display:flex;flex-direction:column;gap:8px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.hr{height:1px;background:#E5E5EA}.d{width:8px;height:8px;border-radius:50%;background:#111113;box-shadow:0 0 0 3px #0071E3;flex:none}.d.w{background:#D9541E;box-shadow:0 0 0 3px #F6D5C6}
+.ch{background:#FFFFFF;border-radius:999px;padding:8px 14px;font-size:13px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;color:#1D1D1F}.ch.on{background:#111113;color:#fff}
+.bt{background:#111113;color:#fff;border:0;border-radius:999px;padding:0 20px;min-height:48px;font:600 14px 'Inter',sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px}.bt.l{background:#0071E3;color:#111113}.bt.g{background:#FFFFFF;color:#1D1D1F}.bt.o{background:transparent;color:#111113;border:1.5px solid #111113}
+.ib{width:44px;height:44px;border-radius:50%;border:0;background:#FFFFFF;display:inline-flex;align-items:center;justify-content:center;color:#1D1D1F;flex:none;padding:0;box-shadow:0 1px 2px rgba(0,0,0,.06)}.ib.k{background:#111113;color:#fff}
+.it{width:40px;height:40px;border-radius:12px;background:#F2F2F7;display:inline-flex;align-items:center;justify-content:center;flex:none;color:#1D1D1F}
+.in{flex:1;border:0;background:transparent;font:14px 'Inter',sans-serif;color:#1D1D1F;outline:0;min-height:48px}.in::placeholder{color:#6E6E73}
+.tabs{display:flex;gap:22px;border-bottom:1px solid #D1D1D6}.tabs span{padding:8px 0;color:#6E6E73}.tabs .on{color:#1D1D1F;font-weight:600;border-bottom:2px solid #1D1D1F;margin-bottom:-1px}
+.pb{height:6px;border-radius:3px;background:#E5E5EA;overflow:hidden}.blk .pb{background:#2C2C2E}.av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex:none}
+.nav{position:absolute;left:16px;right:16px;bottom:22px;display:flex;gap:8px;align-items:center}.pill{flex:1;height:60px;display:flex;align-items:center;justify-content:space-between;background:#FFFFFF;border-radius:999px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.12),0 1px 2px rgba(0,0,0,.06)}
+.pill a{height:48px;min-width:44px;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:6px;color:#6E6E73;font-size:13px;font-weight:600;text-decoration:none}.pill a.on{background:#111113;color:#fff;padding:0 14px}.pill a.on svg{color:#0071E3}
+.fab{width:60px;height:60px;border-radius:50%;background:#111113;color:#fff;border:0;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,.2);flex:none}
+.spn{width:14px;height:14px;border:2px solid #D8D4CD;border-top-color:#111113;border-radius:50%;animation:r 1s linear infinite;flex:none}.tg{width:50px;height:30px;border-radius:999px;background:#0071E3;position:relative;flex:none}.tg i{position:absolute;right:3px;top:3px;width:24px;height:24px;border-radius:50%;background:#111113}
+@keyframes r{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.spn{animation:none}}
+.h{font-size:34px;font-weight:700;letter-spacing:-.035em}.gl{font-style:normal;text-transform:uppercase;letter-spacing:.08em;font-size:11px;font-weight:600;color:#6E6E73}
+.glass{background:rgba(255,255,255,.55);-webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%);border:1px solid rgba(255,255,255,.65);box-shadow:0 10px 30px rgba(0,0,0,.12),inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(255,255,255,.25)}
+.glass.hi{background:rgba(255,255,255,.82)}.glass.dk{background:rgba(28,28,30,.42);border-color:rgba(255,255,255,.2);box-shadow:0 10px 30px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.35);color:#fff}
+.pill{background:rgba(255,255,255,.58);-webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%);border:1px solid rgba(255,255,255,.7);box-shadow:0 10px 30px rgba(0,0,0,.14),inset 0 1px 0 rgba(255,255,255,.95)}
+.pill a.on{background:rgba(255,255,255,.92);color:#0058B8;box-shadow:0 1px 4px rgba(0,0,0,.14),inset 0 1px 0 #fff}.pill a.on svg{color:#0071E3}
+.fab{background:rgba(0,113,227,.9);-webkit-backdrop-filter:blur(16px) saturate(180%);backdrop-filter:blur(16px) saturate(180%);border:1px solid rgba(255,255,255,.4);box-shadow:0 10px 28px rgba(0,113,227,.35),inset 0 1px 0 rgba(255,255,255,.5)}
+.bt.l{background:#0071E3;color:#fff}.d{background:#34C759;box-shadow:0 0 0 3px rgba(52,199,89,.22);animation:p 2s ease-in-out infinite}.d.w{background:#FF9500;box-shadow:0 0 0 3px rgba(255,149,0,.22)}
+.tg{background:#34C759}.tg i{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.seg{display:flex;background:#E5E5EA;border-radius:10px;padding:2px}.seg span{flex:1;text-align:center;padding:7px 0;border-radius:8px;font-size:13px;color:#3A3A3C}.seg .on{background:#fff;color:#1D1D1F;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.cnt{color:#6E6E73;font-size:12px}.ch.on .cnt{color:#A1A1A6}.mn{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.06em;color:#6E6E73}
+@keyframes p{50%{opacity:.4}}@media (prefers-reduced-motion:reduce){.d{animation:none}}</style>
+</helmet>
+<div class="s" style="width:390px;height:844px"><div style="position:absolute;inset:0;background:radial-gradient(110% 65% at 0% 95%,#FFAE7C 0%,rgba(255,174,124,0) 68%),radial-gradient(100% 70% at 100% 60%,#4F92FF 0%,rgba(79,146,255,0) 70%),radial-gradient(90% 55% at 40% 0%,#CFE0FF 0%,rgba(207,224,255,0) 75%),#EEF3FF"></div><svg style="position:absolute;inset:0;mix-blend-mode:soft-light;opacity:0.6" width="390" height="844" aria-hidden="true"><filter id="gb"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="3" stitchTiles="stitch"></feTurbulence><feColorMatrix type="saturate" values="0"></feColorMatrix></filter><rect width="390" height="844" filter="url(#gb)"></rect></svg><div class="r sp" style="position:absolute;top:60px;left:24px;right:24px"><div class="r" style="gap:10px"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12l4 6-10 13L2 9Z"></path><path d="M11 3 8 9l4 13 4-13-3-6"></path><path d="M2 9h20"></path></svg><span style="font-weight:600;letter-spacing:-.02em">Amethyst</span></div><button class="ch glass" style="font:600 13px 'Inter',sans-serif;padding:9px 16px">Skip</button></div>
+<div class="col" style="position:absolute;left:24px;right:24px;bottom:44px;gap:16px"><div class="r" style="gap:6px"><span style="width:22px;height:6px;border-radius:3px;background:#1D1D1F"></span><span style="width:6px;height:6px;border-radius:3px;background:rgba(0,0,0,.25)"></span><span style="width:6px;height:6px;border-radius:3px;background:rgba(0,0,0,.25)"></span></div>
+<div style="font-size:44px;line-height:1;font-weight:700;letter-spacing:-.05em">One mind for your digital life.</div><p style="margin:0;font-size:16px;line-height:1.45;color:#1D1D1F;max-width:310px">Your Library, tasks and agent, with your PC always within reach.</p>
+<button class="bt" style="width:100%;justify-content:space-between;margin-top:6px">Get started<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></button><button class="bt glass" style="width:100%;color:#1D1D1F">I have a code</button></div></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
