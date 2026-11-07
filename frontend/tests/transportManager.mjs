@@ -38,7 +38,6 @@ await test('probes LAN and sets path to direct when host responds 200', async ()
   try {
     const tm = new TransportManager({
       getHostUrl: () => 'http://192.168.1.50:8000',
-      getRelayUrl: () => 'https://relay.workers.dev',
       getToken: () => 'token-123',
     })
 
@@ -52,7 +51,7 @@ await test('probes LAN and sets path to direct when host responds 200', async ()
   }
 })
 
-await test('falls back to relayed when LAN probe times out or rejects', async () => {
+await test('sets path to offline when LAN probe times out or rejects', async () => {
   mockFetch(async (url) => {
     if (url.includes('/remote/status')) {
       throw new Error('Connection refused / timeout')
@@ -64,24 +63,22 @@ await test('falls back to relayed when LAN probe times out or rejects', async ()
     let notifiedState = null
     const tm = new TransportManager({
       getHostUrl: () => 'http://192.168.1.50:8000',
-      getRelayUrl: () => 'https://relay.workers.dev',
       getToken: () => 'token-123',
       onStateChange: (state) => { notifiedState = state },
     })
 
     const path = await tm.probe()
-    assert.equal(path, 'relayed')
-    assert.equal(tm.getState().path, 'relayed')
-    assert.equal(notifiedState?.path, 'relayed')
+    assert.equal(path, 'offline')
+    assert.equal(tm.getState().path, 'offline')
+    assert.equal(notifiedState?.path, 'offline')
   } finally {
     restoreFetch()
   }
 })
 
-await test('marks offline when both network is down or no relay/host available', async () => {
+await test('marks offline when no host available', async () => {
   const tm = new TransportManager({
     getHostUrl: () => '',
-    getRelayUrl: () => '',
     getToken: () => '',
   })
 
@@ -90,7 +87,7 @@ await test('marks offline when both network is down or no relay/host available',
   assert.equal(tm.getState().path, 'offline')
 })
 
-await test('request routes to hostUrl when direct, and to relayUrl when relayed', async () => {
+await test('request routes to hostUrl when direct and throws when offline', async () => {
   const calls = []
   mockFetch(async (url, opts) => {
     calls.push({ url, method: opts?.method || 'GET' })
@@ -100,7 +97,6 @@ await test('request routes to hostUrl when direct, and to relayUrl when relayed'
   try {
     const tm = new TransportManager({
       getHostUrl: () => 'http://192.168.1.50:8000',
-      getRelayUrl: () => 'https://relay.workers.dev',
       getToken: () => 'token-abc',
     })
 
@@ -108,9 +104,10 @@ await test('request routes to hostUrl when direct, and to relayUrl when relayed'
     await tm.request('/remote/status')
     assert.equal(calls[calls.length - 1].url, 'http://192.168.1.50:8000/api/remote/status')
 
-    tm.forcePath('relayed')
-    await tm.request('/ops', { method: 'POST' })
-    assert.equal(calls[calls.length - 1].url, 'https://relay.workers.dev/ops')
+    tm.forcePath('offline')
+    await assert.rejects(async () => {
+      await tm.request('/ops', { method: 'POST' })
+    }, /No transport available/)
   } finally {
     restoreFetch()
   }

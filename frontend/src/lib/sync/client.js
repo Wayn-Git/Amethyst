@@ -313,66 +313,7 @@ export async function pair(relayOrOptions, pairSecret, name, { hostUrl: directHo
     }
   }
 
-  // 2. If direct LAN did not answer and we have a relay, run relay loop
-  if (!answer && base) {
-    let offered = false
-    while (Date.now() < deadline) {
-      if (signal?.aborted) throw new PairError('timeout', 'pairing aborted')
-      if (!offered) {
-        try {
-          const req = await fetch(`${base}/pair`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ request_id: requestId, ...sealed }),
-            signal,
-          })
-          if (!req.ok) throw new PairError('relay', `the relay would not take the offer (HTTP ${req.status})`)
-          offered = true
-        } catch (e) {
-          if (e instanceof PairError) throw e
-          throw new PairError('offline', 'could not reach the relay from this device')
-        }
-      }
-
-      let gotAnswer = null
-      const answerDeadline = Date.now() + 15000
-      while (Date.now() < answerDeadline && Date.now() < deadline) {
-        if (signal?.aborted) throw new PairError('timeout', 'pairing aborted')
-        let got
-        try {
-          got = await fetch(`${base}/pair?request_id=${encodeURIComponent(requestId)}`, { signal })
-        } catch {
-          throw new PairError('offline', 'lost the relay while waiting for an answer')
-        }
-        if (got.status === 200) { gotAnswer = await got.json(); break }
-        await sleep(PAIR_INTERVAL_MS)
-      }
-
-      if (!gotAnswer) continue
-
-      if (gotAnswer.refused === 'pending_approval') {
-        await sleep(PAIR_INTERVAL_MS)
-        continue
-      }
-      if (gotAnswer.refused === 'rejected') {
-        throw new PairError('invalid', 'Pairing was rejected by your computer')
-      }
-      if (gotAnswer.refused) {
-        throw new PairError('expired', 'That code has expired -- show a new one on your machine')
-      }
-
-      try {
-        opened = await unseal(gotAnswer.nonce, gotAnswer.ciphertext, {
-          opId: String(gotAnswer.request_id ?? ''), deviceId: 'pairing', key,
-        })
-        answer = gotAnswer
-        break
-      } catch {
-        throw new PairError('invalid', 'The answer did not open under that code')
-      }
-    }
-  }
-
+  // Direct LAN did not answer
   if (!answer || !opened) {
     throw new PairError(
       'timeout',
@@ -384,7 +325,6 @@ export async function pair(relayOrOptions, pairSecret, name, { hostUrl: directHo
   await storeGroupKey(unb64(opened.group_key))
 
   const held = {
-    relayUrl: base,
     hostUrl: hostUrl || (typeof window !== 'undefined' ? window.location.origin : ''),
     deviceId: opened.device_id,
     token: opened.token,

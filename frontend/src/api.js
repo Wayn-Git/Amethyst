@@ -285,7 +285,6 @@ export const api = {
   pollMicrosoftAuth: (state) => j(`/auth/microsoft/poll/${encodeURIComponent(state)}`),
   microsoftStatus: () => j('/auth/microsoft/status'),
   disconnectMicrosoft: () => j('/auth/microsoft/disconnect', json('POST', {})),
-  verifyCloudflareToken: (body) => j('/setup/cloudflare/verify', json('POST', body)),
   completeSetup: (body = {}) => j('/setup/complete', json('POST', body)),
   enableKeychainFallback: () => j('/setup/keychain/fallback', json('POST', { consent: true })),
   installUv: () => j('/setup/runtimes/uv/install', json('POST', {})),
@@ -1026,9 +1025,6 @@ export const api = {
   updateInstagram: (patch) => j('/instagram/settings', json('PATCH', patch)),
   allowInstagramSender: (id) => j(`/instagram/senders/${encodeURIComponent(id)}`, json('POST')),
   denyInstagramSender: (id) => j(`/instagram/senders/${encodeURIComponent(id)}`, json('DELETE')),
-  setInstagramRelay: (body) => j('/instagram/relay', json('PUT', body)),
-  clearInstagramRelay: () => j('/instagram/relay', json('DELETE')),
-  syncInstagramRelay: () => j('/instagram/relay/sync', json('POST')),
   instagramEvents: () => j('/instagram/events'),
   retryInstagramEvent: (id) => j(`/instagram/events/${id}/retry`, json('POST')),
 
