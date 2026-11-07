@@ -161,34 +161,60 @@ export async function pairDevice({ qrPayload, deviceLabel, onStatusChange }) {
         await statusListener.remove?.().catch(() => {})
       }
 
-      const msg = err?.message || ''
-      if (msg.includes('NO_HOST_RESPONDED') || msg.includes('timeout') || err?.code === 'NO_HOST_RESPONDED') {
-        const error = new Error('Phone and PC must be on the same Wi-Fi. Some guest/public networks block this.')
-        error.code = 'NO_HOST_RESPONDED'
-        throw error
-      }
-      if (msg.includes('DENIED') || err?.code === 'DENIED') {
-        const error = new Error('Pairing was denied on your PC.')
-        error.code = 'DENIED'
-        throw error
-      }
-      if (msg.includes('CERT_MISMATCH') || err?.code === 'CERT_MISMATCH') {
-        const error = new Error('Security error: Server certificate does not match the pairing QR code.')
-        error.code = 'CERT_MISMATCH'
-        throw error
-      }
-      if (msg.includes('APPROVAL_TIMEOUT') || err?.code === 'APPROVAL_TIMEOUT') {
-        const error = new Error('Approval timed out on your PC. Please try again.')
-        error.code = 'APPROVAL_TIMEOUT'
-        throw error
+      const rawMsg = err?.message || ''
+      const rawCode = err?.code || err?.data?.code || ''
+      const errData = err?.data || {}
+      const attempts = errData.attempts || []
+      const triedPort = errData.port || port
+      const triedSummary = errData.triedSummary || (
+        attempts.length > 0
+          ? attempts.map(a => `${a.host}:${a.port || triedPort} (${a.message || a.errorType})`).join(', ')
+          : hosts.map(h => `${h}:${triedPort}`).join(', ')
+      )
+
+      let code = rawCode
+      let msg = rawMsg
+
+      if (rawCode === 'DENIED' || rawMsg.includes('DENIED') || rawMsg.includes('denied')) {
+        code = 'DENIED'
+        msg = 'Pairing was denied on your PC.'
+      } else if (rawCode === 'APPROVAL_TIMEOUT' || rawMsg.includes('APPROVAL_TIMEOUT') || rawMsg.includes('Approval timed out')) {
+        code = 'APPROVAL_TIMEOUT'
+        msg = 'Approval timed out on your PC. Please try again.'
+      } else if (rawCode === 'TOO_MANY_ATTEMPTS' || rawMsg.includes('TOO_MANY_ATTEMPTS') || rawMsg.includes('429')) {
+        code = 'TOO_MANY_ATTEMPTS'
+        msg = 'Too many failed pairing attempts. Pairing locked out.'
+      } else if (rawCode === 'INVALID_TOKEN' || rawMsg.includes('INVALID_TOKEN') || rawMsg.includes('expired') || rawMsg.includes('401')) {
+        code = 'INVALID_TOKEN'
+        msg = 'Pairing token was rejected or expired.'
+      } else if (rawCode === 'CERT_MISMATCH' || rawMsg.includes('CERT_MISMATCH') || rawMsg.includes('fingerprint mismatch')) {
+        code = 'CERT_MISMATCH'
+        msg = 'Security error: Server certificate does not match the pairing QR code.'
+      } else if (rawCode === 'CONNECTION_REFUSED' || rawMsg.includes('Connection refused')) {
+        code = 'CONNECTION_REFUSED'
+        msg = `Connection refused on port ${triedPort}. Check PC pairing window and firewall.`
+      } else if (rawCode === 'CONNECT_TIMEOUT' || (rawCode === 'NO_HOST_RESPONDED' && rawMsg.includes('timed out'))) {
+        code = 'CONNECT_TIMEOUT'
+        msg = `Connection timed out on port ${triedPort}. Phone and PC must be on the same Wi-Fi.`
+      } else if (rawCode === 'NO_HOST_RESPONDED') {
+        code = 'NO_HOST_RESPONDED'
+        msg = 'Phone and PC must be on the same Wi-Fi. Some guest/public networks block this.'
+      } else if (!code) {
+        code = 'UNKNOWN'
       }
 
-      throw err
+      const error = new Error(msg)
+      error.code = code
+      error.port = triedPort
+      error.attempts = attempts
+      error.triedSummary = triedSummary
+      throw error
     }
   }
 
   // Non-native / Web / Test environment simulation
   let connected = false
+  const attempts = []
   for (const host of hosts) {
     const url = `https://${host}:${port}/pair`
     const controller = new AbortController()
@@ -212,44 +238,96 @@ export async function pairDevice({ qrPayload, deviceLabel, onStatusChange }) {
       }
 
       if (response.status === 403) {
+        console.warn(`[PairingClient] Host ${host}:${port} failed: DENIED`)
         const err = new Error('Pairing was denied on your PC.')
         err.code = 'DENIED'
+        err.port = port
+        err.attempts = [...attempts, { host, port, errorType: 'DENIED', message: 'Pairing denied' }]
+        err.triedSummary = `${host}:${port} (Pairing denied)`
         throw err
       }
 
       if (response.status === 408) {
+        console.warn(`[PairingClient] Host ${host}:${port} failed: APPROVAL_TIMEOUT`)
         const err = new Error('Approval timed out on your PC. Please try again.')
         err.code = 'APPROVAL_TIMEOUT'
+        err.port = port
+        err.attempts = [...attempts, { host, port, errorType: 'APPROVAL_TIMEOUT', message: 'Approval timed out' }]
+        err.triedSummary = `${host}:${port} (Approval timed out)`
+        throw err
+      }
+
+      if (response.status === 429) {
+        console.warn(`[PairingClient] Host ${host}:${port} failed: TOO_MANY_ATTEMPTS`)
+        const err = new Error('Too many failed pairing attempts. Pairing locked out.')
+        err.code = 'TOO_MANY_ATTEMPTS'
+        err.port = port
+        err.attempts = [...attempts, { host, port, errorType: 'TOO_MANY_ATTEMPTS', message: 'Too many attempts' }]
+        err.triedSummary = `${host}:${port} (Too many attempts)`
         throw err
       }
 
       if (response.status === 400 || response.status === 401) {
+        console.warn(`[PairingClient] Host ${host}:${port} failed: INVALID_TOKEN`)
         const err = new Error('Pairing token was rejected or already used.')
         err.code = 'INVALID_TOKEN'
+        err.port = port
+        err.attempts = [...attempts, { host, port, errorType: 'INVALID_TOKEN', message: 'Invalid token' }]
+        err.triedSummary = `${host}:${port} (Invalid token)`
         throw err
       }
 
       throw new Error(`PC returned HTTP ${response.status}`)
     } catch (err) {
       clearTimeout(connectTimer)
-      if (err.code === 'DENIED' || err.code === 'INVALID_TOKEN' || err.code === 'APPROVAL_TIMEOUT') {
+      if (err.code === 'DENIED' || err.code === 'INVALID_TOKEN' || err.code === 'APPROVAL_TIMEOUT' || err.code === 'TOO_MANY_ATTEMPTS') {
         throw err
       }
-      // If connected but failed on response read
       if (connected) {
         if (err.name === 'AbortError') {
+          console.warn(`[PairingClient] Host ${host}:${port} failed: APPROVAL_TIMEOUT`)
           const timeoutErr = new Error('Approval timed out on your PC. Please try again.')
           timeoutErr.code = 'APPROVAL_TIMEOUT'
+          timeoutErr.port = port
           throw timeoutErr
         }
         throw err
       }
-      // Try next host
+
+      const isTimeout = err.name === 'AbortError'
+      const errType = isTimeout
+        ? 'CONNECT_TIMEOUT'
+        : (err.message?.toLowerCase().includes('refused') ? 'CONNECTION_REFUSED' : 'NETWORK_ERROR')
+      const errMsg = isTimeout
+        ? 'Connect timed out'
+        : (err.message || 'Connection failed')
+
+      console.warn(`[PairingClient] Host ${host}:${port} failed: ${errType}`)
+      attempts.push({ host, port, errorType: errType, message: errMsg })
     }
   }
 
-  // If no host responded
-  const error = new Error('Phone and PC must be on the same Wi-Fi. Some guest/public networks block this.')
-  error.code = 'NO_HOST_RESPONDED'
+  // All hosts failed
+  const allRefused = attempts.length > 0 && attempts.every(a => a.errorType === 'CONNECTION_REFUSED')
+  const allTimeout = attempts.length > 0 && attempts.every(a => a.errorType === 'CONNECT_TIMEOUT')
+  const hasRefused = attempts.some(a => a.errorType === 'CONNECTION_REFUSED')
+
+  let primaryCode = 'NO_HOST_RESPONDED'
+  let primaryMsg = 'Phone and PC must be on the same Wi-Fi. Some guest/public networks block this.'
+
+  if (allRefused || hasRefused) {
+    primaryCode = 'CONNECTION_REFUSED'
+    primaryMsg = `Connection refused on port ${port}. Check PC pairing window and firewall.`
+  } else if (allTimeout) {
+    primaryCode = 'CONNECT_TIMEOUT'
+    primaryMsg = `Connection timed out on port ${port}. Phone and PC must be on the same Wi-Fi.`
+  }
+
+  const triedSummary = attempts.map(a => `${a.host}:${a.port} (${a.message})`).join(', ')
+  const error = new Error(primaryMsg)
+  error.code = primaryCode
+  error.port = port
+  error.attempts = attempts
+  error.triedSummary = triedSummary
   throw error
 }

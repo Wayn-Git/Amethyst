@@ -61,16 +61,63 @@ export default function Pair({ onPaired, onDesktop }) {
       setPhase('paired')
       setTimeout(() => onPaired?.(), 600)
     } catch (err) {
-      const msg = err.message || 'Could not complete pairing with PC.'
+      const code = err.code || 'UNKNOWN'
+      const port = err.port || qrPayload?.port
+      const tried = err.triedSummary || (
+        err.attempts?.length > 0
+          ? err.attempts.map(a => `${a.host}:${a.port || port} (${a.message || a.errorType})`).join(', ')
+          : qrPayload?.hosts?.map(h => `${h}:${port}`).join(', ')
+      )
+
+      let title = 'Connection Failed'
+      let body = err.message || 'Could not complete pairing with PC.'
+      let hint = null
+
+      if (code === 'CONNECTION_REFUSED') {
+        title = 'Connection Refused'
+        body = `Could not connect to PC on port ${port}. The computer refused the connection.`
+        hint = `Check that Amethyst is running on your PC, the pairing dialog is open, and your PC firewall allows port ${port} (e.g. 'sudo ufw allow ${port}/tcp').`
+      } else if (code === 'CONNECT_TIMEOUT') {
+        title = 'Connection Timed Out'
+        body = `Connection to your PC timed out on port ${port}.`
+        hint = 'Make sure your phone and PC are connected to the same Wi-Fi network. Some guest/public Wi-Fi networks block device-to-device connections.'
+      } else if (code === 'CERT_MISMATCH') {
+        title = 'Security Verification Failed'
+        body = 'TLS certificate does not match the pairing QR code.'
+        hint = 'The certificate presented by the PC differs from the scanned QR code. Please close the PC pairing window and generate a new code.'
+      } else if (code === 'TLS_ERROR') {
+        title = 'Secure Handshake Failed'
+        body = 'Could not establish a secure TLS connection with the PC.'
+        hint = 'Verify your PC local network settings, then try scanning a fresh QR code.'
+      } else if (code === 'DENIED') {
+        title = 'Pairing Denied'
+        body = 'Pairing was denied on your PC.'
+        hint = "Click 'Add' in Amethyst on your PC to start a new pairing session."
+      } else if (code === 'APPROVAL_TIMEOUT') {
+        title = 'Approval Timed Out'
+        body = 'Approval timed out on your PC.'
+        hint = "The 2-minute pairing window expired before approval was granted. Click 'Add' on your PC to try again."
+      } else if (code === 'TOO_MANY_ATTEMPTS') {
+        title = 'Pairing Locked Out'
+        body = 'Too many failed pairing attempts (HTTP 429).'
+        hint = 'The PC pairing server has locked out further attempts. Please close and reopen the pairing dialog on your PC.'
+      } else if (code === 'INVALID_TOKEN') {
+        title = 'Invalid or Expired Token'
+        body = 'The pairing token was rejected or already used (HTTP 401/400).'
+        hint = 'Please scan a fresh QR code from your PC.'
+      } else if (code === 'NO_HOST_RESPONDED') {
+        title = 'No Host Responded'
+        body = 'Phone and PC must be on the same Wi-Fi. Some guest/public networks block this.'
+        hint = `Ensure both devices are on the same local network and firewall allows incoming connections on port ${port}.`
+      } else {
+        hint = `Ensure phone and PC are on the same Wi-Fi network and firewall allows port ${port}.`
+      }
+
       setTrouble({
-        title: err.code === 'NO_HOST_RESPONDED'
-          ? 'Connection Failed'
-          : err.code === 'DENIED'
-            ? 'Pairing Denied'
-            : err.code === 'APPROVAL_TIMEOUT'
-              ? 'Approval Timed Out'
-              : 'Connection Failed',
-        body: msg,
+        title,
+        body,
+        hint,
+        tried: ['DENIED', 'APPROVAL_TIMEOUT', 'TOO_MANY_ATTEMPTS', 'INVALID_TOKEN'].includes(code) ? null : tried,
         retry: 'Try again',
       })
       setPhase('trouble')
@@ -151,12 +198,39 @@ export default function Pair({ onPaired, onDesktop }) {
             <p className="pair-prompt-desc">Your phone is now securely paired with your PC.</p>
           </div>
         ) : phase === 'trouble' ? (
-          <div className="pair-dialog-card">
+          <div className="pair-dialog-card" style={{ maxWidth: 380 }}>
             <div className="pair-status-glyph is-bad" aria-hidden="true">
               <Icon name="alert" size={38} />
             </div>
             <h1 className="pair-prompt-title">{trouble?.title || 'Connection Failed'}</h1>
             <p className="pair-prompt-desc">{trouble?.body}</p>
+            {trouble?.tried && (
+              <div
+                style={{
+                  margin: '12px 0 6px',
+                  padding: '8px 12px',
+                  background: 'rgba(0, 0, 0, 0.05)',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  color: '#3f3f46',
+                  textAlign: 'left',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.4,
+                  width: '100%',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div style={{ fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#71717a', marginBottom: 2 }}>
+                  Tried addresses
+                </div>
+                <div>{trouble.tried}</div>
+              </div>
+            )}
+            {trouble?.hint && (
+              <p style={{ fontSize: 12, color: '#71717a', margin: '8px 0 0', lineHeight: 1.4 }}>
+                {trouble.hint}
+              </p>
+            )}
           </div>
         ) : (
           /* Default IDLE Screen */

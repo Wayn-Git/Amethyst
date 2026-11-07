@@ -133,6 +133,9 @@ class PairingRequestHandler(http.server.BaseHTTPRequestHandler):
 class PairingServer(http.server.ThreadingHTTPServer):
     """HTTPS pairing server for CONTRACT v2."""
 
+    allow_reuse_address = True
+    daemon_threads = True
+
     def __init__(
         self,
         token: str,
@@ -140,9 +143,41 @@ class PairingServer(http.server.ThreadingHTTPServer):
         key_path: Path,
         exp: int,
         bind_host: str = "0.0.0.0",
+        ports: list[int] | int | None = None,
         on_status_change: Callable[[], None] | None = None,
     ) -> None:
-        super().__init__((bind_host, 0), PairingRequestHandler)
+        import os
+
+        if ports is None:
+            env_port = os.environ.get("AMETHYST_PAIRING_PORT")
+            if env_port:
+                try:
+                    ports_list = [int(env_port.strip())]
+                except ValueError:
+                    ports_list = [8443, 8444, 8445, 8446, 8447, 8448, 0]
+            else:
+                ports_list = [8443, 8444, 8445, 8446, 8447, 8448, 0]
+        elif isinstance(ports, int):
+            ports_list = [ports]
+        else:
+            ports_list = list(ports)
+
+        last_err: Exception | None = None
+        bound = False
+        for p in ports_list:
+            try:
+                super().__init__((bind_host, p), PairingRequestHandler)
+                bound = True
+                break
+            except OSError as exc:
+                last_err = exc
+                continue
+
+        if not bound:
+            if last_err:
+                raise last_err
+            raise RuntimeError("Could not bind PairingServer to any port")
+
         self.token = token
         self.exp = exp
         self.bad_attempts = 0

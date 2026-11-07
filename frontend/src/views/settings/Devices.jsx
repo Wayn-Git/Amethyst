@@ -1137,6 +1137,12 @@ export default function Devices() {
                               </div>
                             </div>
 
+                            {v2Pairing.port && (
+                              <div style={{ marginTop: 6, fontSize: 11, fontWeight: 600, color: '#a1a1aa' }}>
+                                Port: <strong>{v2Pairing.port}</strong>
+                              </div>
+                            )}
+
                             <div className="conn-box-corner-tools">
                               <motion.button
                                 type="button"
@@ -1230,7 +1236,13 @@ export default function Devices() {
                   {modalTab === 'phone' ? (
                     <span>
                       {v2Pairing ? (
-                        <>Scan with your phone. Local Wi-Fi only (pinned self-signed TLS cert). {v2Status?.remaining_seconds !== undefined ? `Window closes in ${v2Status.remaining_seconds}s.` : ''}</>
+                        <>
+                          Scan with your phone. Local Wi-Fi only (pinned self-signed TLS cert, port {v2Pairing.port}).
+                          {v2Status?.remaining_seconds !== undefined ? ` Window closes in ${v2Status.remaining_seconds}s.` : ''}
+                          <span style={{ display: 'block', marginTop: 4, fontSize: 11, color: '#71717a' }}>
+                            If connection fails, check that your PC firewall allows port {v2Pairing.port} (e.g. <code>sudo ufw allow {v2Pairing.port}/tcp</code>).
+                          </span>
+                        </>
                       ) : (
                         <>Point your phone’s camera at the QR code to connect directly over local Wi-Fi.</>
                       )}

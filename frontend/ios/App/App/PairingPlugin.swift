@@ -26,6 +26,23 @@ public class PairingPlugin: CAPPlugin, CAPBridgedPlugin {
 
         DispatchQueue.global(qos: .userInitiated).async {
             var anyConnected = false
+            var attempts: [[String: Any]] = []
+
+            func makeErrorData(primaryCode: String) -> [String: Any] {
+                var data: [String: Any] = [
+                    "port": port,
+                    "code": primaryCode,
+                    "attempts": attempts
+                ]
+                let summaryParts = attempts.map { att in
+                    let h = att["host"] as? String ?? ""
+                    let p = att["port"] as? Int ?? port
+                    let msg = att["message"] as? String ?? (att["errorType"] as? String ?? "")
+                    return "\(h):\(p) (\(msg))"
+                }
+                data["triedSummary"] = summaryParts.joined(separator: ", ")
+                return data
+            }
 
             for host in hosts {
                 let trimmedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -76,8 +93,16 @@ public class PairingPlugin: CAPPlugin, CAPBridgedPlugin {
                 if statusResult == .timedOut {
                     task.cancel()
                     session.invalidateAndCancel()
+                    let errType = anyConnected ? "APPROVAL_TIMEOUT" : "CONNECT_TIMEOUT"
+                    print("[PairingPlugin] Host \(trimmedHost):\(port) failed: \(errType)")
+                    attempts.append([
+                        "host": trimmedHost,
+                        "port": port,
+                        "errorType": errType,
+                        "message": anyConnected ? "Approval timed out" : "Connect timed out"
+                    ])
                     if anyConnected {
-                        call.reject("Approval timed out on your PC", "APPROVAL_TIMEOUT")
+                        call.reject("Approval timed out on your PC", "APPROVAL_TIMEOUT", nil, makeErrorData(primaryCode: "APPROVAL_TIMEOUT"))
                         return
                     }
                     continue
@@ -95,24 +120,100 @@ public class PairingPlugin: CAPPlugin, CAPBridgedPlugin {
                             return
                         }
                     } else if httpResponse.statusCode == 403 {
-                        call.reject("Pairing was denied on your PC", "DENIED")
+                        let errType = "DENIED"
+                        print("[PairingPlugin] Host \(trimmedHost):\(port) failed: \(errType)")
+                        attempts.append(["host": trimmedHost, "port": port, "errorType": errType, "message": "Pairing denied on PC"])
+                        call.reject("Pairing was denied on your PC", "DENIED", nil, makeErrorData(primaryCode: "DENIED"))
                         return
                     } else if httpResponse.statusCode == 408 {
-                        call.reject("Approval timed out on your PC", "APPROVAL_TIMEOUT")
+                        let errType = "APPROVAL_TIMEOUT"
+                        print("[PairingPlugin] Host \(trimmedHost):\(port) failed: \(errType)")
+                        attempts.append(["host": trimmedHost, "port": port, "errorType": errType, "message": "Approval timed out"])
+                        call.reject("Approval timed out on your PC", "APPROVAL_TIMEOUT", nil, makeErrorData(primaryCode: "APPROVAL_TIMEOUT"))
+                        return
+                    } else if httpResponse.statusCode == 429 {
+                        let errType = "TOO_MANY_ATTEMPTS"
+                        print("[PairingPlugin] Host \(trimmedHost):\(port) failed: \(errType)")
+                        attempts.append(["host": trimmedHost, "port": port, "errorType": errType, "message": "Too many attempts"])
+                        call.reject("Too many failed pairing attempts. Pairing locked out.", "TOO_MANY_ATTEMPTS", nil, makeErrorData(primaryCode: "TOO_MANY_ATTEMPTS"))
                         return
                     } else if httpResponse.statusCode == 400 || httpResponse.statusCode == 401 {
-                        call.reject("Pairing token was rejected or expired", "INVALID_TOKEN")
+                        let errType = "INVALID_TOKEN"
+                        print("[PairingPlugin] Host \(trimmedHost):\(port) failed: \(errType)")
+                        attempts.append(["host": trimmedHost, "port": port, "errorType": errType, "message": "Invalid or expired token"])
+                        call.reject("Pairing token was rejected or expired", "INVALID_TOKEN", nil, makeErrorData(primaryCode: "INVALID_TOKEN"))
+                        return
+                    } else {
+                        let errType = "HTTP_\(httpResponse.statusCode)"
+                        print("[PairingPlugin] Host \(trimmedHost):\(port) failed: \(errType)")
+                        attempts.append(["host": trimmedHost, "port": port, "errorType": errType, "message": "Server returned HTTP \(httpResponse.statusCode)"])
+                        call.reject("Server returned HTTP \(httpResponse.statusCode)", "SERVER_ERROR", nil, makeErrorData(primaryCode: "SERVER_ERROR"))
                         return
                     }
                 }
 
                 if delegate.pinningFailed {
-                    call.reject("Certificate pinning verification failed", "CERT_MISMATCH")
+                    let errType = "CERT_MISMATCH"
+                    print("[PairingPlugin] Host \(trimmedHost):\(port) failed: \(errType)")
+                    attempts.append(["host": trimmedHost, "port": port, "errorType": errType, "message": "Certificate fingerprint mismatch"])
+                    call.reject("Certificate pinning verification failed", "CERT_MISMATCH", nil, makeErrorData(primaryCode: "CERT_MISMATCH"))
                     return
+                }
+
+                if let err = error as NSError? {
+                    var errType = "UNKNOWN"
+                    var errMsg = err.localizedDescription
+                    if err.domain == NSURLErrorDomain {
+                        switch err.code {
+                        case NSURLErrorTimedOut:
+                            errType = "CONNECT_TIMEOUT"
+                            errMsg = "Connect timed out"
+                        case NSURLErrorCannotConnectToHost, NSURLErrorConnectionLost:
+                            errType = "CONNECTION_REFUSED"
+                            errMsg = "Connection refused"
+                        case NSURLErrorServerCertificateUntrusted, NSURLErrorSecureConnectionFailed:
+                            errType = "TLS_ERROR"
+                            errMsg = "TLS handshake failed"
+                        default:
+                            errType = "UNKNOWN"
+                        }
+                    }
+                    print("[PairingPlugin] Host \(trimmedHost):\(port) failed: \(errType)")
+                    attempts.append(["host": trimmedHost, "port": port, "errorType": errType, "message": errMsg])
                 }
             }
 
-            call.reject("Phone and PC must be on the same Wi-Fi. Some guest/public networks block this.", "NO_HOST_RESPONDED")
+            var allRefused = !attempts.isEmpty
+            var allTimeout = !attempts.isEmpty
+            var hasRefused = false
+
+            for att in attempts {
+                let t = att["errorType"] as? String ?? ""
+                if t == "CONNECTION_REFUSED" {
+                    hasRefused = true
+                    allTimeout = false
+                } else if t == "CONNECT_TIMEOUT" {
+                    allRefused = false
+                } else {
+                    allRefused = false
+                    allTimeout = false
+                }
+            }
+
+            let primaryCode: String
+            let primaryMessage: String
+            if allRefused || hasRefused {
+                primaryCode = "CONNECTION_REFUSED"
+                primaryMessage = "Connection refused on port \(port). Check PC pairing window and firewall."
+            } else if allTimeout {
+                primaryCode = "CONNECT_TIMEOUT"
+                primaryMessage = "Connection timed out on port \(port). Phone and PC must be on the same Wi-Fi."
+            } else {
+                primaryCode = "NO_HOST_RESPONDED"
+                primaryMessage = "Phone and PC must be on the same Wi-Fi. Some guest/public networks block this."
+            }
+
+            call.reject(primaryMessage, primaryCode, nil, makeErrorData(primaryCode: primaryCode))
         }
     }
 }

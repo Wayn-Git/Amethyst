@@ -270,6 +270,78 @@ test('Host probing with 3s timeout and approval handling', async () => {
     (err) => err.code === 'APPROVAL_TIMEOUT' && err.message.includes('timed out')
   )
 
+  // Case 6: Connection refused on all hosts -> CONNECTION_REFUSED with triedSummary
+  globalThis.fetch = async () => {
+    throw new Error('ConnectException: Connection refused')
+  }
+
+  await assert.rejects(
+    async () => {
+      await pairDevice({
+        qrPayload,
+        deviceLabel: 'Test Phone',
+      })
+    },
+    (err) => {
+      assert.equal(err.code, 'CONNECTION_REFUSED')
+      assert.equal(err.port, 8443)
+      assert.ok(err.triedSummary.includes('192.168.1.100:8443 (ConnectException: Connection refused)'))
+      assert.ok(err.triedSummary.includes('192.168.1.101:8443 (ConnectException: Connection refused)'))
+      // Verify token is never in triedSummary or error message
+      assert.ok(!err.triedSummary.includes(qrPayload.token))
+      assert.ok(!err.message.includes(qrPayload.token))
+      return true
+    }
+  )
+
+  // Case 7: Connect timeout on all hosts -> CONNECT_TIMEOUT
+  globalThis.fetch = async () => {
+    const abortErr = new Error('The operation was aborted')
+    abortErr.name = 'AbortError'
+    throw abortErr
+  }
+
+  await assert.rejects(
+    async () => {
+      await pairDevice({
+        qrPayload,
+        deviceLabel: 'Test Phone',
+      })
+    },
+    (err) => {
+      assert.equal(err.code, 'CONNECT_TIMEOUT')
+      assert.equal(err.port, 8443)
+      assert.ok(err.triedSummary.includes('192.168.1.100:8443 (Connect timed out)'))
+      assert.ok(!err.triedSummary.includes(qrPayload.token))
+      return true
+    }
+  )
+
+  // Case 8: Too many attempts -> HTTP 429 TOO_MANY_ATTEMPTS
+  globalThis.fetch = async (url) => {
+    if (url.includes('192.168.1.100')) {
+      return {
+        status: 429,
+        json: async () => ({ error: 'max_attempts_exceeded' }),
+      }
+    }
+    throw new Error('Should not reach second host')
+  }
+
+  await assert.rejects(
+    async () => {
+      await pairDevice({
+        qrPayload,
+        deviceLabel: 'Test Phone',
+      })
+    },
+    (err) => {
+      assert.equal(err.code, 'TOO_MANY_ATTEMPTS')
+      assert.ok(err.message.includes('Too many failed pairing attempts'))
+      return true
+    }
+  )
+
   // Restore fetch
   globalThis.fetch = originalFetch
   await clearBundle()
