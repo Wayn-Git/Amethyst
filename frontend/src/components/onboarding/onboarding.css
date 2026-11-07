@@ -1,0 +1,339 @@
+/* ==========================================================================
+   AMETHYST DESKTOP ONBOARDING STYLESHEET
+   Verified replication of docs/UI/mobile/Amethyst Desktop Onboarding.html
+   ========================================================================== */
+
+.onb-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(10, 15, 30, 0.72);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
+/* Floating Window Stage */
+.onb-window {
+  width: min(1280px, 94vw);
+  height: min(800px, 90vh);
+  min-height: 580px;
+  border-radius: 20px;
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+  background: radial-gradient(60% 70% at 85% 10%, #5f8cff 0, transparent 70%),
+              radial-gradient(60% 70% at 10% 95%, #1328d6 0, transparent 70%),
+              #2441ff;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  display: flex;
+  flex-direction: column;
+}
+
+/* macOS Window Controls */
+.onb-traffic-lights {
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+
+.onb-traffic-lights i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Inner Split Card (960×540) */
+.onb-card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(960px, calc(100% - 48px));
+  height: min(540px, calc(100% - 64px));
+  border-radius: 20px;
+  overflow: hidden;
+  display: flex;
+  box-shadow: 0 30px 80px rgba(10, 18, 96, 0.65);
+  background: #222226;
+}
+
+/* Left Form Pane (348px) */
+.onb-pane-left {
+  width: 348px;
+  background: #222226;
+  box-sizing: border-box;
+  padding: 36px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+
+/* Authentic Ticket Perforation Divider */
+.onb-perforation {
+  width: 12px;
+  background: radial-gradient(circle at 100% 50%, #1a1d3a 0 5px, #222226 5.5px) 0 0/12px 14px repeat-y;
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+/* Right Content Pane */
+.onb-pane-right {
+  flex: 1;
+  background: #1a1d3a;
+  padding: 36px 36px 32px;
+  box-sizing: border-box;
+  position: relative;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+/* Typography */
+.onb-eyebrow {
+  font-size: 12px;
+  font-weight: 500;
+  color: #b4b8d6;
+  margin: 34px 0 10px;
+  letter-spacing: 0.02em;
+}
+
+.onb-title {
+  font-size: 32px;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  margin: 0;
+  color: #fff;
+}
+
+.onb-desc {
+  font-size: 14px;
+  line-height: 1.55;
+  color: #b4b8d6;
+  margin: 14px 0 0;
+}
+
+/* Buttons */
+.onb-btn-primary {
+  border: 0;
+  border-radius: 12px;
+  min-height: 46px;
+  width: 100%;
+  color: #fff;
+  font: 600 14px Inter, -apple-system, sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform 0.12s ease-out, filter 0.12s ease-out;
+}
+
+.onb-btn-primary:hover {
+  filter: brightness(1.08);
+}
+
+.onb-btn-primary:active {
+  transform: scale(0.96);
+}
+
+.onb-btn-secondary {
+  border: 0;
+  border-radius: 12px;
+  min-height: 46px;
+  padding: 0 20px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font: 600 14px Inter, -apple-system, sans-serif;
+  cursor: pointer;
+  transition: background 0.12s ease-out, transform 0.12s ease-out;
+}
+
+.onb-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.onb-btn-secondary:active {
+  transform: scale(0.96);
+}
+
+.onb-btn-skip {
+  background: none;
+  border: 0;
+  color: #b4b8d6;
+  font: 500 13px Inter, -apple-system, sans-serif;
+  min-height: 40px;
+  margin-top: 6px;
+  width: 100%;
+  cursor: pointer;
+  text-align: center;
+  transition: color 0.12s ease-out;
+}
+
+.onb-btn-skip:hover {
+  color: #fff;
+}
+
+.onb-nav-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.onb-nav-row .onb-btn-primary {
+  flex: 1;
+  width: auto;
+}
+
+/* Form Controls */
+.onb-label {
+  font-size: 12px;
+  color: #b4b8d6;
+  margin: 0 0 7px;
+  display: block;
+}
+
+.onb-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 42px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font: 14px Inter, -apple-system, sans-serif;
+  padding: 0 12px;
+  transition: box-shadow 0.15s ease-out;
+}
+
+.onb-input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.4), 0 0 0 3px rgba(113, 50, 245, 0.35);
+}
+
+/* Groups and Rows */
+.onb-section-header {
+  font-size: 12px;
+  color: #b4b8d6;
+  margin: 0 0 8px 4px;
+}
+
+.onb-group {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.onb-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  min-height: 52px;
+  position: relative;
+}
+
+.onb-row + .onb-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 60px;
+  right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.onb-row-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.onb-row-meta {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.onb-row-meta span {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: #b4b8d6;
+}
+
+.onb-tag {
+  font-size: 13px;
+  color: #b4b8d6;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.onb-tag-pill {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.onb-pill-btn {
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font: 500 13px Inter, -apple-system, sans-serif;
+  min-height: 36px;
+  padding: 0 18px;
+  cursor: pointer;
+  transition: background 0.12s ease-out;
+}
+
+.onb-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Bottom Caption */
+.onb-bottom-caption {
+  position: absolute;
+  left: 36px;
+  right: 36px;
+  bottom: 24px;
+  margin: 0;
+  font-size: 12px;
+  color: #9ea3c4;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.onb-mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
