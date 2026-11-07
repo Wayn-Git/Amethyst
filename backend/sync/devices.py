@@ -454,14 +454,11 @@ def pairing_payload(
     secret: str,
     *,
     app: str = "",
-    relay: str = "",
     host: str = "",
     prefer_lan: bool = False,
 ) -> str:
     """What the QR code encodes."""
     fields = {"s": secret}
-    if relay:
-        fields["r"] = relay.rstrip("/")
     if host and (prefer_lan or not app.startswith("https://")):
         fields["h"] = host.rstrip("/")
     query = urlencode(fields)
@@ -483,16 +480,9 @@ def open_pairing(name_hint: str = "", *, conn: sqlite3.Connection | None = None)
     global _open_pairing
     secret = crypto.new_pair_secret()
     _open_pairing = Pairing(secret=secret, opened_at=time.monotonic(), name_hint=name_hint)
-    relay = ""
-    try:
-        from backend.config import load_instagram
-
-        relay = (load_instagram().relay_url or "").strip()
-    except Exception:
-        log.debug("could not read the relay address for the pairing payload")
     app = app_url(conn)
     host = host_url()
-    return secret, pairing_payload(secret, app=app, relay=relay, host=host)
+    return secret, pairing_payload(secret, app=app, host=host)
 
 
 def close_pairing() -> None:
@@ -718,54 +708,3 @@ def adopt_identity(conn: sqlite3.Connection, device_id: str) -> None:
     )
 
 
-async def join(relay_url: str, pair_secret: str, name: str, *,
-               role: str = "host", timeout: float = 120.0) -> dict:
-    """Complete a pairing from the joining side.
-
-    Offer, then wait. The host answers on its next relay poll, so the wait is up
-    to one poll interval plus however long the machine takes to notice -- which
-    is why this polls rather than expecting an answer in the first response.
-
-    Nothing secret goes to the relay: the offer and the answer are both sealed
-    under a key derived from `pair_secret`, which was read off the host's screen.
-    """
-    import httpx
-
-    from backend.db.connection import get_connection, transaction
-
-    base = relay_url.rstrip("/")
-    request = build_request(pair_secret, name=name, role=role)
-
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        offered = await client.post(f"{base}/pair", json=request)
-        if offered.status_code >= 400:
-            raise RuntimeError(
-                f"the relay would not take the pairing offer (HTTP {offered.status_code})"
-            )
-
-        deadline = time.monotonic() + timeout
-        answer = None
-        while time.monotonic() < deadline:
-            got = await client.get(f"{base}/pair", params={"request_id": request["request_id"]})
-            if got.status_code == 200:
-                answer = got.json()
-                break
-            await asyncio.sleep(3.0)
-
-    if answer is None:
-        raise RuntimeError(
-            "the other machine never answered. It completes the handshake on its"
-            " next relay poll, so check that it is running and that its relay is on."
-        )
-
-    opened = read_response(pair_secret, answer)
-    conn = get_connection()
-    with transaction(conn):
-        adopt_identity(conn, opened["device_id"])
-    crypto.adopt_group_key(crypto.unb64(opened["group_key"]))
-    set_secret(TOKEN_REF, opened["token"])
-
-    from backend.sync import service
-
-    service.reset_clock()   # the id this device stamps with has just changed
-    return {"device_id": opened["device_id"], "name": name}

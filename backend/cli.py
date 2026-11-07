@@ -1173,15 +1173,7 @@ def cmd_palette(args: argparse.Namespace) -> int:
 
 
 def cmd_sync(args: argparse.Namespace) -> int:
-    """Switch cross-device sync on, and say where it stands.
-
-    The relay it points at is the same one Instagram capture uses, and this
-    writes the same settings -- `amethyst instagram relay` is the other door to
-    one room, not a second room. It exists because "run an Instagram command to
-    sync your phone" is a sentence nobody should have to be told, and because
-    the relay was named after the first thing that needed it rather than the
-    only thing.
-    """
+    """Show paired devices and sync status."""
     from backend.db.connection import get_connection
     from backend.sync import crypto, devices
 
@@ -1195,21 +1187,11 @@ def cmd_sync(args: argparse.Namespace) -> int:
             print(f"  {device.name} ({device.role}) — last seen {device.last_seen_at or 'never'}")
     else:
         print("devices: none paired yet. Add one with: amethyst device --pair")
-    if not settings.relay_enabled or not relay.configured():
-        print()
-        print("Nothing syncs until a relay is set. Deploy one from relay/, then:")
-        print("  amethyst sync --url https://…workers.dev --token <RELAY_TOKEN> --on")
     return 0
 
 
 def cmd_device(args: argparse.Namespace) -> int:
-    """List, pair and revoke the devices this machine syncs with.
-
-    Pairing prints a secret and waits. The secret is the only thing that lets the
-    far side open what comes back, and it is never sent anywhere -- the relay
-    carries two sealed blobs and cannot complete the handshake itself. See
-    ADR-0024.
-    """
+    """List, pair and revoke the devices this machine syncs with."""
     from backend.db.connection import get_connection, transaction
     from backend.sync import devices
 
@@ -1221,55 +1203,29 @@ def cmd_device(args: argparse.Namespace) -> int:
         if not gone:
             print(f"no live device has the id {args.revoke}")
             return 1
-        print("Revoked. It stops being recognised at the relay within one poll.")
-        return 0
-
-    if args.join:
-        from backend.config import load_instagram
-
-        secret = args.join.rsplit("s=", 1)[-1].strip()
-        relay_url = args.relay or load_instagram().relay_url
-        if not relay_url:
-            print("no relay is configured. Pass --relay https://…workers.dev,")
-            print("or set one up first:  amethyst instagram relay --url …")
-            return 1
-        print(f"Offering this machine to {relay_url} …")
-        print("The other machine answers on its next poll; this can take a minute.")
-        try:
-            joined = asyncio.run(
-                devices.join(relay_url, secret, name=args.name or platform.node())
-            )
-        except Exception as exc:
-            print(f"could not pair: {exc}")
-            return 1
-        print(f"Paired. This machine is {joined['device_id']}.")
-        print("Changes now travel on the relay poll this machine was already making.")
+        print("Revoked.")
         return 0
 
     if args.pair:
-        secret, payload = devices.open_pairing(name_hint=args.name or "", conn=conn)
-        # An actual symbol. This used to say "Scan this" above a bare URL, which
-        # is the one thing a camera cannot do anything with.
-        drawn = _terminal_qr(payload)
-        if drawn:
-            print("Scan this with your phone:")
+        from backend.pairing.service import pairing_service
+        try:
+            result = pairing_service.start_pairing()
+            qr_b64 = result.get("qr", "")
+            drawn = _terminal_qr(qr_b64)
+            if drawn:
+                print("Scan this with your phone (Amethyst Companion):")
+                print()
+                print(drawn)
+            else:
+                print("Pairing QR payload:")
+                print(qr_b64)
             print()
-            print(drawn)
-        else:
-            print("Type this into the other device:")
-            print()
-        print(f"  {payload}")
-        print()
-        # Grouped in fours: it is 32 base32 characters, and an unbroken run of
-        # 32 is where the typo comes from.
-        print(f"  code: {' '.join(secret[i:i + 4] for i in range(0, len(secret), 4))}")
-        print()
-        print(f"Good for {int(devices.PAIRING_TTL_SECONDS / 60)} minutes, once.")
-        if not payload.startswith("http"):
-            print("Tip: set where your phone opens Amethyst (Settings, Devices) and this")
-            print("     becomes a link its camera can open on its own.")
-        print("Leave this machine running: it completes the handshake within seconds.")
-        return 0
+            print("Pairing v2 server active on LAN HTTPS (port 8443).")
+            print("Confirm approval on this machine when phone connects.")
+            return 0
+        except Exception as exc:
+            print(f"could not start pairing: {exc}")
+            return 1
 
     live = devices.live(conn)
     if not live:
@@ -1952,9 +1908,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     dev.add_argument("--pair", action="store_true", help="show a code to pair a new device")
     dev.add_argument("--name", help="what to call the device being paired")
-    dev.add_argument("--join", metavar="SECRET",
-                     help="pair THIS machine to another, using the code it showed")
-    dev.add_argument("--relay", help="the relay to pair through; defaults to the configured one")
     dev.add_argument("--revoke", metavar="ID", help="stop recognising one device")
     dev.set_defaults(func=cmd_device)
 

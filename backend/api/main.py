@@ -8150,25 +8150,17 @@ def start_pairing(
     )
     with contextlib.suppress(Exception):
         _instagram.nudge()
-    relay_ready = False
-    relay_url = ""
-    with contextlib.suppress(Exception):
-        from backend.config import load_instagram
-
-        settings = load_instagram()
-        relay_ready = bool(settings.relay_enabled and settings.relay_url)
-        relay_url = (settings.relay_url or "").strip()
 
     app_url = sync_devices.app_url(conn)
     host_url = sync_devices.host_url()
 
-    lan_payload = sync_devices.pairing_payload(secret, host=host_url, relay=relay_url, prefer_lan=True) if host_url else ""
-    web_payload = sync_devices.pairing_payload(secret, app=app_url, relay=relay_url, host=host_url) if app_url else ""
+    lan_payload = sync_devices.pairing_payload(secret, host=host_url, prefer_lan=True) if host_url else ""
+    web_payload = sync_devices.pairing_payload(secret, app=app_url, host=host_url) if app_url else ""
 
     # Prioritize secure HTTPS / Web origin for mobile crypto.subtle compatibility (R11)
     if want_lan and lan_payload:
         active_payload = lan_payload
-    elif web_payload and (app_url.startswith("https://") or relay_url.startswith("https://")):
+    elif web_payload and app_url.startswith("https://"):
         active_payload = web_payload
     elif web_payload:
         active_payload = web_payload
@@ -8176,7 +8168,6 @@ def start_pairing(
         active_payload = lan_payload
     else:
         active_payload = payload
-
 
     return {
         "secret": secret,
@@ -8188,7 +8179,7 @@ def start_pairing(
         "web_qr_svg": _qr_svg(web_payload) if web_payload else "",
         "app_url": app_url,
         "host_url": host_url,
-        "relay_configured": relay_ready,
+        "relay_configured": False,
         "expires_in": int(sync_devices.PAIRING_TTL_SECONDS),
     }
 

@@ -256,7 +256,6 @@ def test_the_payload_is_a_camera_openable_link_when_the_app_url_is_known():
     payload = devices.pairing_payload(
         "ABCD2345EFGH6789ABCD2345EFGH6789",
         app="https://amethyst.example.com",
-        relay="https://relay.workers.dev",
     )
     assert payload.startswith("https://amethyst.example.com/pair#")
     # In the fragment, not the query: a fragment is never sent to a server, so
@@ -265,14 +264,12 @@ def test_the_payload_is_a_camera_openable_link_when_the_app_url_is_known():
     head, _, fragment = payload.partition("#")
     assert "s=" not in head
     assert "s=ABCD2345EFGH6789ABCD2345EFGH6789" in fragment
-    assert "relay.workers.dev" in fragment
 
 
 def test_the_payload_falls_back_to_a_scheme_when_no_app_url_is_set():
-    payload = devices.pairing_payload("SECRET", relay="https://relay.workers.dev")
+    payload = devices.pairing_payload("SECRET")
     assert payload.startswith("amethyst://pair?")
     assert "s=SECRET" in payload
-    assert "relay.workers.dev" in payload
 
 
 def test_the_payload_survives_having_no_relay_configured():
@@ -283,7 +280,7 @@ def test_the_payload_survives_having_no_relay_configured():
 
 
 def test_a_trailing_slash_on_the_app_url_does_not_double(conn):
-    payload = devices.pairing_payload("SECRET", app="https://x.example.com/", relay="https://r/")
+    payload = devices.pairing_payload("SECRET", app="https://x.example.com/")
     assert payload.startswith("https://x.example.com/pair#")
 
 
