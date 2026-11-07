@@ -1632,3 +1632,93 @@ def save_hotkey(value: str) -> str:
     )
     conn.commit()
     return chord
+
+
+# ------------------------------------------------------------- drive inbox
+@dataclass
+class DriveInboxSettings:
+    root_folder_id: str = ""
+    inbox_folder_id: str = ""
+    enabled: bool = False
+    min_poll_seconds: float = 120.0
+    max_poll_seconds: float = 300.0
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.enabled and self.root_folder_id and self.inbox_folder_id)
+
+
+_DRIVE_INBOX_SETTINGS = {
+    "root_folder_id": ("drive.root_folder_id", ""),
+    "inbox_folder_id": ("drive.inbox_folder_id", ""),
+    "enabled": ("drive.inbox_enabled", False),
+    "min_poll_seconds": ("drive.min_poll_seconds", 120.0),
+    "max_poll_seconds": ("drive.max_poll_seconds", 300.0),
+}
+
+
+def load_drive_inbox_settings() -> DriveInboxSettings:
+    """Load Drive inbox job pickup settings from app_settings with fallback to storage_configurations."""
+    try:
+        from backend.db.connection import get_connection
+
+        keys = [key for key, _ in _DRIVE_INBOX_SETTINGS.values()]
+        placeholders = ",".join("?" * len(keys))
+        rows = get_connection().execute(
+            f"SELECT key, value FROM app_settings WHERE key IN ({placeholders})", keys
+        ).fetchall()
+        stored = {row["key"]: row["value"] for row in rows}
+    except Exception:
+        stored = {}
+
+    root_id = stored.get("drive.root_folder_id") or ""
+    if not root_id:
+        try:
+            from backend.library.storage.config import StorageConfigStore
+            cfg = StorageConfigStore().get_config()
+            root_id = cfg.get("gdrive_root_id") or ""
+        except Exception:
+            pass
+
+    inbox_id = stored.get("drive.inbox_folder_id") or ""
+    enabled_val = stored.get("drive.inbox_enabled")
+    enabled = enabled_val == "1" if enabled_val is not None else bool(root_id and inbox_id)
+
+    def _as_float(v: object, default: float) -> float:
+        try:
+            return float(v)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return default
+
+    min_poll = max(10.0, _as_float(stored.get("drive.min_poll_seconds"), 120.0))
+    max_poll = max(min_poll, _as_float(stored.get("drive.max_poll_seconds"), 300.0))
+
+    return DriveInboxSettings(
+        root_folder_id=root_id,
+        inbox_folder_id=inbox_id,
+        enabled=enabled,
+        min_poll_seconds=min_poll,
+        max_poll_seconds=max_poll,
+    )
+
+
+def save_drive_inbox_settings(patch: dict[str, Any]) -> DriveInboxSettings:
+    """Save Drive inbox pickup settings to app_settings."""
+    from backend.db.connection import get_connection
+
+    conn = get_connection()
+    for field_name, (key, default) in _DRIVE_INBOX_SETTINGS.items():
+        if field_name not in patch or patch[field_name] is None:
+            continue
+        raw = patch[field_name]
+        if isinstance(default, bool):
+            val = "1" if raw else "0"
+        else:
+            val = str(raw).strip()
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES (?, ?)"
+            " ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')",
+            (key, val),
+        )
+    conn.commit()
+    return load_drive_inbox_settings()

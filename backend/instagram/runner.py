@@ -44,6 +44,8 @@ TICK_SECONDS = 5.0
 #: somebody pressed the button that opened it.
 PAIRING_TICK_SECONDS = 1.0
 PAIRING_RELAY_SECONDS = 2.0
+MAX_PAIR_ANSWER_BYPASS_SECONDS = 30.0
+MAX_RELAY_BACKOFF_SECONDS = 60.0
 #: How many events one drain will take before yielding, so a large backlog does
 #: not hold the lock for an hour.
 DRAIN_LIMIT = 20
@@ -54,7 +56,7 @@ PRUNE_EVERY_SECONDS = 3600.0
 
 
 class InstagramRunner:
-    def __init__(self, service_factory=IngestService) -> None:
+    def __init__(self, service_factory=IngestService, drive_inbox: Any | None = None) -> None:
         self._task: asyncio.Task | None = None
         # Both are created in `start`, inside the loop that will use them, and
         # never at import. An asyncio.Event built under one loop keeps waiters
@@ -72,6 +74,16 @@ class InstagramRunner:
         self._relay = RelayPoller()
         self._next_relay = 0.0
         self._relay_interval = RELAY_POLL_SECONDS
+        self._consecutive_relay_errors = 0
+        self._pair_answer_bypassed_at: float | None = None
+        if drive_inbox is not None:
+            self._drive_inbox = drive_inbox
+        else:
+            try:
+                from backend.drive.inbox import DriveInboxPoller
+                self._drive_inbox = DriveInboxPoller()
+            except Exception:
+                self._drive_inbox = None
 
     def start(self) -> None:
         if self._task is None or self._task.done():
@@ -97,6 +109,8 @@ class InstagramRunner:
         """
         self._next_relay = 0.0
         self._relay_interval = RELAY_POLL_SECONDS
+        if self._drive_inbox is not None:
+            self._drive_inbox.nudge()
         if self._wake is not None:
             self._wake.set()
 
@@ -135,14 +149,14 @@ class InstagramRunner:
         # The cheapest possible no-op on a machine that has not set this up, and
         # it runs on every tick of every test's app lifespan.
         settings = load_instagram()
-        if not settings.enabled and not self._relay_wanted(settings):
+        drive_wanted = bool(self._drive_inbox is not None and self._drive_inbox.configured())
+        if not settings.enabled and not self._relay_wanted(settings) and not drive_wanted:
             return []
-        # The relay half runs with Instagram off: a phone share (`kind='share'`)
-        # has nothing to do with Instagram, and gating it behind
-        # `instagram.enabled` -- which defaults to False -- is what left shares
-        # sitting in the relay's D1 for days. Only the drain below is Instagram
-        # work, and it no-ops on an empty queue without touching a credential.
-        if self._relay_wanted(settings):
+        # Drive inbox pickup replaces relay polling when configured; legacy relay
+        # polling is retained as fallback.
+        if drive_wanted:
+            await self._drive_inbox.tick()
+        elif self._relay_wanted(settings):
             await self._maybe_sync_relay(InstagramEventStore())
         if not settings.enabled:
             return []
@@ -228,14 +242,47 @@ class InstagramRunner:
         pairing_active = self._pairing_active()
         if pairing_active and self._next_relay > loop_now + PAIRING_RELAY_SECONDS:
             self._next_relay = loop_now
-        # An answer in hand goes back immediately whatever the interval says:
-        # the device that offered itself is blocked on this one round trip, and
-        # it is already single-use and already produced.
-        if loop_now < self._next_relay and not self._relay.owes_pair_answer:
-            return
+
+        # Cap how long owes_pair_answer can bypass the poll interval.
+        owes_answer = self._relay.owes_pair_answer
+        if owes_answer:
+            if self._pair_answer_bypassed_at is None:
+                self._pair_answer_bypassed_at = loop_now
+            elif loop_now - self._pair_answer_bypassed_at > MAX_PAIR_ANSWER_BYPASS_SECONDS:
+                log.warning(
+                    "pair answer bypass cap reached (%.1fs); reverting to normal poll cadence",
+                    loop_now - self._pair_answer_bypassed_at,
+                )
+                owes_answer = False
+        else:
+            self._pair_answer_bypassed_at = None
+
+        # An answer in hand goes back immediately if allowed and no consecutive errors
+        if loop_now < self._next_relay:
+            if not owes_answer or self._consecutive_relay_errors > 0:
+                return
+
         # Never raises; a relay that is down is a warning and a retry, never a
         # tick that fails and takes the drain with it.
         outcome = await self._relay.sync(store=store)
+
+        if isinstance(outcome, dict) and outcome.get("synced") is False:
+            self._consecutive_relay_errors += 1
+            backoff = min(
+                MAX_RELAY_BACKOFF_SECONDS,
+                RELAY_POLL_SECONDS * (1.5 ** min(self._consecutive_relay_errors, 6)),
+            )
+            self._relay_interval = backoff
+            self._next_relay = loop_now + self._relay_interval
+            log.warning(
+                "relay sync error (attempt %d); backing off for %.1fs",
+                self._consecutive_relay_errors,
+                self._relay_interval,
+            )
+            return
+
+        self._consecutive_relay_errors = 0
+        self._pair_answer_bypassed_at = None
 
         if pairing_active or self._relay.owes_pair_answer:
             self._relay_interval = PAIRING_RELAY_SECONDS
