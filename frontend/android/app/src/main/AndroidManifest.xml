@@ -30,6 +30,13 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="amethyst" android:host="pair" />
             </intent-filter>
+
+            <!-- Android Share Target for text/plain (URLs, text clips, shared notes) -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
         </activity>
 
         <provider
