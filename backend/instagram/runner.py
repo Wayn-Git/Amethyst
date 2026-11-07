@@ -23,8 +23,6 @@ from datetime import date, datetime, timedelta
 from backend.config import load_instagram, save_instagram
 from backend.instagram import signature
 from backend.instagram.client import InstagramClient, InstagramError
-from backend.instagram.relay import POLL_SECONDS as RELAY_POLL_SECONDS
-from backend.instagram.relay import RelayPoller
 from backend.instagram.service import IngestService
 from backend.instagram.store import InstagramEventStore
 from backend.sync import devices as sync_devices
@@ -35,17 +33,7 @@ log = logging.getLogger(__name__)
 JOB_KIND = "instagram_ingest"
 
 TICK_SECONDS = 5.0
-#: What the tick and the relay interval drop to while a pairing code is on
-#: screen. The wait somebody actually sits through is this machine's next two
-#: round trips -- one to collect the offer, one to hand back the answer -- and
-#: at the ordinary fifteen seconds that is half a minute of staring at a phone
-#: wondering whether it worked. Bounded twice over: only while
-#: `devices.pairing_open()`, which is five minutes at the outside, and only when
-#: somebody pressed the button that opened it.
 PAIRING_TICK_SECONDS = 1.0
-PAIRING_RELAY_SECONDS = 2.0
-MAX_PAIR_ANSWER_BYPASS_SECONDS = 30.0
-MAX_RELAY_BACKOFF_SECONDS = 60.0
 #: How many events one drain will take before yielding, so a large backlog does
 #: not hold the lock for an hour.
 DRAIN_LIMIT = 20
@@ -58,24 +46,11 @@ PRUNE_EVERY_SECONDS = 3600.0
 class InstagramRunner:
     def __init__(self, service_factory=IngestService, drive_inbox: Any | None = None) -> None:
         self._task: asyncio.Task | None = None
-        # Both are created in `start`, inside the loop that will use them, and
-        # never at import. An asyncio.Event built under one loop keeps waiters
-        # belonging to it, so a module-level singleton reused across loops --
-        # which is exactly what every test's app lifespan does -- waits on a
-        # future that can never be resolved, and the second test hangs forever.
         self._wake: asyncio.Event | None = None
         self._lock: asyncio.Lock | None = None
         self._service_factory = service_factory
         self._next_prune = 0.0
         self._checked_token_on: str | None = None
-        # Its own interval, not the drain's. The drain is a local database
-        # read every five seconds; this is a round trip over the internet, and
-        # the free plan it talks to counts requests per day.
-        self._relay = RelayPoller()
-        self._next_relay = 0.0
-        self._relay_interval = RELAY_POLL_SECONDS
-        self._consecutive_relay_errors = 0
-        self._pair_answer_bypassed_at: float | None = None
         if drive_inbox is not None:
             self._drive_inbox = drive_inbox
         else:
@@ -107,8 +82,6 @@ class InstagramRunner:
         A no-op when nothing is running -- the delivery is already written down,
         and the next start drains it.
         """
-        self._next_relay = 0.0
-        self._relay_interval = RELAY_POLL_SECONDS
         if self._drive_inbox is not None:
             self._drive_inbox.nudge()
         if self._wake is not None:
@@ -150,14 +123,10 @@ class InstagramRunner:
         # it runs on every tick of every test's app lifespan.
         settings = load_instagram()
         drive_wanted = bool(self._drive_inbox is not None and self._drive_inbox.configured())
-        if not settings.enabled and not self._relay_wanted(settings) and not drive_wanted:
+        if not settings.enabled and not drive_wanted:
             return []
-        # Drive inbox pickup replaces relay polling when configured; legacy relay
-        # polling is retained as fallback.
         if drive_wanted:
             await self._drive_inbox.tick()
-        elif self._relay_wanted(settings):
-            await self._maybe_sync_relay(InstagramEventStore())
         if not settings.enabled:
             return []
         store = InstagramEventStore()
@@ -165,22 +134,6 @@ class InstagramRunner:
         handled = await self.drain(store=store)
         await self._housekeeping(store)
         return handled
-
-    @staticmethod
-    def _relay_wanted(settings) -> bool:
-        """Is there a relay to poll for anything this machine can process?
-
-        A share token alone qualifies: shares verify against it, not against
-        Instagram's credentials. Deliveries need more, and `relay.sync` makes
-        that call per row -- this is only the question "is there any point
-        dialling the relay at all", and an unset URL answers it before anything
-        else.
-        """
-        from backend.instagram import relay as ig_relay
-
-        # Presence, not the value: this runs every tick, and the value is only
-        # needed when a sync actually happens.
-        return bool(settings.relay_enabled and settings.relay_url and ig_relay.token_present())
 
     async def drain(self, *, store: InstagramEventStore | None = None) -> list[int]:
         """Work the queue, one event at a time.
@@ -221,86 +174,6 @@ class InstagramRunner:
                     jobs.complete(job, {"status": status, "event_id": event["id"]})
                 handled.append(event["id"])
         return handled
-
-    async def sync_relay(self) -> dict:
-        """Ask the relay now. The button, and the first thing after a boot."""
-        self._next_relay = 0.0
-        self._relay_interval = RELAY_POLL_SECONDS
-        return await self._relay.sync()
-
-    async def _maybe_sync_relay(self, store: InstagramEventStore) -> None:
-        """Collect whatever arrived while this machine was not answering.
-
-        Ahead of the drain in the same tick, so a delivery caught overnight is
-        processed on the first tick after boot rather than the second.
-        """
-        loop_now = asyncio.get_running_loop().time()
-        # When a pairing code was just shown, the relay schedule from before the
-        # code was opened can be up to RELAY_POLL_SECONDS (15 s) in the future.
-        # Cap it so the first poll after opening pairing happens within
-        # PAIRING_RELAY_SECONDS rather than after the old timer expires.
-        pairing_active = self._pairing_active()
-        if pairing_active and self._next_relay > loop_now + PAIRING_RELAY_SECONDS:
-            self._next_relay = loop_now
-
-        # Cap how long owes_pair_answer can bypass the poll interval.
-        owes_answer = self._relay.owes_pair_answer
-        if owes_answer:
-            if self._pair_answer_bypassed_at is None:
-                self._pair_answer_bypassed_at = loop_now
-            elif loop_now - self._pair_answer_bypassed_at > MAX_PAIR_ANSWER_BYPASS_SECONDS:
-                log.warning(
-                    "pair answer bypass cap reached (%.1fs); reverting to normal poll cadence",
-                    loop_now - self._pair_answer_bypassed_at,
-                )
-                owes_answer = False
-        else:
-            self._pair_answer_bypassed_at = None
-
-        # An answer in hand goes back immediately if allowed and no consecutive errors
-        if loop_now < self._next_relay:
-            if not owes_answer or self._consecutive_relay_errors > 0:
-                return
-
-        # Never raises; a relay that is down is a warning and a retry, never a
-        # tick that fails and takes the drain with it.
-        outcome = await self._relay.sync(store=store)
-
-        if isinstance(outcome, dict) and outcome.get("synced") is False:
-            self._consecutive_relay_errors += 1
-            backoff = min(
-                MAX_RELAY_BACKOFF_SECONDS,
-                RELAY_POLL_SECONDS * (1.5 ** min(self._consecutive_relay_errors, 6)),
-            )
-            self._relay_interval = backoff
-            self._next_relay = loop_now + self._relay_interval
-            log.warning(
-                "relay sync error (attempt %d); backing off for %.1fs",
-                self._consecutive_relay_errors,
-                self._relay_interval,
-            )
-            return
-
-        self._consecutive_relay_errors = 0
-        self._pair_answer_bypassed_at = None
-
-        if pairing_active or self._relay.owes_pair_answer:
-            self._relay_interval = PAIRING_RELAY_SECONDS
-        elif isinstance(outcome, dict) and (
-            outcome.get("pulled", 0) > 0
-            or outcome.get("queued", 0) > 0
-            or outcome.get("jobs", 0) > 0
-            or outcome.get("workers", 0) > 0
-            or outcome.get("ops", 0) > 0
-            or outcome.get("acked", 0) > 0
-        ):
-            # Active work in progress: restore regular poll cadence
-            self._relay_interval = RELAY_POLL_SECONDS
-        else:
-            # Idle: back off up to 60s max so shared links arrive promptly
-            self._relay_interval = min(60.0, max(self._relay_interval, RELAY_POLL_SECONDS) * 1.5)
-
-        self._next_relay = loop_now + self._relay_interval
 
     async def _housekeeping(self, store: InstagramEventStore) -> None:
         now = asyncio.get_running_loop().time()

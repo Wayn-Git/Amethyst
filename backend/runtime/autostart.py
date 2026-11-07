@@ -63,10 +63,9 @@ def _browser_watcher() -> str | None:
     if settings.enabled:
         return None
 
-    # A user who switched this off has a reason, and a reboot must not take it
-    # back -- so the choice is made once, by absence of the setting, rather
-    # than by "is it currently off". Fresh machines have no row; an off
-    # machine has one saying 0.
+    # Browser history & bookmarks reading is a privacy choice that requires consent (R15, P19).
+    # On fresh machines, row is None -> Do NOT auto-enable.
+    # When user opts in during setup or settings, row is '1' -> Enable.
     try:
         row = get_connection().execute(
             "SELECT value FROM app_settings WHERE key = 'browser.enabled'"
@@ -74,7 +73,7 @@ def _browser_watcher() -> str | None:
     except Exception:
         row = None
 
-    if row is not None:
+    if row is None or str(row[0]).strip().lower() not in ("1", "true"):
         return None
 
     try:
@@ -83,7 +82,7 @@ def _browser_watcher() -> str | None:
         return None
 
     save_browser({"enabled": True})
-    return "browser capture on: a Firefox-family profile is on this machine"
+    return "browser capture on: consented in settings and a Firefox-family profile is on this machine"
 
 
 def _x_reader() -> str | None:

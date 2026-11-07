@@ -174,16 +174,6 @@ def cmd_doctor(_: argparse.Namespace) -> int:
                " -- reels will be saved with a title only")
         )
         print(f"           ffmpeg: {'yes' if ffmpeg_missing() is None else 'MISSING'}")
-        # The difference between "capture works" and "capture works while this
-        # machine is closed" is one line, and it is worth one line here.
-        from backend.instagram import relay as ig_relay
-
-        if settings.relay_enabled and ig_relay.configured():
-            print(f"           relay: {settings.relay_url} -- deliveries survive this")
-            print("           machine being off, and are taken on the next poll.")
-        else:
-            print("           relay: none. Meta delivers straight here, so a closed")
-            print("           lid is a failed delivery. See docs/deployment.md.")
         print("           This endpoint is reachable from the internet by design.")
         print("           Its only authentication is Meta's signature on each delivery.")
     elif any(creds.values()):
@@ -1192,53 +1182,11 @@ def cmd_sync(args: argparse.Namespace) -> int:
     the relay was named after the first thing that needed it rather than the
     only thing.
     """
-    from backend.config import load_instagram, save_instagram
     from backend.db.connection import get_connection
-    from backend.instagram import relay
-    from backend.secrets import CredentialError
     from backend.sync import crypto, devices
-
-    patch: dict = {}
-    if args.url:
-        url = args.url.strip().rstrip("/")
-        if not url.startswith("https://"):
-            # Every op travels this link, sealed -- but the device tokens and
-            # the pairing handshake travel it too, and those are only as private
-            # as the transport.
-            print("the relay URL has to be https")
-            return 1
-        patch["relay_url"] = url
-    if args.token:
-        try:
-            relay.set_token(args.token)
-        except CredentialError as exc:
-            print(f"could not store the token: {exc}")
-            return 1
-    if args.on:
-        patch["relay_enabled"] = True
-    if args.off:
-        patch["relay_enabled"] = False
-    if patch:
-        save_instagram(patch)
-
-    settings = load_instagram()
-    if patch.get("relay_enabled") and not relay.configured():
-        print("sync needs both a relay URL and its token before it can start")
-        print("  amethyst sync --url https://…workers.dev --token <RELAY_TOKEN> --on")
-        return 1
-
-    if args.now:
-        result = asyncio.run(relay.RelayPoller().sync())
-        if not result.get("synced"):
-            print(result.get("error") or "the relay was not asked")
-            return 1
-        print(f"synced. {result.get('ops', 0)} change(s) applied.")
-        return 0
 
     conn = get_connection()
     paired = devices.live(conn)
-    print(f"relay:    {settings.relay_url or 'not set'}")
-    print(f"polling:  {'on' if settings.relay_enabled and relay.configured() else 'off'}")
     print(f"identity: {devices.local_id(conn)}")
     print(f"key:      {'shared with paired devices' if crypto.group_key() else 'not created yet'}")
     if paired:
@@ -1665,57 +1613,8 @@ def cmd_instagram(args: argparse.Namespace) -> int:
 
 
 def _relay(args: argparse.Namespace, asyncio) -> int:
-    """Point this machine at its relay, or ask the relay what it is holding."""
-    from backend.config import load_instagram, save_instagram
-    from backend.instagram import relay
-    from backend.secrets import CredentialError
-
-    patch: dict = {}
-    if args.forget:
-        relay.clear_token()
-        save_instagram({"relay_url": "", "relay_enabled": False})
-        print("forgotten. Meta now has nowhere to deliver to but this machine.")
-        return 0
-    if args.url:
-        url = args.url.strip().rstrip("/")
-        if not url.startswith("https://"):
-            # The access token travels this link in both directions.
-            print("the relay URL has to be https")
-            return 1
-        patch["relay_url"] = url
-    if args.token:
-        try:
-            relay.set_token(args.token)
-        except CredentialError as exc:
-            print(f"could not store the token: {exc}")
-            return 1
-    if args.on:
-        patch["relay_enabled"] = True
-    if args.off:
-        patch["relay_enabled"] = False
-    if patch:
-        save_instagram(patch)
-
-    settings = load_instagram()
-    if patch.get("relay_enabled") and not relay.configured():
-        print("the relay needs both a URL and a token before it can be used")
-        return 1
-
-    if args.sync:
-        result = asyncio.run(relay.RelayPoller().sync())
-        if not result.get("synced"):
-            print(result.get("error") or result.get("note") or "the relay was not asked")
-            return 1
-        print(f"deliveries: took {result['pulled']}, jobs: {result.get('jobs', 0)},"
-              f" acknowledged {result['acked']}, {result['queued']} still waiting there")
-        return 0
-
-    print(f"url:     {settings.relay_url or 'not set'}")
-    print(f"token:   {'set' if relay.token() else 'not set'}")
-    print(f"polling: {settings.relay_enabled}")
-    if not (settings.relay_enabled and relay.configured()):
-        print("\nwithout it, Meta delivers straight to this machine -- which only")
-        print("works while it is awake and reachable. See docs/deployment.md.")
+    """Relay is retired."""
+    print("Relay is decommissioned. Amethyst runs self-hosted with direct/Drive sync.")
     return 0
 
 

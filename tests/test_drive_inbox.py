@@ -365,14 +365,13 @@ async def test_runner_integration_prefers_drive_inbox_over_relay(amethyst_home):
 
 
 @pytest.mark.asyncio
-async def test_runner_integration_falls_back_to_relay_when_drive_unconfigured(amethyst_home):
+async def test_runner_integration_no_relay_fallback_when_drive_unconfigured(amethyst_home):
     from backend.config import save_instagram
-    from backend.instagram import relay, signature
+    from backend.instagram import signature
     from backend.instagram.runner import InstagramRunner
 
     signature.set_credentials(app_secret="sec", verify_token="v", access_token="tok")
-    relay.set_token("relay_tok")
-    save_instagram({"relay_url": "https://relay.example.com", "relay_enabled": True, "enabled": True})
+    save_instagram({"enabled": True})
 
     unconfigured_settings = DriveInboxSettings(
         root_folder_id="",
@@ -385,12 +384,10 @@ async def test_runner_integration_falls_back_to_relay_when_drive_unconfigured(am
     )
 
     runner = InstagramRunner(drive_inbox=poller)
-    runner._maybe_sync_relay = AsyncMock()
-
-    await runner.tick()
-
-    # When Drive inbox is unconfigured, legacy relay sync IS called!
-    runner._maybe_sync_relay.assert_called_once()
+    # Confirms runner has no relay poller and falls back to nothing relay-related
+    assert not hasattr(runner, "_relay")
+    result = await runner.tick()
+    assert isinstance(result, list)
 
 
 @pytest.mark.asyncio

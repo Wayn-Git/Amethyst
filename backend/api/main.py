@@ -2855,35 +2855,6 @@ def microsoft_disconnect_route() -> dict[str, Any]:
     return {"ok": disconnect()}
 
 
-class VerifyCloudflareRequest(BaseModel):
-
-    api_token: str
-    account_id: str | None = None
-
-
-@app.post("/api/setup/cloudflare/verify")
-async def verify_cloudflare_token_route(body: VerifyCloudflareRequest) -> dict[str, Any]:
-    """Verify Cloudflare API token against Cloudflare API and store in vault if valid."""
-    from backend.relay_deploy import provision_relay
-    from backend.secrets import set_secret
-
-    token = body.api_token.strip()
-    if not token:
-        raise HTTPException(400, "API token is required")
-
-    result = await provision_relay(token, body.account_id)
-    if result.get("ok"):
-        set_secret("amethyst/cloudflare-api-token", token)
-        return {
-            "ok": True,
-            "valid": True,
-            "status": "active",
-            "message": result.get("message", "Cloudflare API token verified successfully."),
-            "provisioning": result,
-        }
-    return {"ok": False, "valid": False, "message": result.get("error", "Invalid token or permissions")}
-
-
 @app.get("/api/share/http-shortcuts.json")
 def get_http_shortcuts_config(request: Request, download: int = 0) -> Response:
     """Return preconfigured HTTP Shortcuts JSON file with current endpoint and token."""
@@ -3052,60 +3023,6 @@ async def install_uv_route() -> dict[str, Any]:
     except Exception as exc:
         log.exception("Failed to install uv runtime: %s", exc)
         raise HTTPException(status_code=500, detail=f"Failed to install uv: {exc}")
-
-
-class RelayVerifyRequest(BaseModel):
-    token: str
-    account_id: str | None = None
-    database_name: str = "amethyst-relay"
-
-
-class RelayDeployRequest(BaseModel):
-    token: str
-    account_id: str
-    database_id: str | None = None
-    relay_url: str | None = None
-
-
-@app.post("/api/relay/verify")
-async def verify_relay_route(body: RelayVerifyRequest) -> dict[str, Any]:
-    """Verify Cloudflare API token and check/resolve D1 database (R18)."""
-    from backend.relay_deploy import verify_cloudflare_token, check_or_create_d1
-
-    valid, message = await verify_cloudflare_token(body.token)
-    if not valid:
-        return {"valid": False, "message": message, "d1": None}
-
-    d1_info = None
-    if body.account_id:
-        try:
-            d1_info = await check_or_create_d1(body.token, body.account_id, body.database_name)
-        except Exception as e:
-            return {"valid": True, "message": message, "d1_error": str(e), "d1": None}
-
-    return {"valid": True, "message": message, "d1": d1_info}
-
-
-@app.post("/api/relay/deploy")
-async def deploy_relay_route(body: RelayDeployRequest) -> dict[str, Any]:
-    """Save Cloudflare relay credentials and configure relay URL (R18)."""
-    from backend.secrets import set_secret
-    from backend.config import save_instagram
-
-    set_secret("amethyst/cloudflare-token", body.token)
-    set_secret("amethyst/cloudflare-account-id", body.account_id)
-    if body.database_id:
-        set_secret("amethyst/cloudflare-database-id", body.database_id)
-
-    if body.relay_url:
-        save_instagram({"relay_url": body.relay_url, "relay_enabled": True})
-
-    return {
-        "ok": True,
-        "message": "Relay credentials configured successfully.",
-        "account_id": body.account_id,
-        "database_id": body.database_id,
-    }
 
 
 class OllamaPullRequest(BaseModel):
@@ -10201,14 +10118,6 @@ class InstagramCredentials(BaseModel):
     expires_in_days: int | None = None
 
 
-class InstagramRelay(BaseModel):
-    """Where the always-on receiver is, and what this machine presents to it."""
-
-    url: str | None = None
-    token: str | None = None
-    enabled: bool | None = None
-
-
 class InstagramPatch(BaseModel):
     enabled: bool | None = None
     cookies_from_browser: str | None = None
@@ -10355,16 +10264,12 @@ def _reel_status() -> dict[str, Any]:
 
 
 def _relay_status() -> dict[str, Any]:
-    """Whether capture survives this machine being off, and nothing secret."""
-    from backend.config import load_instagram
-    from backend.instagram import relay
-
-    settings = load_instagram()
+    """Relay is retired."""
     return {
-        "url": settings.relay_url,
-        "enabled": settings.relay_enabled,
-        "token": bool(relay.token()),
-        "ready": settings.relay_enabled and relay.configured(),
+        "url": "",
+        "enabled": False,
+        "token": False,
+        "ready": False,
     }
 
 
@@ -10429,60 +10334,6 @@ def patch_instagram_settings(body: InstagramPatch) -> dict[str, Any]:
         )
     save_instagram(patch)
     return instagram_status()
-
-
-@app.put("/api/instagram/relay")
-def put_instagram_relay(body: InstagramRelay) -> dict[str, Any]:
-    """Point this machine at its relay. The token goes to the keychain, not here.
-
-    Switching the relay on does not change what the local webhook accepts. Both
-    paths reach the same queue and dedupe against the same UNIQUE key, so running
-    both during a changeover saves nothing twice.
-    """
-    from backend.config import load_instagram, save_instagram
-    from backend.instagram import relay
-    from backend.secrets import CredentialError
-
-    patch: dict[str, Any] = {}
-    if body.url is not None:
-        url = body.url.strip().rstrip("/")
-        if url and not url.startswith("https://"):
-            # It carries the access token in both directions. Plain HTTP is not a
-            # setting to be talked out of.
-            raise HTTPException(400, "the relay URL has to be https")
-        patch["relay_url"] = url
-    if body.token:
-        try:
-            relay.set_token(body.token)
-        except CredentialError as exc:
-            raise HTTPException(503, str(exc)) from exc
-    if body.enabled is not None:
-        patch["relay_enabled"] = body.enabled
-    if patch.get("relay_enabled") and not (
-        patch.get("relay_url", load_instagram().relay_url) and relay.token()
-    ):
-        raise HTTPException(400, "the relay needs both a URL and a token before it can be used")
-    if patch:
-        save_instagram(patch)
-    return instagram_status()
-
-
-@app.delete("/api/instagram/relay")
-def delete_instagram_relay() -> dict[str, Any]:
-    from backend.config import save_instagram
-    from backend.instagram import relay
-
-    relay.clear_token()
-    save_instagram({"relay_url": "", "relay_enabled": False})
-    return instagram_status()
-
-
-@app.post("/api/instagram/relay/sync")
-async def sync_instagram_relay() -> dict[str, Any]:
-    """Go and look now, rather than at the next fifteen-second poll."""
-    result = await _instagram.sync_relay()
-    _instagram.nudge()
-    return result
 
 
 @app.post("/api/instagram/senders/{igsid}")
