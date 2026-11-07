@@ -10,6 +10,7 @@ import {
   clearBundle,
   hasBundle,
   loadFixtureBundle,
+  validateBundle,
   BUNDLE_FIXTURE,
 } from '../src/mobile/bundle.js'
 
@@ -122,16 +123,22 @@ test('CONTRACT v2 bundle storage and retrieval in Keystore/Keychain', async () =
 test('Fixture bundle for sessions D and E', async () => {
   await clearBundle()
 
-  // Validate fixture structure against CONTRACT v2 schema
+  // Validate fixture structure against CONTRACT v2 schema (providers[] + default + alias)
   assert.ok(BUNDLE_FIXTURE.device_id, 'Fixture must have device_id')
-  assert.ok(BUNDLE_FIXTURE.llm.provider, 'Fixture must have llm.provider')
-  assert.ok(BUNDLE_FIXTURE.llm.model, 'Fixture must have llm.model')
-  assert.ok(BUNDLE_FIXTURE.llm.api_key, 'Fixture must have llm.api_key')
+  assert.ok(Array.isArray(BUNDLE_FIXTURE.llm.providers), 'Fixture must have llm.providers')
+  assert.ok(BUNDLE_FIXTURE.llm.providers.length > 0, 'Fixture must have at least one provider')
+  assert.equal(typeof BUNDLE_FIXTURE.llm.default, 'number', 'Fixture must have llm.default index')
+  assert.ok(BUNDLE_FIXTURE.llm.provider, 'Fixture must have llm.provider alias')
+  assert.ok(BUNDLE_FIXTURE.llm.model, 'Fixture must have llm.model alias')
+  assert.ok(BUNDLE_FIXTURE.llm.api_key, 'Fixture must have llm.api_key alias')
   assert.ok(BUNDLE_FIXTURE.composio.api_key, 'Fixture must have composio.api_key')
   assert.ok(BUNDLE_FIXTURE.composio.user_id, 'Fixture must have composio.user_id')
   assert.ok(BUNDLE_FIXTURE.drive.root_folder_id, 'Fixture must have drive.root_folder_id')
   assert.ok(BUNDLE_FIXTURE.drive.inbox_folder_id, 'Fixture must have drive.inbox_folder_id')
   assert.ok(BUNDLE_FIXTURE.prompts.summary, 'Fixture must have prompts.summary')
+
+  // Validation function accepts fixture
+  assert.equal(validateBundle(BUNDLE_FIXTURE).valid, true)
 
   // Load fixture bundle
   const loaded = await loadFixtureBundle()
@@ -139,6 +146,51 @@ test('Fixture bundle for sessions D and E', async () => {
   assert.deepEqual(await getBundle(), BUNDLE_FIXTURE)
 
   await clearBundle()
+})
+
+test('Bundle validation handles new schema with providers[] and legacy alias', () => {
+  // New shape: providers[] + default
+  const newShapeBundle = {
+    device_id: 'dev_new_shape_1',
+    llm: {
+      providers: [
+        { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022', api_key: 'sk-ant-123' },
+        { provider: 'google', model: 'gemini-1.5-flash', api_key: 'AIzaSy123' },
+      ],
+      default: 0,
+      provider: 'anthropic',
+      model: 'claude-3-5-sonnet-20241022',
+      api_key: 'sk-ant-123',
+    },
+    composio: { api_key: 'comp_1', user_id: 'user_1' },
+    drive: { root_folder_id: 'root_1', inbox_folder_id: 'inbox_1' },
+    prompts: { summary: 'Summarize' },
+  }
+  assert.equal(validateBundle(newShapeBundle).valid, true)
+
+  // Legacy shape: alias only (no providers[])
+  const legacyShapeBundle = {
+    device_id: 'dev_legacy_shape_1',
+    llm: {
+      provider: 'openai',
+      model: 'gpt-4o',
+      api_key: 'sk-openai-123',
+    },
+    composio: { api_key: 'comp_1', user_id: 'user_1' },
+    drive: { root_folder_id: 'root_1', inbox_folder_id: 'inbox_1' },
+    prompts: { summary: 'Summarize' },
+  }
+  assert.equal(validateBundle(legacyShapeBundle).valid, true)
+
+  // Invalid: missing both providers[] and alias
+  const invalidBundle = {
+    device_id: 'dev_invalid',
+    llm: {},
+    composio: { api_key: 'comp_1', user_id: 'user_1' },
+    drive: { root_folder_id: 'root_1', inbox_folder_id: 'inbox_1' },
+    prompts: { summary: 'Summarize' },
+  }
+  assert.equal(validateBundle(invalidBundle).valid, false)
 })
 
 test('Host probing with 3s timeout and approval handling', async () => {

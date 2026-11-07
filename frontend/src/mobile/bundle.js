@@ -5,11 +5,20 @@ export const BUNDLE_KEY = 'amethyst.v2.bundle'
 
 /**
  * Fixture bundle for sessions D and E to use before pairing works.
- * Conforms to CONTRACT v2 bundle schema.
+ * Conforms to CONTRACT v2 bundle schema with providers[] and default,
+ * while maintaining top-level provider/model/api_key alias.
  */
 export const BUNDLE_FIXTURE = {
   device_id: 'dev_fixture_mobile_01',
   llm: {
+    providers: [
+      {
+        provider: 'anthropic',
+        model: 'claude-3-5-sonnet-20241022',
+        api_key: 'sk-ant-api03-fixture-fake-key-not-real-do-not-use',
+      },
+    ],
+    default: 0,
     provider: 'anthropic',
     model: 'claude-3-5-sonnet-20241022',
     api_key: 'sk-ant-api03-fixture-fake-key-not-real-do-not-use',
@@ -28,6 +37,51 @@ export const BUNDLE_FIXTURE = {
 }
 
 let memoryBundle = null
+
+/**
+ * Validate bundle conforms to CONTRACT v2 schema.
+ * Supports both new shape (providers[] + default) and legacy alias.
+ */
+export function validateBundle(bundle) {
+  if (!bundle || typeof bundle !== 'object') {
+    return { valid: false, error: 'Bundle must be an object' }
+  }
+  if (!bundle.device_id || typeof bundle.device_id !== 'string') {
+    return { valid: false, error: 'Bundle missing device_id' }
+  }
+  if (!bundle.llm || typeof bundle.llm !== 'object') {
+    return { valid: false, error: 'Bundle missing llm configuration' }
+  }
+
+  const hasProvidersList = Array.isArray(bundle.llm.providers) && bundle.llm.providers.length > 0
+  const hasAlias = Boolean(bundle.llm.provider && bundle.llm.api_key)
+
+  if (!hasProvidersList && !hasAlias) {
+    return { valid: false, error: 'Bundle llm must specify providers[] or provider/api_key alias' }
+  }
+
+  if (hasProvidersList) {
+    const defaultIdx = typeof bundle.llm.default === 'number' ? bundle.llm.default : 0
+    const def = bundle.llm.providers[defaultIdx] || bundle.llm.providers[0]
+    if (!def?.provider || !def?.api_key) {
+      if (!hasAlias) {
+        return { valid: false, error: 'Default provider in providers[] missing provider or api_key' }
+      }
+    }
+  }
+
+  if (!bundle.composio?.api_key || !bundle.composio?.user_id) {
+    return { valid: false, error: 'Bundle missing composio credentials' }
+  }
+  if (!bundle.drive?.root_folder_id || !bundle.drive?.inbox_folder_id) {
+    return { valid: false, error: 'Bundle missing drive folder IDs' }
+  }
+  if (!bundle.prompts?.summary) {
+    return { valid: false, error: 'Bundle missing prompts.summary' }
+  }
+
+  return { valid: true }
+}
 
 /**
  * Retrieve the paired bundle from Android Keystore / iOS Keychain.
@@ -64,6 +118,11 @@ export async function getBundle() {
 export async function saveBundle(bundle) {
   if (!bundle || typeof bundle !== 'object') {
     throw new Error('Invalid bundle')
+  }
+
+  const check = validateBundle(bundle)
+  if (!check.valid) {
+    throw new Error(`Invalid bundle: ${check.error}`)
   }
 
   memoryBundle = bundle
