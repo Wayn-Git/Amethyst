@@ -1,6 +1,6 @@
 # Desktop Onboarding Redesign Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Completely replace the legacy onboarding wizard with the floating window design from `docs/UI/mobile/Amethyst Desktop Onboarding.html`, wired to live backend data (local Ollama, Composio, Google Drive, Contract v2 LAN pairing, local profile) with rich animations and dynamic OS copy.
 
@@ -41,7 +41,7 @@
 - Produces: `getClientOS(): 'Mac' | 'PC' | 'Linux machine' | 'computer'`
 - Produces: `OnboardingWindow({ children, step, totalSteps, onBack, onSkip })`
 
-- [ ] **Step 1: Write the failing test for OS detection**
+- [x] **Step 1: Write the failing test for OS detection**
 
 ```javascript
 // frontend/tests/onboarding-os.test.mjs
@@ -62,21 +62,21 @@ test('detects Linux from user agent', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node frontend/tests/onboarding-os.test.mjs`  
 Expected: FAIL with "Cannot find module"
 
-- [ ] **Step 3: Implement `clientOS.js`, `OnboardingWindow.jsx`, and `onboarding.css`**
+- [x] **Step 3: Implement `clientOS.js`, `OnboardingWindow.jsx`, and `onboarding.css`**
 
 Implement OS detection function and the floating window shell featuring window traffic lights, `#2441ff` gradient background, `960×540px` inner card, and perforated ticket edge (`.pf`).
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node frontend/tests/onboarding-os.test.mjs`  
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/components/onboarding/clientOS.js frontend/src/components/onboarding/OnboardingWindow.jsx frontend/src/components/onboarding/onboarding.css frontend/tests/onboarding-os.test.mjs
@@ -97,7 +97,7 @@ git commit -m "feat(onboarding): add client OS detection and floating window con
 - Produces: `StepSplash({ onReady })`
 - Produces: `StepWelcome({ onStart })`
 
-- [ ] **Step 1: Write the failing test for Welcome screen structure**
+- [x] **Step 1: Write the failing test for Welcome screen structure**
 
 ```javascript
 // frontend/tests/onboarding-welcome.test.mjs
@@ -116,22 +116,22 @@ test('StepWelcome source contains 4 floating satellite chips and get-started act
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node frontend/tests/onboarding-welcome.test.mjs`  
 Expected: FAIL with ENOENT
 
-- [ ] **Step 3: Implement `StepSplash.jsx` and `StepWelcome.jsx`**
+- [x] **Step 3: Implement `StepSplash.jsx` and `StepWelcome.jsx`**
 
 - `StepSplash.jsx`: Centered squircle badge with Amethyst logo, loading bar, "Starting local services" status, auto-calls `onReady` once `api.setupStatus()` or ping succeeds.
 - `StepWelcome.jsx`: Left pane with headline, description, "Get started" button with arrow; right pane with 164×164px center badge and 4 floating animated satellite pills (`AI`, `Files`, `Phone`, `Apps`).
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node frontend/tests/onboarding-welcome.test.mjs`  
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/components/onboarding/StepSplash.jsx frontend/src/components/onboarding/StepWelcome.jsx frontend/tests/onboarding-welcome.test.mjs
@@ -150,7 +150,7 @@ git commit -m "feat(onboarding): implement splash boot and welcome hero screens"
 - Consumes: `useApp()`, `api.updateUserProfile()`
 - Produces: `StepProfile({ onNext, onBack })`
 
-- [ ] **Step 1: Write the failing test for StepProfile**
+- [x] **Step 1: Write the failing test for StepProfile**
 
 ```javascript
 // frontend/tests/onboarding-profile.test.mjs
@@ -169,21 +169,21 @@ test('StepProfile implements 9 themes and 5 accents matching Settings', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node frontend/tests/onboarding-profile.test.mjs`  
 Expected: FAIL with ENOENT
 
-- [ ] **Step 3: Implement `StepProfile.jsx`**
+- [x] **Step 3: Implement `StepProfile.jsx`**
 
 Implement Display Name, Full Name, `@handle` inputs, Avatar monogram/photo badge, 9 theme preview cards, 5 accent swatches. Selecting theme/accent calls `setTheme()` and `setAccent()` in `useApp()` store for immediate visual update.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node frontend/tests/onboarding-profile.test.mjs`  
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/components/onboarding/StepProfile.jsx frontend/tests/onboarding-profile.test.mjs
@@ -202,7 +202,7 @@ git commit -m "feat(onboarding): add profile and live theme customization step"
 - Consumes: `api.detectModels()`, `api.providers()`, `api.verifyProvider()`
 - Produces: `StepAiEngine({ onNext, onBack, onSkip })`
 
-- [ ] **Step 1: Write the failing test for StepAiEngine**
+- [x] **Step 1: Write the failing test for StepAiEngine**
 
 ```javascript
 // frontend/tests/onboarding-ai-engine.test.mjs
@@ -220,23 +220,23 @@ test('StepAiEngine probes local Ollama and lists free cloud providers', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node frontend/tests/onboarding-ai-engine.test.mjs`  
 Expected: FAIL with ENOENT
 
-- [ ] **Step 3: Implement `StepAiEngine.jsx`**
+- [x] **Step 3: Implement `StepAiEngine.jsx`**
 
 - Probes local Ollama at `localhost:11434/v1` via `api.detectModels()`.
 - Renders detected models as chips (`llama3.2:3b`, etc.) with benefit tagline "Private · No API cost · Works offline".
 - Lists free cloud providers (Groq, Gemini, Kilo) with fast paste button and live credential verification test.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node frontend/tests/onboarding-ai-engine.test.mjs`  
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/components/onboarding/StepAiEngine.jsx frontend/tests/onboarding-ai-engine.test.mjs
@@ -255,7 +255,7 @@ git commit -m "feat(onboarding): add Ollama local scan and cloud AI provider ste
 - Consumes: `api.updateLibraryCloudStorage()`, `api.integrations()`
 - Produces: `StepStorage({ onNext, onBack })`
 
-- [ ] **Step 1: Write the failing test for StepStorage**
+- [x] **Step 1: Write the failing test for StepStorage**
 
 ```javascript
 // frontend/tests/onboarding-storage.test.mjs
@@ -274,22 +274,22 @@ test('StepStorage has Composio API key, Google Drive Amethyst root, and optional
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node frontend/tests/onboarding-storage.test.mjs`  
 Expected: FAIL with ENOENT
 
-- [ ] **Step 3: Implement `StepStorage.jsx`**
+- [x] **Step 3: Implement `StepStorage.jsx`**
 
 - Required section: Composio API key input and Google Drive account connection row with root directory `My Drive / Amethyst /`.
 - Optional toolkits: 3-column grid for Gmail, Google Calendar, Slack, GitHub, Linear, Notion.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node frontend/tests/onboarding-storage.test.mjs`  
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/components/onboarding/StepStorage.jsx frontend/tests/onboarding-storage.test.mjs
@@ -308,7 +308,7 @@ git commit -m "feat(onboarding): add Composio Google Drive storage and toolkits 
 - Consumes: `api.startPairingV2()`, `api.converterGenerateQR()`
 - Produces: `StepMobile({ onNext, onBack, onSkip })`
 
-- [ ] **Step 1: Write the failing test for StepMobile**
+- [x] **Step 1: Write the failing test for StepMobile**
 
 ```javascript
 // frontend/tests/onboarding-mobile.test.mjs
@@ -327,24 +327,24 @@ test('StepMobile has Scan to pair tab, Download app tab, and no Cloudflare refer
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node frontend/tests/onboarding-mobile.test.mjs`  
 Expected: FAIL with ENOENT
 
-- [ ] **Step 3: Implement `StepMobile.jsx`**
+- [x] **Step 3: Implement `StepMobile.jsx`**
 
 - Segmented control: `Scan to pair` and `Download app`.
 - Scan tab: Real Contract v2 pairing QR code (LAN port 8443, cert-pinned), 3-step instructions, pulsing radar badge "Listening for your phone…".
 - Download tab: QR code linking directly to `/install` APK download.
 - Local network privacy note: "Pairing happens over your local network. Nothing goes through a server."
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node frontend/tests/onboarding-mobile.test.mjs`  
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/components/onboarding/StepMobile.jsx frontend/tests/onboarding-mobile.test.mjs
@@ -365,7 +365,7 @@ git commit -m "feat(onboarding): add mobile companion Contract v2 pairing and do
 - Consumes: All `Step*.jsx` components, `api.completeSetup()`, `triggerConfetti()`
 - Produces: Complete first-run onboarding lifecycle
 
-- [ ] **Step 1: Write the integration test for full onboarding flow**
+- [x] **Step 1: Write the integration test for full onboarding flow**
 
 ```javascript
 // frontend/tests/onboarding-flow.test.mjs
@@ -387,25 +387,26 @@ test('SplashScreenWizard integrates the 7 modern onboarding screens', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node frontend/tests/onboarding-flow.test.mjs`  
 Expected: FAIL
 
-- [ ] **Step 3: Implement `StepLaunch.jsx` and refactor `SplashScreenWizard.jsx`**
+- [x] **Step 3: Implement `StepLaunch.jsx` and refactor `SplashScreenWizard.jsx`**
 
 - `StepLaunch.jsx`: Displays "You're all set, {Name}." with verified checklist for Profile, AI engine, Storage, Apps, and Mobile.
 - "Open Amethyst" button triggers `api.completeSetup()`, fires confetti cannon, and unmounts wizard.
 - Replace internal legacy steps in `SplashScreenWizard.jsx` with the modular onboarding screens.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node frontend/tests/onboarding-flow.test.mjs`  
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/components/onboarding/StepLaunch.jsx frontend/src/components/SplashScreenWizard.jsx frontend/src/components/SplashScreenWizard.css frontend/tests/onboarding-flow.test.mjs
 git commit -m "feat(onboarding): connect complete 7-screen flow and launchpad into SplashScreenWizard"
 ```
+
