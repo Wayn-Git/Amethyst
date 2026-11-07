@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import Icon from '../../components/Icon.jsx'
-import { api } from '../../api.js'
+import { listConversations, deleteConversation, createConversation } from '../agent/conversationStore.js'
+import { getBundle } from '../bundle.js'
 
 function formatTimeAgo(dateStr) {
   if (!dateStr) return 'Recently'
@@ -15,29 +16,17 @@ function formatTimeAgo(dateStr) {
 
 export default function MobileAgentSessions({ onSelectSession, onCreateSession }) {
   const [conversations, setConversations] = useState([])
-  const [jobs, setJobs] = useState([])
-  const [confirmations, setConfirmations] = useState([])
-  const [filter, setFilter] = useState('all') // 'all' | 'running' | 'pinned'
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
+  const [hasPairedBundle, setHasPairedBundle] = useState(true)
 
   const loadData = useCallback(async () => {
     try {
-      const [cRes, jRes, confRes] = await Promise.allSettled([
-        api.conversations({ limit: 40 }),
-        api.jobs(),
-        api.confirmations(),
-      ])
+      const bundle = await getBundle()
+      setHasPairedBundle(Boolean(bundle?.device_id && bundle?.llm))
 
-      if (cRes.status === 'fulfilled' && cRes.value?.conversations) {
-        setConversations(cRes.value.conversations)
-      }
-      if (jRes.status === 'fulfilled' && jRes.value?.jobs) {
-        setJobs(jRes.value.jobs)
-      }
-      if (confRes.status === 'fulfilled' && Array.isArray(confRes.value)) {
-        setConfirmations(confRes.value)
-      }
+      const convs = await listConversations()
+      setConversations(convs || [])
     } catch (err) {
       console.warn('[MobileAgentSessions] Load failed:', err.message)
     } finally {
@@ -49,14 +38,31 @@ export default function MobileAgentSessions({ onSelectSession, onCreateSession }
     loadData()
   }, [loadData])
 
-  const activeJobs = jobs.filter((j) => j.state === 'running' || j.state === 'queued')
-  const runningSessions = conversations.filter((c) => c.status === 'running' || c.is_running)
-  const pinnedSessions = conversations.filter((c) => c.pinned)
+  const handleDelete = async (e, id) => {
+    e.stopPropagation()
+    try {
+      await deleteConversation(id)
+      setConversations((prev) => prev.filter((c) => c.id !== id))
+    } catch (err) {
+      console.warn('[MobileAgentSessions] Delete failed:', err.message)
+    }
+  }
+
+  const handleCreate = async () => {
+    if (onCreateSession) {
+      try {
+        const newConv = await createConversation('New conversation')
+        onCreateSession(newConv)
+      } catch {
+        onCreateSession({ id: `temp-${Date.now()}`, title: 'New session' })
+      }
+    }
+  }
 
   const filteredConversations = conversations.filter((c) => {
-    if (filter === 'running' && !c.is_running && c.status !== 'running') return false
-    if (filter === 'pinned' && !c.pinned) return false
-    if (query && !c.title?.toLowerCase().includes(query.toLowerCase())) return false
+    if (query && !c.title?.toLowerCase().includes(query.toLowerCase()) && !c.preview?.toLowerCase().includes(query.toLowerCase())) {
+      return false
+    }
     return true
   })
 
@@ -78,11 +84,38 @@ export default function MobileAgentSessions({ onSelectSession, onCreateSession }
           type="button"
           className="m-ib k"
           aria-label="New session"
-          onClick={onCreateSession}
+          onClick={handleCreate}
         >
           <Icon name="plus" size={20} />
         </button>
       </div>
+
+      {/* Missing Bundle Pairing Prompt */}
+      {!hasPairedBundle && !loading && (
+        <div
+          className="m-c"
+          style={{
+            padding: '16px 18px',
+            background: '#FFFBEB',
+            borderColor: '#FDE68A',
+            borderRadius: 16,
+          }}
+        >
+          <div className="m-r" style={{ gap: 10, alignItems: 'flex-start' }}>
+            <span style={{ color: '#D97706', marginTop: 2 }}>
+              <Icon name="shield-alert" size={20} />
+            </span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, color: '#92400E', fontSize: 14 }}>
+                Pairing Required
+              </div>
+              <div style={{ fontSize: 13, color: '#B45309', marginTop: 2, lineHeight: 1.4 }}>
+                Please pair with your PC via QR code to enable the Amethyst AI agent and tools.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Search Input */}
       <div
@@ -99,7 +132,7 @@ export default function MobileAgentSessions({ onSelectSession, onCreateSession }
         </span>
         <input
           className="m-in"
-          placeholder="Search sessions"
+          placeholder="Search local sessions"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -115,118 +148,9 @@ export default function MobileAgentSessions({ onSelectSession, onCreateSession }
         )}
       </div>
 
-      {/* Filter Chips */}
-      <div className="m-r" style={{ gap: 8 }}>
-        <button
-          type="button"
-          className={`m-ch ${filter === 'all' ? 'on' : ''}`}
-          onClick={() => setFilter('all')}
-        >
-          All {conversations.length}
-        </button>
-        <button
-          type="button"
-          className={`m-ch ${filter === 'running' ? 'on' : ''}`}
-          onClick={() => setFilter('running')}
-        >
-          Running {activeJobs.length + runningSessions.length}
-        </button>
-        <button
-          type="button"
-          className={`m-ch ${filter === 'pinned' ? 'on' : ''}`}
-          onClick={() => setFilter('pinned')}
-        >
-          Pinned {pinnedSessions.length}
-        </button>
-      </div>
-
-      {/* Active Section */}
-      <div className="m-m" style={{ marginBottom: -6 }}>
-        Active
-      </div>
-      <div className="m-c" style={{ padding: '4px 16px' }}>
-        {/* Real Pending Confirmations */}
-        {confirmations.map((conf, idx) => (
-          <div key={conf.id || idx}>
-            <div
-              className="m-r"
-              style={{ padding: '12px 0', gap: 12, cursor: 'pointer' }}
-              onClick={() =>
-                onSelectSession({
-                  id: conf.conversation_id || 'approval-session',
-                  title: conf.description || conf.operation_key || 'Approval Required',
-                  confirmation: conf,
-                })
-              }
-            >
-              <span className="m-it" style={{ background: '#F6D5C6', color: '#B8430F' }}>
-                <Icon name="clock" size={20} />
-              </span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    fontWeight: 500,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {conf.description || conf.operation_key || 'Pending PC Action'}
-                </div>
-                <div className="m-m" style={{ color: '#B8430F' }}>
-                  Waiting for your approval
-                </div>
-              </div>
-              <div className="m-col" style={{ alignItems: 'flex-end', gap: 4 }}>
-                <span className="m-m">Now</span>
-                <Icon name="desktop" size={14} style={{ color: '#6E6A64' }} />
-              </div>
-            </div>
-            {(idx < confirmations.length - 1 || activeJobs.length > 0) && (
-              <div className="m-hr" />
-            )}
-          </div>
-        ))}
-
-        {/* Real Active Jobs */}
-        {activeJobs.map((job, idx) => (
-          <div key={job.id || idx}>
-            <div className="m-r" style={{ padding: '12px 0', gap: 12 }}>
-              <span className="m-it">
-                <span className="m-spn" />
-              </span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    fontWeight: 500,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {job.kind || job.name || 'Running job'}
-                </div>
-                <div className="m-m">{job.state || 'running'}</div>
-              </div>
-              <div className="m-col" style={{ alignItems: 'flex-end', gap: 4 }}>
-                <span className="m-m">Now</span>
-                <Icon name="desktop" size={14} style={{ color: '#6E6A64' }} />
-              </div>
-            </div>
-            {idx < activeJobs.length - 1 && <div className="m-hr" />}
-          </div>
-        ))}
-
-        {confirmations.length === 0 && activeJobs.length === 0 && (
-          <div style={{ padding: '16px 0', textAlign: 'center', color: '#6E6A64' }}>
-            No active jobs or pending approvals
-          </div>
-        )}
-      </div>
-
       {/* Sessions Section */}
       <div className="m-m" style={{ marginBottom: -6 }}>
-        Sessions
+        Local Conversations ({conversations.length})
       </div>
       <div className="m-c" style={{ padding: '4px 16px' }}>
         {filteredConversations.map((c, idx) => (
@@ -239,14 +163,11 @@ export default function MobileAgentSessions({ onSelectSession, onCreateSession }
               <span
                 className="m-it"
                 style={{
-                  background: c.is_running || c.status === 'running' ? '#D6F23E' : '#ECEAE6',
+                  background: '#ECEAE6',
                   color: '#111113',
                 }}
               >
-                <Icon
-                  name={c.is_running || c.status === 'running' ? 'sparkle' : 'check'}
-                  size={20}
-                />
+                <Icon name="chat" size={18} />
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div
@@ -257,7 +178,7 @@ export default function MobileAgentSessions({ onSelectSession, onCreateSession }
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {c.title || 'Untitled session'}
+                  {c.title || 'Untitled conversation'}
                 </div>
                 <div
                   className="m-m"
@@ -267,12 +188,25 @@ export default function MobileAgentSessions({ onSelectSession, onCreateSession }
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {c.last_message_excerpt || c.model || 'Agent conversation'}
+                  {c.preview || 'No messages yet'}
                 </div>
               </div>
-              <div className="m-col" style={{ alignItems: 'flex-end', gap: 4 }}>
+              <div className="m-col" style={{ alignItems: 'flex-end', gap: 6 }}>
                 <span className="m-m">{formatTimeAgo(c.updated_at || c.created_at)}</span>
-                <Icon name="device-mobile" size={14} style={{ color: '#6E6A64' }} />
+                <button
+                  type="button"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 4,
+                    color: '#9A958E',
+                    cursor: 'pointer',
+                  }}
+                  title="Delete conversation"
+                  onClick={(e) => handleDelete(e, c.id)}
+                >
+                  <Icon name="trash" size={14} />
+                </button>
               </div>
             </div>
             {idx < filteredConversations.length - 1 && <div className="m-hr" />}
@@ -282,18 +216,18 @@ export default function MobileAgentSessions({ onSelectSession, onCreateSession }
         {!filteredConversations.length && !loading && (
           <div style={{ textAlign: 'center', padding: '32px 16px' }} className="m-col">
             <Icon name="chat" size={32} style={{ color: '#9A958E', margin: '0 auto 8px' }} />
-            <div style={{ fontWeight: 600 }}>No sessions found</div>
+            <div style={{ fontWeight: 600 }}>No conversations yet</div>
             <div className="m-m" style={{ marginTop: 4 }}>
               {query
-                ? 'No sessions match your search.'
-                : 'Tap + above to start your first agent session.'}
+                ? 'No conversations match your search.'
+                : 'Tap + above to start chatting on your phone.'}
             </div>
           </div>
         )}
 
         {loading && (
           <div style={{ textAlign: 'center', padding: '24px 16px', color: '#6E6A64' }}>
-            Loading sessions…
+            Loading conversations…
           </div>
         )}
       </div>
