@@ -1,16 +1,30 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import AmethystLogo from '../AmethystLogo.jsx'
 import Icon from '../Icon.jsx'
+import BrandIcon from './BrandIcon.jsx'
 import { useApp } from '../../store.jsx'
 import { api } from '../../api.js'
 
-const TOOLKITS = [
-  { id: 'gmail', name: 'Gmail', icon: 'envelope' },
-  { id: 'googlecalendar', name: 'Google Calendar', icon: 'calendar' },
-  { id: 'slack', name: 'Slack', icon: 'chat-circle' },
-  { id: 'github', name: 'GitHub', icon: 'git-branch' },
-  { id: 'linear', name: 'Linear', icon: 'check-square' },
-  { id: 'notion', name: 'Notion', icon: 'article' },
+const BASE_TOOLKITS = [
+  { id: 'gmail', name: 'Gmail', category: 'Communication', desc: 'Email triage & drafts' },
+  { id: 'googlecalendar', name: 'Google Calendar', category: 'Productivity', desc: 'Schedules & events' },
+  { id: 'slack', name: 'Slack', category: 'Communication', desc: 'Workspace channels & DMs' },
+  { id: 'github', name: 'GitHub', category: 'Developer', desc: 'Repos, PRs & issues' },
+  { id: 'linear', name: 'Linear', category: 'Productivity', desc: 'Issue tracking & cycles' },
+  { id: 'notion', name: 'Notion', category: 'Productivity', desc: 'Docs & databases' },
+  { id: 'discord', name: 'Discord', category: 'Communication', desc: 'Community servers & bots' },
+  { id: 'spotify', name: 'Spotify', category: 'Media', desc: 'Playback & playlists' },
+  { id: 'figma', name: 'Figma', category: 'Design', desc: 'Frames & components' },
+  { id: 'jira', name: 'Jira', category: 'Productivity', desc: 'Enterprise tickets & boards' },
+  { id: 'trello', name: 'Trello', category: 'Productivity', desc: 'Kanban cards & lists' },
+  { id: 'airtable', name: 'Airtable', category: 'Productivity', desc: 'Relational spreadsheets' },
+  { id: 'dropbox', name: 'Dropbox', category: 'Storage', desc: 'Cloud storage files' },
+  { id: 'zoom', name: 'Zoom', category: 'Communication', desc: 'Video meetings & links' },
+  { id: 'twitter', name: 'X / Twitter', category: 'Communication', desc: 'Posts & social feeds' },
+  { id: 'gitlab', name: 'GitLab', category: 'Developer', desc: 'Git repos & CI/CD' },
+  { id: 'docker', name: 'Docker', category: 'Developer', desc: 'Containers & images' },
+  { id: 'postman', name: 'Postman', category: 'Developer', desc: 'API testing collections' },
+  { id: 'supabase', name: 'Supabase', category: 'Developer', desc: 'Postgres & auth' },
 ]
 
 export default function StepStorage({ onNext, onBack }) {
@@ -23,6 +37,11 @@ export default function StepStorage({ onNext, onBack }) {
   const [connectingDrive, setConnectingDrive] = useState(false)
   const [enabledToolkits, setEnabledToolkits] = useState(new Set(['gmail', 'googlecalendar']))
 
+  // Exploration & search state
+  const [isExploring, setIsExploring] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [allToolkits, setAllToolkits] = useState(BASE_TOOLKITS)
+
   const checkStorageStatus = useCallback(async () => {
     try {
       const res = await api.composioStatus?.()
@@ -34,8 +53,28 @@ export default function StepStorage({ onNext, onBack }) {
         setDriveConnected(true)
         if (driveRes.account_email) setDriveEmail(driveRes.account_email)
       }
+
+      // Fetch dynamic toolkits from Composio backend
+      const toolkitsRes = await api.composioToolkits?.()
+      if (toolkitsRes?.toolkits && Array.isArray(toolkitsRes.toolkits)) {
+        const dynamicList = [...BASE_TOOLKITS]
+        const existingIds = new Set(BASE_TOOLKITS.map((t) => t.id))
+        for (const item of toolkitsRes.toolkits) {
+          const slug = item.slug || item.id
+          if (slug && !existingIds.has(slug)) {
+            existingIds.add(slug)
+            dynamicList.push({
+              id: slug,
+              name: item.name || slug,
+              category: item.category || 'Tools',
+              desc: item.description || 'Composio integration',
+            })
+          }
+        }
+        setAllToolkits(dynamicList)
+      }
     } catch {
-      // Fallback
+      // Fallback cleanly
     }
   }, [])
 
@@ -80,6 +119,19 @@ export default function StepStorage({ onNext, onBack }) {
     })
   }
 
+  const filteredToolkits = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return isExploring ? allToolkits : allToolkits.slice(0, 6)
+    }
+    const q = searchQuery.toLowerCase().trim()
+    return allToolkits.filter(
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        t.id.toLowerCase().includes(q) ||
+        (t.category && t.category.toLowerCase().includes(q))
+    )
+  }, [allToolkits, isExploring, searchQuery])
+
   const handleContinue = async () => {
     try {
       if (driveConnected) {
@@ -87,6 +139,11 @@ export default function StepStorage({ onNext, onBack }) {
           active_provider: 'google_drive',
           root_folder_name: 'Amethyst',
         })
+      }
+
+      // Synchronize enabled toolkits with backend
+      for (const tk of enabledToolkits) {
+        await api.toggleComposioToolkit?.(tk, true).catch(() => {})
       }
     } catch {
       // Non-blocking
@@ -134,8 +191,8 @@ export default function StepStorage({ onNext, onBack }) {
         <div className="onb-group" style={{ marginBottom: 8 }}>
           {/* Composio Row */}
           <div className="onb-row">
-            <div className="onb-row-icon">
-              <Icon name="layers" size={18} />
+            <div className="onb-row-icon" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>
+              <BrandIcon name="composio" size={20} />
             </div>
             <div className="onb-row-meta">
               Composio
@@ -154,8 +211,8 @@ export default function StepStorage({ onNext, onBack }) {
 
           {/* Google Drive Row */}
           <div className="onb-row">
-            <div className="onb-row-icon">
-              <Icon name="folder" size={18} />
+            <div className="onb-row-icon" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>
+              <BrandIcon name="googledrive" size={20} />
             </div>
             <div className="onb-row-meta">
               Google Drive
@@ -187,7 +244,7 @@ export default function StepStorage({ onNext, onBack }) {
           </div>
         </div>
 
-        <p style={{ fontSize: 12, color: '#9ea3c4', margin: '6px 4px 20px', lineHeight: 1.45 }}>
+        <p style={{ fontSize: 12, color: '#9ea3c4', margin: '6px 4px 16px', lineHeight: 1.45 }}>
           <a
             href="https://composio.dev"
             target="_blank"
@@ -199,10 +256,71 @@ export default function StepStorage({ onNext, onBack }) {
           · Library items and your phone’s drop-box live in this folder. We create it if it’s missing.
         </p>
 
-        {/* Optional Toolkits */}
-        <p className="onb-section-header" style={{ marginTop: 18 }}>Optional toolkits</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-          {TOOLKITS.map((t) => {
+        {/* Optional Toolkits Header with Search & Count */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <p className="onb-section-header" style={{ margin: 0 }}>Optional toolkits</p>
+            {enabledToolkits.size > 0 && (
+              <span
+                style={{
+                  fontSize: 11,
+                  padding: '1px 7px',
+                  borderRadius: 999,
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  color: '#dfe5ff',
+                  fontWeight: 600,
+                }}
+              >
+                {enabledToolkits.size} active
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsExploring((prev) => !prev)}
+            style={{
+              background: 'transparent',
+              border: 0,
+              color: '#b4b8d6',
+              fontSize: 12,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: 0,
+            }}
+          >
+            <span>{isExploring ? 'Show curated' : `Explore all (${allToolkits.length})`}</span>
+            <Icon name={isExploring ? 'caret-up' : 'caret-down'} size={12} />
+          </button>
+        </div>
+
+        {/* Search Bar when exploring */}
+        {isExploring && (
+          <div style={{ marginBottom: 10 }}>
+            <input
+              type="text"
+              className="onb-input"
+              style={{ height: 34, fontSize: 12 }}
+              placeholder="Search 20+ toolkits (e.g. Discord, Spotify, Figma, Jira)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        )}
+
+        {/* Grid of Toolkits with Real Brand Icons */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 8,
+            maxHeight: isExploring ? 180 : 'none',
+            overflowY: isExploring ? 'auto' : 'visible',
+            paddingRight: isExploring ? 4 : 0,
+          }}
+        >
+          {filteredToolkits.map((t) => {
             const isEnabled = enabledToolkits.has(t.id)
             return (
               <div
@@ -224,8 +342,18 @@ export default function StepStorage({ onNext, onBack }) {
                   transition: 'all 0.12s ease-out',
                 }}
               >
-                <Icon name={t.icon} size={16} />
-                <span style={{ fontSize: 13, fontWeight: 500, flex: 1, color: isEnabled ? '#ffffff' : '#b4b8d6' }}>
+                <BrandIcon name={t.id} size={18} />
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 500,
+                    flex: 1,
+                    color: isEnabled ? '#ffffff' : '#b4b8d6',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   {t.name}
                 </span>
                 <span
@@ -238,6 +366,7 @@ export default function StepStorage({ onNext, onBack }) {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    flexShrink: 0,
                   }}
                 >
                   {isEnabled && <Icon name="check" size={10} color="#fff" />}

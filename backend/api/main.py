@@ -8521,6 +8521,11 @@ async def list_library(
             if tags:
                 items = [it for it in items if tags.intersection((it.get("tags") or []) + ([it.get("app")] if it.get("app") else []))]
             items = items[offset : offset + limit]
+
+    for it in items:
+        if not it.get("thumbnail_url") and (it.get("thumbnail_path") or it.get("has_thumbnail")):
+            it["thumbnail_url"] = f"/api/library/{it['id']}/thumbnail"
+
     return {
         "items": items,
         "counts": service.counts(),
@@ -11035,6 +11040,27 @@ def get_analytics_usage_windows() -> dict[str, Any]:
 # process is the whole product and there is no second server to run, no second
 # port to remember, and no cross-origin request to configure.
 _DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+@app.get("/amethyst-companion.apk", include_in_schema=False)
+@app.get("/download/companion.apk", include_in_schema=False)
+def download_companion_apk():
+    """Direct unauthenticated download of the Amethyst Companion Android APK."""
+    for candidate in [
+        _DIST / "amethyst-companion.apk",
+        _REPO_ROOT / "amethyst-companion.apk",
+        _REPO_ROOT / "frontend" / "android" / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk",
+    ]:
+        if candidate.is_file():
+            return FileResponse(
+                candidate,
+                media_type="application/vnd.android.package-archive",
+                filename="amethyst-companion.apk",
+                headers={"Content-Disposition": 'attachment; filename="amethyst-companion.apk"'},
+            )
+    raise HTTPException(404, "Companion APK not found on server")
+
 
 
 

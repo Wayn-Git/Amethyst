@@ -320,6 +320,64 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* Concentric Segmented Tab Switcher */
+.onb-tab-group {
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+  margin-bottom: 20px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.onb-tab-btn {
+  border: 0;
+  background: transparent;
+  border-radius: 7px;
+  color: #b4b8d6;
+  font: 500 13px Inter, -apple-system, sans-serif;
+  padding: 6px 18px;
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.onb-tab-btn:hover:not(.on) {
+  color: #ffffff;
+}
+
+.onb-tab-btn.on {
+  background: #ffffff;
+  color: #1a1d3a;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Concentric QR Code Container */
+.onb-qr-wrapper {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 3px;
+  display: inline-flex;
+  flex-shrink: 0;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+}
+
+.onb-qr-card {
+  width: 164px;
+  height: 164px;
+  border-radius: 17px;
+  background: #ffffff;
+  padding: 12px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Bottom Caption */
 .onb-bottom-caption {
   position: absolute;
@@ -337,3 +395,4 @@
 .onb-mono {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
 }
+

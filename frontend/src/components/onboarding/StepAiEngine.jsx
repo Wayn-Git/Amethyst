@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import AmethystLogo from '../AmethystLogo.jsx'
 import Icon from '../Icon.jsx'
+import AiProviderIcon from '../AiProviderIcon.jsx'
 import { getClientOS } from './clientOS.js'
 import { useApp } from '../../store.jsx'
 import { api } from '../../api.js'
@@ -97,23 +98,32 @@ export default function StepAiEngine({ onNext, onBack, onSkip }) {
     {
       slug: 'groq',
       name: 'Groq',
-      letter: 'G',
       defaultModel: 'llama-3.3-70b-versatile',
       models: ['llama-3.3-70b-versatile', 'mixtral-8x7b-32768'],
     },
     {
-      slug: 'google',
+      slug: 'gemini',
       name: 'Google Gemini',
-      letter: 'G',
       defaultModel: 'gemini-2.0-flash',
       models: ['gemini-2.0-flash', 'gemini-1.5-pro'],
     },
     {
       slug: 'kilocode',
       name: 'Kilo Code',
-      letter: 'K',
       defaultModel: 'kilo-auto/free',
       models: ['kilo-auto/free'],
+    },
+    {
+      slug: 'openrouter',
+      name: 'OpenRouter',
+      defaultModel: 'auto',
+      models: ['auto', 'deepseek/deepseek-r1:free'],
+    },
+    {
+      slug: 'deepseek',
+      name: 'DeepSeek',
+      defaultModel: 'deepseek-chat',
+      models: ['deepseek-chat', 'deepseek-reasoner'],
     },
   ]
 
@@ -159,8 +169,8 @@ export default function StepAiEngine({ onNext, onBack, onSkip }) {
         <p className="onb-section-header">On this {osName}</p>
         <div className="onb-group" style={{ marginBottom: 6 }}>
           <div className="onb-row">
-            <div className="onb-row-icon">
-              <Icon name="cpu" size={18} />
+            <div className="onb-row-icon" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>
+              <AiProviderIcon provider="ollama" size={20} />
             </div>
             <div className="onb-row-meta">
               Ollama
@@ -275,8 +285,8 @@ export default function StepAiEngine({ onNext, onBack, onSkip }) {
                   background: isRowActive ? 'rgba(255, 255, 255, 0.04)' : 'transparent',
                 }}
               >
-                <div className="onb-row-icon">
-                  <span style={{ fontWeight: 700, fontSize: 14 }}>{p.letter}</span>
+                <div className="onb-row-icon" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>
+                  <AiProviderIcon provider={p.slug} size={20} />
                 </div>
                 <div className="onb-row-meta">
                   {p.name}
@@ -305,3 +315,4 @@ export default function StepAiEngine({ onNext, onBack, onSkip }) {
     </div>
   )
 }
+

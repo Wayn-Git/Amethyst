@@ -1,6 +1,8 @@
 import React from 'react'
 import AmethystLogo from '../AmethystLogo.jsx'
 import Icon from '../Icon.jsx'
+import AiProviderIcon from '../AiProviderIcon.jsx'
+import BrandIcon from './BrandIcon.jsx'
 import { getClientOS, getDisclaimerText } from './clientOS.js'
 import { useApp } from '../../store.jsx'
 
@@ -64,8 +66,8 @@ export default function StepLaunch({ onFinish, onBack }) {
 
           {/* AI engine */}
           <div className="onb-row">
-            <div className="onb-row-icon">
-              <Icon name="cpu" size={18} />
+            <div className="onb-row-icon" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>
+              <AiProviderIcon provider="ollama" size={18} />
             </div>
             <div className="onb-row-meta">
               AI engine
@@ -78,8 +80,8 @@ export default function StepLaunch({ onFinish, onBack }) {
 
           {/* Storage */}
           <div className="onb-row">
-            <div className="onb-row-icon">
-              <Icon name="folder" size={18} />
+            <div className="onb-row-icon" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>
+              <BrandIcon name="googledrive" size={18} />
             </div>
             <div className="onb-row-meta">
               Storage
@@ -92,12 +94,12 @@ export default function StepLaunch({ onFinish, onBack }) {
 
           {/* Apps */}
           <div className="onb-row">
-            <div className="onb-row-icon">
-              <Icon name="envelope" size={18} />
+            <div className="onb-row-icon" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>
+              <BrandIcon name="gmail" size={18} />
             </div>
             <div className="onb-row-meta">
               Apps
-              <span>Gmail, Google Calendar</span>
+              <span>Gmail, Google Calendar &amp; Toolkits</span>
             </div>
             <span className="onb-tag" style={{ color: '#34d399' }}>
               <Icon name="check" size={14} />
@@ -126,3 +128,4 @@ export default function StepLaunch({ onFinish, onBack }) {
     </div>
   )
 }
+

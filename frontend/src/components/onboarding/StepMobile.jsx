@@ -10,10 +10,16 @@ export default function StepMobile({ onNext, onBack, onSkip }) {
   const [pairingData, setPairingData] = useState(null)
   const [qrSvg, setQrSvg] = useState('')
   const [downloadQrUrl, setDownloadQrUrl] = useState('')
-  const [listening, setListening] = useState(true)
 
-  const origin = typeof window === 'undefined' ? 'http://127.0.0.1:8000' : window.location.origin
-  const apkDownloadUrl = `${origin}/install`
+  // Derive direct LAN APK URL for phone download
+  const lanHost =
+    pairingData?.payload?.hosts?.[0] ||
+    (typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+      ? window.location.hostname
+      : '127.0.0.1')
+  const portStr =
+    typeof window !== 'undefined' && window.location.port ? `:${window.location.port}` : ''
+  const directApkUrl = `http://${lanHost}${portStr}/amethyst-companion.apk`
 
   const startPairingSession = useCallback(async () => {
     try {
@@ -32,9 +38,15 @@ export default function StepMobile({ onNext, onBack, onSkip }) {
   useEffect(() => {
     startPairingSession()
 
-    // Generate download QR code
+    return () => {
+      api.cancelPairingV2?.().catch(() => {})
+    }
+  }, [startPairingSession])
+
+  // Generate QR for direct APK download
+  useEffect(() => {
     api.converterGenerateQR?.({
-      content: apkDownloadUrl,
+      content: directApkUrl,
       kind: 'png',
       scale: 4,
       border: 1,
@@ -43,11 +55,7 @@ export default function StepMobile({ onNext, onBack, onSkip }) {
         if (res?.data_url) setDownloadQrUrl(res.data_url)
       })
       .catch(() => {})
-
-    return () => {
-      api.cancelPairingV2?.().catch(() => {})
-    }
-  }, [startPairingSession, apkDownloadUrl])
+  }, [directApkUrl])
 
   return (
     <div className="onb-card">
@@ -87,37 +95,23 @@ export default function StepMobile({ onNext, onBack, onSkip }) {
 
       {/* Right Content Pane */}
       <div className="onb-pane-right">
-        {/* Segmented Control Switcher */}
-        <div
-          style={{
-            display: 'inline-flex',
-            background: 'rgba(0, 0, 0, 0.25)',
-            borderRadius: 10,
-            padding: 3,
-            marginBottom: 20,
-          }}
-        >
+        {/* Concentric Segmented Control Switcher */}
+        <div className="onb-tab-group" role="tablist" aria-label="Mobile mode">
           <button
             type="button"
+            role="tab"
+            aria-selected={tab === 'scan'}
             onClick={() => setTab('scan')}
-            className={`onb-pill-btn ${tab === 'scan' ? 'on' : ''}`}
-            style={{
-              background: tab === 'scan' ? '#ffffff' : 'transparent',
-              color: tab === 'scan' ? '#1a1d3a' : '#b4b8d6',
-              fontWeight: tab === 'scan' ? 600 : 500,
-            }}
+            className={`onb-tab-btn ${tab === 'scan' ? 'on' : ''}`}
           >
             Scan to pair
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={tab === 'download'}
             onClick={() => setTab('download')}
-            className={`onb-pill-btn ${tab === 'download' ? 'on' : ''}`}
-            style={{
-              background: tab === 'download' ? '#ffffff' : 'transparent',
-              color: tab === 'download' ? '#1a1d3a' : '#b4b8d6',
-              fontWeight: tab === 'download' ? 600 : 500,
-            }}
+            className={`onb-tab-btn ${tab === 'download' ? 'on' : ''}`}
           >
             Download app
           </button>
@@ -126,33 +120,29 @@ export default function StepMobile({ onNext, onBack, onSkip }) {
         {tab === 'scan' ? (
           /* Tab 1: Scan to Pair */
           <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-            {/* QR Card */}
-            <div
-              style={{
-                width: 160,
-                height: 160,
-                borderRadius: 16,
-                background: '#ffffff',
-                padding: 10,
-                boxSizing: 'border-box',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 12px 32px rgba(0, 0, 0, 0.3)',
-                flexShrink: 0,
-              }}
-            >
-              {qrSvg ? (
-                <div
-                  style={{ width: '100%', height: '100%' }}
-                  dangerouslySetInnerHTML={{ __html: qrSvg }}
-                />
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, color: '#1a1d3a' }}>
-                  <Icon name="qr-code" size={48} />
-                  <span style={{ fontSize: 11, fontWeight: 600 }}>Port :8443</span>
-                </div>
-              )}
+            {/* Concentric QR Card Wrapper */}
+            <div className="onb-qr-wrapper">
+              <div className="onb-qr-card">
+                {qrSvg ? (
+                  <div
+                    style={{ width: '100%', height: '100%' }}
+                    dangerouslySetInnerHTML={{ __html: qrSvg }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 6,
+                      color: '#1a1d3a',
+                    }}
+                  >
+                    <Icon name="qr-code" size={48} />
+                    <span style={{ fontSize: 11, fontWeight: 600 }}>Port :8443</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Steps & Status */}
@@ -161,31 +151,53 @@ export default function StepMobile({ onNext, onBack, onSkip }) {
                 Scan with the Amethyst app
               </div>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '6px 0', fontSize: 14 }}>
-                <span className="onb-row-icon" style={{ width: 26, height: 26, borderRadius: '50%', fontSize: 12, fontWeight: 600 }}>
+                <span
+                  className="onb-row-icon"
+                  style={{ width: 26, height: 26, borderRadius: '50%', fontSize: 12, fontWeight: 600 }}
+                >
                   1
                 </span>
                 <span>Open Amethyst on your phone</span>
               </div>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '6px 0', fontSize: 14 }}>
-                <span className="onb-row-icon" style={{ width: 26, height: 26, borderRadius: '50%', fontSize: 12, fontWeight: 600 }}>
+                <span
+                  className="onb-row-icon"
+                  style={{ width: 26, height: 26, borderRadius: '50%', fontSize: 12, fontWeight: 600 }}
+                >
                   2
                 </span>
                 <span>Tap Pair with desktop</span>
               </div>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '6px 0', fontSize: 14 }}>
-                <span className="onb-row-icon" style={{ width: 26, height: 26, borderRadius: '50%', fontSize: 12, fontWeight: 600 }}>
+                <span
+                  className="onb-row-icon"
+                  style={{ width: 26, height: 26, borderRadius: '50%', fontSize: 12, fontWeight: 600 }}
+                >
                   3
                 </span>
                 <span>Point the camera at this code</span>
               </div>
 
-              {/* Protocol Badge & Listening Radar */}
-              <div className="onb-mono" style={{ margin: '14px 0 10px', display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, color: '#dfe5ff' }}>
+              {/* Protocol Badge & Radar */}
+              <div
+                className="onb-mono"
+                style={{
+                  margin: '14px 0 10px',
+                  display: 'flex',
+                  gap: 8,
+                  alignItems: 'center',
+                  fontSize: 12,
+                  color: '#dfe5ff',
+                }}
+              >
                 <Icon name="shield-check" size={15} />
                 <span>LAN :8443 · AES-256 · cert-pinned</span>
               </div>
 
-              <span className="onb-tag-pill" style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
+              <span
+                className="onb-tag-pill"
+                style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontSize: 12 }}
+              >
                 <span
                   style={{
                     width: 8,
@@ -203,56 +215,73 @@ export default function StepMobile({ onNext, onBack, onSkip }) {
         ) : (
           /* Tab 2: Download App */
           <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-            <div
-              style={{
-                width: 160,
-                height: 160,
-                borderRadius: 16,
-                background: '#ffffff',
-                padding: 10,
-                boxSizing: 'border-box',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 12px 32px rgba(0, 0, 0, 0.3)',
-                flexShrink: 0,
-              }}
-            >
-              {downloadQrUrl ? (
-                <img src={downloadQrUrl} alt="Scan to download" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, color: '#1a1d3a' }}>
-                  <Icon name="device-mobile" size={48} />
-                  <span style={{ fontSize: 11, fontWeight: 600 }}>Android APK</span>
-                </div>
-              )}
+            {/* Concentric QR Card Wrapper */}
+            <div className="onb-qr-wrapper">
+              <div className="onb-qr-card">
+                {downloadQrUrl ? (
+                  <img
+                    src={downloadQrUrl}
+                    alt="Scan to download APK"
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 6,
+                      color: '#1a1d3a',
+                    }}
+                  >
+                    <Icon name="device-mobile" size={48} />
+                    <span style={{ fontSize: 11, fontWeight: 600 }}>Android APK</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: '#ffffff' }}>
                 Download Amethyst Companion
               </div>
-              <p style={{ margin: '0 0 14px 0', fontSize: 13, color: '#b4b8d6', lineHeight: 1.5 }}>
-                Scan the QR code with your phone camera or download directly to install the companion APK.
+              <p style={{ margin: '0 0 12px 0', fontSize: 13, color: '#b4b8d6', lineHeight: 1.5 }}>
+                Scan the QR code with your phone camera to download directly over LAN, or download the APK to this computer.
               </p>
-              <a
-                href={apkDownloadUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="onb-pill-btn"
+
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14 }}>
+                <a
+                  href="/amethyst-companion.apk"
+                  download="amethyst-companion.apk"
+                  className="onb-btn-primary"
+                  style={{
+                    display: 'inline-flex',
+                    width: 'auto',
+                    padding: '0 20px',
+                    minHeight: 40,
+                    textDecoration: 'none',
+                    fontSize: 13,
+                    background: accentColor || '#7132f5',
+                  }}
+                >
+                  <Icon name="download-simple" size={16} weight="bold" />
+                  <span>Download APK (8.2 MB)</span>
+                </a>
+              </div>
+
+              <div
+                className="onb-mono"
                 style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  textDecoration: 'none',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  padding: '8px 18px',
+                  fontSize: 11,
+                  color: '#9ea3c4',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  wordBreak: 'break-all',
                 }}
               >
-                <Icon name="download" size={14} />
-                <span>Download APK (.apk)</span>
-              </a>
+                Direct: {directApkUrl}
+              </div>
             </div>
           </div>
         )}
