@@ -389,7 +389,16 @@ export const api = {
   updateDevicePermissions: (deviceId, permissions) =>
     j(`/devices/${encodeURIComponent(deviceId)}/permissions`, json('PATCH', { permissions })),
   setAppUrl: (appUrl) => j('/devices/app-url', json('PUT', { app_url: appUrl })),
-  checkPairingClaim: (requestId) => j(`/pair/claim?request_id=${encodeURIComponent(requestId)}`),
+  // CONTRACT v2 Pairing and Phone-only LLM
+  startPairingV2: () => j('/pairing/v2/start', json('POST')),
+  pairingV2Status: () => j('/pairing/v2/status'),
+  approvePairingV2: (deviceLabel) => j('/pairing/v2/approve', json('POST', { device_label: deviceLabel })),
+  denyPairingV2: () => j('/pairing/v2/deny', json('POST')),
+  cancelPairingV2: () => j('/pairing/v2/cancel', json('POST')),
+  revokeDeviceV2: (deviceId) => j(`/pairing/v2/devices/${encodeURIComponent(deviceId)}`, json('DELETE')),
+  getPhoneLlmSettings: () => j('/settings/phone-llm'),
+  savePhoneLlmSettings: (cfg) => j('/settings/phone-llm', json('POST', cfg)),
+  deletePhoneLlmSettings: () => j('/settings/phone-llm', json('DELETE')),
 
   // Remote PC & System Telemetry
   remoteStatus: () => j('/remote/status'),

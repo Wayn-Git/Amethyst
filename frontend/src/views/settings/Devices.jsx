@@ -86,6 +86,15 @@ export default function Devices() {
   const [editingPermissions, setEditingPermissions] = useState({})
   const [savingPermissions, setSavingPermissions] = useState(false)
 
+  // CONTRACT v2 Phone LLM and Pairing State
+  const [phoneLlm, setPhoneLlm] = useState(null)
+  const [phoneKeyInput, setPhoneKeyInput] = useState('')
+  const [phoneProviderInput, setPhoneProviderInput] = useState('anthropic')
+  const [phoneModelInput, setPhoneModelInput] = useState('claude-3-5-haiku-20241022')
+  const [savingPhoneLlm, setSavingPhoneLlm] = useState(false)
+  const [v2Pairing, setV2Pairing] = useState(null)
+  const [v2Status, setV2Status] = useState(null)
+
   const platformName = getHostPlatformName()
 
   const refresh = useCallback(async () => {
@@ -99,6 +108,11 @@ export default function Devices() {
 
       const { pending: pendingRows } = await api.pendingDevices()
       setPending(pendingRows || [])
+
+      const pCfg = await api.getPhoneLlmSettings()
+      setPhoneLlm(pCfg)
+      if (pCfg?.provider) setPhoneProviderInput(pCfg.provider)
+      if (pCfg?.model) setPhoneModelInput(pCfg.model)
     } catch {
       // Backend went away mid-look
     } finally {
@@ -109,25 +123,117 @@ export default function Devices() {
   useEffect(() => {
     refresh()
     let interval = null
-    if (invite || showAddModal) {
+    if (invite || (showAddModal && !v2Pairing)) {
       interval = setInterval(refresh, 2500)
     }
     return () => {
       if (interval) clearInterval(interval)
     }
-  }, [invite, showAddModal, refresh])
+  }, [invite, showAddModal, v2Pairing, refresh])
+
+  // Poll v2 pairing status every second while modal is active
+  useEffect(() => {
+    if (!showAddModal || !v2Pairing) return
+    const pollInterval = setInterval(async () => {
+      try {
+        const st = await api.pairingV2Status()
+        setV2Status(st)
+      } catch {
+        // ignore
+      }
+    }, 1000)
+    return () => clearInterval(pollInterval)
+  }, [showAddModal, v2Pairing])
 
   const openPairing = async () => {
+    // CONTRACT v2: Missing phone LLM key blocks pairing and explains why
+    if (!phoneLlm?.has_key) {
+      toast('Pairing blocked: Separate phone-only LLM key is missing. Set it below in Phone Settings first.', 'bad')
+      return
+    }
     setBusy(true)
     try {
-      const inv = await api.pairDevice('')
-      setInvite(inv)
+      const v2 = await api.startPairingV2()
+      setV2Pairing(v2)
+      setV2Status({ status: 'waiting_for_phone', remaining_seconds: 120 })
       setShowAddModal(true)
       await refresh()
     } catch (err) {
-      toast(err.message, 'bad')
+      toast(err.message || 'Failed to start pairing', 'bad')
     } finally {
       setBusy(false)
+    }
+  }
+
+  const closePairingModal = async () => {
+    setShowAddModal(false)
+    setV2Pairing(null)
+    setV2Status(null)
+    try {
+      await api.cancelPairingV2()
+    } catch {
+      // ignore
+    }
+  }
+
+  const approveV2 = async (deviceLabel) => {
+    try {
+      await api.approvePairingV2(deviceLabel)
+      toast(`Paired '${deviceLabel}' successfully! Bundle delivered.`, 'ok')
+      await closePairingModal()
+      await refresh()
+    } catch (err) {
+      toast(err.message || 'Approval failed', 'bad')
+    }
+  }
+
+  const denyV2 = async () => {
+    try {
+      await api.denyPairingV2()
+      toast('Pairing request denied.', 'bad')
+      await closePairingModal()
+    } catch (err) {
+      toast(err.message || 'Deny failed', 'bad')
+    }
+  }
+
+  const savePhoneLlm = async () => {
+    if (!phoneKeyInput.trim() && !phoneLlm?.has_key) {
+      toast('Please enter a dedicated phone LLM key.', 'bad')
+      return
+    }
+    setSavingPhoneLlm(true)
+    try {
+      await api.savePhoneLlmSettings({
+        provider: phoneProviderInput.trim(),
+        model: phoneModelInput.trim(),
+        api_key: phoneKeyInput.trim() || undefined,
+      })
+      setPhoneKeyInput('')
+      toast('Phone-only LLM key saved in keychain.', 'ok')
+      await refresh()
+    } catch (err) {
+      toast(err.message || 'Failed to save phone LLM settings', 'bad')
+    } finally {
+      setSavingPhoneLlm(false)
+    }
+  }
+
+  const clearPhoneLlm = async () => {
+    const ok = await confirm({
+      title: 'Delete Phone-only LLM Key?',
+      message: 'This removes the phone-only key from this computer. Phone pairing will be blocked until a new key is added.',
+      confirmLabel: 'Delete Key',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await api.deletePhoneLlmSettings()
+      setPhoneKeyInput('')
+      toast('Phone-only LLM key removed.', 'ok')
+      await refresh()
+    } catch (err) {
+      toast(err.message, 'bad')
     }
   }
 
@@ -201,15 +307,18 @@ export default function Devices() {
 
   const revoke = async (device) => {
     const ok = await confirm({
-      title: `Disconnect ${device.name}?`,
-      message: 'This device will immediately lose access to control this computer. You can re-pair it anytime.',
-      confirmLabel: 'Disconnect',
+      title: `Revoke ${device.name}?`,
+      message:
+        `This will forget ${device.name} locally on this computer.\n\n` +
+        'IMPORTANT: Revoking does NOT rotate or delete API keys at your provider. ' +
+        'Remember to manually delete or rotate your phone-only key in your LLM provider console.',
+      confirmLabel: 'Revoke Device',
       danger: true,
     })
     if (!ok) return
     try {
-      await api.revokeDevice(device.id)
-      toast(`${device.name} disconnected`, 'ok')
+      await api.revokeDeviceV2(device.id)
+      toast(`${device.name} revoked locally. Reminder: Delete key at provider!`, 'ok')
       await refresh()
     } catch (err) {
       toast(err.message, 'bad')
@@ -478,7 +587,7 @@ export default function Devices() {
                                       whileHover={{ scale: 1.04 }}
                                       whileTap={{ scale: 0.96 }}
                                     >
-                                      Disconnect
+                                      Revoke
                                     </motion.button>
                                   </div>
                                 </div>
@@ -578,6 +687,103 @@ export default function Devices() {
                           </div>
                         </motion.div>
                       )}
+                    </div>
+                  </div>
+
+                  {/* Section: Dedicated Phone LLM Key (CONTRACT v2) */}
+                  <div className="conn-section" style={{ marginTop: 24 }}>
+                    <div className="conn-section-head">
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                        <span className="conn-section-title">Phone Companion LLM (Contract v2)</span>
+                        <span
+                          style={{
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            padding: '2px 8px',
+                            borderRadius: 6,
+                            background: phoneLlm?.has_key ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                            color: phoneLlm?.has_key ? '#22c55e' : '#ef4444',
+                            border: `1px solid ${phoneLlm?.has_key ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                          }}
+                        >
+                          {phoneLlm?.has_key ? 'Key Configured' : 'Missing — Pairing Blocked'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="conn-card">
+                      <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        <div className="conn-row-text">
+                          <span className="conn-row-title">Dedicated Phone-only LLM Key</span>
+                          <span className="conn-row-desc">
+                            Amethyst requires a separate API key for the phone companion so it can be capped or deleted independently at your provider. Revoking a phone locally does not rotate keys.
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                          <div>
+                            <label style={{ fontSize: 11.5, color: 'var(--text-sub)', marginBottom: 4, display: 'block' }}>Provider</label>
+                            <HouseInput
+                              className="set-input"
+                              placeholder="anthropic, openai, openrouter"
+                              value={phoneProviderInput}
+                              onChange={(e) => setPhoneProviderInput(e.target.value)}
+                              spellCheck={false}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: 11.5, color: 'var(--text-sub)', marginBottom: 4, display: 'block' }}>Model</label>
+                            <HouseInput
+                              className="set-input"
+                              placeholder="e.g. claude-3-5-haiku-20241022"
+                              value={phoneModelInput}
+                              onChange={(e) => setPhoneModelInput(e.target.value)}
+                              spellCheck={false}
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: 11.5, color: 'var(--text-sub)', marginBottom: 4, display: 'block' }}>
+                            API Key {phoneLlm?.has_key ? '(Stored in OS keychain — enter new key to replace)' : '(Required before pairing)'}
+                          </label>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <HouseInput
+                              className="set-input"
+                              type="password"
+                              placeholder={phoneLlm?.has_key ? '••••••••••••••••••••' : 'sk-...'}
+                              value={phoneKeyInput}
+                              onChange={(e) => setPhoneKeyInput(e.target.value)}
+                              autoComplete="off"
+                              spellCheck={false}
+                              style={{ flex: 1, fontFamily: 'var(--font-mono)' }}
+                            />
+                            <motion.button
+                              type="button"
+                              className="conn-btn-sm"
+                              style={{ background: '#007aff', color: '#fff', border: 'none', height: 34, padding: '0 16px', fontWeight: 600 }}
+                              onClick={savePhoneLlm}
+                              disabled={savingPhoneLlm || (!phoneKeyInput.trim() && phoneProviderInput === phoneLlm?.provider && phoneModelInput === phoneLlm?.model)}
+                              whileHover={{ scale: 1.03 }}
+                              whileTap={{ scale: 0.96 }}
+                            >
+                              {savingPhoneLlm ? 'Saving…' : 'Save'}
+                            </motion.button>
+                            {phoneLlm?.has_key && (
+                              <motion.button
+                                type="button"
+                                className="conn-btn-sm is-danger"
+                                style={{ height: 34, padding: '0 12px' }}
+                                onClick={clearPhoneLlm}
+                                whileHover={{ scale: 1.03 }}
+                                whileTap={{ scale: 0.96 }}
+                              >
+                                Clear
+                              </motion.button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -742,7 +948,7 @@ export default function Devices() {
             transition={{ duration: 0.18 }}
             onClick={(e) => {
               if (e.target === e.currentTarget) {
-                setShowAddModal(false)
+                closePairingModal()
               }
             }}
           >
@@ -760,7 +966,7 @@ export default function Devices() {
                 <motion.button
                   type="button"
                   className="conn-modal-close-btn"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={closePairingModal}
                   aria-label="Close dialog"
                   whileHover={{ scale: 1.1, rotate: 90 }}
                   whileTap={{ scale: 0.92 }}
@@ -866,12 +1072,63 @@ export default function Devices() {
                         transition={{ duration: 0.16 }}
                         style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       >
-                        {invite ? (
+                        {v2Status?.status === 'pending_approval' ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '20px 16px', gap: 12, width: '100%' }}>
+                            <div style={{ fontSize: 32 }}>📱</div>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
+                              Pair &lsquo;{v2Status.device_label}&rsquo;?
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--text-sub)', maxWidth: 300, lineHeight: 1.4 }}>
+                              A phone on your local Wi-Fi presented a valid token. Approving will deliver your companion bundle.
+                            </div>
+                            <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+                              <motion.button
+                                type="button"
+                                className="conn-btn-sm"
+                                style={{ background: '#007aff', color: '#fff', border: 'none', fontWeight: 600, padding: '7px 20px', fontSize: 13 }}
+                                onClick={() => approveV2(v2Status.device_label)}
+                                whileHover={{ scale: 1.04 }}
+                                whileTap={{ scale: 0.96 }}
+                              >
+                                Approve
+                              </motion.button>
+                              <motion.button
+                                type="button"
+                                className="conn-btn-sm is-danger"
+                                style={{ padding: '7px 16px', fontSize: 13 }}
+                                onClick={denyV2}
+                                whileHover={{ scale: 1.04 }}
+                                whileTap={{ scale: 0.96 }}
+                              >
+                                Deny
+                              </motion.button>
+                            </div>
+                          </div>
+                        ) : v2Status?.status === 'expired' ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '24px 20px', gap: 12 }}>
+                            <Icon name="clock" size={28} style={{ color: '#ef4444' }} />
+                            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>Pairing Window Expired</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-sub)', maxWidth: 280 }}>
+                              The 2-minute pairing window has closed for security.
+                            </div>
+                            <motion.button
+                              type="button"
+                              className="conn-btn-sm"
+                              style={{ background: '#007aff', color: '#fff', border: 'none', fontWeight: 600, marginTop: 4 }}
+                              onClick={openPairing}
+                              disabled={busy}
+                              whileHover={{ scale: 1.04 }}
+                              whileTap={{ scale: 0.96 }}
+                            >
+                              Restart Pairing
+                            </motion.button>
+                          </div>
+                        ) : v2Pairing ? (
                           <>
                             <div className="conn-qr-wrapper">
                               <div
                                 dangerouslySetInnerHTML={{
-                                  __html: pairMode === 'lan' ? (invite.lan_qr_svg || invite.qr_svg) : (invite.web_qr_svg || invite.qr_svg),
+                                  __html: v2Pairing.qr_svg,
                                 }}
                                 style={{ width: '100%', height: '100%' }}
                               />
@@ -884,12 +1141,11 @@ export default function Devices() {
                               <motion.button
                                 type="button"
                                 className="conn-tool-btn"
-                                title="Copy pairing link"
+                                title="Copy QR payload (base64url)"
                                 onClick={() => {
-                                  const link = pairMode === 'lan' ? (invite.lan_qr || invite.qr) : invite.web_qr
-                                  if (link) {
-                                    copyText(link)
-                                    toast('Pairing link copied', 'ok')
+                                  if (v2Pairing.qr) {
+                                    copyText(v2Pairing.qr)
+                                    toast('QR payload copied to clipboard', 'ok')
                                   }
                                 }}
                                 whileHover={{ scale: 1.1 }}
@@ -973,7 +1229,11 @@ export default function Devices() {
                 <div className="conn-modal-instruction">
                   {modalTab === 'phone' ? (
                     <span>
-                      Point your phone’s camera at the QR code to connect directly over local Wi-Fi.
+                      {v2Pairing ? (
+                        <>Scan with your phone. Local Wi-Fi only (pinned self-signed TLS cert). {v2Status?.remaining_seconds !== undefined ? `Window closes in ${v2Status.remaining_seconds}s.` : ''}</>
+                      ) : (
+                        <>Point your phone’s camera at the QR code to connect directly over local Wi-Fi.</>
+                      )}
                     </span>
                   ) : (
                     <span>

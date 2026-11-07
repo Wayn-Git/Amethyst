@@ -41,6 +41,18 @@ plaintext.
 On approval the host mints a device id, a token (shown once, stored hashed) and
 a group key. The phone adopts the identity and key.
 
+### CONTRACT v2 (Self-hosted LAN pairing)
+
+CONTRACT v2 runs zero-relay, self-hosted pairing (`backend/pairing/`):
+- QR contains NO keys: base64url JSON `{"v":2, "hosts":[...], "port":<int>, "token":"<128-bit>", "fp":"<SHA-256 cert>", "exp":<ts>}`.
+- Ephemeral HTTPS pairing server runs on a free port on LAN only while QR is active.
+- Phone POSTs `https://<host>:<port>/pair` with cert pinned by fingerprint.
+- Constant-time token verification, burned on first valid use, max 5 attempts lockout, 2-minute lifetime.
+- Host prompts "Pair '<device_label>'? Approve / Deny" in UI.
+- On Approve, returns bundle `{"device_id", "llm", "composio", "drive", "prompts"}` and shuts server down.
+- Separate phone-only LLM key in Settings is mandatory.
+- Revoke forgets the device locally and reminds user to delete the key at the provider (does not rotate provider keys).
+
 ## Permissions
 
 `DEFAULT_PERMISSIONS` in `backend/sync/devices.py`:
