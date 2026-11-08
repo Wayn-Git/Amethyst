@@ -55,6 +55,8 @@ async def fetch_to(
 
     from backend.web.reader import DEFAULT_HEADERS
     headers = dict(DEFAULT_HEADERS)
+    headers["Referer"] = "https://www.instagram.com/"
+    headers["Origin"] = "https://www.instagram.com"
     if token:
         headers["Authorization"] = f"Bearer {token}"
 

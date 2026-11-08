@@ -1140,10 +1140,15 @@ class LibraryService:
         import httpx as _httpx
         from backend.web.reader import DEFAULT_HEADERS
 
+        headers = dict(DEFAULT_HEADERS)
+        if any(h in thumb_url for h in ("cdninstagram.com", "fbcdn.net", "instagram.com")) or (base_url and "instagram.com" in base_url):
+            headers["Referer"] = "https://www.instagram.com/"
+            headers["Origin"] = "https://www.instagram.com"
+
         target = thumbnail_path(item_id)
         try:
             async with _httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-                resp = await client.get(thumb_url, headers=DEFAULT_HEADERS)
+                resp = await client.get(thumb_url, headers=headers)
             if resp.status_code == 200 and resp.content and len(resp.content) >= 300:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(resp.content)

@@ -66,19 +66,31 @@ function resolveThumbnail(item) {
   const hostBase = getResolvedBase() || ''
   const ytMatch = item.url ? item.url.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([\w-]{11})/) : null
 
-  // 1. YouTube direct thumbnail fallback if no hostBase or default still
+  // 1. Data URL thumbnail (immediate, offline-ready)
+  if (item.thumbnail_url?.startsWith('data:')) {
+    return item.thumbnail_url
+  }
+
+  // 2. Local Amethyst thumbnail endpoint when connected to host (handles caching and CORS/hotlinking)
+  const isInstagram = item.url?.includes('instagram.com') || item.thumbnail_url?.includes('cdninstagram.com') || item.thumbnail_url?.includes('fbcdn.net')
+  if (hostBase && item.id) {
+    if (item.thumbnail_path || item.has_thumbnail || isInstagram || item.thumbnail_url?.startsWith('/api')) {
+      const endpoint = item.thumbnail_url?.startsWith('/api') ? item.thumbnail_url : `/api/library/${item.id}/thumbnail`
+      return appendAuthToken(`${hostBase}${endpoint}`)
+    }
+  }
+
+  // 3. YouTube direct thumbnail fallback if no hostBase or default still
   if (ytMatch && (!hostBase || !item.thumbnail_path || item.thumbnail_path.includes('default'))) {
     return `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`
   }
 
-  // 2. Direct external or data URL thumbnail
-  if (item.thumbnail_url) {
-    if (item.thumbnail_url.startsWith('http') || item.thumbnail_url.startsWith('data:')) {
-      return item.thumbnail_url
-    }
+  // 4. Direct external HTTP thumbnail (only for non-hotlinked hosts)
+  if (item.thumbnail_url?.startsWith('http') && !isInstagram) {
+    return item.thumbnail_url
   }
 
-  // 3. Fallback to image, slide, or poster in item.resources
+  // 5. Fallback to image, slide, or poster in item.resources
   let resList = item.resources
   if (typeof resList === 'string') {
     try { resList = JSON.parse(resList) } catch { resList = [] }
@@ -88,13 +100,15 @@ function resolveThumbnail(item) {
       if (r && typeof r === 'object') {
         const u = r.remote_url || r.url
         if (u && typeof u === 'string' && u.startsWith('http') && !u.includes('.mp4') && (r.type === 'slide' || r.type === 'image' || r.type === 'avatar')) {
-          return u
+          if (!u.includes('cdninstagram.com') && !u.includes('fbcdn.net')) {
+            return u
+          }
         }
       }
     }
   }
 
-  // 4. Amethyst local thumbnail endpoint
+  // 6. Amethyst local thumbnail endpoint fallback
   if (item.thumbnail_path || item.has_thumbnail || item.id) {
     if (item.thumbnail_url?.startsWith('/api')) {
       return appendAuthToken(`${hostBase}${item.thumbnail_url}`)

@@ -468,14 +468,24 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
       }
     }
 
-    // 5. Instagram Reel embed fallback
+    // 5. Instagram Reel / Post: prefer direct stream from Amethyst server over external embed wrapper
     if (it.url && /instagram\.com\/(?:reel|p)\/([\w-]+)/i.test(it.url)) {
       const match = it.url.match(/instagram\.com\/(?:reel|p)\/([\w-]+)/i)
-      if (match) {
+      const embedUrl = match ? `https://www.instagram.com/reel/${match[1]}/embed/` : null
+      const hostBase = getResolvedBase() || ''
+      if (it.id && hostBase) {
+        return {
+          type: 'direct',
+          url: appendAuthToken(`${hostBase}/api/library/${it.id}/media`),
+          embedUrl,
+          isVertical: true,
+        }
+      }
+      if (embedUrl) {
         return {
           type: 'instagram',
           url: it.url,
-          embedUrl: `https://www.instagram.com/reel/${match[1]}/embed/`,
+          embedUrl,
           isVertical: true,
         }
       }
@@ -499,19 +509,24 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
     return u.includes('/reel/') || u.includes('/reels/') || u.includes('/shorts/') || u.includes('tiktok.com')
   }, [activeItem, videoInfo])
 
-  // Resolve thumbnail: Prioritize embedded data URI, external URL, or YouTube
+  // Resolve thumbnail: Prioritize embedded data URI, local endpoint, or non-hotlinked external URL
   const thumbnailUrl = useMemo(() => {
     const it = activeItem
     if (!it) return ''
+    const hostBase = getResolvedBase() || ''
+    const isInstagram = it.url?.includes('instagram.com') || it.thumbnail_url?.includes('cdninstagram.com') || it.thumbnail_url?.includes('fbcdn.net')
 
     // 1. Base64 Data URL (instant, offline, zero-network)
     if (it.thumbnail_url && it.thumbnail_url.startsWith('data:')) {
       return it.thumbnail_url
     }
 
-    // 2. Direct external HTTP thumbnail
-    if (it.thumbnail_url && it.thumbnail_url.startsWith('http')) {
-      return it.thumbnail_url
+    // 2. Local Amethyst thumbnail endpoint when connected to host (handles caching and CORS/hotlinking)
+    if (hostBase && it.id) {
+      if (it.thumbnail_path || it.has_thumbnail || isInstagram || it.thumbnail_url?.startsWith('/api')) {
+        const endpoint = it.thumbnail_url?.startsWith('/api') ? it.thumbnail_url : `/api/library/${it.id}/thumbnail`
+        return appendAuthToken(`${hostBase}${endpoint}`)
+      }
     }
 
     // 3. YouTube direct thumbnail
@@ -522,20 +537,26 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
       }
     }
 
-    // 4. Remote slide or image in resources
+    // 4. Direct external HTTP thumbnail (only for non-hotlinked hosts)
+    if (it.thumbnail_url && it.thumbnail_url.startsWith('http') && !isInstagram) {
+      return it.thumbnail_url
+    }
+
+    // 5. Remote slide or image in resources
     if (Array.isArray(parsedResources)) {
       for (const r of parsedResources) {
         if (r && typeof r === 'object') {
           const u = r.remote_url || r.url
           if (u && typeof u === 'string' && u.startsWith('http') && !u.includes('.mp4') && (r.type === 'slide' || r.type === 'image' || r.type === 'avatar')) {
-            return u
+            if (!u.includes('cdninstagram.com') && !u.includes('fbcdn.net')) {
+              return u
+            }
           }
         }
       }
     }
 
-    // 5. Amethyst local LAN thumbnail endpoint
-    const hostBase = getResolvedBase() || ''
+    // 6. Amethyst local LAN thumbnail endpoint fallback
     if (it.thumbnail_path || it.has_thumbnail || it.id) {
       if (it.thumbnail_url?.startsWith('/api')) {
         return appendAuthToken(`${hostBase}${it.thumbnail_url}`)
@@ -926,8 +947,8 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
         </button>
       </div>
 
-      {/* Hero Media Player: ONLY rendered when item actually has video or photo slides, and ONLY in Overview/Links tabs! */}
-      {showHeroMedia && tab !== 'notes' && (
+      {/* Hero Media Player: rendered on top across all sections (Overview, Links, Notes) */}
+      {showHeroMedia && (
         <div
           style={{
             position: 'relative',

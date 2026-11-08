@@ -2757,9 +2757,16 @@ async def openrouter_callback_route(code: str, state: str) -> Response:
         preset = find_preset("openrouter")
         entry = entry_for(preset) if preset else {"name": "openrouter"}
         entry["api_key_ref"] = api_key_ref
-        entry["default_model"] = entry.get("default_model") or "meta-llama/llama-3.3-70b-instruct:free"
+        entry["default_model"] = entry.get("default_model") or "cohere/north-mini-code:free"
         add_provider(entry)
         set_primary_provider("openrouter")
+
+        from backend.config import load_library, save_library
+        lib_cfg = load_library() or {}
+        if not lib_cfg.get("enrich_provider"):
+            lib_cfg["enrich_provider"] = "openrouter"
+            lib_cfg["enrich_model"] = "cohere/north-mini-code:free"
+            save_library(lib_cfg)
 
         html_content = """<!doctype html>
 <html>
@@ -9223,8 +9230,12 @@ async def library_media(item_id: int) -> FileResponse:
                     if is_vid and v_url.startswith("http"):
                         target = media_path(item_id, ".mp4")
                         if not target.is_file() or target.stat().st_size < 1000:
+                            v_headers = {}
+                            if any(h in v_url for h in ("cdninstagram.com", "fbcdn.net", "instagram.com")):
+                                v_headers["Referer"] = "https://www.instagram.com/"
+                                v_headers["Origin"] = "https://www.instagram.com"
                             with httpx.Client(timeout=45.0, follow_redirects=True) as client:
-                                resp = client.get(v_url)
+                                resp = client.get(v_url, headers=v_headers)
                                 if resp.status_code == 200 and len(resp.content) > 1000:
                                     target.parent.mkdir(parents=True, exist_ok=True)
                                     target.write_bytes(resp.content)
