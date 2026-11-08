@@ -142,6 +142,10 @@ is active.
 
 Key behaviours:
 
+- **Dual-Path Execution**: In addition to the hosted MCP transport, `ComposioService.execute_tool` executes actions directly via the Python SDK (`client.tools.execute`). Dashboard widget readers (`backend/dashboard/connectors.py`) use this direct SDK fallback when the MCP transport is cold or uninitialized, preventing cold-boot failure cascades.
+- **Payload Unpacking**: Responses containing sandbox preview files (`data_preview`) or wrapped event collections (`event_data`) are automatically unboxed by fast-lane handlers and dashboard projections (`remote.py`, `agenda.py`, `connectors.py`).
+- **Default Toolkits**: Key storage seeds `DEFAULT_TOOLKITS` (`slack`, `github`, `linear`, `notion`, `gmail`, `googlecalendar`, `googledrive`, `google_maps`, `spotify`, `discord`) rather than clearing enabled toolkits.
+- **Dynamic Connector Handling**: `_apply_connector("composio", True)` in `backend/api/main.py` detects Composio as a dynamic capability without requiring a static entry in `mcp.yaml`.
 - Meta-tools are always visible with full schemas. Individual toolkit tools are
   discovered on demand and cached.
 - `FAST_LANE_CONFIG` pins a small set of high-value tool slugs per toolkit so
