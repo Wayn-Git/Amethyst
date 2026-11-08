@@ -1,0 +1,355 @@
+import { safeStorage } from '../lib/storage.js'
+import { nativeVault, isNativeMobile } from '../lib/credentials.js'
+
+export const CONNECTIONS_STORAGE_KEY = 'amethyst.connections.v1'
+export const MS_CLIENT_ID = 'd3590ed6-52b3-4102-aeff-aad2292ab01c'
+export const MS_AUTH_ENDPOINT = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize'
+export const MS_TOKEN_ENDPOINT = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
+export const MS_DEFAULT_SCOPES = 'Tasks.ReadWrite offline_access User.Read'
+
+let memoryConnections = null
+const subscribers = new Set()
+
+function notifySubscribers(status) {
+  for (const sub of subscribers) {
+    try {
+      sub(status)
+    } catch {}
+  }
+}
+
+export function subscribeConnectionStatus(listener) {
+  subscribers.add(listener)
+  listener(getConnectionStatus())
+  return () => subscribers.delete(listener)
+}
+
+/**
+ * Load raw connections object from secure vault or safeStorage fallback.
+ */
+export async function loadConnections() {
+  if (memoryConnections) return memoryConnections
+
+  try {
+    const vault = await nativeVault()
+    if (vault) {
+      const stored = await vault.get(CONNECTIONS_STORAGE_KEY)
+      if (stored) {
+        memoryConnections = typeof stored === 'string' ? JSON.parse(stored) : stored
+        return memoryConnections
+      }
+    }
+  } catch {}
+
+  try {
+    const raw = safeStorage.getItem(CONNECTIONS_STORAGE_KEY)
+    if (raw) {
+      memoryConnections = JSON.parse(raw)
+      return memoryConnections
+    }
+  } catch {}
+
+  // Fall back to checking bundle if existing
+  try {
+    const { getBundle } = await import('./bundle.js')
+    const b = await getBundle()
+    if (b) {
+      memoryConnections = {
+        composio: b.composio ? { apiKey: b.composio.api_key, userId: b.composio.user_id } : null,
+        googleDrive: b.drive ? { rootFolderId: b.drive.root_folder_id, inboxFolderId: b.drive.inbox_folder_id } : null,
+        microsoftTodo: null,
+      }
+      return memoryConnections
+    }
+  } catch {}
+
+  memoryConnections = {
+    composio: null,
+    googleDrive: null,
+    microsoftTodo: null,
+  }
+  return memoryConnections
+}
+
+/**
+ * Save connections data securely.
+ */
+export async function saveConnections(connections) {
+  memoryConnections = { ...connections }
+  try {
+    const vault = await nativeVault()
+    if (vault) {
+      await vault.set(CONNECTIONS_STORAGE_KEY, memoryConnections)
+    }
+  } catch {}
+
+  try {
+    safeStorage.setItem(CONNECTIONS_STORAGE_KEY, JSON.stringify(memoryConnections))
+  } catch {}
+
+  notifySubscribers(getConnectionStatus())
+}
+
+/**
+ * Evaluate single service connection status.
+ * Returns 'connected' | 'expired' | 'missing'
+ */
+export function evaluateServiceStatus(service, data) {
+  if (!data) return 'missing'
+
+  if (service === 'composio') {
+    if (!data.apiKey) return 'missing'
+    if (data.expired) return 'expired'
+    return 'connected'
+  }
+
+  if (service === 'googleDrive') {
+    if (!data.accessToken && !data.refreshToken && !data.rootFolderId) return 'missing'
+    if (data.expired) return 'expired'
+    if (data.expiresAt && Date.now() >= data.expiresAt && !data.refreshToken) return 'expired'
+    return 'connected'
+  }
+
+  if (service === 'microsoftTodo') {
+    if (!data.accessToken && !data.refreshToken) return 'missing'
+    if (data.expired) return 'expired'
+    if (data.expiresAt && Date.now() >= data.expiresAt && !data.refreshToken) return 'expired'
+    return 'connected'
+  }
+
+  return 'missing'
+}
+
+/**
+ * Synchronous read of current connections status object.
+ * Returns: { googleDrive, composio, microsoftTodo }
+ */
+export function getConnectionStatus() {
+  const c = memoryConnections || {}
+  return {
+    googleDrive: evaluateServiceStatus('googleDrive', c.googleDrive),
+    composio: evaluateServiceStatus('composio', c.composio),
+    microsoftTodo: evaluateServiceStatus('microsoftTodo', c.microsoftTodo),
+  }
+}
+
+/**
+ * Update a specific service credentials.
+ */
+export async function updateServiceConnection(service, data) {
+  const current = await loadConnections()
+  const next = {
+    ...current,
+    [service]: data ? { ...(current[service] || {}), ...data, expired: false } : null,
+  }
+  await saveConnections(next)
+  return getConnectionStatus()
+}
+
+/**
+ * Mark a service token as expired (e.g. on 401).
+ */
+export async function markServiceExpired(service) {
+  const current = await loadConnections()
+  if (current[service]) {
+    current[service].expired = true
+    await saveConnections(current)
+  }
+}
+
+/**
+ * Disconnect a service.
+ */
+export async function disconnectService(service) {
+  const current = await loadConnections()
+  delete current[service]
+  await saveConnections(current)
+}
+
+/* -------------------------------------------------------------------------- */
+/* Microsoft OAuth 2.0 PKCE Helpers (No client secret, standard public client) */
+/* -------------------------------------------------------------------------- */
+
+function base64UrlEncode(bytes) {
+  let binary = ''
+  for (const b of new Uint8Array(bytes)) binary += String.fromCharCode(b)
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+/**
+ * Generate PKCE code verifier and code challenge (S256).
+ */
+export async function generatePkce() {
+  const randomBytes = new Uint8Array(32)
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(randomBytes)
+  } else {
+    for (let i = 0; i < 32; i++) randomBytes[i] = (Math.random() * 256) | 0
+  }
+  const verifier = base64UrlEncode(randomBytes)
+
+  let challenge = verifier
+  if (typeof crypto !== 'undefined' && crypto.subtle) {
+    try {
+      const data = new TextEncoder().encode(verifier)
+      const digest = await crypto.subtle.digest('SHA-256', data)
+      challenge = base64UrlEncode(digest)
+    } catch {}
+  }
+  return { verifier, challenge }
+}
+
+/**
+ * Start Microsoft OAuth PKCE login URL.
+ */
+export async function createMicrosoftAuthUrl({ redirectUri, state }) {
+  const { verifier, challenge } = await generatePkce()
+  const st = state || `ms_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+
+  // Store verifier in safeStorage for code exchange
+  safeStorage.setItem(`amethyst.ms_verifier.${st}`, verifier)
+
+  const params = new URLSearchParams({
+    client_id: MS_CLIENT_ID,
+    response_type: 'code',
+    redirect_uri: redirectUri,
+    response_mode: 'query',
+    scope: MS_DEFAULT_SCOPES,
+    state: st,
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+  })
+
+  return {
+    url: `${MS_AUTH_ENDPOINT}?${params.toString()}`,
+    state: st,
+    verifier,
+  }
+}
+
+/**
+ * Exchange Microsoft OAuth auth code for tokens.
+ */
+export async function exchangeMicrosoftCode({ code, state, redirectUri, verifier: providedVerifier, httpPost }) {
+  const verifier = providedVerifier || (state ? safeStorage.getItem(`amethyst.ms_verifier.${state}`) : null)
+  if (state) safeStorage.removeItem(`amethyst.ms_verifier.${state}`)
+
+  const bodyParams = new URLSearchParams({
+    client_id: MS_CLIENT_ID,
+    scope: MS_DEFAULT_SCOPES,
+    code,
+    redirect_uri: redirectUri,
+    grant_type: 'authorization_code',
+    code_verifier: verifier || '',
+  })
+
+  let data
+  if (httpPost) {
+    const res = await httpPost({
+      url: MS_TOKEN_ENDPOINT,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      data: bodyParams.toString(),
+    })
+    data = res.data || res
+  } else {
+    const res = await fetch(MS_TOKEN_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: bodyParams.toString(),
+    })
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new Error(errBody.error_description || `OAuth exchange failed (${res.status})`)
+    }
+    data = await res.json()
+  }
+
+  const expiresAt = Date.now() + ((data.expires_in || 3600) - 60) * 1000
+  const tokenPayload = {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token,
+    expiresAt,
+    tokenType: data.token_type || 'Bearer',
+    scopes: data.scope,
+  }
+
+  await updateServiceConnection('microsoftTodo', tokenPayload)
+  return tokenPayload
+}
+
+/**
+ * Refresh Microsoft OAuth access token using refresh_token.
+ */
+export async function refreshMicrosoftToken({ httpPost } = {}) {
+  const current = await loadConnections()
+  const ms = current?.microsoftTodo
+  if (!ms?.refreshToken) {
+    await markServiceExpired('microsoftTodo')
+    throw new Error('Token expired, reconnect')
+  }
+
+  const bodyParams = new URLSearchParams({
+    client_id: MS_CLIENT_ID,
+    scope: MS_DEFAULT_SCOPES,
+    refresh_token: ms.refreshToken,
+    grant_type: 'refresh_token',
+  })
+
+  try {
+    let data
+    if (httpPost) {
+      const res = await httpPost({
+        url: MS_TOKEN_ENDPOINT,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        data: bodyParams.toString(),
+      })
+      if (res.status >= 400) {
+        throw new Error(res.data?.error_description || `Refresh failed (${res.status})`)
+      }
+      data = res.data || res
+    } else {
+      const res = await fetch(MS_TOKEN_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: bodyParams.toString(),
+      })
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        throw new Error(errBody.error_description || `Refresh failed (${res.status})`)
+      }
+      data = await res.json()
+    }
+
+    const expiresAt = Date.now() + ((data.expires_in || 3600) - 60) * 1000
+    const tokenPayload = {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token || ms.refreshToken,
+      expiresAt,
+      tokenType: data.token_type || 'Bearer',
+    }
+
+    await updateServiceConnection('microsoftTodo', tokenPayload)
+    return tokenPayload
+  } catch (err) {
+    await markServiceExpired('microsoftTodo')
+    throw err
+  }
+}
+
+/**
+ * Get valid Microsoft access token, refreshing automatically if close to expiration.
+ */
+export async function getMicrosoftAccessToken({ httpPost } = {}) {
+  const current = await loadConnections()
+  const ms = current?.microsoftTodo
+  if (!ms?.accessToken && !ms?.refreshToken) {
+    throw new Error('Not connected')
+  }
+
+  if (ms.expiresAt && Date.now() >= ms.expiresAt) {
+    const refreshed = await refreshMicrosoftToken({ httpPost })
+    return refreshed.accessToken
+  }
+
+  return ms.accessToken
+}
