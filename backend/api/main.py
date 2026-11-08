@@ -964,6 +964,11 @@ class RemoteCallerGuard:
         client = scope.get("client")
         client_ip = client[0] if client else None
         path = scope.get("path", "")
+        # When not bound wide (the default), OS loopback already protects the server.
+        # So the guard stands down.
+        if not _bound_wide():
+            return await self.app(scope, receive, send)
+
         # Local caller on loopback is always permitted on their own machine.
         # Proxy requests from external networks cannot inherit local trust.
         if not forwarded and _is_local(client_ip):
