@@ -121,7 +121,7 @@ class Position(StrictModel):
             "calendar": {"sm": 9, "md": 6, "lg": 6}, "clock": {"sm": 13},
             "dashboard": {"sm": 6, "md": 2, "lg": 2}, "media": {"sm": 8, "md": 5, "lg": 5},
             "productivity": {"sm": 7, "md": 4}, "sports": {"sm": 7},
-            "air": {"sm": 5}, "sun": {"sm": 5}, "travel": {"sm": 5},
+            "air": {"sm": 5}, "sun": {"sm": 5}, "travel": {"sm": 5}, "pc": {"sm": 4},
             "stocks": {"sm": 6}, "weather": {"sm": 9, "md": 2},
         }
         category, size, number = value.split("-")

@@ -115,7 +115,14 @@ export default function Companion({ onUnpair }) {
       getHostUrl: () => safeStorage.getItem('amethyst.pc_host') || identity()?.hostUrl || storedIdentity()?.hostUrl || getBase().replace(/\/api$/, ''),
       getRelayUrl: () => identity()?.relayUrl,
       getToken: () => identity()?.token,
-      onStateChange: (state) => setTransportState(state),
+      onStateChange: (state) => {
+        if (state.path === 'direct' && state.hostUrl) {
+          try {
+            safeStorage.setItem('amethyst.pc_host', state.hostUrl)
+          } catch {}
+        }
+        setTransportState(state)
+      },
     })
 
     tm.startAutoProbe(15000)
@@ -404,24 +411,20 @@ export default function Companion({ onUnpair }) {
             zIndex: 30,
           }}
         >
-          <button
-            type="button"
-            className="transport-pill"
-            onClick={() => {
-              if (currentPath === 'offline') {
-                setSettingsOpen(true)
-              } else {
-                setDiagnosticsOpen(true)
-              }
-            }}
-            aria-label="Connection Diagnostics"
-            style={{ height: 32, padding: '0 10px', fontSize: 11.5 }}
-          >
-            <span className={`transport-dot transport-dot--${currentPath}`} />
-            <span>
-              {currentPath === 'direct' ? 'Direct LAN' : currentPath === 'relayed' ? 'Cloud Relay' : 'Offline · Tap to connect'}
-            </span>
-          </button>
+          {currentPath !== 'offline' ? (
+            <button
+              type="button"
+              className="transport-pill"
+              onClick={() => setDiagnosticsOpen(true)}
+              aria-label="Connection Diagnostics"
+              style={{ height: 32, padding: '0 10px', fontSize: 11.5 }}
+            >
+              <span className={`transport-dot transport-dot--${currentPath}`} />
+              <span>
+                {currentPath === 'direct' ? 'Direct LAN' : 'Cloud Relay'}
+              </span>
+            </button>
+          ) : <div />}
 
           <button
             type="button"

@@ -818,7 +818,7 @@ export default function Devices() {
                           <div className="conn-row-text">
                             <span className="conn-row-title">Use separate phone-only keys</span>
                             <span className="conn-row-desc">
-                              Require dedicated LLM and Composio credentials for the phone companion instead of auto-capturing PC keys.
+                              Require dedicated credentials for the phone instead of sharing PC keys.
                             </span>
                           </div>
                         </div>
@@ -840,194 +840,207 @@ export default function Devices() {
                     </div>
                   </div>
 
-                  {/* Section: Dedicated Phone LLM Key (CONTRACT v2) */}
-                  <div className="conn-section" style={{ marginTop: 24 }}>
-                    <div className="conn-section-head">
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                        <span className="conn-section-title">Phone Companion LLM (Contract v2)</span>
-                        <span
-                          style={{
-                            fontSize: 11.5,
-                            fontWeight: 600,
-                            padding: '2px 8px',
-                            borderRadius: 6,
-                            background: phoneLlm?.has_key ? 'rgba(34, 197, 94, 0.15)' : (useSeparateKeys ? 'rgba(239, 68, 68, 0.15)' : 'rgba(161, 161, 170, 0.15)'),
-                            color: phoneLlm?.has_key ? '#22c55e' : (useSeparateKeys ? '#ef4444' : '#a1a1aa'),
-                            border: `1px solid ${phoneLlm?.has_key ? 'rgba(34, 197, 94, 0.3)' : (useSeparateKeys ? 'rgba(239, 68, 68, 0.3)' : 'rgba(161, 161, 170, 0.3)')}`,
-                          }}
-                        >
-                          {phoneLlm?.has_key ? 'Key Configured' : (useSeparateKeys ? 'Missing — Pairing Blocked' : 'Not Set (Using PC Keys)')}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="conn-card">
-                      <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                        <div className="conn-row-text">
-                          <span className="conn-row-title">Dedicated Phone-only LLM Key</span>
-                          <span className="conn-row-desc">
-                            Amethyst requires a separate API key for the phone companion so it can be capped or deleted independently at your provider. Revoking a phone locally does not rotate keys.
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                          <div>
-                            <label style={{ fontSize: 11.5, color: 'var(--text-sub)', marginBottom: 4, display: 'block' }}>Provider</label>
-                            <HouseInput
-                              className="set-input"
-                              placeholder="anthropic, openai, openrouter"
-                              value={phoneProviderInput}
-                              onChange={(e) => setPhoneProviderInput(e.target.value)}
-                              spellCheck={false}
-                            />
-                          </div>
-                          <div>
-                            <label style={{ fontSize: 11.5, color: 'var(--text-sub)', marginBottom: 4, display: 'block' }}>Model</label>
-                            <HouseInput
-                              className="set-input"
-                              placeholder="e.g. claude-3-5-haiku-20241022"
-                              value={phoneModelInput}
-                              onChange={(e) => setPhoneModelInput(e.target.value)}
-                              spellCheck={false}
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label style={{ fontSize: 11.5, color: 'var(--text-sub)', marginBottom: 4, display: 'block' }}>
-                            API Key {phoneLlm?.has_key ? '(Stored in OS keychain — enter new key to replace)' : '(Required before pairing)'}
-                          </label>
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <HouseInput
-                              className="set-input"
-                              type="password"
-                              placeholder={phoneLlm?.has_key ? '••••••••••••••••••••' : 'sk-...'}
-                              value={phoneKeyInput}
-                              onChange={(e) => setPhoneKeyInput(e.target.value)}
-                              autoComplete="off"
-                              spellCheck={false}
-                              style={{ flex: 1, fontFamily: 'var(--font-mono)' }}
-                            />
-                            <motion.button
-                              type="button"
-                              className="conn-btn-sm"
-                              style={{ background: '#007aff', color: '#fff', border: 'none', height: 34, padding: '0 16px', fontWeight: 600 }}
-                              onClick={savePhoneLlm}
-                              disabled={savingPhoneLlm || (!phoneKeyInput.trim() && phoneProviderInput === phoneLlm?.provider && phoneModelInput === phoneLlm?.model)}
-                              whileHover={{ scale: 1.03 }}
-                              whileTap={{ scale: 0.96 }}
-                            >
-                              {savingPhoneLlm ? 'Saving…' : 'Save'}
-                            </motion.button>
-                            {phoneLlm?.has_key && (
-                              <motion.button
-                                type="button"
-                                className="conn-btn-sm is-danger"
-                                style={{ height: 34, padding: '0 12px' }}
-                                onClick={clearPhoneLlm}
-                                whileHover={{ scale: 1.03 }}
-                                whileTap={{ scale: 0.96 }}
+                  {/* Conditionally reveal dedicated phone keys only when toggle is enabled */}
+                  <AnimatePresence>
+                    {useSeparateKeys && (
+                      <motion.div
+                        key="phone-separate-keys"
+                        initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
+                        animate={{ opacity: 1, height: 'auto', transitionEnd: { overflow: 'visible' } }}
+                        exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
+                        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                      >
+                        {/* Section: Dedicated Phone LLM Key */}
+                        <div className="conn-section" style={{ marginTop: 24 }}>
+                          <div className="conn-section-head">
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                              <span className="conn-section-title">Phone Companion LLM</span>
+                              <span
+                                style={{
+                                  fontSize: 11.5,
+                                  fontWeight: 600,
+                                  padding: '2px 8px',
+                                  borderRadius: 6,
+                                  background: phoneLlm?.has_key ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                  color: phoneLlm?.has_key ? '#22c55e' : '#ef4444',
+                                  border: `1px solid ${phoneLlm?.has_key ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                                }}
                               >
-                                Clear
-                              </motion.button>
-                            )}
+                                {phoneLlm?.has_key ? 'Key Configured' : 'Missing — Pairing Blocked'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="conn-card">
+                            <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                              <div className="conn-row-text">
+                                <span className="conn-row-title">Dedicated Phone-only LLM Key</span>
+                                <span className="conn-row-desc">
+                                  Amethyst requires a separate API key for the phone companion so it can be capped or deleted independently at your provider. Revoking a phone locally does not rotate keys.
+                                </span>
+                              </div>
+
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                <div>
+                                  <label style={{ fontSize: 11.5, color: 'var(--text-sub)', marginBottom: 4, display: 'block' }}>Provider</label>
+                                  <HouseInput
+                                    className="set-input"
+                                    placeholder="anthropic, openai, openrouter"
+                                    value={phoneProviderInput}
+                                    onChange={(e) => setPhoneProviderInput(e.target.value)}
+                                    spellCheck={false}
+                                  />
+                                </div>
+                                <div>
+                                  <label style={{ fontSize: 11.5, color: 'var(--text-sub)', marginBottom: 4, display: 'block' }}>Model</label>
+                                  <HouseInput
+                                    className="set-input"
+                                    placeholder="e.g. claude-3-5-haiku-20241022"
+                                    value={phoneModelInput}
+                                    onChange={(e) => setPhoneModelInput(e.target.value)}
+                                    spellCheck={false}
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label style={{ fontSize: 11.5, color: 'var(--text-sub)', marginBottom: 4, display: 'block' }}>
+                                  API Key {phoneLlm?.has_key ? '(Stored in OS keychain — enter new key to replace)' : '(Required before pairing)'}
+                                </label>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                  <HouseInput
+                                    className="set-input"
+                                    type="password"
+                                    placeholder={phoneLlm?.has_key ? '••••••••••••••••••••' : 'sk-...'}
+                                    value={phoneKeyInput}
+                                    onChange={(e) => setPhoneKeyInput(e.target.value)}
+                                    autoComplete="off"
+                                    spellCheck={false}
+                                    style={{ flex: 1, fontFamily: 'var(--font-mono)' }}
+                                  />
+                                  <motion.button
+                                    type="button"
+                                    className="conn-btn-sm"
+                                    style={{ background: '#007aff', color: '#fff', border: 'none', height: 34, padding: '0 16px', fontWeight: 600 }}
+                                    onClick={savePhoneLlm}
+                                    disabled={savingPhoneLlm || (!phoneKeyInput.trim() && phoneProviderInput === phoneLlm?.provider && phoneModelInput === phoneLlm?.model)}
+                                    whileHover={{ scale: 1.03 }}
+                                    whileTap={{ scale: 0.96 }}
+                                  >
+                                    {savingPhoneLlm ? 'Saving…' : 'Save'}
+                                  </motion.button>
+                                  {phoneLlm?.has_key && (
+                                    <motion.button
+                                      type="button"
+                                      className="conn-btn-sm is-danger"
+                                      style={{ height: 34, padding: '0 12px' }}
+                                      onClick={clearPhoneLlm}
+                                      whileHover={{ scale: 1.03 }}
+                                      whileTap={{ scale: 0.96 }}
+                                    >
+                                      Clear
+                                    </motion.button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Section: Dedicated Phone Composio Credentials (CONTRACT v2) */}
-                  <div className="conn-section" style={{ marginTop: 24 }}>
-                    <div className="conn-section-head">
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                        <span className="conn-section-title">Phone Companion Composio (Contract v2)</span>
-                        <span
-                          style={{
-                            fontSize: 11.5,
-                            fontWeight: 600,
-                            padding: '2px 8px',
-                            borderRadius: 6,
-                            background: phoneComposio?.has_key && phoneComposio?.has_user_id ? 'rgba(34, 197, 94, 0.15)' : (useSeparateKeys ? 'rgba(239, 68, 68, 0.15)' : 'rgba(161, 161, 170, 0.15)'),
-                            color: phoneComposio?.has_key && phoneComposio?.has_user_id ? '#22c55e' : (useSeparateKeys ? '#ef4444' : '#a1a1aa'),
-                            border: `1px solid ${phoneComposio?.has_key && phoneComposio?.has_user_id ? 'rgba(34, 197, 94, 0.3)' : (useSeparateKeys ? 'rgba(239, 68, 68, 0.3)' : 'rgba(161, 161, 170, 0.3)')}`,
-                          }}
-                        >
-                          {phoneComposio?.has_key && phoneComposio?.has_user_id ? 'Credentials Configured' : (useSeparateKeys ? 'Missing — Pairing Blocked' : 'Not Set (Using PC Keys)')}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="conn-card">
-                      <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                        <div className="conn-row-text">
-                          <span className="conn-row-title">Dedicated Phone-only Composio Credentials</span>
-                          <span className="conn-row-desc">
-                            Create a separate Composio project, connect only Google Drive, and use that project's key.
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                          <div>
-                            <label style={{ fontSize: 11.5, color: 'var(--text-sub)', marginBottom: 4, display: 'block' }}>
-                              User ID {phoneComposio?.has_user_id ? '(Stored in OS keychain)' : '(Required before pairing)'}
-                            </label>
-                            <HouseInput
-                              className="set-input"
-                              placeholder="e.g. default or phone_user"
-                              value={phoneComposioUserIdInput}
-                              onChange={(e) => setPhoneComposioUserIdInput(e.target.value)}
-                              spellCheck={false}
-                            />
+                        {/* Section: Dedicated Phone Composio Credentials */}
+                        <div className="conn-section" style={{ marginTop: 24 }}>
+                          <div className="conn-section-head">
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                              <span className="conn-section-title">Phone Companion Composio</span>
+                              <span
+                                style={{
+                                  fontSize: 11.5,
+                                  fontWeight: 600,
+                                  padding: '2px 8px',
+                                  borderRadius: 6,
+                                  background: phoneComposio?.has_key && phoneComposio?.has_user_id ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                  color: phoneComposio?.has_key && phoneComposio?.has_user_id ? '#22c55e' : '#ef4444',
+                                  border: `1px solid ${phoneComposio?.has_key && phoneComposio?.has_user_id ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                                }}
+                              >
+                                {phoneComposio?.has_key && phoneComposio?.has_user_id ? 'Credentials Configured' : 'Missing — Pairing Blocked'}
+                              </span>
+                            </div>
                           </div>
-                          <div>
-                            <label style={{ fontSize: 11.5, color: 'var(--text-sub)', marginBottom: 4, display: 'block' }}>
-                              API Key {phoneComposio?.has_key ? '(Stored in OS keychain — enter new key to replace)' : '(Required before pairing)'}
-                            </label>
-                            <HouseInput
-                              className="set-input"
-                              type="password"
-                              placeholder={phoneComposio?.has_key ? '••••••••••••••••••••' : 'comp_...'}
-                              value={phoneComposioKeyInput}
-                              onChange={(e) => setPhoneComposioKeyInput(e.target.value)}
-                              autoComplete="off"
-                              spellCheck={false}
-                              style={{ fontFamily: 'var(--font-mono)' }}
-                            />
+
+                          <div className="conn-card">
+                            <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                              <div className="conn-row-text">
+                                <span className="conn-row-title">Dedicated Phone-only Composio Credentials</span>
+                                <span className="conn-row-desc">
+                                  Create a separate Composio project, connect only Google Drive, and use that project's key.
+                                </span>
+                              </div>
+
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                <div>
+                                  <label style={{ fontSize: 11.5, color: 'var(--text-sub)', marginBottom: 4, display: 'block' }}>
+                                    User ID {phoneComposio?.has_user_id ? '(Stored in OS keychain)' : '(Required before pairing)'}
+                                  </label>
+                                  <HouseInput
+                                    className="set-input"
+                                    placeholder="e.g. default or phone_user"
+                                    value={phoneComposioUserIdInput}
+                                    onChange={(e) => setPhoneComposioUserIdInput(e.target.value)}
+                                    spellCheck={false}
+                                  />
+                                </div>
+                                <div>
+                                  <label style={{ fontSize: 11.5, color: 'var(--text-sub)', marginBottom: 4, display: 'block' }}>
+                                    API Key {phoneComposio?.has_key ? '(Stored in OS keychain — enter new key to replace)' : '(Required before pairing)'}
+                                  </label>
+                                  <HouseInput
+                                    className="set-input"
+                                    type="password"
+                                    placeholder={phoneComposio?.has_key ? '••••••••••••••••••••' : 'comp_...'}
+                                    value={phoneComposioKeyInput}
+                                    onChange={(e) => setPhoneComposioKeyInput(e.target.value)}
+                                    autoComplete="off"
+                                    spellCheck={false}
+                                    style={{ fontFamily: 'var(--font-mono)' }}
+                                  />
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                                <motion.button
+                                  type="button"
+                                  className="conn-btn-sm"
+                                  style={{ background: '#007aff', color: '#fff', border: 'none', height: 34, padding: '0 16px', fontWeight: 600 }}
+                                  onClick={savePhoneComposio}
+                                  disabled={
+                                    savingPhoneComposio ||
+                                    (!phoneComposioKeyInput.trim() && phoneComposioUserIdInput.trim() === (phoneComposio?.user_id || ''))
+                                  }
+                                  whileHover={{ scale: 1.03 }}
+                                  whileTap={{ scale: 0.96 }}
+                                >
+                                  {savingPhoneComposio ? 'Saving…' : 'Save'}
+                                </motion.button>
+                                {(phoneComposio?.has_key || phoneComposio?.has_user_id) && (
+                                  <motion.button
+                                    type="button"
+                                    className="conn-btn-sm is-danger"
+                                    style={{ height: 34, padding: '0 12px' }}
+                                    onClick={clearPhoneComposio}
+                                    whileHover={{ scale: 1.03 }}
+                                    whileTap={{ scale: 0.96 }}
+                                  >
+                                    Clear
+                                  </motion.button>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                          <motion.button
-                            type="button"
-                            className="conn-btn-sm"
-                            style={{ background: '#007aff', color: '#fff', border: 'none', height: 34, padding: '0 16px', fontWeight: 600 }}
-                            onClick={savePhoneComposio}
-                            disabled={
-                              savingPhoneComposio ||
-                              (!phoneComposioKeyInput.trim() && phoneComposioUserIdInput.trim() === (phoneComposio?.user_id || ''))
-                            }
-                            whileHover={{ scale: 1.03 }}
-                            whileTap={{ scale: 0.96 }}
-                          >
-                            {savingPhoneComposio ? 'Saving…' : 'Save'}
-                          </motion.button>
-                          {(phoneComposio?.has_key || phoneComposio?.has_user_id) && (
-                            <motion.button
-                              type="button"
-                              className="conn-btn-sm is-danger"
-                              style={{ height: 34, padding: '0 12px' }}
-                              onClick={clearPhoneComposio}
-                              whileHover={{ scale: 1.03 }}
-                              whileTap={{ scale: 0.96 }}
-                            >
-                              Clear
-                            </motion.button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   {/* Section 2: Other settings */}
                   <div className="conn-section">

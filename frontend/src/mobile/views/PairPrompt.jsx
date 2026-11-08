@@ -102,17 +102,14 @@ export default function PairPrompt({
       </div>
 
       {/* Copy */}
-      <div style={{ maxWidth: 320 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: isRejected ? '#D9541E' : '#0071E3', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-          {isRejected ? 'Token Rejected' : title}
+      <div style={{ maxWidth: 280 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#1D1D1F', letterSpacing: '-0.02em' }}>
+          {isRejected ? 'Token Rejected' : 'Connect PC'}
         </div>
-        <div style={{ fontSize: 17, fontWeight: 600, color: '#1D1D1F', lineHeight: 1.35, letterSpacing: '-0.02em' }}>
-          {description}
-        </div>
-        <div style={{ fontSize: 12.5, color: '#6E6E73', marginTop: 6, lineHeight: 1.4 }}>
+        <div style={{ fontSize: 13, color: '#6E6E73', marginTop: 6, lineHeight: 1.45 }}>
           {isRejected
-            ? 'The previous pairing token was rejected by your PC. Re-scan the pairing QR code to restore control.'
-            : 'Access live system status, interactive terminal, and app launcher over your local Wi-Fi.'}
+            ? 'Pairing token was rejected. Re-scan the QR code to reconnect.'
+            : 'Scan the QR code in Amethyst desktop settings to connect.'}
         </div>
       </div>
 

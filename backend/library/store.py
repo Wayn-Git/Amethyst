@@ -715,10 +715,11 @@ class LibraryStore:
         self.conn.commit()
         return cursor.lastrowid
 
-    def get_lists(self) -> list[dict]:
-        """Fetch all lists with member counts and optional cover thumbnail."""
+    def get_lists(self, include_empty: bool = False) -> list[dict]:
+        """Fetch all lists with member counts, cover thumbnail, and sample item thumbnails."""
+        having_clause = "" if include_empty else "HAVING item_count > 0"
         rows = self.conn.execute(
-            """
+            f"""
             SELECT l.*,
                    COUNT(DISTINCT m.item_id) as item_count,
                    COUNT(DISTINCT m.link_id) as link_count,
@@ -733,6 +734,7 @@ class LibraryStore:
             FROM library_lists l
             LEFT JOIN library_list_members m ON l.id = m.list_id
             GROUP BY l.id
+            {having_clause}
             ORDER BY l.is_smart DESC, l.title ASC
             """
         ).fetchall()
@@ -741,6 +743,29 @@ class LibraryStore:
             d = dict(r)
             if d.get("cover_item_id"):
                 d["thumbnail_url"] = f"/api/library/{d['cover_item_id']}/thumbnail"
+
+            # Query up to 4 sample item thumbnails for Apple-style folder collage
+            sample_rows = self.conn.execute(
+                """
+                SELECT m.item_id, i.thumbnail_path, i.url
+                FROM library_list_members m
+                JOIN library_items i ON m.item_id = i.id
+                WHERE m.list_id = ?
+                ORDER BY m.position ASC, m.added_at DESC
+                LIMIT 4
+                """,
+                (d["id"],),
+            ).fetchall()
+            sample_thumbs = []
+            for sr in sample_rows:
+                s_dict = dict(sr)
+                thumb_u = f"/api/library/{s_dict['item_id']}/thumbnail" if s_dict.get("thumbnail_path") or s_dict.get("item_id") else None
+                sample_thumbs.append({
+                    "item_id": s_dict["item_id"],
+                    "thumbnail_url": thumb_u,
+                    "url": s_dict.get("url"),
+                })
+            d["sample_thumbnails"] = sample_thumbs
             result.append(d)
         return result
 

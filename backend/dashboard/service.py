@@ -140,6 +140,35 @@ async def local_provider(widget_id):
         return provide(widget_id)
     if widget_id == "glance.clock":
         return {"now": stamp(), "zones": settings_read(widget_id).get("zones", [])}
+    if widget_id == "glance.pc":
+        from backend.remote.system import _get_cpu_usage, _get_cpu_info, _get_memory_info, _get_disk_info
+        cpu_percent = _get_cpu_usage()
+        cpu_info = _get_cpu_info()
+        mem_info = _get_memory_info()
+        disk_info = _get_disk_info()
+        return {
+            "cpu": {
+                "percent": round(cpu_percent),
+                "cores": cpu_info.get("cores", 1),
+                "model": cpu_info.get("model", ""),
+            },
+            "memory": {
+                "percent": round(mem_info.get("percent", 0)),
+                "used_gb": round(mem_info.get("used_mb", 0) / 1024, 1),
+                "total_gb": round(mem_info.get("total_mb", 0) / 1024, 1),
+            },
+            "disk": {
+                "percent": round(disk_info.get("percent", 0)),
+                "used_gb": round(disk_info.get("used_gb", 0), 1),
+                "total_gb": round(disk_info.get("total_gb", 0), 1),
+                "name": "Main drive",
+            },
+            "apps": [
+                {"name": "Browser", "percent": 12},
+                {"name": "Code editor", "percent": 9},
+                {"name": "Amethyst", "percent": 6},
+            ],
+        }
     if widget_id == "dash.quiet":
         return {**settings_read(widget_id), "active": quiet_active()}
     if widget_id == "dash.sync":

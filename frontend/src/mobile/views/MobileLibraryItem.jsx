@@ -2,18 +2,29 @@ import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, appendAuthToken, getBase, copyText } from '../../api.js'
 import { safeStorage } from '../../lib/storage.js'
+import { storedIdentity } from '../../lib/credentials.js'
+import { getTransportManager } from '../../lib/sync/transportManager.js'
 import Icon from '../../components/Icon.jsx'
 
 function getResolvedBase() {
+  const tm = getTransportManager?.()
+  const tmHost = tm?.getState?.()?.hostUrl
+  if (tmHost && !tmHost.includes('localhost') && !tmHost.includes('127.0.0.1')) {
+    return tmHost.replace(/\/+$/, '')
+  }
+  const id = storedIdentity()
+  if (id?.hostUrl && !id.hostUrl.includes('localhost') && !id.hostUrl.includes('127.0.0.1')) {
+    return id.hostUrl.replace(/\/+$/, '')
+  }
   const base = getBase().replace(/\/api$/, '')
-  if (base) return base
+  if (base && !base.includes('localhost') && !base.includes('127.0.0.1')) return base
   try {
     const pcHost = safeStorage.getItem('amethyst.pc_host')
     if (pcHost && !pcHost.includes('localhost')) {
       return pcHost.replace(/\/+$/, '')
     }
   } catch {}
-  return ''
+  return base || ''
 }
 
 function getItemDomain(url) {
@@ -289,6 +300,7 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
   })
   const [privateNote, setPrivateNote] = useState(item?.private_notes || '')
   const [savingNote, setSavingNote] = useState(false)
+  const [polishingNote, setPolishingNote] = useState(false)
 
   const showToast = (msg) => {
     setToastNotice(msg)
@@ -328,6 +340,29 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
   const authorName = activeItem?.author || activeItem?.channel || getItemDomain(activeItem?.url) || 'Amethyst'
   const kind = activeItem?.kind ? activeItem.kind.charAt(0).toUpperCase() + activeItem.kind.slice(1) : 'Resource'
   const duration = activeItem?.duration || activeItem?.reading_time || (activeItem?.duration_seconds ? `${Math.round(activeItem.duration_seconds)}s` : '')
+
+  // Auto-poll when item is actively enriching or processing in the background
+  useEffect(() => {
+    const isPending = activeItem?.status === 'enriching' || activeItem?.status === 'processing' || enriching
+    if (!isPending || !activeItem?.id) return
+
+    let cancelled = false
+    const interval = setInterval(async () => {
+      try {
+        const updated = await api.libraryItem(activeItem.id)
+        if (!cancelled && updated) {
+          if (updated.status !== activeItem.status || updated.summary !== activeItem.summary) {
+            setDetailItem(updated)
+          }
+        }
+      } catch {}
+    }, 2500)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [activeItem?.id, activeItem?.status, enriching])
 
   const parsedResources = useMemo(() => {
     let res = activeItem?.resources
@@ -383,7 +418,7 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
     )
     const directVideoUrl = directRes?.remote_url || directRes?.url || it.direct_video_url
     if (directVideoUrl && typeof directVideoUrl === 'string' && !directVideoUrl.includes('twimg.com')) {
-      const hostBase = getResolvedBase()
+      const hostBase = getResolvedBase() || ''
       let vUrl = directVideoUrl
       if (vUrl.startsWith('/api/')) {
         vUrl = hostBase ? appendAuthToken(`${hostBase}${vUrl}`) : vUrl
@@ -397,11 +432,12 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
     }
 
     // 2. YouTube embed detection
-    if (it.url && /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)/i.test(it.url)) {
-      const match = it.url.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([\w-]{11})/)
+    if (it.url && /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)/i.test(it.url)) {
+      const match = it.url.match(/(?:watch\?v=|shorts\/|embed\/|live\/|youtu\.be\/)([\w-]{11})/)
       if (match) {
         return {
           type: 'youtube',
+          url: it.url,
           embedUrl: `https://www.youtube-nocookie.com/embed/${match[1]}?autoplay=1&rel=0`,
           isVertical: Boolean(it.url.includes('/shorts/')),
         }
@@ -414,6 +450,7 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
       if (match) {
         return {
           type: 'tiktok',
+          url: it.url,
           embedUrl: `https://www.tiktok.com/embed/v2/${match[1]}`,
           isVertical: true,
         }
@@ -423,13 +460,11 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
     // 4. Direct local media stream from server
     const hasLocalMedia = Boolean(it.media_path && /\.(mp4|webm|mov)(\?|$)/i.test(it.media_path))
     if (hasLocalMedia && it.id) {
-      const hostBase = getResolvedBase()
-      if (hostBase) {
-        return {
-          type: 'direct',
-          url: appendAuthToken(`${hostBase}/api/library/${it.id}/media`),
-          isVertical: Boolean(it.is_reel || it.url?.includes('/reel/') || it.url?.includes('/shorts/')),
-        }
+      const hostBase = getResolvedBase() || ''
+      return {
+        type: 'direct',
+        url: appendAuthToken(`${hostBase}/api/library/${it.id}/media`),
+        isVertical: Boolean(it.is_reel || it.url?.includes('/reel/') || it.url?.includes('/shorts/')),
       }
     }
 
@@ -481,7 +516,7 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
 
     // 3. YouTube direct thumbnail
     if (it.url) {
-      const ytMatch = it.url.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([\w-]{11})/)
+      const ytMatch = it.url.match(/(?:watch\?v=|shorts\/|embed\/|live\/|youtu\.be\/)([\w-]{11})/)
       if (ytMatch) {
         return `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`
       }
@@ -500,8 +535,8 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
     }
 
     // 5. Amethyst local LAN thumbnail endpoint
-    const hostBase = getResolvedBase()
-    if (hostBase && (it.thumbnail_path || it.has_thumbnail || it.id)) {
+    const hostBase = getResolvedBase() || ''
+    if (it.thumbnail_path || it.has_thumbnail || it.id) {
       if (it.thumbnail_url?.startsWith('/api')) {
         return appendAuthToken(`${hostBase}${it.thumbnail_url}`)
       }
@@ -513,8 +548,11 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
   // Media determination: Only display hero media container if item is actually a video or has images/slides!
   const hasPlayableVideo = Boolean(videoInfo)
   const hasSlides = slides.length > 0
-  const isVideoKind = activeItem?.kind === 'video' || activeItem?.kind === 'reel' || Boolean(activeItem?.is_reel)
-  const showHeroMedia = hasPlayableVideo || hasSlides || (isVideoKind && Boolean(thumbnailUrl))
+  const isVideoKind = activeItem?.kind === 'video' ||
+                      activeItem?.kind === 'reel' ||
+                      Boolean(activeItem?.is_reel) ||
+                      Boolean(activeItem?.url && /(?:youtube\.com|youtu\.be|tiktok\.com|instagram\.com\/(?:reel|p)\/|vimeo\.com)/i.test(activeItem.url))
+  const showHeroMedia = hasPlayableVideo || hasSlides || isVideoKind || Boolean(thumbnailUrl)
 
   // Text content of post / note / article
   const postBody = useMemo(() => {
@@ -610,6 +648,62 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
     }
   }
 
+  const handlePolishNote = async (actionType) => {
+    const rawNote = postBody || activeItem?.notes || activeItem?.content || activeItem?.title || ''
+    if (!rawNote.trim()) {
+      showToast('No note text to process')
+      return
+    }
+
+    setPolishingNote(true)
+    showToast(
+      actionType === 'fix_grammar'
+        ? 'Fixing grammar…'
+        : actionType === 'research'
+        ? 'Researching links…'
+        : 'Wording note better…'
+    )
+
+    try {
+      let transformed = ''
+      if (actionType === 'fix_grammar') {
+        const res = await api.aiTransform(rawNote, 'fix_grammar')
+        transformed = res.result || res.transformed || rawNote
+      } else if (actionType === 'improve') {
+        const res = await api.aiTransform(rawNote, 'improve')
+        transformed = res.result || res.transformed || rawNote
+      } else if (actionType === 'research') {
+        const res = await api.aiTransform(
+          rawNote,
+          'expand',
+          'Search for and append 2 to 4 authoritative reference markdown links relevant to the topics discussed in this note, formatted as: \n\n### Referenced Links\n- [Name](url): description'
+        )
+        transformed = res.result || res.transformed || rawNote
+      }
+
+      if (transformed && transformed !== rawNote) {
+        if (activeItem?.id) {
+          await api.updateLibraryItem(activeItem.id, { notes: transformed })
+          const updated = await api.libraryItem(activeItem.id)
+          if (updated) {
+            setDetailItem(updated)
+          } else {
+            setDetailItem((prev) => ({ ...prev, notes: transformed, caption: transformed }))
+          }
+        } else {
+          setDetailItem((prev) => ({ ...prev, notes: transformed, caption: transformed }))
+        }
+        showToast('Note updated!')
+      } else {
+        showToast('No changes needed')
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`)
+    } finally {
+      setPolishingNote(false)
+    }
+  }
+
   const handleCopyLink = async () => {
     if (!activeItem?.url) return
     try {
@@ -680,18 +774,40 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
 
   return (
     <motion.div
-      className="m-item-view"
+      className="b m-item-view"
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
       transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
       style={{
+        flex: 1,
+        minHeight: 0,
+        height: '100%',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        WebkitOverflowScrolling: 'touch',
         padding: '12px 16px max(140px, calc(env(safe-area-inset-bottom, 24px) + 120px))',
         display: 'flex',
         flexDirection: 'column',
         gap: 14,
       }}
     >
+      <style>{`
+        @keyframes mobileShimmerPulse {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        @keyframes mobilePulse {
+          0%, 100% { transform: scale(0.9); opacity: 0.6; }
+          50% { transform: scale(1.15); opacity: 1; }
+        }
+        .m-shimmer-bar {
+          background: linear-gradient(90deg, rgba(0,0,0,0.04) 25%, rgba(0,0,0,0.10) 50%, rgba(0,0,0,0.04) 75%);
+          background-size: 200% 100%;
+          animation: mobileShimmerPulse 1.6s infinite linear;
+        }
+      `}</style>
+
       {/* Toast Notification */}
       <AnimatePresence>
         {toastNotice && (
@@ -720,30 +836,38 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
         )}
       </AnimatePresence>
 
-      {/* Top Header Bar: Clean 38px alignment across Back, Saved, and More options */}
+      {/* Top Header Bar: Pixel-perfect aligned navigation bar */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          height: 44,
-          padding: '0 0 4px',
+          height: 40,
+          width: '100%',
+          boxSizing: 'border-box',
+          padding: 0,
+          flexShrink: 0,
         }}
       >
         <button
           type="button"
-          className="ch glass"
           style={{
-            height: 38,
+            height: 36,
             padding: '0 14px',
             fontSize: 13,
             fontWeight: 600,
             display: 'inline-flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: 6,
             border: 'none',
             cursor: 'pointer',
             borderRadius: 999,
+            background: 'var(--m-card, #FFFFFF)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+            color: 'var(--m-text, #1D1D1F)',
+            boxSizing: 'border-box',
+            lineHeight: 1,
           }}
           onClick={onBack}
         >
@@ -753,29 +877,32 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
           <span>Library</span>
         </button>
 
-        <span
-          className="ch glass"
+        <div
           style={{
-            height: 38,
+            height: 36,
             padding: '0 16px',
             fontSize: 13,
             fontWeight: 600,
             display: 'inline-flex',
             alignItems: 'center',
+            justifyContent: 'center',
             borderRadius: 999,
-            color: '#1D1D1F',
+            background: 'var(--m-card, #FFFFFF)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+            color: 'var(--m-text, #1D1D1F)',
+            boxSizing: 'border-box',
+            lineHeight: 1,
           }}
         >
           Saved
-        </span>
+        </div>
 
         <button
           type="button"
-          className="ch glass"
           aria-label="More options"
           style={{
-            width: 38,
-            height: 38,
+            width: 36,
+            height: 36,
             padding: 0,
             display: 'inline-flex',
             alignItems: 'center',
@@ -783,10 +910,15 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
             border: 'none',
             cursor: 'pointer',
             borderRadius: 999,
+            background: 'var(--m-card, #FFFFFF)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+            color: 'var(--m-text, #1D1D1F)',
+            boxSizing: 'border-box',
+            lineHeight: 1,
           }}
           onClick={() => setActionSheetOpen(true)}
         >
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
             <circle cx="12" cy="12" r="1.5" />
             <circle cx="19" cy="12" r="1.5" />
             <circle cx="5" cy="12" r="1.5" />
@@ -838,7 +970,7 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
             )
           ) : (
             <>
-              {activeMediaUrl && !thumbFailed && (
+              {activeMediaUrl && !thumbFailed ? (
                 <img
                   src={activeMediaUrl}
                   alt={title}
@@ -846,6 +978,26 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
                   style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
                   onError={() => setThumbFailed(true)}
                 />
+              ) : (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'linear-gradient(135deg, #1C1C1E 0%, #101012 100%)',
+                    color: 'rgba(255,255,255,0.7)',
+                    gap: 8,
+                    zIndex: 1,
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polygon points="6 3 20 12 6 21 6 3" />
+                  </svg>
+                  <span style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.6)' }}>{authorName || 'Video'}</span>
+                </div>
               )}
 
               {/* Play Button Disc */}
@@ -1013,6 +1165,27 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
       {/* Tab 1: Overview */}
       {tab === 'overview' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Top Processing / Polishing Banner */}
+          {(activeItem?.status === 'processing' || enriching || polishingNote) && (
+            <div
+              style={{
+                padding: '10px 14px',
+                borderRadius: 14,
+                background: 'rgba(0, 113, 227, 0.08)',
+                color: '#0071E3',
+                fontSize: 13,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              }}
+            >
+              <span className="spn" style={{ width: 12, height: 12 }} />
+              <span>{polishingNote ? 'AI is polishing note…' : 'AI is processing & enriching this item…'}</span>
+            </div>
+          )}
+
           {/* Post Card: For social media posts, threads, tweets, and notes */}
           {(Boolean(postBody) || !showHeroMedia) && (
             <div
@@ -1094,103 +1267,253 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
             </div>
           )}
 
-          {/* Structured AI Summary Card */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 16, fontWeight: 700, color: '#111113' }}>
-                Summary
-              </span>
-              <button
-                type="button"
-                className="ch glass"
-                style={{ fontSize: 11.5, padding: '5px 12px', border: 0, cursor: 'pointer', borderRadius: 999 }}
-                disabled={enriching}
-                onClick={handleEnrich}
+          {/* If Note: AI Note Assistant (Fix Grammar, Word Better, Research). If Article/Video: Structured AI Summary Card */}
+          {activeItem?.kind === 'note' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 16, fontWeight: 700, color: '#111113' }}>
+                  AI Note Assistant
+                </span>
+                {polishingNote && (
+                  <span style={{ fontSize: 12, color: '#0071E3', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <span className="spn" style={{ width: 10, height: 10 }} />
+                    Working…
+                  </span>
+                )}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                <button
+                  type="button"
+                  style={{
+                    height: 42,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    borderRadius: 14,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    border: '1px solid rgba(0,0,0,0.06)',
+                    background: '#FFFFFF',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    color: '#0071E3',
+                    boxSizing: 'border-box',
+                  }}
+                  disabled={polishingNote}
+                  onClick={() => handlePolishNote('fix_grammar')}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+                    <path d="M5 3v4" />
+                    <path d="M19 17v4" />
+                  </svg>
+                  <span>Fix Grammar</span>
+                </button>
+
+                <button
+                  type="button"
+                  style={{
+                    height: 42,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    borderRadius: 14,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    border: '1px solid rgba(0,0,0,0.06)',
+                    background: '#FFFFFF',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    color: '#111113',
+                    boxSizing: 'border-box',
+                  }}
+                  disabled={polishingNote}
+                  onClick={() => handlePolishNote('improve')}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+                    <path d="m15 5 4 4" />
+                  </svg>
+                  <span>Word Better</span>
+                </button>
+
+                <button
+                  type="button"
+                  style={{
+                    height: 42,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    borderRadius: 14,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    border: '1px solid rgba(0,0,0,0.06)',
+                    background: '#FFFFFF',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    color: '#111113',
+                    boxSizing: 'border-box',
+                  }}
+                  disabled={polishingNote}
+                  onClick={() => handlePolishNote('research')}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.3-4.3" />
+                  </svg>
+                  <span>Research</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 16, fontWeight: 700, color: '#111113' }}>
+                  Summary
+                </span>
+                <button
+                  type="button"
+                  className="ch glass"
+                  style={{ fontSize: 11.5, padding: '5px 12px', border: 0, cursor: 'pointer', borderRadius: 999 }}
+                  disabled={enriching}
+                  onClick={handleEnrich}
+                >
+                  {enriching ? 'Enriching…' : 'Re-enrich'}
+                </button>
+              </div>
+
+              <div
+                style={{
+                  background: '#FFFFFF',
+                  borderRadius: 20,
+                  padding: '16px 18px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                }}
               >
-                {enriching ? 'Enriching…' : 'Re-enrich'}
-              </button>
-            </div>
+                {enriching || activeItem?.status === 'enriching' || activeItem?.status === 'processing' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          background: '#0071E3',
+                          boxShadow: '0 0 8px rgba(0,113,227,0.6)',
+                          animation: 'mobilePulse 1.5s infinite ease-in-out',
+                        }}
+                      />
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#0071E3' }}>
+                        AI generating summary & insights…
+                      </span>
+                    </div>
 
-            <div
-              style={{
-                background: '#FFFFFF',
-                borderRadius: 20,
-                padding: '16px 18px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 12,
-              }}
-            >
-              {summaryStructure.tldr || summaryStructure.points.length > 0 ? (
-                <>
-                  {/* Highlighted TL;DR Banner */}
-                  {summaryStructure.tldr && (
+                    {/* TLDR skeleton banner */}
                     <div
+                      className="m-shimmer-bar"
                       style={{
-                        background: 'rgba(0, 113, 227, 0.05)',
-                        border: '1px solid rgba(0, 113, 227, 0.12)',
+                        height: 52,
                         borderRadius: 14,
-                        padding: '12px 14px',
-                        fontSize: 14.5,
-                        fontWeight: 600,
-                        lineHeight: 1.55,
-                        color: '#111113',
+                        width: '100%',
                       }}
-                    >
-                      {summaryStructure.tldr}
-                    </div>
-                  )}
+                    />
 
-                  {/* Labeled Key Points / Highlights */}
-                  {summaryStructure.points.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {summaryStructure.points.map((pt, idx) => (
-                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                          {pt.label && (
-                            <span
-                              style={{
-                                fontSize: 12.5,
-                                fontWeight: 700,
-                                color: '#0071E3',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.04em',
-                              }}
-                            >
-                              {pt.label}
-                            </span>
-                          )}
-                          <div style={{ fontSize: 14, lineHeight: 1.55, color: '#1D1D1F' }}>
-                            <MobileMarkdown text={pt.text} />
-                          </div>
-                        </div>
-                      ))}
+                    {/* Key points skeleton highlights */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 2 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div className="m-shimmer-bar" style={{ width: 75, height: 12, borderRadius: 6 }} />
+                        <div className="m-shimmer-bar" style={{ width: '95%', height: 14, borderRadius: 6 }} />
+                        <div className="m-shimmer-bar" style={{ width: '72%', height: 14, borderRadius: 6 }} />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div className="m-shimmer-bar" style={{ width: 90, height: 12, borderRadius: 6 }} />
+                        <div className="m-shimmer-bar" style={{ width: '88%', height: 14, borderRadius: 6 }} />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div className="m-shimmer-bar" style={{ width: 65, height: 12, borderRadius: 6 }} />
+                        <div className="m-shimmer-bar" style={{ width: '92%', height: 14, borderRadius: 6 }} />
+                        <div className="m-shimmer-bar" style={{ width: '60%', height: 14, borderRadius: 6 }} />
+                      </div>
                     </div>
-                  )}
-                </>
-              ) : (
-                <div style={{ textAlign: 'center', padding: '16px 0', color: '#8E8E93' }}>
-                  <div style={{ fontSize: 14 }}>No summary generated yet.</div>
-                  <button
-                    type="button"
-                    className="ch"
-                    style={{
-                      marginTop: 10,
-                      background: '#0071E3',
-                      color: '#fff',
-                      padding: '8px 18px',
-                      border: 0,
-                      borderRadius: 999,
-                      fontWeight: 600,
-                      fontSize: 13,
-                    }}
-                    onClick={handleEnrich}
-                  >
-                    Generate AI Summary
-                  </button>
-                </div>
-              )}
+                  </div>
+                ) : summaryStructure.tldr || summaryStructure.points.length > 0 ? (
+                  <>
+                    {/* Highlighted TL;DR Banner */}
+                    {summaryStructure.tldr && (
+                      <div
+                        style={{
+                          background: 'rgba(0, 113, 227, 0.05)',
+                          border: '1px solid rgba(0, 113, 227, 0.12)',
+                          borderRadius: 14,
+                          padding: '12px 14px',
+                          fontSize: 14.5,
+                          fontWeight: 600,
+                          lineHeight: 1.55,
+                          color: '#111113',
+                        }}
+                      >
+                        {summaryStructure.tldr}
+                      </div>
+                    )}
+
+                    {/* Labeled Key Points / Highlights */}
+                    {summaryStructure.points.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {summaryStructure.points.map((pt, idx) => (
+                          <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            {pt.label && (
+                              <span
+                                style={{
+                                  fontSize: 12.5,
+                                  fontWeight: 700,
+                                  color: '#0071E3',
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.04em',
+                                }}
+                              >
+                                {pt.label}
+                              </span>
+                            )}
+                            <div style={{ fontSize: 14, lineHeight: 1.55, color: '#1D1D1F' }}>
+                              <MobileMarkdown text={pt.text} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '16px 0', color: '#8E8E93' }}>
+                    <div style={{ fontSize: 14 }}>No summary generated yet.</div>
+                    <button
+                      type="button"
+                      className="ch"
+                      style={{
+                        marginTop: 10,
+                        background: '#0071E3',
+                        color: '#fff',
+                        padding: '8px 18px',
+                        border: 0,
+                        borderRadius: 999,
+                        fontWeight: 600,
+                        fontSize: 13,
+                      }}
+                      onClick={handleEnrich}
+                    >
+                      Generate AI Summary
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
+          )}
 
             {activeItem?.storage_provider === 'google_drive' && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(52,199,89,0.08)', borderRadius: 12, color: '#248A3D', fontSize: 12.5, fontWeight: 500 }}>
@@ -1201,8 +1524,7 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
               </div>
             )}
           </div>
-        </div>
-      )}
+        )}
 
       {/* Tab 2: Outbound Links & Resources */}
       {tab === 'links' && (

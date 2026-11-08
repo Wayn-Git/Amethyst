@@ -196,6 +196,29 @@
     "icon": "cloud"
   },
   {
+    "id": "glance.pc",
+    "title": "This PC",
+    "group": "glance",
+    "tier": "mvp",
+    "sizes": [
+      "s",
+      "m",
+      "l"
+    ],
+    "source": {
+      "type": "local"
+    },
+    "refresh": {
+      "mode": "poll",
+      "interval_s": 10
+    },
+    "requires": [],
+    "actions": [],
+    "empty": "Hardware telemetry unavailable.",
+    "description": "Real-time CPU, memory, and disk telemetry for this PC.",
+    "icon": "monitor"
+  },
+  {
     "id": "need.mentions",
     "title": "Unanswered mentions",
     "group": "needs-you",

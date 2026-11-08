@@ -1,149 +1,47 @@
-/* Air Quality widget surface isolation: eliminate double boundaries, outer headers, and double padding */
-
-.home-layout-grid .today-widget-slot[data-slot-id='glance.air'] {
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  box-sizing: border-box;
-}
-
-.home-layout-grid .today-widget-slot[data-slot-id='glance.air']:hover {
-  box-shadow: none !important;
-}
-
-.home-layout-grid .today-widget-slot[data-slot-id='glance.air'] > .today-slot-body {
+/* Apple Bento Air Quality Widget */
+.glance-air {
   width: 100%;
   height: 100%;
-  min-width: 0;
-  min-height: 0;
-  padding: 0;
-  margin: 0;
-  border: 0;
   box-sizing: border-box;
-  overflow: visible !important;
-}
-
-/* Responsive slot dimensions */
-.home-layout-grid .today-widget-slot[data-slot-id='glance.air'],
-.bento-foundation .home-widget[data-widget='glance.air'] {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.home-layout-grid .today-widget-slot[data-slot-id='glance.air'][data-size='s'],
-.bento-foundation .home-widget[data-widget='glance.air'][data-size='s'] {
-  min-height: 170px;
-}
-
-.home-layout-grid .today-widget-slot[data-slot-id='glance.air'][data-size='m'],
-.bento-foundation .home-widget[data-widget='glance.air'][data-size='m'] {
-  min-height: 170px;
-}
-
-.home-layout-grid .today-widget-slot[data-slot-id='glance.air'][data-size='l'],
-.bento-foundation .home-widget[data-widget='glance.air'][data-size='l'] {
-  min-height: 356px;
-}
-
-.home-layout-grid .today-slot-body > .home-widget.widget-adoption[data-widget='glance.air'],
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.air'] {
-  width: 100%;
-  height: 100%;
   position: relative;
-  min-width: 0;
-  min-height: 0;
-  padding: 0 !important;
-  gap: 0;
-  box-sizing: border-box;
-  overflow: hidden;
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-/* Chrome: title, badges, freshness removed from outer card. Actions hover-only top-right. */
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.air'] > .widget-header {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 10;
-  display: flex;
-  width: auto;
-  padding: 0;
-  margin: 0;
-  gap: 0;
-  background: transparent;
-  border: 0;
-  pointer-events: none;
-}
-
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.air'] .widget-title,
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.air'] .widget-source,
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.air'] .widget-freshness,
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.air'] .widget-chip {
-  display: none !important;
-}
-
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.air'] .widget-actions {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 150ms ease;
-}
-
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.air']:is(:hover, :focus-within) .widget-actions,
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.air'] .widget-menu[open] {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.air'] > .widget-footer {
-  display: none !important;
-}
-
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.air'] > .widget-content {
-  display: flex;
-  flex: 1;
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0 !important;
-  padding: 0;
-  overflow: hidden;
-}
-
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.air'] .widget-workbench.today-drawer.is-inline,
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.air'] .widget-workbench.today-drawer.is-inline > .today-drawer-body {
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  padding: 0;
-  margin: 0;
-  border: 0;
-  display: flex;
-  flex: 1 1 auto;
-}
-
-.glance-air-root {
-  width: 100%;
-  height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  border-radius: 28px;
+  padding: 22px;
+  background: var(--ar, #d4f1ff);
+  color: var(--art, #0b2433);
+  box-shadow: inset 0 0 0 1px var(--ln, rgba(0, 0, 0, 0.08));
 }
 
-.glance-air-root .widget-root {
-  width: 100%;
-  height: 100%;
+.glance-air.style-scale {
+  background: var(--cd, #ffffff);
+  color: var(--tx, #1d1d1f);
 }
 
-.glance-air-root .wg-card {
-  width: 100% !important;
-  max-width: 100% !important;
-  height: 100% !important;
-  border-radius: 24px !important;
-  box-sizing: border-box;
+.glance-air.style-particles {
+  background: #0d2b3a;
+  color: #ffffff;
+}
+
+.glance-air.style-skyline {
+  background: #bfe3f5;
+  color: #0b2433;
+}
+
+.glance-air .ga-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  z-index: 2;
+}
+
+.glance-air .ga-label b {
+  margin-left: auto;
+  font-weight: 500;
+  font-size: 12px;
+  opacity: 0.8;
 }

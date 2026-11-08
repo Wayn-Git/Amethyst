@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { api, appendAuthToken, getBase } from '../../api.js'
+import { safeStorage } from '../../lib/storage.js'
+import { storedIdentity } from '../../lib/credentials.js'
+import { getTransportManager } from '../../lib/sync/transportManager.js'
 import '../companion.css'
 
 function formatWhen(value) {
@@ -15,6 +18,50 @@ function formatWhen(value) {
   return `${days} ${days === 1 ? 'day' : 'days'} ago`
 }
 
+function getResolvedBase() {
+  const tm = getTransportManager?.()
+  const tmHost = tm?.getState?.()?.hostUrl
+  if (tmHost && !tmHost.includes('localhost') && !tmHost.includes('127.0.0.1')) {
+    return tmHost.replace(/\/+$/, '')
+  }
+  const id = storedIdentity()
+  if (id?.hostUrl && !id.hostUrl.includes('localhost') && !id.hostUrl.includes('127.0.0.1')) {
+    return id.hostUrl.replace(/\/+$/, '')
+  }
+  const base = getBase().replace(/\/api$/, '')
+  if (base && !base.includes('localhost') && !base.includes('127.0.0.1')) return base
+  try {
+    const pcHost = safeStorage.getItem('amethyst.pc_host') || localStorage.getItem('amethyst.pc_host')
+    if (pcHost && !pcHost.includes('localhost')) {
+      return pcHost.replace(/\/+$/, '')
+    }
+  } catch {}
+  return base || ''
+}
+
+function resolveHighlightThumbnail(item) {
+  if (!item) return ''
+  if (item.url) {
+    const ytMatch = item.url.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([\w-]{11})/)
+    if (ytMatch && (!item.thumbnail_path || item.thumbnail_path.includes('default'))) {
+      return `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`
+    }
+  }
+  const hostBase = getResolvedBase() || ''
+  if (item.thumbnail_url) {
+    if (item.thumbnail_url.startsWith('http') || item.thumbnail_url.startsWith('data:')) {
+      return item.thumbnail_url
+    }
+    if (item.thumbnail_url.startsWith('/api')) {
+      return appendAuthToken(`${hostBase}${item.thumbnail_url}`)
+    }
+  }
+  if (item.thumbnail_path || item.has_thumbnail || item.id) {
+    return appendAuthToken(`${hostBase}/api/library/${item.id}/thumbnail`)
+  }
+  return ''
+}
+
 export default function MobileToday({
   onSelectTab,
   onOpenNotifications,
@@ -25,6 +72,7 @@ export default function MobileToday({
   const [weather, setWeather] = useState(null)
   const [jobs, setJobs] = useState([])
   const [libraryHighlight, setLibraryHighlight] = useState(null)
+  const [highlightImgError, setHighlightImgError] = useState(false)
   const [calendarEvents, setCalendarEvents] = useState([])
   const [unreadMails, setUnreadMails] = useState([])
   const [media, setMedia] = useState(null)
@@ -525,68 +573,111 @@ export default function MobileToday({
         onClick={() => onSelectTab?.('library')}
         style={{
           position: 'relative',
-          height: 148,
+          minHeight: 140,
           boxSizing: 'border-box',
-          padding: 18,
-          borderRadius: 28,
-          background: '#DCE8FF',
-          overflow: 'hidden',
+          padding: '16px 18px',
+          borderRadius: 24,
+          background: 'linear-gradient(135deg, #EEF4FF 0%, #E0ECFF 100%)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          gap: 14,
           cursor: 'pointer',
+          overflow: 'hidden',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
         }}
       >
-        {/* Starburst Accent SVG from TodayAgent.dc.html */}
-        <svg width="150" height="150" viewBox="0 0 100 100" aria-hidden="true" style={{ position: 'absolute', right: -24, top: -6, pointerEvents: 'none' }}>
-          <path d="M50 0C50 28 72 50 100 50C72 50 50 72 50 100C50 72 28 50 0 50C28 50 50 28 50 0Z" fill="#1570EF" />
-        </svg>
+        {/* Top Header Row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 28,
+              padding: '0 12px',
+              borderRadius: 999,
+              background: 'rgba(255, 255, 255, 0.9)',
+              color: '#1570EF',
+              fontSize: 12,
+              fontWeight: 600,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z" />
+              <path d="M6 6h10" />
+              <path d="M6 10h10" />
+            </svg>
+            From your Library
+          </div>
 
-        <div
-          style={{
-            position: 'relative',
-            display: 'inline-block',
-            height: 34,
-            lineHeight: '34px',
-            padding: '0 14px',
-            borderRadius: 999,
-            background: 'rgba(255, 255, 255, 0.85)',
-            fontSize: 13,
-            fontWeight: 500,
-          }}
-        >
-          From your Library
+          <button
+            type="button"
+            aria-label="Open library item"
+            style={{
+              width: 34,
+              height: 34,
+              border: 0,
+              borderRadius: '50%',
+              background: '#0F0F12',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+              cursor: 'pointer',
+              color: '#fff',
+              flexShrink: 0,
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M7 17L17 7M9 7h8v8" />
+            </svg>
+          </button>
         </div>
 
-        <div style={{ position: 'absolute', left: 18, bottom: 18, right: 84 }}>
-          <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.15, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-            {libraryHighlight?.title || 'Hybrid retrieval explained'}
+        {/* Content Row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                letterSpacing: '-0.02em',
+                lineHeight: 1.25,
+                color: '#0F0F12',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+              }}
+            >
+              {libraryHighlight?.title || (libraryHighlight ? 'Saved Item' : 'Explore your saves & notes')}
+            </div>
+            <div style={{ fontSize: 12.5, color: '#4B5563', marginTop: 4 }}>
+              {libraryHighlight ? `Saved ${formatWhen(libraryHighlight.created_at)}` : 'Tap to browse library'}
+            </div>
           </div>
-          <div style={{ fontSize: 13, color: '#3A3C47', marginTop: 4 }}>
-            Saved {formatWhen(libraryHighlight?.created_at)}
-          </div>
-        </div>
 
-        <button
-          type="button"
-          aria-label="Open note"
-          style={{
-            position: 'absolute',
-            right: 18,
-            bottom: 18,
-            width: 44,
-            height: 44,
-            border: 0,
-            borderRadius: 999,
-            background: '#0F0F12',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 0,
-            cursor: 'pointer',
-          }}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M7 17L17 7M9 7h8v8" />
-          </svg>
-        </button>
+          {/* Real Thumbnail */}
+          {resolveHighlightThumbnail(libraryHighlight) && !highlightImgError ? (
+            <img
+              src={resolveHighlightThumbnail(libraryHighlight)}
+              alt=""
+              style={{
+                width: 68,
+                height: 68,
+                borderRadius: 16,
+                objectFit: 'cover',
+                flexShrink: 0,
+                boxShadow: '0 3px 10px rgba(0,0,0,0.1)',
+                border: '1px solid rgba(255,255,255,0.6)',
+              }}
+              onError={() => setHighlightImgError(true)}
+            />
+          ) : null}
+        </div>
       </div>
 
       {/* Bottom 2-Column Cards: Pull requests & Playing on PC */}

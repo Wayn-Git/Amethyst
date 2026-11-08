@@ -1,5 +1,6 @@
-import { storedIdentity } from './lib/credentials.js'
+import { storedIdentity, isNativeMobile } from './lib/credentials.js'
 import { safeStorage } from './lib/storage.js'
+import { getTransportManager } from './lib/sync/transportManager.js'
 /* Where the API is.
 
    Empty in development and in the single-process build, where the API is served
@@ -13,6 +14,13 @@ export const API_ORIGIN = (import.meta.env?.VITE_API_BASE || '').trim().replace(
 export function getApiOrigin() {
   if (API_ORIGIN) return API_ORIGIN
   try {
+    const tmHost = getTransportManager?.()?.getState?.()?.hostUrl
+    if (tmHost) {
+      const u = tmHost.replace(/\/+$/, '')
+      if (u && !u.includes('localhost') && !u.includes('127.0.0.1')) {
+        return u
+      }
+    }
     const pcHost = safeStorage.getItem('amethyst.pc_host')
     if (pcHost) {
       const u = pcHost.replace(/\/+$/, '')
@@ -274,8 +282,9 @@ async function j(url, opts) {
   let res
   const base = getBase()
   const auth = getAuthHeaders()
+  const cleanUrl = url.startsWith('/api/') ? url.slice(4) : (url.startsWith('/') ? url : `/${url}`)
   try {
-    res = await fetch(base + url, {
+    res = await fetch(base + cleanUrl, {
       ...opts,
       headers: {
         'Content-Type': 'application/json',
@@ -1216,6 +1225,13 @@ export function prettyJSON(value) {
  */
 export async function copyText(text) {
   if (!text) return false
+  if (isNativeMobile()) {
+    try {
+      const { Clipboard } = await import('@capacitor/clipboard')
+      await Clipboard.write({ string: String(text) })
+      return true
+    } catch {}
+  }
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text)
@@ -1247,8 +1263,15 @@ export async function copyText(text) {
  *  The bridge hands the URL to the OS browser instead, which is where a
  *  link from a floating bar always belonged.
  */
-export function openUrl(url) {
+export async function openUrl(url) {
   if (!url) return
+  if (isNativeMobile()) {
+    try {
+      const { Browser } = await import('@capacitor/browser')
+      await Browser.open({ url })
+      return
+    } catch {}
+  }
   if (window.pywebview?.api?.open_external) {
     window.pywebview.api.open_external(url)
     return

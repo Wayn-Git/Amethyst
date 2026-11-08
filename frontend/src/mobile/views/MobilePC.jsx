@@ -173,15 +173,8 @@ export default function MobilePC({ telemetry, isOnline, onOpenTerminal }) {
         exit={{ opacity: 0, y: -8 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
       >
-        <div className="r sp">
-          <div>
-            <div className="gl">Desktop at home</div>
-            <h1 className="h">My PC</h1>
-          </div>
-          <span className="ch">
-            <span className="d w" />
-            Unpaired
-          </span>
+        <div className="r sp" style={{ marginBottom: 4 }}>
+          <h1 className="h">My PC</h1>
         </div>
 
         <PairPrompt />

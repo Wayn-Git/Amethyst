@@ -76,7 +76,12 @@ export default function MobileAgentSessions({ onSelectSession, onCreateSession }
     }
   }
 
+  const pinnedConversations = conversations.filter((c) => c.is_pinned || c.pinned)
+  const pinnedCount = pinnedConversations.length
+  const runningCount = activeJobs.length
+
   const filtered = conversations.filter((c) => {
+    if (filter === 'pinned' && !(c.is_pinned || c.pinned)) return false
     if (query.trim()) {
       return (c.title || '').toLowerCase().includes(query.toLowerCase())
     }
@@ -87,8 +92,8 @@ export default function MobileAgentSessions({ onSelectSession, onCreateSession }
   const todaySessions = filtered.filter((c) => new Date(c.updated_at || c.created_at || Date.now()).toDateString() === todayStr)
   const earlierSessions = filtered.filter((c) => new Date(c.updated_at || c.created_at || Date.now()).toDateString() !== todayStr)
 
-  const displayToday = todaySessions.length > 0 ? todaySessions : filtered.slice(0, 3)
-  const displayEarlier = todaySessions.length > 0 ? earlierSessions : filtered.slice(3)
+  const displayToday = todaySessions.length > 0 ? todaySessions : (filter === 'all' && !query.trim() ? filtered.slice(0, 3) : filtered)
+  const displayEarlier = todaySessions.length > 0 ? earlierSessions : (filter === 'all' && !query.trim() ? filtered.slice(3) : [])
 
   return (
     <motion.div
@@ -165,19 +170,19 @@ export default function MobileAgentSessions({ onSelectSession, onCreateSession }
           className={`ch ${filter === 'running' ? 'on' : ''}`}
           onClick={() => setFilter('running')}
         >
-          Running {activeJobs.length || 1}
+          Running{runningCount > 0 ? ` ${runningCount}` : ''}
         </button>
         <button
           type="button"
           className={`ch ${filter === 'pinned' ? 'on' : ''}`}
           onClick={() => setFilter('pinned')}
         >
-          Pinned 2
+          Pinned{pinnedCount > 0 ? ` ${pinnedCount}` : ''}
         </button>
       </div>
 
       {/* Active Section */}
-      {(activeJobs.length > 0 || confirmations.length > 0) && (
+      {filter !== 'pinned' && (activeJobs.length > 0 || confirmations.length > 0) && (
         <>
           <div className="m" style={{ marginBottom: -6 }}>
             Active
@@ -195,10 +200,10 @@ export default function MobileAgentSessions({ onSelectSession, onCreateSession }
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {job.title || 'Index new saves'}
+                      {job.title || 'Agent Job'}
                     </div>
                     <div className="m">
-                      {job.progress ? `Step ${Math.round(job.progress * 5)} of 5` : 'Step 3 of 5, Library'}
+                      {job.progress ? `Step ${Math.round(job.progress * 5)} of 5` : 'In progress'}
                     </div>
                   </div>
                   <div className="col" style={{ alignItems: 'flex-end', gap: 4 }}>
@@ -232,12 +237,12 @@ export default function MobileAgentSessions({ onSelectSession, onCreateSession }
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {conf.description || conf.operation_key || 'Clean up old branches'}
+                      {conf.description || conf.operation_key || 'Confirmation required'}
                     </div>
                     <div className="m">Waiting for your approval</div>
                   </div>
                   <div className="col" style={{ alignItems: 'flex-end', gap: 4 }}>
-                    <span className="m">2m</span>
+                    <span className="m">Now</span>
                     <span className="m" style={{ display: 'flex' }}>
                       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <rect width="20" height="14" x="2" y="3" rx="2" />

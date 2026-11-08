@@ -1,5 +1,6 @@
 import { safeStorage } from '../lib/storage.js'
-import { nativeVault, isNativeMobile } from '../lib/credentials.js'
+import { nativeVault, isNativeMobile, storedIdentity } from '../lib/credentials.js'
+import { getTransportManager } from '../lib/sync/transportManager.js'
 
 export const CONNECTIONS_STORAGE_KEY = 'amethyst.connections.v1'
 export const MS_CLIENT_ID = 'a7c42b18-1137-4d78-8d4c-91cd6be3acff'
@@ -499,13 +500,23 @@ export async function refreshMicrosoftToken({ httpPost } = {}) {
  */
 export function getPcHostUrl() {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const stored = safeStorage.getItem('amethyst.pc_host')
-      if (stored) return stored
-      const rawIdentity = safeStorage.getItem('amethyst.identity')
-      if (rawIdentity) {
-        const id = JSON.parse(rawIdentity)
-        if (id?.hostUrl) return id.hostUrl
+    const tmHost = getTransportManager?.()?.getState?.()?.hostUrl
+    if (tmHost && !tmHost.includes('localhost') && !tmHost.includes('127.0.0.1')) {
+      return tmHost.replace(/\/+$/, '')
+    }
+    const stored = safeStorage.getItem('amethyst.pc_host')
+    if (stored && !stored.includes('localhost') && !stored.includes('127.0.0.1')) {
+      return stored.replace(/\/+$/, '')
+    }
+    const id = storedIdentity()
+    if (id?.hostUrl && !id.hostUrl.includes('localhost') && !id.hostUrl.includes('127.0.0.1')) {
+      return id.hostUrl.replace(/\/+$/, '')
+    }
+    const rawIdentity = safeStorage.getItem('amethyst.sync.identity.v1')
+    if (rawIdentity) {
+      const parsed = JSON.parse(rawIdentity)
+      if (parsed?.hostUrl && !parsed.hostUrl.includes('localhost') && !parsed.hostUrl.includes('127.0.0.1')) {
+        return parsed.hostUrl.replace(/\/+$/, '')
       }
     }
   } catch {}

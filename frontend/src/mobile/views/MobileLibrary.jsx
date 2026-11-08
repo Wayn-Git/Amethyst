@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, appendAuthToken, getBase } from '../../api.js'
 import { safeStorage } from '../../lib/storage.js'
+import { storedIdentity } from '../../lib/credentials.js'
+import { getTransportManager } from '../../lib/sync/transportManager.js'
 import Icon from '../../components/Icon.jsx'
 import {
   getStoredCollections,
@@ -39,25 +41,34 @@ function getItemDomain(url) {
 }
 
 function getResolvedBase() {
+  const tm = getTransportManager?.()
+  const tmHost = tm?.getState?.()?.hostUrl
+  if (tmHost && !tmHost.includes('localhost') && !tmHost.includes('127.0.0.1')) {
+    return tmHost.replace(/\/+$/, '')
+  }
+  const id = storedIdentity()
+  if (id?.hostUrl && !id.hostUrl.includes('localhost') && !id.hostUrl.includes('127.0.0.1')) {
+    return id.hostUrl.replace(/\/+$/, '')
+  }
   const base = getBase().replace(/\/api$/, '')
-  if (base) return base
+  if (base && !base.includes('localhost') && !base.includes('127.0.0.1')) return base
   try {
     const pcHost = safeStorage.getItem('amethyst.pc_host')
     if (pcHost && !pcHost.includes('localhost')) {
       return pcHost.replace(/\/+$/, '')
     }
   } catch {}
-  return ''
+  return base || ''
 }
 
 function resolveThumbnail(item) {
   if (!item) return ''
-  // 1. YouTube direct thumbnail fallback if no custom still
-  if (item.url) {
-    const ytMatch = item.url.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([\w-]{11})/)
-    if (ytMatch && (!item.thumbnail_path || item.thumbnail_path.includes('default'))) {
-      return `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`
-    }
+  const hostBase = getResolvedBase() || ''
+  const ytMatch = item.url ? item.url.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([\w-]{11})/) : null
+
+  // 1. YouTube direct thumbnail fallback if no hostBase or default still
+  if (ytMatch && (!hostBase || !item.thumbnail_path || item.thumbnail_path.includes('default'))) {
+    return `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`
   }
 
   // 2. Direct external or data URL thumbnail
@@ -83,16 +94,20 @@ function resolveThumbnail(item) {
     }
   }
 
-  const hostBase = getResolvedBase()
-  // 4. Amethyst local thumbnail endpoint if LAN host available
-  if (hostBase && (item.thumbnail_path || item.has_thumbnail || item.id)) {
+  // 4. Amethyst local thumbnail endpoint
+  if (item.thumbnail_path || item.has_thumbnail || item.id) {
     if (item.thumbnail_url?.startsWith('/api')) {
       return appendAuthToken(`${hostBase}${item.thumbnail_url}`)
     }
     return appendAuthToken(`${hostBase}/api/library/${item.id}/thumbnail`)
   }
 
-  // 5. Drive / Cloud poster frame fallback
+  // 5. YouTube fallback if present
+  if (ytMatch) {
+    return `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`
+  }
+
+  // 6. Drive / Cloud poster frame fallback
   if (item.external_id || item.drive_id) {
     return resolvePosterFrame(item)
   }
@@ -101,12 +116,9 @@ function resolveThumbnail(item) {
 
 function resolveCollectionCover(collection) {
   if (!collection) return ''
-  const hostBase = getResolvedBase()
+  const hostBase = getResolvedBase() || ''
   if (collection.cover_item_id) {
-    if (hostBase) {
-      return appendAuthToken(`${hostBase}/api/library/${collection.cover_item_id}/thumbnail`)
-    }
-    return api.thumbnailUrl ? api.thumbnailUrl(collection.cover_item_id) : ''
+    return appendAuthToken(`${hostBase}/api/library/${collection.cover_item_id}/thumbnail`)
   }
   if (collection.thumbnail_url) {
     if (collection.thumbnail_url.startsWith('http')) return collection.thumbnail_url
@@ -116,6 +128,21 @@ function resolveCollectionCover(collection) {
     return collection.thumbnail_url
   }
   return ''
+}
+
+function mergeOptimisticItems(currentItems, incomingItems) {
+  if (!incomingItems || !incomingItems.length) return currentItems || []
+  const now = Date.now()
+  const recentOptimistic = (currentItems || []).filter(
+    (it) => it.is_optimistic && (now - new Date(it.created_at).getTime() < 120000)
+  )
+  if (!recentOptimistic.length) return incomingItems
+
+  // Filter out any optimistic item whose URL matches an incoming item or whose id matches
+  const unmerged = recentOptimistic.filter(
+    (opt) => !incomingItems.some((inc) => (inc.url && opt.url && inc.url === opt.url) || inc.id === opt.id)
+  )
+  return [...unmerged, ...incomingItems]
 }
 
 export default function MobileLibrary({ onSelectItem, onOpenAsk, onOpenCapture }) {
@@ -149,7 +176,7 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk, onOpenCapture }
     const unsub = subscribeCollections((store) => {
       setLists(store.lists || [])
       if (Array.isArray(store.items) && store.items.length > 0) {
-        setItems(store.items)
+        setItems((prev) => mergeOptimisticItems(prev, store.items))
       }
       setLastSynced(store.lastSyncedAt || null)
       setCollectionsState(getCollectionsDisplayState())
@@ -174,10 +201,13 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk, onOpenCapture }
       if (syncResult && syncResult.store) {
         setLists(syncResult.store.lists || [])
         if (syncResult.store.items?.length) {
-          setItems(syncResult.store.items)
-          try {
-            safeStorage.setItem('amethyst.cached_library', JSON.stringify(syncResult.store.items))
-          } catch {}
+          setItems((prev) => {
+            const merged = mergeOptimisticItems(prev, syncResult.store.items)
+            try {
+              safeStorage.setItem('amethyst.cached_library', JSON.stringify(merged))
+            } catch {}
+            return merged
+          })
         }
         setLastSynced(syncResult.lastSyncedAt)
       }
@@ -289,12 +319,13 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk, onOpenCapture }
   const renderItemCard = (item, idx, listRef) => {
     const thumb = resolveThumbnail(item)
     const isVideo = item.kind === 'video' || item.kind === 'reel' || item.is_reel
+    const isProcessing = item.status === 'processing' || item.status === 'pending' || item.status === 'enriching' || item.sync_state === 'syncing'
 
     return (
       <div key={item.id || idx}>
         <div
           className="r"
-          style={{ padding: '12px 0', gap: 12, cursor: 'pointer' }}
+          style={{ padding: '12px 0', gap: 14, cursor: 'pointer', alignItems: 'center' }}
           onClick={() => onSelectItem(item)}
         >
           {/* Actual Thumbnail or domain fallback badge */}
@@ -342,7 +373,26 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk, onOpenCapture }
                 loading="lazy"
                 style={{ position: 'relative', width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
                 onError={(e) => {
-                  e.currentTarget.style.display = 'none'
+                  const ytMatch = item.url?.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([\w-]{11})/)
+                  if (ytMatch && !e.currentTarget.src.includes('img.youtube.com')) {
+                    e.currentTarget.src = `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`
+                  } else {
+                    e.currentTarget.style.display = 'none'
+                  }
+                }}
+              />
+            )}
+
+            {isProcessing && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%)',
+                  backgroundSize: '200% 100%',
+                  animation: 'shimmer 1.5s infinite linear',
+                  zIndex: 3,
+                  pointerEvents: 'none',
                 }}
               />
             )}
@@ -380,9 +430,18 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk, onOpenCapture }
               {item.title}
             </div>
             <div className="m" style={{ marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {item.author || item.channel || getItemDomain(item.url) || 'Web'} ·{' '}
-              {item.kind ? item.kind.charAt(0).toUpperCase() + item.kind.slice(1) : 'Article'}
-              {item.duration ? ` · ${item.duration}` : ''}
+              {isProcessing ? (
+                <span style={{ color: '#0071E3', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <span className="spn" style={{ width: 8, height: 8 }} />
+                  Processing…
+                </span>
+              ) : (
+                <>
+                  {item.author || item.channel || getItemDomain(item.url) || 'Web'} ·{' '}
+                  {item.kind ? item.kind.charAt(0).toUpperCase() + item.kind.slice(1) : 'Article'}
+                  {item.duration ? ` · ${item.duration}` : ''}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -650,7 +709,7 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk, onOpenCapture }
         </>
       ) : selectedCollection ? (
         <div className="col" style={{ gap: 14 }}>
-          {/* Collection Detail Header with Back Button */}
+          {/* Collection Detail Header with Back Button & Delete Action */}
           <div className="r sp" style={{ alignItems: 'center' }}>
             <button
               type="button"
@@ -674,9 +733,30 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk, onOpenCapture }
               Collections
             </button>
 
-            <span className="m" style={{ fontSize: 13 }}>
-              {collectionItems.length} {collectionItems.length === 1 ? 'item' : 'items'}
-            </span>
+            <div className="r" style={{ alignItems: 'center', gap: 10 }}>
+              <span className="m" style={{ fontSize: 13 }}>
+                {collectionItems.length} {collectionItems.length === 1 ? 'item' : 'items'}
+              </span>
+              <button
+                type="button"
+                className="ib"
+                aria-label="Delete collection"
+                title="Delete this collection"
+                style={{ width: 34, height: 34, color: '#FF3B30', background: 'rgba(255, 59, 48, 0.1)', border: 0, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                onClick={async () => {
+                  if (!window.confirm(`Delete collection "${selectedCollection.title || selectedCollection.name}"?`)) return
+                  try {
+                    await api.deleteLibraryList(selectedCollection.id)
+                    setSelectedCollection(null)
+                    loadData()
+                  } catch (err) {
+                    console.warn('Failed to delete collection:', err)
+                  }
+                }}
+              >
+                <Icon name="trash" size={16} />
+              </button>
+            </div>
           </div>
 
           <div>
@@ -702,11 +782,13 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk, onOpenCapture }
           )}
         </div>
       ) : (
-        /* Collections Grid with real cover thumbnails or icon logos */
+        /* Collections Grid with Apple-style folder cards & 2x2 thumbnail preview */
         <div className="g2" style={{ rowGap: 18 }}>
           {lists.length > 0 ? (
             lists.map((collection, idx) => {
               const coverThumb = resolveCollectionCover(collection)
+              const sampleThumbs = Array.isArray(collection.sample_thumbnails) ? collection.sample_thumbnails : []
+              const hostBase = getResolvedBase()
 
               return (
                 <motion.div
@@ -719,20 +801,67 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk, onOpenCapture }
                   <div
                     style={{
                       width: '100%',
-                      height: 120,
-                      borderRadius: 24,
-                      background: idx % 2 === 0 ? 'linear-gradient(135deg, #1C1C1E 0%, #2C2C2E 100%)' : 'linear-gradient(135deg, #2441FF 0%, #16167A 100%)',
-                      color: '#fff',
+                      aspectRatio: '1.25 / 1',
+                      borderRadius: 22,
+                      background: '#F0F1F5',
+                      border: '1px solid rgba(0,0,0,0.06)',
                       overflow: 'hidden',
                       flex: 'none',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       position: 'relative',
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                      padding: sampleThumbs.length > 1 ? 5 : 0,
                     }}
                   >
-                    {coverThumb ? (
+                    {sampleThumbs.length > 1 ? (
+                      <div
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(2, 1fr)',
+                          gridTemplateRows: 'repeat(2, 1fr)',
+                          gap: 4,
+                          borderRadius: 16,
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {sampleThumbs.slice(0, 4).map((thumb, sIdx) => {
+                          const resolved = thumb.thumbnail_url?.startsWith('/api')
+                            ? appendAuthToken(`${hostBase || ''}${thumb.thumbnail_url}`)
+                            : thumb.thumbnail_url
+                          return (
+                            <div
+                              key={thumb.item_id || sIdx}
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                background: '#E2E4EA',
+                                overflow: 'hidden',
+                                position: 'relative',
+                              }}
+                            >
+                              {resolved ? (
+                                <img
+                                  src={resolved}
+                                  alt=""
+                                  loading="lazy"
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                  onError={(e) => { e.currentTarget.style.display = 'none' }}
+                                />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', background: '#E5E7EB' }} />
+                              )}
+                            </div>
+                          )
+                        })}
+                        {Array.from({ length: Math.max(0, 4 - sampleThumbs.length) }).map((_, emptyIdx) => (
+                          <div key={`empty-${emptyIdx}`} style={{ width: '100%', height: '100%', background: '#E5E7EB' }} />
+                        ))}
+                      </div>
+                    ) : coverThumb ? (
                       <img
                         src={coverThumb}
                         alt={collection.title}
@@ -745,27 +874,26 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk, onOpenCapture }
                     ) : (
                       <div
                         style={{
-                          width: 52,
-                          height: 52,
-                          borderRadius: 16,
-                          background: 'rgba(255,255,255,0.18)',
-                          backdropFilter: 'blur(8px)',
                           display: 'flex',
+                          flexDirection: 'column',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          color: '#fff',
+                          gap: 6,
+                          color: '#007AFF',
                         }}
                       >
-                        <Icon name={collection.icon || 'folder'} size={28} />
+                        <svg viewBox="0 0 24 24" width="42" height="42" fill="currentColor" opacity="0.85" aria-hidden="true">
+                          <path d="M20 5h-8.586L9.707 3.293A1 1 0 0 0 9 3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z" />
+                        </svg>
                       </div>
                     )}
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontWeight: 650, fontSize: 14.5, letterSpacing: '-0.015em', color: '#111113', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {collection.title || collection.name}
                     </div>
-                    <div className="m">
-                      {collection.item_count !== undefined ? `${collection.item_count} items` : 'Collection'}
+                    <div className="m" style={{ fontSize: 12, marginTop: 2 }}>
+                      {collection.item_count !== undefined ? `${collection.item_count} ${collection.item_count === 1 ? 'item' : 'items'}` : 'Collection'}
                     </div>
                   </div>
                 </motion.div>

@@ -1,42 +1,63 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import Icon from '../components/Icon.jsx'
 import WidgetFrame, { WidgetBoundary } from './WidgetFrame.jsx'
 import { DashboardContext } from './context.js'
 import { cached, remember, request } from './api.js'
-import { GLANCE_WIDGETS, NEED_WIDGETS, SYSTEM_WIDGETS, quietNow, widgetDisplaySize } from './layout.js'
+import { ADOPTED_WIDGETS, GLANCE_WIDGETS, SYSTEM_WIDGETS, WIDGET_ICONS, quietNow } from './layout.js'
+import { widgetVariations, variationNumber } from './widgetVariations.js'
 import { useApp } from '../store.jsx'
 import Drawer from './Drawer.jsx'
 import HomeSettings from './HomeSettings.jsx'
 import useConnections from './useConnections.js'
-import SourceItem from './SourceItem.jsx'
 import Button from '../components/ui/AppButton.jsx'
-import WidgetSlot from './WidgetSlot.jsx'
-import AddWidget from './AddWidget.jsx'
 import { showBoardUINotification } from '../lib/boardui-notifications.js'
-import { GRID_GEOMETRY, gridCellAt, gridPosition, insertGridWidget, moveGridWidget, normalizeLayout, removeGridWidget, resizeGridWidget } from './grid.js'
 import FennelHome from '../views/FennelHome.jsx'
+import defaultManifests from '../dev/widgets/manifests.json'
 import './home.css'
 import './home-shell.css'
+import './glance.css'
 
-const WidgetView = memo(function WidgetView({ context, ...props }) {
+const WidgetView = memo(function WidgetView({ context, frameless = true, ...props }) {
   return (
     <DashboardContext.Provider value={context}>
       <WidgetBoundary id={props.manifest.id} onRetry={context.refreshAll}>
-        <WidgetFrame {...props} />
+        <WidgetFrame {...props} frameless={frameless} />
       </WidgetBoundary>
     </DashboardContext.Provider>
   )
 })
 
-export default function Home({ layoutMode = "default" }) {
-  const showClassic = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('classic') === '1'
-  if (!showClassic) {
+export const DEFAULT_GLANCE_WIDGETS = [
+  { id: 'glance.weather', size: 'l', design: 'weather-sm-01' },
+  { id: 'glance.clock', size: 'm', design: 'clock-sm-01' },
+  { id: 'glance.sun', size: 's', design: 'sun-sm-01' },
+  { id: 'glance.air', size: 's', design: 'air-sm-01' },
+  { id: 'glance.pc', size: 'm', design: 'pc-sm-01' },
+  { id: 'glance.music', size: 'm', design: 'media-sm-01' },
+]
+
+export const ADD_CATEGORIES = [
+  { id: 'glance', label: 'Glance' },
+  { id: 'system', label: 'System' },
+  { id: 'tasks', label: 'Tasks' },
+  { id: 'needs-you', label: 'Needs Attention' },
+  { id: 'feed', label: 'Feeds' },
+  { id: 'communication', label: 'Communication' },
+  { id: 'agent', label: 'Agent' },
+  { id: 'library', label: 'Library' },
+  { id: 'all', label: 'All' },
+]
+
+export default function Home({ layoutMode = 'desktop' }) {
+  const showFennel = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('fennel') === '1'
+  if (showFennel) {
     return <FennelHome />
   }
 
   const navigate = useNavigate()
-  const { setOverlay, setCapabilitiesTab } = useApp()
+  const { setOverlay, setCapabilitiesTab, userProfile, openChatWithPrompt } = useApp()
   const connections = useConnections()
   const openPalette = useCallback(() => setOverlay('palette'), [setOverlay])
   const openAppearance = useCallback(() => navigate('/settings?tab=appearance'), [navigate])
@@ -51,10 +72,26 @@ export default function Home({ layoutMode = "default" }) {
   }, [])
 
   const [entries, setEntries] = useState(() => cached('manifests') || [])
-  const [layout, setLayout] = useState(() => normalizeLayout(cached(`layout.${layoutMode}`)))
+  const [layout, setLayout] = useState(() => {
+    try {
+      const v = localStorage.getItem('amethyst.bento.v5')
+      if (v !== 'true') {
+        localStorage.setItem('amethyst.bento.v5', 'true')
+        remember(`layout.${layoutMode}`, { widgets: DEFAULT_GLANCE_WIDGETS })
+        return { widgets: DEFAULT_GLANCE_WIDGETS }
+      }
+    } catch {}
+    return cached(`layout.${layoutMode}`) || { widgets: DEFAULT_GLANCE_WIDGETS }
+  })
   const [editing, setEditing] = useState(false)
-  const [previewWidgets, setPreviewWidgets] = useState(null)
-  const [dragging, setDragging] = useState(null)
+  const [selectedWidgetId, setSelectedWidgetId] = useState(null)
+  const [addModalOpen, setAddModalOpen] = useState(false)
+  const [addSearchQuery, setAddSearchQuery] = useState('')
+  const [addCategory, setAddCategory] = useState('glance')
+  const [addSelectedId, setAddSelectedId] = useState(null)
+  const [addSelectedSize, setAddSelectedSize] = useState('m')
+  const [addSelectedDesign, setAddSelectedDesign] = useState(null)
+  const [askQuery, setAskQuery] = useState('')
   const [quietSettings, setQuietSettings] = useState(() => cached('quiet') || {})
   const [records, setRecords] = useState({})
   const [refreshVersion, setRefreshVersion] = useState(0)
@@ -68,34 +105,31 @@ export default function Home({ layoutMode = "default" }) {
   const dirty = useRef(false)
   const saveQueue = useRef(Promise.resolve())
   const mounted = useRef(false)
-  const gesture = useRef(null)
-  const gridViewport = useRef(null)
-  const [gridViewportWidth, setGridViewportWidth] = useState(0)
 
-  const manifests = useMemo(() => (Array.isArray(entries) ? entries : []).filter(e => e?.enabled).map(e => e?.manifest).filter(Boolean), [entries])
+  // Use live manifests from backend, fall back to default manifests if not yet loaded or blocked
+  const manifests = useMemo(() => {
+    const list = Array.isArray(entries) && entries.length > 0
+      ? entries.filter(e => e?.enabled).map(e => e?.manifest).filter(Boolean)
+      : defaultManifests
+    return list && list.length > 0 ? list : defaultManifests
+  }, [entries])
+
   const requested = new URLSearchParams(window.location.search).get('widget')
-  const currentWidgets = useMemo(() => Array.isArray(layout?.widgets) ? layout.widgets : [], [layout?.widgets])
-  const initialWidgets = useMemo(() => {
-    if (currentWidgets.length || loaded) return currentWidgets
-    return [
-      { id: 'glance.clock', size: 'm', design: 'clock-sm-05' },
-      { id: 'glance.weather', size: 'm', design: 'weather-sm-03' },
-      { id: 'glance.music', size: 'm', design: 'media-sm-03' },
-    ]
-  }, [currentWidgets, loaded])
-  const positionSource = previewWidgets || initialWidgets
-  const positions = useMemo(() => normalizeLayout({ widgets: (
-    requested && !SYSTEM_WIDGETS.includes(requested) && !NEED_WIDGETS.includes(requested) && manifests.some(m => m.id === requested)
-      ? [positionSource.find(w => w.id === requested) || { id: requested, size: 'm', height: 4 }, ...positionSource.filter(w => w.id !== requested)] : positionSource
-  ) }).widgets, [requested, manifests, positionSource])
-  const requiredColumns = positions.reduce((max, item) => Math.max(max, item.x + item.w), 0)
-  const visibleColumns = Math.max(1, Math.floor((gridViewportWidth + GRID_GEOMETRY.gap) / (GRID_GEOMETRY.cellWidth + GRID_GEOMETRY.gap)))
-  const gridColumns = Math.max(visibleColumns, requiredColumns)
-  const gridRows = positions.reduce((max, item) => Math.max(max, item.y + item.h), 0)
-  const gridStyle = {
-    width: GRID_GEOMETRY.insetX * 2 + gridColumns * GRID_GEOMETRY.cellWidth + Math.max(0, gridColumns - 1) * GRID_GEOMETRY.gap,
-    height: GRID_GEOMETRY.insetY * 2 + gridRows * GRID_GEOMETRY.rowHeight + Math.max(0, gridRows - 1) * GRID_GEOMETRY.gap,
-  }
+
+  const currentWidgets = useMemo(() => {
+    if (Array.isArray(layout?.widgets) && layout.widgets.length > 0) return layout.widgets
+    return DEFAULT_GLANCE_WIDGETS
+  }, [layout?.widgets])
+
+  const positions = useMemo(() => {
+    if (requested && !SYSTEM_WIDGETS.includes(requested) && manifests.some(m => m.id === requested)) {
+      if (!currentWidgets.some(w => w.id === requested)) {
+        return [{ id: requested, size: 'm' }, ...currentWidgets]
+      }
+    }
+    return currentWidgets
+  }, [requested, manifests, currentWidgets])
+
   const quiet = quietNow(quietSettings, now)
   const refreshAll = useCallback(() => setRefreshVersion(n => n + 1), [])
   const onData = useCallback((id, data) => setRecords(old => JSON.stringify(old[id]) === JSON.stringify(data) ? old : { ...old, [id]: data }), [])
@@ -106,8 +140,10 @@ export default function Home({ layoutMode = "default" }) {
       .then(value => {
         if (mounted.current) {
           const list = Array.isArray(value?.widgets) ? value.widgets : []
-          setEntries(list)
-          remember('manifests', list)
+          if (list.length > 0) {
+            setEntries(list)
+            remember('manifests', list)
+          }
         }
       })
       .catch(err => { if (mounted.current) setError(err.message) })
@@ -115,7 +151,8 @@ export default function Home({ layoutMode = "default" }) {
     request(`/layout?mode=${encodeURIComponent(layoutMode)}`)
       .then(value => {
         if (mounted.current && !dirty.current) {
-          const nextLayout = normalizeLayout(value)
+          const isModern = Array.isArray(value?.widgets) && value.widgets.length > 0 && value.widgets.some(w => w.id === 'glance.pc')
+          const nextLayout = isModern ? value : { widgets: DEFAULT_GLANCE_WIDGETS }
           setLayout(nextLayout)
           layoutRef.current = nextLayout
           confirmedLayout.current = nextLayout
@@ -137,14 +174,6 @@ export default function Home({ layoutMode = "default" }) {
     const timer = setInterval(() => setNow(new Date()), 60000)
     return () => { mounted.current = false; clearInterval(timer) }
   }, [layoutMode])
-
-  useEffect(() => {
-    const element = gridViewport.current
-    if (!element) return
-    const observer = new ResizeObserver(([entry]) => setGridViewportWidth(entry.contentRect.width))
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [loaded])
 
   function persist(next, undo = true, message = 'Layout updated') {
     const previous = layoutRef.current
@@ -189,8 +218,8 @@ export default function Home({ layoutMode = "default" }) {
       if (event.target.closest('input,select,textarea,[contenteditable=true]')) return
       if (!event.altKey || event.ctrlKey || event.metaKey) return
       if (event.key.toLowerCase() === 'r') { event.preventDefault(); refreshAll() }
-      if (event.key.toLowerCase() === 'e') { event.preventDefault(); setEditing(value => !value) }
-      if (event.key.toLowerCase() === 'a') { event.preventDefault(); setDrawer({ type: 'add' }) }
+      if (event.key.toLowerCase() === 'e') { event.preventDefault(); setEditing(value => !value); setSelectedWidgetId(null) }
+      if (event.key.toLowerCase() === 'a') { event.preventDefault(); setAddModalOpen(true) }
       if (event.key.toLowerCase() === 'q') { event.preventDefault(); saveQuiet({ ...quietSettings, snoozed_until: new Date(Date.now() + 3600000).toISOString() }).catch(err => setError(err.message)) }
     }
     window.addEventListener('keydown', key)
@@ -200,317 +229,536 @@ export default function Home({ layoutMode = "default" }) {
   function changeDesign(id, design) {
     const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []
     if (!widgets.some(w => w.id === id) || !design) return
-    const msg = id === 'glance.clock' ? 'Clock face updated' : 'Widget design updated'
+    const msg = id === 'glance.clock' ? 'Clock face updated' : 'Widget style updated'
     persist({
       widgets: widgets.map(w => w.id === id ? { ...w, design } : w)
-    }, true, msg)
+    }, false, msg)
     setAnnouncement(msg)
-  }
-
-  function move(id, direction) {
-    const item = positions.find(widget => widget.id === id)
-    if (!item) return
-    const delta = typeof direction === 'number' ? { x: direction, y: 0 } : {
-      ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 },
-      ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 },
-    }[direction]
-    if (!delta) return
-    const next = moveGridWidget(positions, id, item.x + delta.x, item.y + delta.y)
-    if (!next) { setAnnouncement(`Could not move ${id} there`); return }
-    setPreviewWidgets(null)
-    persist({ ...layoutRef.current, widgets: next })
-    setAnnouncement(`${id} moved`)
   }
 
   function resize(id, patch) {
     if (!patch?.size) return
-    const manifest = manifests.find(item => item.id === id)
-    if (!manifest?.sizes?.includes(patch.size)) return
-    const next = resizeGridWidget(positions, id, patch.size)
-    if (!next) { setAnnouncement(`Could not resize ${id} in this layout`); return }
-    setPreviewWidgets(null)
-    persist({ ...layoutRef.current, widgets: next })
+    const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []
+    const next = widgets.map(w => w.id === id ? { ...w, size: patch.size } : w)
+    persist({ ...layoutRef.current, widgets: next }, false, `${id} resized`)
     setAnnouncement(`${id} resized to ${patch.size.toUpperCase()}`)
   }
 
   function addWidget(id, size, design) {
     const manifest = manifests.find(item => item.id === id)
     if (!manifest || SYSTEM_WIDGETS.includes(id)) return
-    const selectedSize = manifest.sizes.includes(size) ? size : manifest.sizes[0]
-    const item = { id, size: selectedSize, height: 3, ...(design ? { design } : {}) }
-    const next = insertGridWidget(positions, item)
-    if (!next) { setAnnouncement(`Could not add ${manifest.title}; the grid has no valid placement`); return }
-    setPreviewWidgets(null)
-    persist({ ...layoutRef.current, widgets: next }, true, `${manifest.title} added to Home`)
-    setDrawer(null)
+    const selectedSize = manifest.sizes?.includes(size) ? size : (manifest.sizes?.[0] || 'm')
+    const item = { id, size: selectedSize, ...(design ? { design } : {}) }
+    const existing = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []
+    const next = [...existing.filter(w => w.id !== id), item]
+    persist({ ...layoutRef.current, widgets: next }, true, `${manifest.title} added to Today`)
+    setAddModalOpen(false)
   }
-
-  function toggleWidget(id) {
-    if (layoutRef.current.widgets.some(item => item.id === id)) removeWidget(id)
-    else addWidget(id)
-  }
-
-  function grip(kind, id) {
-    return {
-      onPointerDown(event) {
-        if (event.button !== 0 || !editing) return
-        event.preventDefault()
-        const element = event.currentTarget.closest('[data-slot-id]')
-        const viewport = gridViewport.current
-        const item = positions.find(widget => widget.id === id)
-        if (!element || !viewport || !item) return
-        element.getAnimations().forEach(animation => animation.cancel())
-        const rect = element.getBoundingClientRect()
-        gesture.current = {
-          kind, id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
-          grabX: event.clientX - rect.left, grabY: event.clientY - rect.top,
-          original: positions, candidate: positions,
-        }
-        event.currentTarget.setPointerCapture(event.pointerId)
-      },
-      onPointerMove(event) {
-        const active = gesture.current
-        if (!active || active.pointerId !== event.pointerId) return
-        if (Math.hypot(event.clientX - active.startX, event.clientY - active.startY) < 5) return
-        setDragging(id)
-        let next
-        if (kind === 'resize') {
-          const manifest = manifests.find(item => item.id === id)
-          const item = active.original.find(widget => widget.id === id)
-          const horizontal = Math.abs(event.clientX - active.startX) >= Math.abs(event.clientY - active.startY)
-          const steps = horizontal
-            ? Math.round((event.clientX - active.startX) / (GRID_GEOMETRY.cellWidth + GRID_GEOMETRY.gap))
-            : Math.round((event.clientY - active.startY) / (GRID_GEOMETRY.rowHeight + GRID_GEOMETRY.gap))
-          const sizes = manifest?.sizes || []
-          const index = sizes.indexOf(item?.size)
-          const size = sizes[Math.max(0, Math.min(sizes.length - 1, index + steps))]
-          next = size ? resizeGridWidget(active.original, id, size) : null
-        } else {
-          const viewport = gridViewport.current
-          if (!viewport) return
-          const local = {
-            x: event.clientX - viewport.getBoundingClientRect().left + viewport.scrollLeft - active.grabX,
-            y: event.clientY - viewport.getBoundingClientRect().top + viewport.scrollTop - active.grabY,
-          }
-          const cell = gridCellAt(local)
-          next = moveGridWidget(active.original, id, cell.x, cell.y)
-        }
-        if (next) { active.candidate = next; setPreviewWidgets(next) }
-        else { active.candidate = active.original; setPreviewWidgets(active.original) }
-      },
-      onPointerUp(event) {
-        const active = gesture.current
-        if (!active || active.pointerId !== event.pointerId) return
-        if (active.candidate !== active.original) persist({ ...layoutRef.current, widgets: active.candidate })
-        gesture.current = null
-        setDragging(null)
-        setPreviewWidgets(null)
-      },
-      onPointerCancel() {
-        if (!gesture.current) return
-        gesture.current = null
-        setDragging(null)
-        setPreviewWidgets(null)
-      },
-      onLostPointerCapture() {
-        if (!gesture.current) return
-        gesture.current = null
-        setDragging(null)
-        setPreviewWidgets(null)
-      },
-      onKeyDown(event) {
-        if (!event.key.startsWith('Arrow')) return
-        event.preventDefault()
-        if (kind === 'move') move(id, event.key)
-        else {
-          const item = positions.find(widget => widget.id === id), sizes = manifests.find(widget => widget.id === id)?.sizes || []
-          const index = sizes.indexOf(item?.size), step = ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 1
-          const size = sizes[Math.max(0, Math.min(sizes.length - 1, index + step))]
-          if (size) resize(id, { size })
-        }
-      },
-    }
-  }
-
-  useEffect(() => {
-    const cancel = event => {
-      if (event.key !== 'Escape' || !gesture.current) return
-      event.preventDefault()
-      gesture.current = null
-      setDragging(null)
-      setPreviewWidgets(null)
-    }
-    window.addEventListener('keydown', cancel)
-    return () => window.removeEventListener('keydown', cancel)
-  }, [])
 
   function removeWidget(id) {
     const widgets = Array.isArray(layoutRef.current?.widgets) ? layoutRef.current.widgets : []
     if (widgets.some(w => w.id === id)) {
-      persist({ ...layoutRef.current, widgets: removeGridWidget(widgets, id) })
+      persist({ ...layoutRef.current, widgets: widgets.filter(w => w.id !== id) }, true, 'Widget removed')
     }
-    if (selectedId === id || requested === id) {
-      const url = new URL(window.location.href)
-      url.searchParams.delete('widget')
-      window.history.replaceState({}, '', url)
-      setDrawer({ type: 'closed' })
-    }
+    if (selectedWidgetId === id) setSelectedWidgetId(null)
   }
 
   const openWidget = id => setDrawer(SYSTEM_WIDGETS.includes(id) ? { type: 'settings', settingsId: id } : { id })
-  const selectedId = drawer?.id || (drawer === null && NEED_WIDGETS.includes(requested) ? requested : null)
-  const selected = selectedId && manifests.find(m => m.id === selectedId)
-  const membership = [...new Set(currentWidgets.map(w => w.id))].sort().join('|')
 
   const actions = useRef({})
-  useLayoutEffect(() => { actions.current = { removeWidget, openWidget, changeDesign, move, resize, grip, addWidget } })
-  const stable = useMemo(() => Object.fromEntries(['removeWidget', 'openWidget', 'changeDesign', 'move', 'resize', 'grip', 'addWidget'].map(key => [key, (...args) => actions.current[key](...args)])), [])
+  useLayoutEffect(() => { actions.current = { removeWidget, openWidget, changeDesign, resize, addWidget } })
+  const stable = useMemo(() => Object.fromEntries(['removeWidget', 'openWidget', 'changeDesign', 'resize', 'addWidget'].map(key => [key, (...args) => actions.current[key](...args)])), [])
+
   const frameContext = useMemo(() => ({
     now, quiet, quietSettings, manifests, openPalette, setEditing, editing, connectSource,
-    connectionHealth: connections.data, refreshAll, ...stable, layout: { widgets: membership.split('|').map(id => ({ id })) }
-  }), [now, quiet, quietSettings, manifests, openPalette, setEditing, editing, connectSource, connections.data, refreshAll, stable, membership])
+    connectionHealth: connections.data, refreshAll, ...stable, layout: { widgets: positions }
+  }), [now, quiet, quietSettings, manifests, openPalette, setEditing, editing, connectSource, connections.data, refreshAll, stable, positions])
 
-  const views = useMemo(() => new Map(positions.map(position => {
-    const manifest = manifests.find(m => m.id === position.id)
-    return [position.id, manifest && (
-      <WidgetView
-        key={manifest.id}
-        context={frameContext}
-        manifest={manifest}
-        size={position.size || 'm'}
-        design={position.design}
-        quiet={quiet}
-        refreshVersion={refreshVersion}
-        onData={onData}
-        editing={false}
-        tile={false}
-        full={false}
-      />
-    )]
-  })), [manifests, frameContext, quiet, refreshVersion, onData, positions])
+  const homeWidgets = useMemo(() => {
+    return positions.filter(w => !SYSTEM_WIDGETS.includes(w.id) && manifests.some(m => m.id === w.id))
+  }, [positions, manifests])
 
-  const renderWidget = (position, full = false) => {
-    const manifest = manifests.find(m => m.id === position.id)
-    if (!manifest) return null
-    if (full) return <WidgetView context={frameContext} manifest={manifest} size={position.size || 'm'} design={position.design} quiet={quiet} refreshVersion={refreshVersion} onData={onData} editing={false} full />
-    return (
-      <WidgetSlot
-        key={manifest.id}
-        id={manifest.id}
-        title={manifest.title}
-        size={position.size || 'm'}
-        displaySize={widgetDisplaySize(position.id, position.size || 'm')}
-        sizes={manifest.sizes}
-        editing={editing}
-        dragging={dragging === position.id}
-        placement={gridPosition(position)}
-        move={stable.move}
-        resize={stable.resize}
-        grip={stable.grip}
-        remove={stable.removeWidget}
-      >
-        {views.get(position.id)}
-      </WidgetSlot>
-    )
-  }
+  const selectedWidget = useMemo(() => {
+    return selectedWidgetId ? homeWidgets.find(w => w.id === selectedWidgetId) : null
+  }, [selectedWidgetId, homeWidgets])
 
-  const homePositions = positions.filter(w => !SYSTEM_WIDGETS.includes(w.id) && manifests.some(manifest => manifest.id === w.id))
-  const requestedSystem = SYSTEM_WIDGETS.includes(requested) && manifests.find(m => m.id === requested)
-  const settingsId = drawer?.settingsId || (drawer === null && requestedSystem ? requested : null)
-  const previousRects = useRef(new Map())
+  const selectedWidgetManifest = useMemo(() => {
+    return selectedWidget ? manifests.find(m => m.id === selectedWidget.id) : null
+  }, [selectedWidget, manifests])
 
-  useLayoutEffect(() => {
-    const nodes = gridViewport.current?.querySelectorAll('[data-slot-id]') || []
-    const currentRects = new Map()
-    for (const node of nodes) currentRects.set(node.dataset.slotId, node.getBoundingClientRect())
-    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) for (const node of nodes) {
-      const before = previousRects.current.get(node.dataset.slotId), after = currentRects.get(node.dataset.slotId)
-      if (!before || (before.left === after.left && before.top === after.top)) continue
-      node.getAnimations().forEach(animation => animation.cancel())
-      node.animate([
-        { transform: `translate(${before.left - after.left}px, ${before.top - after.top}px)` },
-        { transform: 'none' },
-      ], { duration: 180, easing: 'cubic-bezier(.2,0,0,1)' })
+  const selectedWidgetVariations = useMemo(() => {
+    return selectedWidget ? widgetVariations(selectedWidget.id) : []
+  }, [selectedWidget])
+
+  const filteredAddManifests = useMemo(() => {
+    const q = addSearchQuery.trim().toLowerCase()
+    let list = manifests.filter(m => !SYSTEM_WIDGETS.includes(m.id))
+    if (q) {
+      return list.filter(m => m.title.toLowerCase().includes(q) || m.id.toLowerCase().includes(q))
     }
-    previousRects.current = currentRects
-  }, [positions])
+    if (addCategory && addCategory !== 'all') {
+      list = list.filter(m => m.group === addCategory)
+    }
+    return list
+  }, [manifests, addSearchQuery, addCategory])
 
-  useEffect(() => {
-    const section = settingsId && document.getElementById(`home-${settingsId}`)
-    if (section) { section.scrollIntoView({ block: 'start' }); section.focus({ preventScroll: true }) }
-  }, [settingsId, drawer])
+  const addCurrentId = (filteredAddManifests.some(m => m.id === addSelectedId) ? addSelectedId : filteredAddManifests[0]?.id) || 'glance.weather'
+  const addCurrentManifest = useMemo(() => manifests.find(m => m.id === addCurrentId) || manifests[0], [manifests, addCurrentId])
+  const addCurrentVariations = useMemo(() => addCurrentId ? widgetVariations(addCurrentId) : [], [addCurrentId])
 
-  const closeDrawer = () => {
-    setDrawer({ type: 'closed' })
-    if (requestedSystem || NEED_WIDGETS.includes(requested)) {
-      const url = new URL(window.location.href)
-      url.searchParams.delete('widget')
-      window.history.replaceState({}, '', url)
+  const handleAskSubmit = (e) => {
+    e.preventDefault()
+    if (askQuery.trim()) {
+      if (openChatWithPrompt) openChatWithPrompt(askQuery.trim())
+      else openPalette()
+      setAskQuery('')
+    } else {
+      openPalette()
     }
   }
+
+  const hour = now.getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const userName = userProfile?.name || 'Nova'
+  const dateFormatted = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+
+  const closeDrawer = () => setDrawer({ type: 'closed' })
 
   return (
     <>
-      <div className="view today-dashboard home-shell bento-foundation">
-        <div className="today-page">
-          <header className="today-heading">
-            <div className="today-greeting">
-              <time className="today-date" dateTime={now.toISOString()}>{now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</time>
-              <h1>Today</h1>
-              <p className="today-intro">Your work, plans, and activity in one place.</p>
-            </div>
-            <nav className="today-actions" aria-label="Today actions">
-              <Button className="today-action-refresh" variant="ghost" onClick={refreshAll} title="Refresh dashboard data"><Icon name="refresh" size={16} /><span>Refresh</span></Button>
-              <Button className="today-action-add" variant="primary" onClick={() => setDrawer({ type: 'add' })}><Icon name="plus" size={16} /><span>Add widget</span></Button>
-              {editing
-                ? <Button variant="secondary" onClick={() => { gesture.current = null; setEditing(false); setDragging(null); setPreviewWidgets(null) }} aria-pressed="true"><Icon name="check-simple" size={16} /><span>Done</span></Button>
-                : <Button variant="ghost" onClick={() => setEditing(true)} aria-pressed="false"><Icon name="grid" size={16} /><span>Edit layout</span></Button>}
-              <Button variant="ghost" size="icon" onClick={() => setDrawer({ type: 'settings' })} aria-label="Today settings" title="Today settings"><Icon name="settings" size={18} /></Button>
-            </nav>
-          </header>
-
-          <div className="today-utility-row">
-            <Button className="today-capture" variant="ghost" onClick={openPalette} aria-label="Search or capture a thought, Command K or Control K">
-              <Icon name="search" size={17} /><span>Search or capture</span><kbd>⌘K / Ctrl+K</kbd>
-            </Button>
-            <div className="today-status" aria-live="polite">
-              <span>{homePositions.length} {homePositions.length === 1 ? 'widget' : 'widgets'}</span>
-              {quiet && <span className="today-quiet-status"><Icon name="moon" size={14} />Refresh paused</span>}
-              {saveState && !saveState.startsWith('Layout not saved') && <span className="today-save-status" role="status">{saveState}</span>}
-            </div>
+      <div className="today-bento-shell">
+        <header className="today-bento-header">
+          <div>
+            <p>{dateFormatted}</p>
+            <h1>{greeting}, {userName}</h1>
           </div>
+          <form className="today-ask-pill" onSubmit={handleAskSubmit}>
+            <input
+              type="text"
+              placeholder="Ask Amethyst…"
+              value={askQuery}
+              onChange={e => setAskQuery(e.target.value)}
+              aria-label="Ask Amethyst"
+            />
+            <button type="submit" className="today-ask-btn" aria-label="Send query">
+              <Icon name="arrow-up" size={16} />
+            </button>
+          </form>
+        </header>
 
-          <SourceItem />
-          {error && <div className="today-message" role="alert"><Icon name="warning" size={16} /><p>{error}</p><Button size="small" onClick={() => window.location.reload()}>Retry</Button></div>}
-          <span className="home-announcement" role="status" aria-live="polite">{announcement}</span>
-          {saveState.startsWith('Layout not saved') && <div className="today-message" role="alert"><Icon name="warning" size={16} /><p>{saveState}</p></div>}
+        {error && (
+          <div className="today-message" role="alert" style={{ marginBottom: 16 }}>
+            <Icon name="warning" size={16} />
+            <p>{error}</p>
+            <Button size="small" onClick={() => window.location.reload()}>Retry</Button>
+          </div>
+        )}
 
-          {!loaded && !layout.widgets.length && <div className="today-layout-loading" role="status" aria-label="Loading layout"><span /><span /><span /><span /></div>}
+        <motion.div layout className="today-bento-grid">
+          <AnimatePresence>
+            {homeWidgets.map(widget => {
+              const manifest = manifests.find(m => m.id === widget.id)
+              if (!manifest) return null
+              const size = widget.size || 'm'
+              const isSelected = selectedWidgetId === widget.id
 
-          <section className={`today-workspace${editing ? ' is-editing' : ''}`} aria-label="Your Today dashboard">
-            {editing && <div className="today-editing-note" role="status"><Icon name="dots-six" size={16} /><span>Move widgets with their handles. Resize or remove them here.</span></div>}
-            <div ref={gridViewport} className="today-grid-viewport" data-editing={editing || undefined}>
-              <div className="today-widgets-canvas" style={gridStyle}>
-                {homePositions.map(p => renderWidget(p))}
-              </div>
-            </div>
+              return (
+                <motion.div
+                  layout
+                  key={widget.id}
+                  className={`today-widget-cell ${editing ? 'is-editing' : ''} ${isSelected ? 'is-selected' : ''}`}
+                  style={{
+                    gridColumn: size === 's' ? 'span 1' : 'span 2',
+                    gridRow: size === 'l' ? 'span 2' : 'span 1',
+                  }}
+                  initial={{ opacity: 0, scale: 0.94 }}
+                  animate={{
+                    opacity: 1,
+                    scale: 1,
+                    rotate: editing ? [0, -0.6, 0.6, -0.4, 0.4, 0] : 0,
+                  }}
+                  exit={{ opacity: 0, scale: 0.88 }}
+                  transition={editing ? {
+                    rotate: { repeat: Infinity, duration: 0.4, ease: 'easeInOut' },
+                    layout: { type: 'spring', damping: 28, stiffness: 350 },
+                  } : {
+                    type: 'spring', damping: 28, stiffness: 350,
+                    layout: { type: 'spring', damping: 28, stiffness: 350 },
+                  }}
+                  whileHover={!editing ? { scale: 1.012 } : undefined}
+                  whileTap={!editing ? { scale: 0.985 } : undefined}
+                  onClick={() => {
+                    if (editing) setSelectedWidgetId(widget.id)
+                  }}
+                >
+                  {editing && (
+                    <motion.button
+                      type="button"
+                      className="today-widget-remove-badge"
+                      aria-label={`Remove ${manifest.title}`}
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0 }}
+                      whileHover={{ scale: 1.15, backgroundColor: '#e5484d' }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={e => {
+                        e.stopPropagation()
+                        removeWidget(widget.id)
+                      }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                    </motion.button>
+                  )}
+                  <WidgetView
+                    context={frameContext}
+                    manifest={manifest}
+                    size={size}
+                    design={widget.design}
+                    quiet={quiet}
+                    refreshVersion={refreshVersion}
+                    onData={onData}
+                    editing={false}
+                    tile={false}
+                    full={false}
+                  />
+                </motion.div>
+              )
+            })}
+          </AnimatePresence>
+        </motion.div>
 
-            {loaded && !homePositions.length && (
-              <section className="today-empty-layout">
-                <span className="today-empty-icon"><Icon name="grid" size={24} /></span>
-                <h2>Make Today yours</h2>
-                <p>Add the widgets and connected views you want to keep close.</p>
-                <Button variant="primary" onClick={() => setDrawer({ type: 'add' })}><Icon name="plus" size={16} />Add your first widget</Button>
-              </section>
-            )}
-          </section>
+        <div className="today-bento-bar">
+          <motion.button
+            type="button"
+            className="today-pill-btn"
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={() => setAddModalOpen(true)}
+          >
+            <Icon name="plus" size={18} />
+            <span>Add widget</span>
+          </motion.button>
+          <motion.button
+            type="button"
+            className="today-pill-btn secondary"
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={() => {
+              setEditing(v => !v)
+              setSelectedWidgetId(null)
+            }}
+          >
+            {editing ? 'Done' : 'Edit'}
+          </motion.button>
         </div>
       </div>
 
-      <DashboardContext.Provider value={{ openPalette, openAppearance, manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, toggleWidget, addWidget, resize, changeDesign, removeWidget, move, grip, now, openWidget, connectSource, manageConnections, connections }}>
-        {(drawer?.type === 'settings' || settingsId) && <Drawer title="Home settings" description="Refresh, quiet hours, and keyboard shortcuts." onClose={closeDrawer}><HomeSettings key={settingsId || 'settings'} settingsId={settingsId} /></Drawer>}
-        {drawer?.type === 'add' && <Drawer title="Add widget" description="Choose what belongs in your day." onClose={closeDrawer} className="today-catalog-drawer"><AddWidget /></Drawer>}
-        {selected && <Drawer title={selected.title} onClose={closeDrawer}><div className="today-widgets-canvas">{renderWidget(layout.widgets.find(w => w.id === selected.id) || { id: selected.id, size: selected.sizes[0], height: 3 }, true)}</div></Drawer>}
+      {/* Animated Inspector Modal */}
+      <AnimatePresence>
+        {editing && selectedWidget && selectedWidgetManifest && (
+          <motion.aside
+            className="today-inspector-modal"
+            role="dialog"
+            aria-label={`Edit ${selectedWidgetManifest.title}`}
+            initial={{ opacity: 0, scale: 0.9, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 16 }}
+            transition={{ type: 'spring', damping: 26, stiffness: 400 }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 11,
+                background: 'var(--wx)', color: 'var(--wxt)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <Icon name={WIDGET_ICONS[selectedWidget.id] || 'grid'} size={20} />
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{selectedWidgetManifest.title}</p>
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--today-mu)' }}>
+                  {(selectedWidgetManifest.sizes || ['s', 'm', 'l']).map(s => s === 's' ? 'Small' : s === 'm' ? 'Medium' : 'Large').join(', ')}
+                </p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--today-mu)', margin: '20px 0 8px' }}>Size</p>
+            <div className="today-seg-control">
+              {['s', 'm', 'l'].map(s => {
+                const supported = (selectedWidgetManifest.sizes || []).includes(s)
+                const active = (selectedWidget.size || 'm') === s
+                return (
+                  <motion.button
+                    key={s}
+                    type="button"
+                    disabled={!supported}
+                    whileTap={supported ? { scale: 0.95 } : undefined}
+                    className={`today-seg-item ${active ? 'is-active' : ''} ${!supported ? 'is-disabled' : ''}`}
+                    style={{ opacity: supported ? 1 : 0.35, cursor: supported ? 'pointer' : 'not-allowed' }}
+                    onClick={() => supported && resize(selectedWidget.id, { size: s })}
+                  >
+                    {s === 's' ? 'Small' : s === 'm' ? 'Medium' : 'Large'}
+                  </motion.button>
+                )
+              })}
+            </div>
+
+            {selectedWidgetVariations.length > 0 && (
+              <>
+                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--today-mu)', margin: '18px 0 10px' }}>Style</p>
+                <div className="today-style-grid">
+                  {selectedWidgetVariations.map((v, idx) => {
+                    const isCur = variationNumber(selectedWidget.design) === idx + 1
+                    return (
+                      <motion.div
+                        key={v.id}
+                        className={`today-style-thumb ${isCur ? 'is-selected' : ''}`}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => changeDesign(selectedWidget.id, v.id)}
+                      >
+                        <div
+                          className="today-style-box"
+                          style={{
+                            background: idx === 0 ? 'var(--wx)' : idx === 1 ? 'var(--a1)' : idx === 2 ? '#1d1d1f' : 'var(--today-card)',
+                            color: idx === 0 ? 'var(--wxt)' : idx === 1 ? '#fff' : idx === 2 ? '#fff' : 'var(--today-tx)',
+                          }}
+                        >
+                          <i style={{ display: 'block', width: '70%', height: 4, borderRadius: 2, background: 'currentColor', marginBottom: 4 }} />
+                          <i style={{ display: 'block', width: '45%', height: 4, borderRadius: 2, background: 'currentColor', opacity: 0.5 }} />
+                        </div>
+                        <span>{v.name}</span>
+                      </motion.div>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--today-ln)' }}>
+              <button
+                type="button"
+                style={{ border: 0, background: 'none', color: '#d70015', font: '600 14px Inter,sans-serif', cursor: 'pointer', minHeight: 44, padding: '0 8px' }}
+                onClick={() => {
+                  removeWidget(selectedWidget.id)
+                  setSelectedWidgetId(null)
+                }}
+              >
+                Remove
+              </button>
+              <motion.button
+                type="button"
+                className="today-pill-btn secondary"
+                style={{ height: 38, padding: '0 18px', fontSize: 14 }}
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={() => setSelectedWidgetId(null)}
+              >
+                Done
+              </motion.button>
+            </div>
+          </motion.aside>
+        )}
+      </AnimatePresence>
+
+      {/* Animated Add Widget Modal */}
+      <AnimatePresence>
+        {addModalOpen && (
+          <motion.div
+            className="today-add-modal-overlay"
+            initial={{ opacity: 0, backdropFilter: 'blur(0px)' }}
+            animate={{ opacity: 1, backdropFilter: 'blur(10px)' }}
+            exit={{ opacity: 0, backdropFilter: 'blur(0px)' }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            onClick={() => setAddModalOpen(false)}
+          >
+            <motion.div
+              className="today-add-modal"
+              initial={{ opacity: 0, scale: 0.92, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 20 }}
+              transition={{ type: 'spring', damping: 27, stiffness: 370 }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Left sidebar listing available widgets */}
+              <div className="today-add-sidebar">
+                <div className="today-add-search-box">
+                  <Icon name="search" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Search widgets…"
+                    value={addSearchQuery}
+                    onChange={e => setAddSearchQuery(e.target.value)}
+                  />
+                </div>
+
+                {/* Category filter pills */}
+                <div className="today-add-category-pills">
+                  {ADD_CATEGORIES.map(cat => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      className={`today-add-cat-pill ${addCategory === cat.id ? 'is-active' : ''}`}
+                      onClick={() => {
+                        setAddCategory(cat.id)
+                        setAddSelectedDesign(null)
+                      }}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto', flex: 1 }}>
+                  {filteredAddManifests.map(m => {
+                    const isSel = addCurrentId === m.id
+                    return (
+                      <motion.button
+                        key={m.id}
+                        type="button"
+                        whileHover={{ x: 3 }}
+                        whileTap={{ scale: 0.98 }}
+                        className={`today-add-item ${isSel ? 'is-selected' : ''}`}
+                        onClick={() => {
+                          setAddSelectedId(m.id)
+                          setAddSelectedSize(m.sizes?.[0] || 'm')
+                          setAddSelectedDesign(null)
+                        }}
+                      >
+                        <span style={{
+                          width: 32, height: 32, borderRadius: 10,
+                          background: isSel ? 'var(--today-tx)' : 'rgba(0,0,0,0.06)',
+                          color: isSel ? 'var(--today-card)' : 'var(--today-tx)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                        }}>
+                          <Icon name={WIDGET_ICONS[m.id] || 'grid'} size={17} />
+                        </span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.title}</span>
+                      </motion.button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Right details & preview pane */}
+              {addCurrentManifest && (
+                <div className="today-add-content">
+                  <div className="today-add-content-header">
+                    <h2>{addCurrentManifest.title}</h2>
+                    <p>{addCurrentManifest.description || 'Add this widget to your Today dashboard.'}</p>
+                  </div>
+
+                  <div className="today-add-section-label">Size</div>
+                  <div className="today-add-previews-row">
+                    {(addCurrentManifest.sizes || ['m']).map(s => {
+                      const isSel = addSelectedSize === s
+                      return (
+                        <motion.div
+                          key={s}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          className={`today-add-preview-card ${isSel ? 'is-selected' : ''}`}
+                          style={{
+                            width: s === 's' ? 180 : s === 'm' ? 300 : 300,
+                            height: s === 's' ? 160 : s === 'm' ? 160 : 250,
+                          }}
+                          onClick={() => setAddSelectedSize(s)}
+                        >
+                          <div style={{
+                            width: s === 's' ? 284 : s === 'm' ? 584 : 584,
+                            height: s === 's' ? 284 : s === 'm' ? 284 : 584,
+                            transform: s === 's' ? 'scale(0.53)' : s === 'm' ? 'scale(0.48)' : 'scale(0.48)',
+                            transformOrigin: '0 0',
+                            pointerEvents: 'none',
+                          }}>
+                            <WidgetView
+                              context={frameContext}
+                              manifest={addCurrentManifest}
+                              size={s}
+                              design={addSelectedDesign}
+                              quiet={quiet}
+                              refreshVersion={refreshVersion}
+                              onData={onData}
+                              editing={false}
+                              preview={true}
+                              frameless={true}
+                            />
+                          </div>
+                          <div className="today-add-preview-label">
+                            {s === 's' ? 'Small (1×1)' : s === 'm' ? 'Medium (2×1)' : 'Large (2×2)'}
+                          </div>
+                        </motion.div>
+                      )
+                    })}
+                  </div>
+
+                  {addCurrentVariations.length > 0 && (
+                    <>
+                      <div className="today-add-section-label">Style</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, maxWidth: 440, marginBottom: 24 }}>
+                        {addCurrentVariations.map((v, idx) => {
+                          const isCur = addSelectedDesign ? addSelectedDesign === v.id : idx === 0
+                          return (
+                            <motion.div
+                              key={v.id}
+                              className={`today-style-thumb ${isCur ? 'is-selected' : ''}`}
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => setAddSelectedDesign(v.id)}
+                            >
+                              <div
+                                className="today-style-box"
+                                style={{
+                                  background: idx === 0 ? 'var(--wx)' : idx === 1 ? 'var(--a1)' : idx === 2 ? '#1d1d1f' : 'var(--today-card)',
+                                  color: idx === 0 ? 'var(--wxt)' : idx === 1 ? '#fff' : idx === 2 ? '#fff' : 'var(--today-tx)',
+                                }}
+                              >
+                                <i style={{ display: 'block', width: '70%', height: 4, borderRadius: 2, background: 'currentColor', marginBottom: 4 }} />
+                                <i style={{ display: 'block', width: '45%', height: 4, borderRadius: 2, background: 'currentColor', opacity: 0.5 }} />
+                              </div>
+                              <span>{v.name}</span>
+                            </motion.div>
+                          )
+                        })}
+                      </div>
+                    </>
+                  )}
+
+                  <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                    <motion.button
+                      type="button"
+                      className="today-pill-btn secondary"
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => setAddModalOpen(false)}
+                    >
+                      Cancel
+                    </motion.button>
+                    <motion.button
+                      type="button"
+                      className="today-pill-btn"
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => {
+                        addWidget(addCurrentManifest.id, addSelectedSize, addSelectedDesign)
+                        setAddModalOpen(false)
+                      }}
+                    >
+                      <Icon name="plus" size={16} />
+                      <span>Add widget</span>
+                    </motion.button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <DashboardContext.Provider value={{ openPalette, openAppearance, manifests, layout, records, quiet, quietSettings, saveQuiet, refreshAll, editing, setEditing, addWidget, resize, changeDesign, removeWidget, now, openWidget, connectSource, manageConnections, connections }}>
+        {drawer?.type === 'settings' && <Drawer title="Home settings" description="Refresh, quiet hours, and keyboard shortcuts." onClose={closeDrawer}><HomeSettings key="settings" /></Drawer>}
+        {selectedWidgetManifest && drawer?.type === 'detail' && <Drawer title={selectedWidgetManifest.title} onClose={closeDrawer}><div className="today-widgets-canvas"><WidgetView context={frameContext} manifest={selectedWidgetManifest} size={selectedWidgetManifest.sizes[0]} quiet={quiet} refreshVersion={refreshVersion} onData={onData} editing={false} full /></div></Drawer>}
       </DashboardContext.Provider>
     </>
   )

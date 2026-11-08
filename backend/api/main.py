@@ -958,16 +958,24 @@ class RemoteCallerGuard:
         token = token or headers.get(b"x-amethyst-device-token", b"").decode("latin1").strip()
         if not token:
             token = parse_qs(scope.get("query_string", b"").decode("latin1")).get("token", [""])[0]
-        forwarded = any(key in headers for key in (b"forwarded", b"x-forwarded-for", b"x-real-ip"))
+        forwarded_raw = headers.get(b"x-forwarded-for", b"") or headers.get(b"x-real-ip", b"")
+        forwarded_ips = [ip.strip().decode("latin1") for ip in forwarded_raw.split(b",") if ip.strip()]
+        forwarded = any(not _is_local(ip) for ip in forwarded_ips) if forwarded_ips else (b"forwarded" in headers)
         client = scope.get("client")
-        # A supplied credential is always checked, including over loopback.
-        # Proxy requests cannot inherit the local process's trust.
-        if not token and not forwarded and (
-            not _bound_wide() or _is_local(client[0] if client else None)
-        ):
-            return await self.app(scope, receive, send)
-
+        client_ip = client[0] if client else None
         path = scope.get("path", "")
+        # Local caller on loopback is always permitted on their own machine.
+        # Proxy requests from external networks cannot inherit local trust.
+        if not forwarded and _is_local(client_ip):
+            if token:
+                from backend.db.connection import get_connection
+                from backend.sync import devices as sync_devices
+
+                conn = get_connection()
+                device = sync_devices.authenticate(conn, token)
+                if device and device.revoked_at is None:
+                    scope["device"] = device
+            return await self.app(scope, receive, send)
         if not path.startswith("/api/") or path in _PUBLIC_PATHS:
             return await self.app(scope, receive, send)
         if scope["type"] == "http" and scope.get("method") == "OPTIONS":
