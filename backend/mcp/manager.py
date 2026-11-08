@@ -1490,6 +1490,8 @@ class MCPManager:
                                     return ToolResult.error(guidance.auth_failure_instruction(service))
                                 return ToolResult.error(str(err_msg))
                             inner_data = resp_obj.get("data")
+                            if inner_data is None and "data_preview" in resp_obj:
+                                inner_data = resp_obj.get("data_preview")
                             if inner_data is not None:
                                 return ToolResult.ok(
                                     json.dumps(inner_data, indent=2)
@@ -1682,6 +1684,8 @@ class MCPManager:
                 return ToolResult.error(guidance.auth_failure_instruction(service))
             return ToolResult.error(str(err_msg))
         inner_data = resp_obj.get("data")
+        if inner_data is None and "data_preview" in resp_obj:
+            inner_data = resp_obj.get("data_preview")
         return ToolResult.ok(
             json.dumps(inner_data, indent=2)
             if isinstance(inner_data, (dict, list))

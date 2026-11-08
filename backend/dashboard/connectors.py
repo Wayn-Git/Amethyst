@@ -184,45 +184,66 @@ async def _read(widget_id, toolkit, slug, arguments):
             raise SourceUnavailable
         if current["retry_at"] > time.time():
             raise ConnectorBackoff(current["retry_at"])
-        if connection("composio") is None:
-            raise RuntimeError("Connector transport unavailable")
         connected = await accounts(include_reauth=True)
         account = connected.get(toolkit)
         current = reconcile(toolkit, account)
         if not account or current["needs_reconnect"] or composio_service.is_reauth_required(toolkit):
             raise SourceUnavailable
-        tool = get_manager().registry.resolve_tool(slug)
-        if not tool or tool.server_name != "composio" or tool.source != ToolSource.MCP:
-            raise SourceUnavailable
-        if tool.risk != RiskLevel.LOW:
-            raise RuntimeError("Connector reader must be read-only")
 
-        async def refuse_prompt(_request):
-            return False
+        mgr = get_manager()
+        tool = mgr.registry.resolve_tool(slug) if (mgr and hasattr(mgr, "registry")) else None
+        mcp_conn = connection("composio")
 
-        context = ToolContext(read_only=True)
-        outcome = await ConfirmationService(callback=refuse_prompt).check(tool, arguments, context)
-        if not outcome.allowed:
+        if tool is not None and tool.server_name == "composio" and tool.source == ToolSource.MCP:
+            if tool.risk != RiskLevel.LOW:
+                raise RuntimeError("Connector reader must be read-only")
+
+            async def refuse_prompt(_request):
+                return False
+
+            context = ToolContext(read_only=True)
+            outcome = await ConfirmationService(callback=refuse_prompt).check(tool, arguments, context)
+            if not outcome.allowed:
+                raise SourceUnavailable
+        elif mcp_conn is not None:
+            # MCP connection is active, but this tool is not in registry
             raise SourceUnavailable
+
+        cache_args = {**arguments, "dashboard_home": str(paths().db)}
+        cached = (
+            read_cache.get("dashboard_" + slug, cache_args)
+            if toolkit in ("gmail", "github", "slack", "googlecalendar", "google_maps")
+            else None
+        )
+
         try:
-            # Retain structured fields for projection; never cache this raw response.
-            cache_args = {**arguments, "dashboard_home": str(paths().db)}
-            cached = (
-                read_cache.get("dashboard_" + slug, cache_args)
-                if toolkit in ("gmail", "github", "slack", "googlecalendar", "google_maps")
-                else None
-            )
-            result = None if cached else await tool.handler(arguments, context)
-            if result and result.is_error:
-                raise RuntimeError(result.content)
-            value = json.loads(cached.content if cached else result.content)
+            if cached:
+                value = json.loads(cached.content)
+            elif mcp_conn is not None and tool is not None:
+                context = ToolContext(read_only=True)
+                result = await tool.handler(arguments, context)
+                if result and result.is_error:
+                    raise RuntimeError(result.content)
+                raw_content = result.content if result else "{}"
+                value = json.loads(raw_content) if isinstance(raw_content, str) else raw_content
+            else:
+                # Direct Composio SDK fallback when MCP transport is cold or uninitialized
+                value = await composio_service.execute_tool(slug, arguments)
+
             if toolkit == "gmail" and not cached:
                 if isinstance(value, dict):
+                    if "data_preview" in value and not value.get("messages") and not value.get("data"):
+                        value = value.get("data_preview", value)
                     value = value.get("data", value)
                 rows = (
-                    value if isinstance(value, list) else value.get("messages", value.get("emails"))
+                    value if isinstance(value, list)
+                    else (value.get("messages") if isinstance(value, dict) else None)
+                    or (value.get("emails") if isinstance(value, dict) else None)
+                    or (value.get("data") if isinstance(value, dict) and isinstance(value.get("data"), list) else None)
                 )
-                if not isinstance(rows, list):
+                if rows is None:
+                    rows = []
+                elif not isinstance(rows, list):
                     raise ValueError("Invalid mail response")
                 # Never turn a full body into a snippet or retain raw connector responses.
                 value = {
@@ -260,6 +281,8 @@ async def _read(widget_id, toolkit, slug, arguments):
 
                 value = project(slug, value, arguments)
                 read_cache.set("dashboard_" + slug, cache_args, json.dumps(value))
+        except (SourceUnavailable, ConnectorBackoff):
+            raise
         except Exception as exc:
             import logging
             logging.getLogger(__name__).exception("Connector _read failed for %s (%s): %r", toolkit, slug, exc)

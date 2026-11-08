@@ -27,8 +27,24 @@ def project(slug, value, arguments=None):
             raise ValueError("Invalid route duration")
         return {"duration_seconds": seconds}
     if slug == "GOOGLECALENDAR_FIND_EVENT":
-        rows = value if isinstance(value, list) else value.get("items", value.get("events"))
-        if not isinstance(rows, list):
+        if isinstance(value, dict):
+            ev_data = value.get("event_data")
+            if isinstance(ev_data, dict):
+                value = ev_data.get("event_data", ev_data)
+            elif isinstance(ev_data, list):
+                value = ev_data
+        rows = (
+            value if isinstance(value, list)
+            else (
+                value.get("items")
+                or value.get("events")
+                or value.get("event_data")
+                if isinstance(value, dict) else []
+            )
+        )
+        if rows is None:
+            rows = []
+        elif not isinstance(rows, list):
             raise ValueError("Invalid calendar response")
         items = []
         for row in rows:

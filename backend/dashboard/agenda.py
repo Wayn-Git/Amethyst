@@ -29,10 +29,26 @@ async def provide(widget_id, *, now=None, range_end=None, future=False):
     )
     # The registered fast-lane handler already unwraps Composio's execution envelope.
     if isinstance(value, dict):
-        value = value.get("data", value)
+        ev_data = value.get("event_data")
+        if isinstance(ev_data, dict):
+            value = ev_data.get("event_data", ev_data)
+        elif isinstance(ev_data, list):
+            value = ev_data
+        else:
+            value = value.get("data", value)
     limited = isinstance(value, dict) and bool(value.get("nextPageToken"))
-    rows = value if isinstance(value, list) else value.get("items", value.get("events"))
-    if not isinstance(rows, list):
+    rows = (
+        value if isinstance(value, list)
+        else (
+            value.get("items")
+            or value.get("events")
+            or value.get("event_data")
+            if isinstance(value, dict) else []
+        )
+    )
+    if rows is None:
+        rows = []
+    elif not isinstance(rows, list):
         raise ValueError("Invalid calendar response")
     items = []
     for row in rows:
