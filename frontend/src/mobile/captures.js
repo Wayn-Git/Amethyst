@@ -28,7 +28,10 @@ export async function saveCapture({ title, text = '', url = '' }) {
 }
 
 export async function captures() {
-  return (await records('capture:')).map(row => row.value).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  return (await records('capture:'))
+    .map(row => row.value)
+    .filter(Boolean)
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
 }
 
 export function flushCaptures() {

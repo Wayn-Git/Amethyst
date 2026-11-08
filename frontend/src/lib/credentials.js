@@ -6,7 +6,12 @@ export const IDENTITY_KEY = 'amethyst.sync.identity.v1'
 let nativeIdentity = null
 let secureStore = null
 
+export function _setSecureStoreForTest(store) {
+  secureStore = store
+}
+
 export async function nativeVault() {
+  if (secureStore) return secureStore
   if (!isNativeMobile()) return null
   if (!secureStore) {
     const { SecureStorage, KeychainAccess } = await import('@aparajita/capacitor-secure-storage')

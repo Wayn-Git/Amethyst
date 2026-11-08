@@ -374,3 +374,105 @@ export function resolvePosterFrame(item) {
 
   return PLACEHOLDER_THUMBNAIL
 }
+
+/**
+ * Load authenticated video media via Blob URL for WebView video playback.
+ * WebViews cannot send Authorization headers for raw <video src> requests,
+ * so authenticated alt=media must be loaded into a Blob object URL.
+ */
+export async function loadVideoBlob({
+  fileId,
+  url,
+  token: initialToken,
+  tokenRefresher = refreshGoogleDriveToken,
+  fetchFn = (typeof globalThis !== 'undefined' ? globalThis.fetch : null),
+} = {}) {
+  const targetId = fileId || (url ? (url.match(/id=([\w-]+)/) || url.match(/\/files\/([\w-]+)/) || [])[1] : null)
+  const requestUrl = url || (targetId ? `https://www.googleapis.com/drive/v3/files/${targetId}?alt=media` : null)
+
+  if (!requestUrl) {
+    throw new Error('Valid fileId or url is required for video playback')
+  }
+
+  let token = initialToken
+  if (!token && !requestUrl.startsWith('blob:') && !requestUrl.startsWith('data:')) {
+    try {
+      token = await getGoogleDriveAccessToken()
+    } catch {}
+  }
+
+  const makeRequest = async (authToken) => {
+    const headers = {}
+    if (authToken) {
+      headers.Authorization = `Bearer ${authToken}`
+    }
+    return await fetchFn(requestUrl, { headers })
+  }
+
+  let response = await makeRequest(token)
+
+  // 401/403 Refresh retry
+  if ((response.status === 401 || response.status === 403) && tokenRefresher) {
+    try {
+      const refreshRes = await tokenRefresher()
+      const newToken = refreshRes?.accessToken || refreshRes
+      if (newToken) {
+        token = newToken
+        response = await makeRequest(newToken)
+      }
+    } catch (refErr) {
+      await markServiceExpired('googleDrive')
+      const err = new Error('Video stream authentication expired')
+      err.authError = true
+      err.status = 401
+      throw err
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(`Video fetch failed: HTTP ${response.status}`)
+  }
+
+  const contentType = response.headers?.get?.('content-type') || response.headers?.get?.('Content-Type') || 'video/mp4'
+  let blob = null
+
+  if (typeof response.blob === 'function') {
+    blob = await response.blob()
+  } else if (typeof response.arrayBuffer === 'function') {
+    const buf = await response.arrayBuffer()
+    if (typeof Blob !== 'undefined') {
+      blob = new Blob([buf], { type: contentType })
+    } else if (typeof Buffer !== 'undefined') {
+      const b64 = Buffer.from(buf).toString('base64')
+      return {
+        src: `data:${contentType};base64,${b64}`,
+        status: MEDIA_STATUS.READY,
+        contentType,
+      }
+    }
+  }
+
+  let blobUrl = ''
+  if (typeof URL !== 'undefined' && URL.createObjectURL && typeof Blob !== 'undefined' && blob instanceof Blob) {
+    try {
+      blobUrl = URL.createObjectURL(blob)
+    } catch {}
+  }
+  if (!blobUrl && blob) {
+    if (typeof blob.arrayBuffer === 'function' && typeof Buffer !== 'undefined') {
+      const buf = await blob.arrayBuffer()
+      const b64 = Buffer.from(buf).toString('base64')
+      blobUrl = `data:${contentType};base64,${b64}`
+    } else if (typeof blob === 'string') {
+      blobUrl = blob
+    }
+  }
+
+  return {
+    src: blobUrl,
+    blob,
+    status: MEDIA_STATUS.READY,
+    contentType,
+  }
+}
+

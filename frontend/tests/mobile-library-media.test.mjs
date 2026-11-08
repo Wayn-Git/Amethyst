@@ -30,6 +30,7 @@ const {
 const {
   loadThumbnail,
   fetchVideoRange,
+  loadVideoBlob,
   getCachedThumbnail,
   saveCachedThumbnail,
   resolvePosterFrame,
@@ -145,7 +146,34 @@ test('thumbnail after token expiry', async () => {
   assert.equal(videoRangeRes.contentLength, 1048576)
   assert.equal(videoAttempts, 1)
 
-  // 4. Verify Poster Frame Resolution
+  // 4. Verify authenticated alt=media playback via loadVideoBlob
+  let videoBlobHeaders = null
+  const mockBlobFetch = async (url, { headers } = {}) => {
+    videoBlobHeaders = headers
+    assert.ok(url.includes('alt=media'), 'Must request alt=media endpoint')
+    return {
+      status: 200,
+      ok: true,
+      headers: new Map([
+        ['content-type', 'video/mp4'],
+        ['content-length', '2048'],
+      ]),
+      blob: async () => new Blob([new Uint8Array(2048)], { type: 'video/mp4' }),
+      arrayBuffer: async () => new Uint8Array(2048).buffer,
+    }
+  }
+
+  const videoBlobRes = await loadVideoBlob({
+    fileId: 'video_file_authenticated_001',
+    token: validToken,
+    fetchFn: mockBlobFetch,
+  })
+
+  assert.equal(videoBlobRes.status, MEDIA_STATUS.READY)
+  assert.ok(videoBlobRes.src, 'Must return playable media source URL')
+  assert.equal(videoBlobHeaders.Authorization, `Bearer ${validToken}`, 'Must send Bearer token')
+
+  // 5. Verify Poster Frame Resolution
   const videoItem = {
     id: 10,
     url: 'https://youtube.com/watch?v=dQw4w9WgXcQ',

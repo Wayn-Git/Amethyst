@@ -80,15 +80,23 @@ export async function closeDatabase() {
 }
 
 export async function principal() {
-  const pairedOwner = identity()?.deviceId
-  const pairedKey = await groupKey()
-  if (pairedOwner && pairedKey) {
-    return { owner: pairedOwner, key: pairedKey, isPaired: true }
-  }
+  let paired = false
+  try {
+    const { isPaired } = await import('./pairingVault.js')
+    paired = await isPaired()
+  } catch {}
 
-  // If a device identity is set but groupKey is missing, reject
-  if (pairedOwner && !pairedKey) {
-    throw new Error('Pair this device before saving offline content.')
+  if (paired) {
+    const pairedOwner = identity()?.deviceId
+    let pairedKey = null
+    try {
+      pairedKey = await groupKey()
+    } catch {}
+
+    if (pairedOwner && pairedKey) {
+      return { owner: pairedOwner, key: pairedKey, isPaired: true }
+    }
+    // If vault read failure or missing groupKey while paired, return local identity instead of throwing
   }
 
   // Standalone unpaired fallback
@@ -160,7 +168,18 @@ export async function migrateLocalRecordsToPaired(newOwner, newKey) {
   generation += 1
   const localOwner = getLocalOwner()
   const localKey = await getLocalKey()
-  if (!localOwner || !localKey || !newOwner || !newKey) return { migrated: 0 }
+  const targetOwner = newOwner || identity()?.deviceId
+  let targetKey = newKey
+  if (!targetKey) {
+    try {
+      targetKey = await groupKey()
+    } catch {}
+  }
+  if (!targetKey) {
+    targetKey = localKey
+  }
+  if (!localOwner || !localKey || !targetOwner || !targetKey) return { migrated: 0 }
+  if (localOwner === targetOwner) return { migrated: 0 }
 
   const db = await open()
   const rows = await new Promise((resolve, reject) => {
@@ -177,10 +196,10 @@ export async function migrateLocalRecordsToPaired(newOwner, newKey) {
     try {
       const val = await unseal(row.nonce, row.ciphertext, { opId: row.id, deviceId: localOwner, key: localKey })
       if (val && typeof val === 'object' && val.deviceId) {
-        val.deviceId = newOwner
+        val.deviceId = targetOwner
       }
-      const newId = `${newOwner}:${name}`
-      const newSealed = await seal(val, { opId: newId, deviceId: newOwner, key: newKey })
+      const newId = `${targetOwner}:${name}`
+      const newSealed = await seal(val, { opId: newId, deviceId: targetOwner, key: targetKey })
 
       await new Promise((resolve, reject) => {
         const tx = db.transaction('records', 'readwrite')

@@ -45,6 +45,7 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [tab, setTab] = useState('overview') // 'overview' | 'links' | 'notes'
   const [isPlaying, setIsPlaying] = useState(false)
+  const [blobVideoUrl, setBlobVideoUrl] = useState('')
   const [useEmbedFallback, setUseEmbedFallback] = useState(false)
   const [isFavorited, setIsFavorited] = useState(Boolean(item?.favorited || item?.starred || item?.is_pinned))
   const [enriching, setEnriching] = useState(false)
@@ -240,6 +241,39 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
     const u = (activeItem?.url || '').toLowerCase()
     return u.includes('/reel/') || u.includes('/reels/') || u.includes('/shorts/') || u.includes('tiktok.com')
   }, [activeItem, videoInfo])
+
+  // Authenticated video playback via Blob URL
+  useEffect(() => {
+    let unmounted = false
+    let createdUrl = ''
+
+    if (isPlaying && videoInfo?.type === 'direct' && videoInfo?.url) {
+      const isAuthRequired = videoInfo.url.includes('alt=media') || videoInfo.url.includes('googleapis.com') || (videoInfo.url.includes('/api/library/') && !videoInfo.url.includes('token='))
+      if (isAuthRequired) {
+        import('../driveMediaLoader.js')
+          .then(({ loadVideoBlob }) => loadVideoBlob({ url: videoInfo.url }))
+          .then((res) => {
+            if (!unmounted && res?.src) {
+              createdUrl = res.src
+              setBlobVideoUrl(res.src)
+            }
+          })
+          .catch((err) => {
+            console.warn('[MobileLibraryItem] Failed loading authenticated video blob:', err.message)
+            if (!unmounted && videoInfo.embedUrl) setUseEmbedFallback(true)
+          })
+      }
+    } else if (!isPlaying) {
+      setBlobVideoUrl('')
+    }
+
+    return () => {
+      unmounted = true
+      if (createdUrl && createdUrl.startsWith('blob:') && typeof URL !== 'undefined' && URL.revokeObjectURL) {
+        URL.revokeObjectURL(createdUrl)
+      }
+    }
+  }, [isPlaying, videoInfo])
 
   // Resolve thumbnail
   const thumbnailUrl = useMemo(() => {
@@ -574,7 +608,7 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
         {isPlaying && videoInfo ? (
           videoInfo.type === 'direct' && !useEmbedFallback ? (
             <video
-              src={videoInfo.url}
+              src={blobVideoUrl || videoInfo.url}
               controls
               playsInline
               autoPlay

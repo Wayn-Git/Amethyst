@@ -44,6 +44,21 @@ export async function getPairingToken() {
 }
 
 /**
+ * Single source of truth for "paired" state.
+ * Returns true if a valid pairing token exists and is not rejected.
+ */
+export async function isPaired() {
+  try {
+    const token = await getPairingToken()
+    if (!token) return false
+    const rejected = await isPairingTokenRejected()
+    return !rejected
+  } catch {
+    return false
+  }
+}
+
+/**
  * Persist the pairing token in native vault (one-time persistence across restart)
  * and update credentials / storage.
  */
@@ -54,27 +69,34 @@ export async function savePairingToken(token, options = {}) {
   const cleanToken = token.trim()
 
   // 1. Vault persistence
+  let hasNativeVault = false
   try {
     const vault = await nativeVault()
     if (vault) {
+      hasNativeVault = true
       await vault.set(VAULT_PAIRING_TOKEN_KEY, cleanToken)
       await vault.remove(VAULT_TOKEN_REJECTED_KEY)
+      safeStorage.removeItem(VAULT_PAIRING_TOKEN_KEY)
+      safeStorage.removeItem(VAULT_TOKEN_REJECTED_KEY)
     }
   } catch {}
 
-  // 2. Safe storage persistence (fallback & sync)
-  try {
-    safeStorage.setItem(VAULT_PAIRING_TOKEN_KEY, cleanToken)
-    safeStorage.removeItem(VAULT_TOKEN_REJECTED_KEY)
-  } catch {}
+  // 2. Safe storage persistence (fallback when native vault unavailable)
+  if (!hasNativeVault) {
+    try {
+      safeStorage.setItem(VAULT_PAIRING_TOKEN_KEY, cleanToken)
+      safeStorage.removeItem(VAULT_TOKEN_REJECTED_KEY)
+    } catch {}
+  }
 
   // 3. Update sync credentials
+  const targetDeviceId = options.deviceId || storedIdentity()?.deviceId || `dev_${Math.random().toString(36).slice(2, 10)}`
   try {
     const current = storedIdentity() || {}
     await saveIdentity({
       ...current,
       token: cleanToken,
-      deviceId: options.deviceId || current.deviceId || `dev_${Math.random().toString(36).slice(2, 10)}`,
+      deviceId: targetDeviceId,
       hostUrl: options.hostUrl || current.hostUrl || '',
       permissions: options.permissions || current.permissions || {
         library: true,
@@ -85,7 +107,13 @@ export async function savePairingToken(token, options = {}) {
     })
   } catch {}
 
-  if (typeof window !== 'undefined') {
+  // 4. Migrate local unpaired records to new owner on pairing completion
+  try {
+    const { migrateLocalRecordsToPaired } = await import('./storage.js')
+    await migrateLocalRecordsToPaired(targetDeviceId)
+  } catch {}
+
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
     window.dispatchEvent(
       new CustomEvent('amethyst:pairing_changed', {
         detail: { token: cleanToken, isPaired: true },
@@ -132,7 +160,7 @@ export async function markPairingTokenRejected(reason = 'rejected') {
     safeStorage.setItem(VAULT_TOKEN_REJECTED_KEY, 'true')
   } catch {}
 
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
     window.dispatchEvent(
       new CustomEvent('amethyst:token_rejected', {
         detail: { reason },
@@ -156,7 +184,7 @@ export async function clearPairingTokenRejected() {
     safeStorage.removeItem(VAULT_TOKEN_REJECTED_KEY)
   } catch {}
 
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
     window.dispatchEvent(new CustomEvent('amethyst:token_restored'))
   }
 }
@@ -182,7 +210,7 @@ export async function clearPairingToken() {
     await removeIdentity()
   } catch {}
 
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
     window.dispatchEvent(
       new CustomEvent('amethyst:pairing_changed', {
         detail: { token: null, isPaired: false },
