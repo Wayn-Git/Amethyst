@@ -18,7 +18,7 @@ export default function StepLaunch({ onFinish, onBack }) {
       {/* Left Pitch Pane */}
       <div className="onb-pane-left">
         <AmethystLogo size={28} color="#ffffff" />
-        <p className="onb-eyebrow">Step 5 of 5 · Launch</p>
+        <p className="onb-eyebrow">Step 6 of 6 · Launch</p>
         <h1 className="onb-title">You’re all set, {displayName}.</h1>
         <p className="onb-desc">
           Amethyst is ready. {getDisclaimerText(osName)}
@@ -100,6 +100,20 @@ export default function StepLaunch({ onFinish, onBack }) {
             <div className="onb-row-meta">
               Apps
               <span>Gmail, Google Calendar &amp; Toolkits</span>
+            </div>
+            <span className="onb-tag" style={{ color: '#34d399' }}>
+              <Icon name="check" size={14} />
+            </span>
+          </div>
+
+          {/* Tasks */}
+          <div className="onb-row">
+            <div className="onb-row-icon" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>
+              <BrandIcon name="microsoft-todo" size={18} />
+            </div>
+            <div className="onb-row-meta">
+              Tasks
+              <span>Microsoft To Do · Phone &amp; Desktop Sync</span>
             </div>
             <span className="onb-tag" style={{ color: '#34d399' }}>
               <Icon name="check" size={14} />

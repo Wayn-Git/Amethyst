@@ -60,28 +60,40 @@ def layout_read(mode):
     )
     if row:
         return json.loads(row[0])
-    value = {
-        "widgets": [
-            {"id": name, "size": size, "height": 3}
-            for name, size in (
-                ("glance.clock", "s"),
-                ("glance.weather", "m"),
-                ("glance.next-event", "s"),
-                ("glance.music", "m"),
-                ("need.inbox", "m"),
-                ("need.drafts", "m"),
-                ("need.waiting", "m"),
-                ("need.mentions", "m"),
-                ("need.overdue", "m"),
-                ("agent.brief", "m"),
-                ("agent.feed", "m"),
-                ("task.today", "m"),
-                ("dev.prs", "m"),
-                ("lib.resurface", "m"),
-                ("feed.news", "m"),
-            )
-        ]
-    }
+    if mode in ("desktop", "today"):
+        value = {
+            "widgets": [
+                {"id": "glance.weather", "size": "l", "design": "weather-sm-01"},
+                {"id": "glance.clock", "size": "m", "design": "clock-sm-01"},
+                {"id": "glance.sun", "size": "s", "design": "sun-sm-01"},
+                {"id": "glance.air", "size": "s", "design": "air-sm-01"},
+                {"id": "glance.pc", "size": "m", "design": "pc-sm-01"},
+                {"id": "glance.music", "size": "m", "design": "media-sm-01"},
+            ]
+        }
+    else:
+        value = {
+            "widgets": [
+                {"id": name, "size": size, "height": 3}
+                for name, size in (
+                    ("glance.clock", "s"),
+                    ("glance.weather", "m"),
+                    ("glance.next-event", "s"),
+                    ("glance.music", "m"),
+                    ("need.inbox", "m"),
+                    ("need.drafts", "m"),
+                    ("need.waiting", "m"),
+                    ("need.mentions", "m"),
+                    ("need.overdue", "m"),
+                    ("agent.brief", "m"),
+                    ("agent.feed", "m"),
+                    ("task.today", "m"),
+                    ("dev.prs", "m"),
+                    ("lib.resurface", "m"),
+                    ("feed.news", "m"),
+                )
+            ]
+        }
     with transaction() as conn:
         conn.execute(
             "INSERT INTO layouts VALUES(?,?,?) ON CONFLICT(mode) DO NOTHING",

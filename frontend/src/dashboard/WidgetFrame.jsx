@@ -50,7 +50,7 @@ export default memo(function WidgetFrame(props) {
   return <WidgetPresentation {...props} {...result} />
 })
 
-export function WidgetPresentation({ manifest, position, size = position?.size || 'm', data, busy, refresh, editing, move, resize, grip, tile = false, full = false, preview = false, design = defaultDesign(manifest.id) }) {
+export function WidgetPresentation({ manifest, position, size = position?.size || 'm', data, busy, refresh, editing, move, resize, grip, tile = false, full = false, preview = false, design = defaultDesign(manifest.id), frameless = false }) {
   const { removeWidget, now, layout, setEditing, connectSource, connectionHealth, openPalette, openAppearance, changeDesign } = useDashboard()
   const [retry, setRetry] = useState(0)
   const [expanded, setExpanded] = useState(false)
@@ -87,6 +87,35 @@ export function WidgetPresentation({ manifest, position, size = position?.size |
   const requiredSource = manifest.requires?.find(value => value.startsWith('connector:'))?.slice(10) || (Array.isArray(manifest.source) ? manifest.source : [manifest.source]).find(source => source?.toolkit)?.toolkit
   const sourceName = { gmail: 'Gmail', googlecalendar: 'Google Calendar', github: 'GitHub', slack: 'Slack' }[requiredSource] || requiredSource || manifest.title
   const connectionStatus = connectionHealth?.items?.find(item => item.id === requiredSource)?.status
+
+  if (frameless || manifest.group === 'glance') {
+    return (
+      <div
+        ref={body}
+        className={`home-widget widget-adoption frameless ${data.state === 'not-connected' && !preview ? 'is-disconnected' : ''}`}
+        data-widget={manifest.id}
+        data-size={size}
+        data-design={activeDesign}
+        style={{ width: '100%', height: '100%', padding: 0, margin: 0, border: 0, background: 'transparent' }}
+      >
+        {['not-connected', 'error'].includes(data.state) && !preview ? (
+          <div className="home-connect widget-setup" role={data.state === 'error' ? 'alert' : 'status'} style={{ width: '100%', height: '100%', borderRadius: 24, padding: 20, boxSizing: 'border-box' }}>
+            <span className="widget-setup-icon" aria-hidden="true"><Icon name={WIDGET_ICONS[manifest.id] || 'link'} size={28} /></span>
+            <strong>{data.state === 'not-connected' && requiredSource ? connectionStatus === 'connected' ? `${sourceName} unavailable` : connectionStatus === 'needs reconnect' ? `Reconnect ${sourceName}` : `Connect ${sourceName}` : widgetStatus(manifest, data)}</strong>
+            <p>{data.error || 'The required source or setting is unavailable.'}</p>
+            <div className="widget-buttons">
+              <Button onClick={() => setSetupOpen(true)}>Setup & status</Button>
+              {requiredSource && connectSource && <Button onClick={() => connectSource(requiredSource)}>{connectionStatus === 'connected' ? 'Check connection' : `${connectionStatus === 'needs reconnect' ? 'Reconnect' : 'Connect'} ${sourceName}`}</Button>}
+            </div>
+          </div>
+        ) : Content ? (
+          content(data.payload, false)
+        ) : (
+          <StateView role="alert">Widget component unavailable.</StateView>
+        )}
+      </div>
+    )
+  }
 
   return <WidgetCard className={`home-widget${adopted ? ' widget-adoption' : ''}${['glance.clock', 'glance.weather', 'need.inbox', 'task.today', 'task.focus', 'agent.feed', 'task.deadlines', 'dev.prs'].includes(manifest.id) ? ' widget-pilot' : ''}${tile ? ' home-tile' : ''}${data.state === 'not-connected' && !preview ? ' is-disconnected' : ''}${preview ? ' is-preview' : ''}`} data-widget={manifest.id} data-tone={widgetTone(manifest.id)} data-size={full ? 'l' : size} data-pattern={pattern} data-view={full ? 'detail' : workbench ? 'workbench' : 'preview'} data-design={activeDesign} data-variation={variationNumber(activeDesign)} data-composition={`${pattern}-${full ? 'detail' : size}`} aria-label={manifest.id === 'glance.clock' ? undefined : manifest.title}>
     <WidgetHeader icon={(adopted && manifest.icon) || WIDGET_ICONS[manifest.id] || WIDGET_ICONS[manifest.id.split('.')[0]]} title={manifest.title} count={previewData.count} source={sourceManaged ? `${data.payload?.items?.some(item => item.editable) ? 'local · ' : ''}connected source` : source} data={data} now={now}>

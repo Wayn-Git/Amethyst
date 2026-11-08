@@ -48,7 +48,7 @@ from urllib.parse import urlencode
 
 import secrets as stdlib_secrets
 
-from backend.secrets import SERVICE, set_secret
+from backend.secrets import SERVICE, get_secret, set_secret
 from backend.sync import crypto
 
 log = logging.getLogger(__name__)
@@ -632,12 +632,19 @@ def approve_pending(
     _open_pairing = None  # single use
 
     group = crypto.group_key() or crypto.create_group_key()
+    from backend.secrets import get_secret
+    ms_tokens = get_secret("amethyst/microsoft-todo.tokens")
+    integration_tokens = {}
+    if ms_tokens:
+        integration_tokens["microsoft-todo"] = ms_tokens
+
     nonce, ciphertext = crypto.seal(
         {
             "device_id": device.id,
             "token": token,
             "group_key": crypto.b64(group),
             "permissions": perms,
+            "integration_tokens": integration_tokens,
         },
         op_id=request_id, device_id="pairing", key=pending.key,
     )
@@ -681,11 +688,25 @@ def build_request(pair_secret: str, name: str, role: str = "control") -> dict:
 def read_response(pair_secret: str, response: dict) -> dict:
     """The control device opening what came back. Raises SealError if the relay
     tampered with it or the secret was wrong."""
-    return crypto.unseal(
+    opened = crypto.unseal(
         response["nonce"], response["ciphertext"],
         op_id=str(response.get("request_id") or ""), device_id="pairing",
         key=crypto.pair_key(pair_secret),
     )
+    integration_tokens = opened.get("integration_tokens")
+    if isinstance(integration_tokens, dict):
+        try:
+            from backend.secrets import set_secret
+            for k, val in integration_tokens.items():
+                if val:
+                    vault_key = f"amethyst/{k}.tokens"
+                    set_secret(vault_key, val)
+                    if k == "microsoft-todo":
+                        from backend.auth.microsoft import sync_token_cache_from_vault
+                        sync_token_cache_from_vault(val)
+        except Exception as exc:
+            log.warning("could not import integration tokens on paired device: %s", exc)
+    return opened
 
 
 # -- joining, from the other side ----------------------------------------

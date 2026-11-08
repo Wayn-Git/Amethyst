@@ -2,6 +2,28 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, appendAuthToken, getBase } from '../../api.js'
 import { safeStorage } from '../../lib/storage.js'
+import { storedIdentity } from '../../lib/credentials.js'
+import { getTransportManager } from '../../lib/sync/transportManager.js'
+import Icon from '../../components/Icon.jsx'
+import {
+  getStoredCollections,
+  loadCollectionsFromStore,
+  syncCollections,
+  getCollectionsDisplayState,
+  getCollectionsCount,
+  getLastSyncedTime,
+  formatLastSyncedTime,
+  subscribeCollections,
+} from '../collectionsSync.js'
+import {
+  PLACEHOLDER_THUMBNAIL,
+  ERROR_THUMBNAIL,
+  resolvePosterFrame,
+} from '../driveMediaLoader.js'
+import {
+  getConnectionStatus,
+  formatConnectionLabel,
+} from '../connectionStatus.js'
 
 function formatSavedDate(dateStr) {
   if (!dateStr) return 'Recently'
@@ -18,48 +40,128 @@ function getItemDomain(url) {
   }
 }
 
+function getResolvedBase() {
+  const tm = getTransportManager?.()
+  const tmHost = tm?.getState?.()?.hostUrl
+  if (tmHost && !tmHost.includes('localhost') && !tmHost.includes('127.0.0.1')) {
+    return tmHost.replace(/\/+$/, '')
+  }
+  const id = storedIdentity()
+  if (id?.hostUrl && !id.hostUrl.includes('localhost') && !id.hostUrl.includes('127.0.0.1')) {
+    return id.hostUrl.replace(/\/+$/, '')
+  }
+  const base = getBase().replace(/\/api$/, '')
+  if (base && !base.includes('localhost') && !base.includes('127.0.0.1')) return base
+  try {
+    const pcHost = safeStorage.getItem('amethyst.pc_host')
+    if (pcHost && !pcHost.includes('localhost')) {
+      return pcHost.replace(/\/+$/, '')
+    }
+  } catch {}
+  return base || ''
+}
+
 function resolveThumbnail(item) {
   if (!item) return ''
-  if (item.thumbnail_url) {
-    if (item.thumbnail_url.startsWith('http')) return appendAuthToken(item.thumbnail_url)
-    if (item.thumbnail_url.startsWith('/api')) {
-      return appendAuthToken(`${getBase().replace(/\/api$/, '')}${item.thumbnail_url}`)
-    }
-    return api.thumbnailUrl ? api.thumbnailUrl(item.id) : item.thumbnail_url
+  const hostBase = getResolvedBase() || ''
+  const ytMatch = item.url ? item.url.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([\w-]{11})/) : null
+
+  // 1. YouTube direct thumbnail fallback if no hostBase or default still
+  if (ytMatch && (!hostBase || !item.thumbnail_path || item.thumbnail_path.includes('default'))) {
+    return `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`
   }
-  if (item.thumbnail_path || item.has_thumbnail) {
-    return api.thumbnailUrl ? api.thumbnailUrl(item.id) : ''
+
+  // 2. Direct external or data URL thumbnail
+  if (item.thumbnail_url) {
+    if (item.thumbnail_url.startsWith('http') || item.thumbnail_url.startsWith('data:')) {
+      return item.thumbnail_url
+    }
+  }
+
+  // 3. Fallback to image, slide, or poster in item.resources
+  let resList = item.resources
+  if (typeof resList === 'string') {
+    try { resList = JSON.parse(resList) } catch { resList = [] }
+  }
+  if (Array.isArray(resList)) {
+    for (const r of resList) {
+      if (r && typeof r === 'object') {
+        const u = r.remote_url || r.url
+        if (u && typeof u === 'string' && u.startsWith('http') && !u.includes('.mp4') && (r.type === 'slide' || r.type === 'image' || r.type === 'avatar')) {
+          return u
+        }
+      }
+    }
+  }
+
+  // 4. Amethyst local thumbnail endpoint
+  if (item.thumbnail_path || item.has_thumbnail || item.id) {
+    if (item.thumbnail_url?.startsWith('/api')) {
+      return appendAuthToken(`${hostBase}${item.thumbnail_url}`)
+    }
+    return appendAuthToken(`${hostBase}/api/library/${item.id}/thumbnail`)
+  }
+
+  // 5. YouTube fallback if present
+  if (ytMatch) {
+    return `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`
+  }
+
+  // 6. Drive / Cloud poster frame fallback
+  if (item.external_id || item.drive_id) {
+    return resolvePosterFrame(item)
   }
   return ''
 }
 
 function resolveCollectionCover(collection) {
   if (!collection) return ''
+  const hostBase = getResolvedBase() || ''
   if (collection.cover_item_id) {
-    return api.thumbnailUrl ? api.thumbnailUrl(collection.cover_item_id) : ''
+    return appendAuthToken(`${hostBase}/api/library/${collection.cover_item_id}/thumbnail`)
   }
   if (collection.thumbnail_url) {
-    if (collection.thumbnail_url.startsWith('http')) return appendAuthToken(collection.thumbnail_url)
+    if (collection.thumbnail_url.startsWith('http')) return collection.thumbnail_url
     if (collection.thumbnail_url.startsWith('/api')) {
-      return appendAuthToken(`${getBase().replace(/\/api$/, '')}${collection.thumbnail_url}`)
+      return appendAuthToken(`${hostBase}${collection.thumbnail_url}`)
     }
     return collection.thumbnail_url
   }
   return ''
 }
 
-export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
+function mergeOptimisticItems(currentItems, incomingItems) {
+  if (!incomingItems || !incomingItems.length) return currentItems || []
+  const now = Date.now()
+  const recentOptimistic = (currentItems || []).filter(
+    (it) => it.is_optimistic && (now - new Date(it.created_at).getTime() < 120000)
+  )
+  if (!recentOptimistic.length) return incomingItems
+
+  // Filter out any optimistic item whose URL matches an incoming item or whose id matches
+  const unmerged = recentOptimistic.filter(
+    (opt) => !incomingItems.some((inc) => (inc.url && opt.url && inc.url === opt.url) || inc.id === opt.id)
+  )
+  return [...unmerged, ...incomingItems]
+}
+
+export default function MobileLibrary({ onSelectItem, onOpenAsk, onOpenCapture }) {
   const [items, setItems] = useState(() => {
     try {
+      const stored = getStoredCollections()
+      if (stored.items?.length) return stored.items
       const cached = safeStorage.getItem('amethyst.cached_library')
       return cached ? JSON.parse(cached) : []
     } catch {
       return []
     }
   })
-  const [lists, setLists] = useState([])
+  const [lists, setLists] = useState(() => getStoredCollections().lists || [])
+  const [collectionsState, setCollectionsState] = useState(() => getCollectionsDisplayState())
+  const [lastSynced, setLastSynced] = useState(() => getLastSyncedTime())
   const [counts, setCounts] = useState({})
   const [activeTab, setActiveTab] = useState('saved') // 'saved' | 'collections'
+  const [selectedCollection, setSelectedCollection] = useState(null)
   const [filter, setFilter] = useState('all') // 'all' | 'video' | 'article' | 'post'
   const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -68,43 +170,58 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
   const [syncNotice, setSyncNotice] = useState('')
   const [earlierLimit, setEarlierLimit] = useState(15)
 
+  // Subscribe to collections store changes
+  useEffect(() => {
+    loadCollectionsFromStore().catch(() => {})
+    const unsub = subscribeCollections((store) => {
+      setLists(store.lists || [])
+      if (Array.isArray(store.items) && store.items.length > 0) {
+        setItems((prev) => mergeOptimisticItems(prev, store.items))
+      }
+      setLastSynced(store.lastSyncedAt || null)
+      setCollectionsState(getCollectionsDisplayState())
+    })
+    return unsub
+  }, [])
+
   const loadLibrary = useCallback(async (isManualSync = false) => {
     if (isManualSync) setSyncing(true)
     try {
       if (isManualSync) {
-        // Trigger background Google Drive sync engine run if connected
         try {
           await api.post('/library/sync/start', {})
         } catch {}
       }
 
-      const [libRes, listsRes] = await Promise.allSettled([
-        api.library({ limit: 300 }),
-        api.get('/library/lists'),
-      ])
+      const syncResult = await syncCollections({
+        isManual: isManualSync,
+        apiClient: api,
+      })
 
-      let loadedCount = 0
-      if (libRes.status === 'fulfilled' && libRes.value) {
-        if (libRes.value.items) {
-          setItems(libRes.value.items)
-          loadedCount = libRes.value.items.length
-          try {
-            safeStorage.setItem('amethyst.cached_library', JSON.stringify(libRes.value.items))
-          } catch {}
+      if (syncResult && syncResult.store) {
+        setLists(syncResult.store.lists || [])
+        if (syncResult.store.items?.length) {
+          setItems((prev) => {
+            const merged = mergeOptimisticItems(prev, syncResult.store.items)
+            try {
+              safeStorage.setItem('amethyst.cached_library', JSON.stringify(merged))
+            } catch {}
+            return merged
+          })
         }
-        if (libRes.value.counts) setCounts(libRes.value.counts)
+        setLastSynced(syncResult.lastSyncedAt)
       }
 
-      if (listsRes.status === 'fulfilled' && Array.isArray(listsRes.value)) {
-        setLists(listsRes.value)
-      }
+      setCollectionsState(getCollectionsDisplayState())
 
       if (isManualSync) {
-        setSyncNotice(`Synced ${loadedCount} items with Google Drive`)
+        const timeStr = formatLastSyncedTime(syncResult?.lastSyncedAt || new Date().toISOString())
+        setSyncNotice(`Synced ${syncResult?.itemsCount || items.length} items with Google Drive (${timeStr})`)
         setTimeout(() => setSyncNotice(''), 4000)
       }
     } catch (err) {
       console.warn('[MobileLibrary] Load failed:', err.message)
+      setCollectionsState(getCollectionsDisplayState())
       if (isManualSync) {
         setSyncNotice(`Sync notice: ${err.message}`)
         setTimeout(() => setSyncNotice(''), 4000)
@@ -113,7 +230,7 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
       setLoading(false)
       setSyncing(false)
     }
-  }, [])
+  }, [items.length])
 
   useEffect(() => {
     loadLibrary()
@@ -135,6 +252,23 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
       return true
     })
   }, [items, filter, query])
+
+  // Items for currently selected collection
+  const collectionItems = useMemo(() => {
+    if (!selectedCollection) return []
+    const colTitle = (selectedCollection.title || selectedCollection.name || '').toLowerCase()
+    const colId = selectedCollection.id
+    return items.filter((it) => {
+      if (colId !== undefined && it.collection_id === colId) return true
+      if (Array.isArray(it.collections)) {
+        return it.collections.some((c) => String(c).toLowerCase() === colTitle)
+      }
+      if (Array.isArray(it.collection_details)) {
+        return it.collection_details.some((c) => (colId !== undefined && c.id === colId) || String(c.title).toLowerCase() === colTitle)
+      }
+      return false
+    })
+  }, [items, selectedCollection])
 
   // Clean chronological grouping: Today, Yesterday, This Week, and Month groups
   const dateGroups = useMemo(() => {
@@ -185,12 +319,13 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
   const renderItemCard = (item, idx, listRef) => {
     const thumb = resolveThumbnail(item)
     const isVideo = item.kind === 'video' || item.kind === 'reel' || item.is_reel
+    const isProcessing = item.status === 'processing' || item.status === 'pending' || item.status === 'enriching' || item.sync_state === 'syncing'
 
     return (
       <div key={item.id || idx}>
         <div
           className="r"
-          style={{ padding: '12px 0', gap: 12, cursor: 'pointer' }}
+          style={{ padding: '12px 0', gap: 14, cursor: 'pointer', alignItems: 'center' }}
           onClick={() => onSelectItem(item)}
         >
           {/* Actual Thumbnail or domain fallback badge */}
@@ -199,7 +334,7 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
               width: 88,
               height: 56,
               borderRadius: 14,
-              background: '#101012',
+              background: '#1A1A1E',
               color: '#fff',
               display: 'flex',
               alignItems: 'center',
@@ -212,37 +347,55 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
               position: 'relative',
             }}
           >
-            {thumb && (
-              <img
-                src={thumb}
-                alt={item.title}
-                loading="lazy"
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none'
-                  if (e.currentTarget.nextElementSibling) {
-                    e.currentTarget.nextElementSibling.style.display = 'flex'
-                  }
-                }}
-              />
-            )}
-            <span
+            {/* Fallback label / card is always positioned behind the image */}
+            <div
               style={{
-                display: thumb ? 'none' : 'flex',
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '100%',
-                height: '100%',
                 textAlign: 'center',
                 padding: '0 6px',
                 color: '#8E8E93',
                 fontSize: 11,
                 fontWeight: 600,
-                background: '#1A1A1E',
+                background: 'linear-gradient(135deg, #1C1C1E 0%, #121214 100%)',
               }}
             >
               {item.kind === 'note' ? '📝 Note' : (item.channel || item.author || getItemDomain(item.url) || 'Amethyst')}
-            </span>
+            </div>
+
+            {thumb && (
+              <img
+                src={thumb}
+                alt={item.title}
+                loading="lazy"
+                style={{ position: 'relative', width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
+                onError={(e) => {
+                  const ytMatch = item.url?.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([\w-]{11})/)
+                  if (ytMatch && !e.currentTarget.src.includes('img.youtube.com')) {
+                    e.currentTarget.src = `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`
+                  } else {
+                    e.currentTarget.style.display = 'none'
+                  }
+                }}
+              />
+            )}
+
+            {isProcessing && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%)',
+                  backgroundSize: '200% 100%',
+                  animation: 'shimmer 1.5s infinite linear',
+                  zIndex: 3,
+                  pointerEvents: 'none',
+                }}
+              />
+            )}
 
             {isVideo && (
               <span
@@ -253,6 +406,7 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  zIndex: 2,
                 }}
               >
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="#fff" aria-hidden="true">
@@ -276,9 +430,18 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
               {item.title}
             </div>
             <div className="m" style={{ marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {item.author || item.channel || getItemDomain(item.url) || 'Web'} ·{' '}
-              {item.kind ? item.kind.charAt(0).toUpperCase() + item.kind.slice(1) : 'Article'}
-              {item.duration ? ` · ${item.duration}` : ''}
+              {isProcessing ? (
+                <span style={{ color: '#0071E3', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <span className="spn" style={{ width: 8, height: 8 }} />
+                  Processing…
+                </span>
+              ) : (
+                <>
+                  {item.author || item.channel || getItemDomain(item.url) || 'Web'} ·{' '}
+                  {item.kind ? item.kind.charAt(0).toUpperCase() + item.kind.slice(1) : 'Article'}
+                  {item.duration ? ` · ${item.duration}` : ''}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -298,7 +461,12 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
     >
       {/* Top Header */}
       <div className="r sp">
-        <h1 className="h">Library</h1>
+        <div>
+          <h1 className="h" style={{ margin: 0 }}>Library</h1>
+          <div className="m" style={{ fontSize: 11.5, color: '#8E8E93', marginTop: 2 }}>
+            {lastSynced ? `Synced ${formatLastSyncedTime(lastSynced)}` : 'Not yet synced'}
+          </div>
+        </div>
         <div className="r" style={{ gap: 8 }}>
           {/* Real Sync Button */}
           <button
@@ -348,7 +516,7 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
             className="ib"
             aria-label="Add"
             style={{ width: 38, height: 38 }}
-            onClick={onOpenAsk}
+            onClick={onOpenCapture || onOpenAsk}
           >
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M5 12h14" />
@@ -429,7 +597,10 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
       <div className="seg">
         <span
           className={activeTab === 'saved' ? 'on' : ''}
-          onClick={() => setActiveTab('saved')}
+          onClick={() => {
+            setActiveTab('saved')
+            setSelectedCollection(null)
+          }}
         >
           Saved ({filteredItems.length})
         </span>
@@ -437,7 +608,7 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
           className={activeTab === 'collections' ? 'on' : ''}
           onClick={() => setActiveTab('collections')}
         >
-          Collections ({lists.length})
+          Collections ({collectionsState.label})
         </span>
       </div>
 
@@ -536,12 +707,88 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
             </div>
           )}
         </>
+      ) : selectedCollection ? (
+        <div className="col" style={{ gap: 14 }}>
+          {/* Collection Detail Header with Back Button & Delete Action */}
+          <div className="r sp" style={{ alignItems: 'center' }}>
+            <button
+              type="button"
+              className="ch glass"
+              style={{
+                height: 38,
+                padding: '0 14px',
+                fontSize: 13,
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                border: 'none',
+                cursor: 'pointer',
+              }}
+              onClick={() => setSelectedCollection(null)}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+              Collections
+            </button>
+
+            <div className="r" style={{ alignItems: 'center', gap: 10 }}>
+              <span className="m" style={{ fontSize: 13 }}>
+                {collectionItems.length} {collectionItems.length === 1 ? 'item' : 'items'}
+              </span>
+              <button
+                type="button"
+                className="ib"
+                aria-label="Delete collection"
+                title="Delete this collection"
+                style={{ width: 34, height: 34, color: '#FF3B30', background: 'rgba(255, 59, 48, 0.1)', border: 0, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                onClick={async () => {
+                  if (!window.confirm(`Delete collection "${selectedCollection.title || selectedCollection.name}"?`)) return
+                  try {
+                    await api.deleteLibraryList(selectedCollection.id)
+                    setSelectedCollection(null)
+                    loadData()
+                  } catch (err) {
+                    console.warn('Failed to delete collection:', err)
+                  }
+                }}
+              >
+                <Icon name="trash" size={16} />
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <h2 className="h" style={{ fontSize: 24, margin: 0 }}>
+              {selectedCollection.title || selectedCollection.name}
+            </h2>
+            {selectedCollection.description && (
+              <div className="m" style={{ marginTop: 4, fontSize: 13 }}>
+                {selectedCollection.description}
+              </div>
+            )}
+          </div>
+
+          {/* Collection Items List */}
+          {collectionItems.length > 0 ? (
+            <div className="c" style={{ padding: '2px 16px' }}>
+              {collectionItems.map((item, idx) => renderItemCard(item, idx, collectionItems))}
+            </div>
+          ) : (
+            <div className="c m" style={{ textAlign: 'center', padding: 36, background: '#FFFFFF', borderRadius: 18 }}>
+              No items in this collection yet.
+            </div>
+          )}
+        </div>
       ) : (
-        /* Collections Grid with real cover thumbnails */
+        /* Collections Grid with Apple-style folder cards & 2x2 thumbnail preview */
         <div className="g2" style={{ rowGap: 18 }}>
           {lists.length > 0 ? (
             lists.map((collection, idx) => {
               const coverThumb = resolveCollectionCover(collection)
+              const sampleThumbs = Array.isArray(collection.sample_thumbnails) ? collection.sample_thumbnails : []
+              const hostBase = getResolvedBase()
 
               return (
                 <motion.div
@@ -549,23 +796,72 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
                   className="col"
                   style={{ gap: 8, cursor: 'pointer' }}
                   whileTap={{ scale: 0.97 }}
+                  onClick={() => setSelectedCollection(collection)}
                 >
                   <div
                     style={{
                       width: '100%',
-                      height: 120,
-                      borderRadius: 24,
-                      background: idx % 2 === 0 ? '#111113' : '#E5E5EA',
-                      color: idx % 2 === 0 ? '#fff' : '#1D1D1F',
+                      aspectRatio: '1.25 / 1',
+                      borderRadius: 22,
+                      background: '#F0F1F5',
+                      border: '1px solid rgba(0,0,0,0.06)',
                       overflow: 'hidden',
                       flex: 'none',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       position: 'relative',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                      padding: sampleThumbs.length > 1 ? 5 : 0,
                     }}
                   >
-                    {coverThumb ? (
+                    {sampleThumbs.length > 1 ? (
+                      <div
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(2, 1fr)',
+                          gridTemplateRows: 'repeat(2, 1fr)',
+                          gap: 4,
+                          borderRadius: 16,
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {sampleThumbs.slice(0, 4).map((thumb, sIdx) => {
+                          const resolved = thumb.thumbnail_url?.startsWith('/api')
+                            ? appendAuthToken(`${hostBase || ''}${thumb.thumbnail_url}`)
+                            : thumb.thumbnail_url
+                          return (
+                            <div
+                              key={thumb.item_id || sIdx}
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                background: '#E2E4EA',
+                                overflow: 'hidden',
+                                position: 'relative',
+                              }}
+                            >
+                              {resolved ? (
+                                <img
+                                  src={resolved}
+                                  alt=""
+                                  loading="lazy"
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                  onError={(e) => { e.currentTarget.style.display = 'none' }}
+                                />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', background: '#E5E7EB' }} />
+                              )}
+                            </div>
+                          )
+                        })}
+                        {Array.from({ length: Math.max(0, 4 - sampleThumbs.length) }).map((_, emptyIdx) => (
+                          <div key={`empty-${emptyIdx}`} style={{ width: '100%', height: '100%', background: '#E5E7EB' }} />
+                        ))}
+                      </div>
+                    ) : coverThumb ? (
                       <img
                         src={coverThumb}
                         alt={collection.title}
@@ -576,19 +872,28 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
                         }}
                       />
                     ) : (
-                      <svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-                        <circle cx="50" cy="50" r="14" fill="none" stroke="currentColor" strokeOpacity="0.4" strokeWidth="2" />
-                        <circle cx="50" cy="50" r="28" fill="none" stroke="currentColor" strokeOpacity="0.4" strokeWidth="2" />
-                        <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeOpacity="0.4" strokeWidth="2" />
-                      </svg>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          color: '#007AFF',
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" width="42" height="42" fill="currentColor" opacity="0.85" aria-hidden="true">
+                          <path d="M20 5h-8.586L9.707 3.293A1 1 0 0 0 9 3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z" />
+                        </svg>
+                      </div>
                     )}
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontWeight: 650, fontSize: 14.5, letterSpacing: '-0.015em', color: '#111113', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {collection.title || collection.name}
                     </div>
-                    <div className="m">
-                      {collection.item_count !== undefined ? `${collection.item_count} items` : 'Collection'}
+                    <div className="m" style={{ fontSize: 12, marginTop: 2 }}>
+                      {collection.item_count !== undefined ? `${collection.item_count} ${collection.item_count === 1 ? 'item' : 'items'}` : 'Collection'}
                     </div>
                   </div>
                 </motion.div>
@@ -596,7 +901,13 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
             })
           ) : (
             <div className="c m" style={{ gridColumn: 'span 2', textAlign: 'center', padding: 24 }}>
-              No collections created yet.
+              {collectionsState.status === 'offline'
+                ? 'Offline · Collections unavailable without internet'
+                : collectionsState.status === 'expired'
+                ? 'Authentication expired · Reconnect Google Drive to sync'
+                : collectionsState.status === 'not connected'
+                ? 'Not connected · Connect Google Drive to sync collections'
+                : 'No collections created yet.'}
             </div>
           )}
         </div>

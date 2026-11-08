@@ -62,7 +62,7 @@ export default function StepMobile({ onNext, onBack, onSkip }) {
       {/* Left Pitch Pane */}
       <div className="onb-pane-left">
         <AmethystLogo size={28} color="#ffffff" />
-        <p className="onb-eyebrow">Step 4 of 5 · Mobile</p>
+        <p className="onb-eyebrow">Step 5 of 6 · Mobile</p>
         <h1 className="onb-title">Bring Amethyst to your phone</h1>
         <p className="onb-desc">
           Send things to your library from anywhere. Optional, and you can do it later.

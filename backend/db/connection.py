@@ -56,6 +56,25 @@ def migrate(conn: sqlite3.Connection) -> None:
     _drop_retired_columns(conn)
     _normalise_task_timestamps(conn)
     _repair_placeholder_models(conn)
+    _backfill_task_uuids(conn)
+
+
+def _backfill_task_uuids(conn: sqlite3.Connection) -> None:
+    import uuid as _uuid
+
+    try:
+        rows = conn.execute("SELECT id FROM tasks WHERE uuid IS NULL").fetchall()
+        for (r_id,) in rows:
+            conn.execute("UPDATE tasks SET uuid = ? WHERE id = ?", (str(_uuid.uuid4()), r_id))
+    except sqlite3.OperationalError:
+        pass
+    try:
+        rows = conn.execute("SELECT id FROM task_lists WHERE uuid IS NULL").fetchall()
+        for (r_id,) in rows:
+            conn.execute("UPDATE task_lists SET uuid = ? WHERE id = ?", (str(_uuid.uuid4()), r_id))
+    except sqlite3.OperationalError:
+        pass
+    conn.commit()
 
 
 # Tables an older AMETHYST created and this one has no code for. Dropping is guarded

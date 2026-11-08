@@ -10,6 +10,12 @@ export async function request(path, method = 'GET', body, timeoutMs = 3500) {
   if (!response.ok) {
     const detail = await response.json().catch(() => ({}))
     const message = Array.isArray(detail.detail) ? detail.detail.map(error => `${error.loc?.filter(part => part !== 'body').join('.') || 'Value'}: ${error.msg}`).join('; ') : detail.detail
+    if (response.status === 403 && typeof message === 'string' && message.includes('answers the full API')) {
+      try {
+        localStorage.removeItem('amethyst.sync.identity.v1')
+        localStorage.removeItem('amethyst.v2.bundle')
+      } catch {}
+    }
     throw new Error(typeof message === 'string' && message ? message : `Request failed (${response.status})`)
   }
   return response.json()

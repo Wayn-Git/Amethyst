@@ -332,6 +332,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 18px 24px;
+  gap: 24px;
 }
 
 .conn-card-row-divider {
@@ -344,6 +345,8 @@
   display: flex;
   align-items: center;
   gap: 16px;
+  flex: 1;
+  min-width: 0;
 }
 
 .conn-row-icon-box {
@@ -362,6 +365,8 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
+  flex: 1;
+  min-width: 0;
 }
 
 .conn-row-title {
@@ -374,6 +379,7 @@
   font-size: 13px;
   color: var(--text-dim, #a1a1aa);
   line-height: 1.45;
+  max-width: 520px;
 }
 
 /* iOS/macOS Smooth Switch */
@@ -918,7 +924,7 @@
   position: relative;
   width: 160px;
   height: 160px;
-  border-radius: 12px;
+  border-radius: 14px;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -926,7 +932,7 @@
   background: #ffffff;
   padding: 8px;
   box-sizing: border-box;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
 }
 
 .conn-qr-wrapper svg {
@@ -951,21 +957,96 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* Computer Code Display (Screenshot 5) */
-.conn-computer-code {
-  font-size: 29px;
+/* Apple-style Code Display in Computer Tab */
+.conn-code-display-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.conn-code-display-number {
+  font-size: 38px;
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.22em;
   color: #ffffff;
-  font-family: var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Mono", var(--font-mono, monospace);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  padding: 12px 28px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
   user-select: all;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.conn-code-display-number:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.conn-code-copy-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #a1a1aa;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.conn-code-copy-pill:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.conn-expiry-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #8e8e93;
+  margin-top: 6px;
+}
+
+.conn-dot-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34c759;
+  box-shadow: 0 0 8px rgba(52, 199, 89, 0.6);
+  flex-shrink: 0;
+}
+
+.conn-help-toggle {
+  background: none;
+  border: none;
+  color: #71717a;
+  font-size: 11px;
+  cursor: pointer;
+  margin-top: 6px;
+  padding: 2px 6px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.15s ease;
+}
+
+.conn-help-toggle:hover {
+  color: #a1a1aa;
 }
 
 .conn-box-corner-tools {
   position: absolute;
-  bottom: 10px;
-  right: 10px;
+  bottom: 12px;
+  right: 12px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -974,7 +1055,7 @@
 .conn-tool-btn {
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: 7px;
   background: rgba(255, 255, 255, 0.06);
   border: none;
   color: #a1a1aa;
@@ -997,8 +1078,8 @@
 
 /* Footer Instructions */
 .conn-modal-instruction {
-  font-size: 12px;
-  color: #a1a1aa;
+  font-size: 12.5px;
+  color: #8e8e93;
   line-height: 1.5;
   margin-top: 14px;
   max-width: 340px;

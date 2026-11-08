@@ -430,3 +430,52 @@ test('Zero manual entry: No HTTP Shortcuts, manual URL or token fields in pairin
   assert.equal(scannerSource.includes('enter code manually'), false, 'QrScanner must not prompt for manual entry')
 })
 
+test('Confirm no tokens or Composio keys appear in logs or unencrypted storage', async () => {
+  const { saveConnections, CONNECTIONS_STORAGE_KEY } = await import('../src/mobile/connectionStatus.js')
+  const { safeStorage } = await import('../src/lib/storage.js')
+  const { BUNDLE_KEY, saveBundle } = await import('../src/mobile/bundle.js')
+  const { VAULT_PAIRING_TOKEN_KEY, savePairingToken } = await import('../src/mobile/pairingVault.js')
+  const credentials = await import('../src/lib/credentials.js')
+
+  // When native vault is present, unencrypted safeStorage must NOT hold tokens or composio keys
+  const mockVaultMap = new Map()
+  const mockVault = {
+    get: async (k) => mockVaultMap.get(k),
+    set: async (k, v) => mockVaultMap.set(k, v),
+    remove: async (k) => mockVaultMap.delete(k),
+  }
+  credentials._setSecureStoreForTest(mockVault)
+
+  try {
+    // 1. Save connections containing sensitive Composio key
+    await saveConnections({
+      composio: { apiKey: 'comp_super_secret_key_12345', userId: 'usr_1' },
+      googleDrive: { accessToken: 'ya29.secret_token' },
+      microsoftTodo: null,
+    })
+
+    // safeStorage must NOT contain CONNECTIONS_STORAGE_KEY when native vault is present
+    assert.equal(safeStorage.getItem(CONNECTIONS_STORAGE_KEY), null, 'Composio key must not exist in safeStorage when vault is present')
+    assert.ok(mockVaultMap.has(CONNECTIONS_STORAGE_KEY), 'Connections must be in secure vault')
+
+    // 2. Save pairing token
+    await savePairingToken('tok_super_secret_token_999')
+    assert.equal(safeStorage.getItem(VAULT_PAIRING_TOKEN_KEY), null, 'Pairing token must not exist in safeStorage when vault is present')
+    assert.ok(mockVaultMap.has(VAULT_PAIRING_TOKEN_KEY), 'Token must be in secure vault')
+
+    // 3. Save bundle with keys
+    await saveBundle({
+      device_id: 'dev_test_vault',
+      llm: { providers: [{ provider: 'anthropic', api_key: 'sk-secret' }] },
+      composio: { api_key: 'comp_secret', user_id: 'u1' },
+      drive: { root_folder_id: 'rf1', inbox_folder_id: 'if1' },
+      prompts: { summary: 's' },
+    })
+    assert.equal(safeStorage.getItem(BUNDLE_KEY), null, 'Bundle keys must not exist in safeStorage when vault is present')
+    assert.ok(mockVaultMap.has(BUNDLE_KEY), 'Bundle must be in secure vault')
+  } finally {
+    credentials._setSecureStoreForTest(null)
+  }
+})
+
+

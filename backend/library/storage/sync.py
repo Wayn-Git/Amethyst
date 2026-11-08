@@ -37,6 +37,12 @@ async def auto_sync_item(item_id: int) -> dict[str, Any]:
 
 def trigger_auto_sync(item_id: int) -> None:
     """Trigger background auto-sync for item_id if enabled."""
+    try:
+        from backend.library.storage.sync_engine import schedule_catalog_export
+        schedule_catalog_export()
+    except Exception:
+        pass
+
     if not is_auto_sync_enabled():
         return
 

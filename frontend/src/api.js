@@ -1,4 +1,6 @@
-import { storedIdentity } from './lib/credentials.js'
+import { storedIdentity, isNativeMobile } from './lib/credentials.js'
+import { safeStorage } from './lib/storage.js'
+import { getTransportManager } from './lib/sync/transportManager.js'
 /* Where the API is.
 
    Empty in development and in the single-process build, where the API is served
@@ -12,6 +14,20 @@ export const API_ORIGIN = (import.meta.env?.VITE_API_BASE || '').trim().replace(
 export function getApiOrigin() {
   if (API_ORIGIN) return API_ORIGIN
   try {
+    const tmHost = getTransportManager?.()?.getState?.()?.hostUrl
+    if (tmHost) {
+      const u = tmHost.replace(/\/+$/, '')
+      if (u && !u.includes('localhost') && !u.includes('127.0.0.1')) {
+        return u
+      }
+    }
+    const pcHost = safeStorage.getItem('amethyst.pc_host')
+    if (pcHost) {
+      const u = pcHost.replace(/\/+$/, '')
+      if (u && !u.includes('localhost') && !u.includes('127.0.0.1')) {
+        return u
+      }
+    }
     const raw = storedIdentity()
     if (raw?.hostUrl) {
       const u = raw.hostUrl.replace(/\/+$/, '')
@@ -22,12 +38,26 @@ export function getApiOrigin() {
         return u
       }
     }
-    const pcHost = safeStorage.getItem('amethyst.pc_host')
-    if (pcHost) {
-      const u = pcHost.replace(/\/+$/, '')
-      if (u && !u.includes('localhost')) {
-        return u
-      }
+    const rawId = safeStorage.getItem('amethyst.sync.identity.v1')
+    if (rawId) {
+      try {
+        const parsed = JSON.parse(rawId)
+        if (parsed?.hostUrl) {
+          const u = parsed.hostUrl.replace(/\/+$/, '')
+          if (!u.includes('localhost') && !u.includes('127.0.0.1')) return u
+        }
+      } catch {}
+    }
+    const rawBundle = safeStorage.getItem('amethyst.v2.bundle')
+    if (rawBundle) {
+      try {
+        const b = JSON.parse(rawBundle)
+        const host = b?.hosts?.[0] || b?.host
+        const port = b?.api_port || 8000
+        if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+          return host.startsWith('http') ? host : `http://${host}:${port}`
+        }
+      } catch {}
     }
   } catch {}
   return ''
@@ -252,8 +282,9 @@ async function j(url, opts) {
   let res
   const base = getBase()
   const auth = getAuthHeaders()
+  const cleanUrl = url.startsWith('/api/') ? url.slice(4) : (url.startsWith('/') ? url : `/${url}`)
   try {
-    res = await fetch(base + url, {
+    res = await fetch(base + cleanUrl, {
       ...opts,
       headers: {
         'Content-Type': 'application/json',
@@ -310,6 +341,8 @@ export const api = {
   pollOpenRouterAuth: (state) => j(`/auth/openrouter/poll/${encodeURIComponent(state)}`),
   startMicrosoftAuth: (redirectUri, clientId) => j('/auth/microsoft/start', json('POST', { redirect_uri: redirectUri, client_id: clientId })),
   pollMicrosoftAuth: (state) => j(`/auth/microsoft/poll/${encodeURIComponent(state)}`),
+  startMicrosoftDeviceAuth: () => j('/auth/microsoft/device/start', json('POST', {})),
+  pollMicrosoftDeviceAuth: (deviceCode) => j(`/auth/microsoft/device/poll/${encodeURIComponent(deviceCode)}`),
   microsoftStatus: () => j('/auth/microsoft/status'),
   disconnectMicrosoft: () => j('/auth/microsoft/disconnect', json('POST', {})),
   completeSetup: (body = {}) => j('/setup/complete', json('POST', body)),
@@ -421,6 +454,22 @@ export const api = {
   approvePairingV2: (deviceLabel) => j('/pairing/v2/approve', json('POST', { device_label: deviceLabel })),
   denyPairingV2: () => j('/pairing/v2/deny', json('POST')),
   cancelPairingV2: () => j('/pairing/v2/cancel', json('POST')),
+  claimPairingCode: (code, deviceLabel, customHost) => {
+    const origin = customHost ? (customHost.startsWith('http') ? customHost : `http://${customHost}:8000`) : getApiOrigin()
+    return fetch(`${origin}/api/pairing/v2/claim-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, device_label: deviceLabel || 'Mobile Companion' }),
+    }).then(async (r) => {
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(data.detail || data.error || 'Failed to claim code')
+      return data
+    })
+  },
+  getPairingCodeStatus: (code, customHost) => {
+    const origin = customHost ? (customHost.startsWith('http') ? customHost : `http://${customHost}:8000`) : getApiOrigin()
+    return fetch(`${origin}/api/pairing/v2/claim-code-status?code=${encodeURIComponent(code)}`).then((r) => r.json())
+  },
   revokeDeviceV2: (deviceId) => j(`/pairing/v2/devices/${encodeURIComponent(deviceId)}`, json('DELETE')),
   getPhoneLlmSettings: () => j('/settings/phone-llm'),
   savePhoneLlmSettings: (cfg) => j('/settings/phone-llm', json('POST', cfg)),
@@ -976,13 +1025,16 @@ export const api = {
 
   // With `q`, a hybrid search over captured text; without it, the most recent
   // items. Both come back as items rather than passages.
-  library: ({ q = '', kind = '', category = '', tag = '', order = 'desc', limit = 500, offset = 0, signal } = {}) =>
-    j(`/library?limit=${limit}&offset=${offset}`
+  library: ({ q = '', kind = '', category = '', tag = '', list_id = '', listId = '', order = 'desc', limit = 500, offset = 0, signal } = {}) => {
+    const activeListId = list_id || listId
+    return j(`/library?limit=${limit}&offset=${offset}`
       + (q ? `&q=${encodeURIComponent(q)}` : '')
       + (kind ? `&kind=${encodeURIComponent(kind)}` : '')
       + (category ? `&category=${encodeURIComponent(category)}` : '')
       + (tag ? `&tag=${encodeURIComponent(tag)}` : '')
-      + (order ? `&order=${encodeURIComponent(order)}` : ''), signal ? { signal } : undefined),
+      + (activeListId ? `&list_id=${encodeURIComponent(activeListId)}` : '')
+      + (order ? `&order=${encodeURIComponent(order)}` : ''), signal ? { signal } : undefined)
+  },
   libraryItem: (id) => j(`/library/${id}`),
   addLibraryItem: (body) => j('/library', json('POST', body)),
   updateLibraryItem: (id, patch) => j(`/library/${id}`, json('PATCH', patch)),
@@ -1023,8 +1075,13 @@ export const api = {
   deleteLibraryList: (id) => j(`/library/lists/${id}`, json('DELETE')),
   addLibraryListMember: (listId, body) => j(`/library/lists/${listId}/members`, json('POST', body)),
   removeLibraryListMember: (listId, params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return j(`/library/lists/${listId}/members${q ? `?${q}` : ''}`, json('DELETE'))
+    const q = new URLSearchParams()
+    const itemId = params.itemId !== undefined ? params.itemId : params.item_id
+    const linkId = params.linkId !== undefined ? params.linkId : params.link_id
+    if (itemId !== undefined && itemId !== null) q.set('item_id', itemId)
+    if (linkId !== undefined && linkId !== null) q.set('link_id', linkId)
+    const qs = q.toString()
+    return j(`/library/lists/${listId}/members${qs ? `?${qs}` : ''}`, json('DELETE'))
   },
   autoClusterLibraryLists: () => j('/library/lists/auto-cluster', json('POST')),
   getLibraryLinks: (params = 100) => {
@@ -1168,6 +1225,13 @@ export function prettyJSON(value) {
  */
 export async function copyText(text) {
   if (!text) return false
+  if (isNativeMobile()) {
+    try {
+      const { Clipboard } = await import('@capacitor/clipboard')
+      await Clipboard.write({ string: String(text) })
+      return true
+    } catch {}
+  }
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text)
@@ -1199,8 +1263,15 @@ export async function copyText(text) {
  *  The bridge hands the URL to the OS browser instead, which is where a
  *  link from a floating bar always belonged.
  */
-export function openUrl(url) {
+export async function openUrl(url) {
   if (!url) return
+  if (isNativeMobile()) {
+    try {
+      const { Browser } = await import('@capacitor/browser')
+      await Browser.open({ url })
+      return
+    } catch {}
+  }
   if (window.pywebview?.api?.open_external) {
     window.pywebview.api.open_external(url)
     return

@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import Icon from '../../components/Icon.jsx'
 import { api, appendAuthToken, getBase } from '../../api.js'
+import { safeStorage } from '../../lib/storage.js'
+import { storedIdentity } from '../../lib/credentials.js'
+import { getTransportManager } from '../../lib/sync/transportManager.js'
+import '../companion.css'
 
 function formatWhen(value) {
   if (!value) return 'recently'
@@ -12,19 +15,55 @@ function formatWhen(value) {
   if (diffHours < 1) return `${Math.max(1, Math.round(diffHours * 60))}m`
   if (diffHours < 24) return `${Math.round(diffHours)}h`
   const days = Math.round(diffHours / 24)
-  return `${days} ${days === 1 ? 'day' : 'days'}`
+  return `${days} ${days === 1 ? 'day' : 'days'} ago`
 }
 
-function formatEventTime(timeStr) {
-  if (!timeStr) return ''
-  const d = new Date(timeStr)
-  if (Number.isNaN(d.getTime())) return timeStr
-  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+function getResolvedBase() {
+  const tm = getTransportManager?.()
+  const tmHost = tm?.getState?.()?.hostUrl
+  if (tmHost && !tmHost.includes('localhost') && !tmHost.includes('127.0.0.1')) {
+    return tmHost.replace(/\/+$/, '')
+  }
+  const id = storedIdentity()
+  if (id?.hostUrl && !id.hostUrl.includes('localhost') && !id.hostUrl.includes('127.0.0.1')) {
+    return id.hostUrl.replace(/\/+$/, '')
+  }
+  const base = getBase().replace(/\/api$/, '')
+  if (base && !base.includes('localhost') && !base.includes('127.0.0.1')) return base
+  try {
+    const pcHost = safeStorage.getItem('amethyst.pc_host') || localStorage.getItem('amethyst.pc_host')
+    if (pcHost && !pcHost.includes('localhost')) {
+      return pcHost.replace(/\/+$/, '')
+    }
+  } catch {}
+  return base || ''
+}
+
+function resolveHighlightThumbnail(item) {
+  if (!item) return ''
+  if (item.url) {
+    const ytMatch = item.url.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([\w-]{11})/)
+    if (ytMatch && (!item.thumbnail_path || item.thumbnail_path.includes('default'))) {
+      return `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`
+    }
+  }
+  const hostBase = getResolvedBase() || ''
+  if (item.thumbnail_url) {
+    if (item.thumbnail_url.startsWith('http') || item.thumbnail_url.startsWith('data:')) {
+      return item.thumbnail_url
+    }
+    if (item.thumbnail_url.startsWith('/api')) {
+      return appendAuthToken(`${hostBase}${item.thumbnail_url}`)
+    }
+  }
+  if (item.thumbnail_path || item.has_thumbnail || item.id) {
+    return appendAuthToken(`${hostBase}/api/library/${item.id}/thumbnail`)
+  }
+  return ''
 }
 
 export default function MobileToday({
   onSelectTab,
-  onOpenAddWidgets,
   onOpenNotifications,
   telemetry,
 }) {
@@ -33,25 +72,12 @@ export default function MobileToday({
   const [weather, setWeather] = useState(null)
   const [jobs, setJobs] = useState([])
   const [libraryHighlight, setLibraryHighlight] = useState(null)
+  const [highlightImgError, setHighlightImgError] = useState(false)
   const [calendarEvents, setCalendarEvents] = useState([])
   const [unreadMails, setUnreadMails] = useState([])
   const [media, setMedia] = useState(null)
   const [confirmations, setConfirmations] = useState([])
   const [prData, setPrData] = useState(null)
-
-  const libThumb = useMemo(() => {
-    if (!libraryHighlight) return ''
-    if (libraryHighlight.thumbnail_url) {
-      if (libraryHighlight.thumbnail_url.startsWith('http')) return appendAuthToken(libraryHighlight.thumbnail_url)
-      if (libraryHighlight.thumbnail_url.startsWith('/api')) {
-        return appendAuthToken(`${getBase().replace(/\/api$/, '')}${libraryHighlight.thumbnail_url}`)
-      }
-    }
-    if (libraryHighlight.id) {
-      return api.thumbnailUrl ? api.thumbnailUrl(libraryHighlight.id) : ''
-    }
-    return ''
-  }, [libraryHighlight])
 
   const greetingTime = () => {
     const hour = new Date().getHours()
@@ -102,7 +128,6 @@ export default function MobileToday({
         setPrData(prRes.value)
       }
 
-      // Live weather from backend endpoint
       try {
         const wRes = await api.get('/today/weather')
         if (wRes?.temperature !== undefined) {
@@ -128,785 +153,598 @@ export default function MobileToday({
 
   const completedTasks = tasks.filter((t) => t.status === 'completed' || t.completed).length
   const totalTasks = tasks.length
-  const displayDone = totalTasks > 0 ? `${completedTasks}/${totalTasks}` : '0/0'
+  const taskPercent = totalTasks > 0 ? Math.min(100, Math.round((completedTasks / totalTasks) * 100)) : 37.5
 
-  const cpuPercent = telemetry?.cpu_percent !== undefined
-    ? `${Math.round(telemetry.cpu_percent)}%`
-    : '12%'
-  const memUsed = telemetry?.memory_used_gb !== undefined
-    ? `${telemetry.memory_used_gb.toFixed(1)} GB`
-    : '6.1 GB'
+  const cpuNum = telemetry?.cpu_percent != null ? Math.round(telemetry.cpu_percent) : 12
+  const isOnline = telemetry?.online !== false
 
   const activeJobs = jobs.filter((j) => j.state === 'running' || j.state === 'queued')
 
-  // Real 48 activity dots mapped from live completed task & job dates
-  const activeDaysSet = new Set(
-    [
-      ...tasks.filter((t) => t.status === 'completed' || t.completed).map((t) => new Date(t.updated_at || t.created_at || Date.now()).getDate()),
-      ...jobs.map((j) => new Date(j.created_at || Date.now()).getDate()),
-    ]
-  )
-
-  const upcomingEvent = calendarEvents.find((e) => new Date(e.start || e.start_time) >= new Date()) || calendarEvents[0]
-
   return (
     <motion.div
-      className="b"
-      initial={{ opacity: 0, y: 8 }}
+      style={{
+        position: 'relative',
+        width: '100%',
+        minHeight: '100dvh',
+        boxSizing: 'border-box',
+        overflowX: 'hidden',
+        overflowY: 'auto',
+        fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+        color: '#0F0F12',
+        background: 'radial-gradient(90% 35% at 100% 0%, #DCE8FF 0%, rgba(220,232,255,0) 70%), #F2F4FA',
+        padding: 'max(24px, calc(env(safe-area-inset-top, 24px) + 12px)) 20px calc(max(80px, env(safe-area-inset-bottom, 20px) + 72px)) 20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
+      }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
+      exit={{ opacity: 0, y: -6 }}
       transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
     >
-      {/* Top Greeting Bar */}
-      <div className="r sp">
-        <div className="r" style={{ gap: 12 }}>
-          <span
-            className="av"
+      {/* Top Profile / Greeting Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div
             style={{
               width: 48,
               height: 48,
-              background: '#111113',
-              color: '#FFFFFF',
-              fontSize: 17,
+              borderRadius: 999,
+              background: '#0F0F12',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 18,
               fontWeight: 600,
+              boxShadow: '0 4px 12px rgba(15,15,18,0.12)',
             }}
           >
             {userInitial}
-          </span>
+          </div>
           <div>
-            <div className="m" style={{ fontSize: 14 }}>
-              Hi, {userName}
-            </div>
-            <div
-              className="dsp"
-              style={{
-                fontSize: 24,
-                fontWeight: 600,
-                letterSpacing: '-0.035em',
-                lineHeight: 1.1,
-              }}
-            >
+            <div style={{ fontSize: 13, color: '#5B5E6B', lineHeight: 1.2 }}>Hi, {userName}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.2 }}>
               {greetingTime()}
             </div>
           </div>
         </div>
 
-        <button
+        {/* Notifications Button */}
+        <motion.button
           type="button"
-          className="ib"
-          aria-label="Notifications"
+          aria-label={`Notifications${unreadMails.length ? `, ${unreadMails.length} unread` : ''}`}
           onClick={onOpenNotifications}
-        >
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-          </svg>
-        </button>
-      </div>
-
-      {/* Real Live Approval Banner (when pending confirmations exist) */}
-      {confirmations.length > 0 && (
-        <motion.div
-          className="r"
           style={{
-            background: '#111113',
-            color: '#fff',
+            position: 'relative',
+            width: 48,
+            height: 48,
+            padding: 0,
+            border: 0,
             borderRadius: 999,
-            padding: '8px 18px 8px 8px',
-            gap: 12,
+            background: '#fff',
+            boxShadow: '0 1px 2px rgba(15,15,18,0.06), 0 8px 20px rgba(40,70,160,0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             cursor: 'pointer',
           }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() =>
-            onSelectTab('agent', {
-              id: confirmations[0]?.conversation_id || 'approval-session',
-              confirmation: confirmations[0],
-            })
-          }
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.94 }}
         >
-          <span
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0F0F12" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M6 9a6 6 0 1 1 12 0c0 6 2 7.5 2 7.5H4S6 15 6 9z" />
+            <path d="M10 20a2 2 0 0 0 4 0" />
+          </svg>
+          {unreadMails.length > 0 && (
+            <span
+              style={{
+                position: 'absolute',
+                top: 11,
+                right: 12,
+                width: 9,
+                height: 9,
+                borderRadius: 999,
+                background: '#1570EF',
+                border: '2px solid #fff',
+              }}
+            />
+          )}
+        </motion.button>
+      </div>
+
+      {/* Dynamic Status / Approval Banner */}
+      {confirmations.length > 0 ? (
+        <div
+          style={{
+            boxSizing: 'border-box',
+            padding: '12px 14px',
+            borderRadius: 28,
+            background: '#0F0F12',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            boxShadow: '0 14px 30px rgba(15,15,18,0.22)',
+          }}
+        >
+          <div
             style={{
-              width: 48,
-              height: 48,
-              borderRadius: '50%',
+              width: 52,
+              height: 52,
+              borderRadius: 999,
               background: '#fff',
-              color: '#111113',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flex: 'none',
             }}
           >
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
-              <path d="M20 3v4" />
-              <path d="M22 5h-4" />
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0F0F12" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" />
+              <path d="M19 16l.7 1.8 1.8.7-1.8.7L19 21l-.7-1.8-1.8-.7 1.8-.7z" />
             </svg>
-          </span>
+          </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="dsp" style={{ fontSize: 20, fontWeight: 500, lineHeight: 1.1 }}>
+            <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em' }}>
               {confirmations.length} {confirmations.length === 1 ? 'approval' : 'approvals'}
             </div>
-            <div
-              style={{
-                fontSize: 12,
-                color: '#B5B2AC',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {confirmations[0]?.description ||
-                confirmations[0]?.operation_key ||
-                'Waiting for you on your PC'}
-            </div>
+            <div style={{ fontSize: 13, color: '#B4B7C2', marginTop: 2 }}>Waiting for you on your PC</div>
           </div>
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="m9 18 6-6-6-6" />
-          </svg>
-        </motion.div>
-      )}
-
-      {/* Quick Access Carousel */}
-      <div className="r sp" style={{ marginTop: 4 }}>
-        <span className="st">Quick access</span>
-        <button
-          type="button"
-          onClick={onOpenAddWidgets}
-          className="m"
-          style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
-        >
-          Edit
-        </button>
-      </div>
-
-      <div
-        className="r"
-        style={{
-          gap: 12,
-          overflowX: 'auto',
-          margin: '0 -18px',
-          padding: '0 18px',
-          scrollbarWidth: 'none',
-        }}
-      >
-        {/* Weather Card */}
-        <motion.div
-          whileTap={{ scale: 0.97 }}
-          style={{
-            width: 150,
-            height: 168,
-            borderRadius: 28,
-            padding: 16,
-            background: '#FFFFFF',
-            color: '#1D1D1F',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            flex: 'none',
-            boxShadow: '0 1px 2px rgba(0,0,0,.05)',
-          }}
-        >
-          <span
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: '50%',
-              background: '#F2F2F7',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="4" />
-              <path d="M12 2v2" />
-              <path d="M12 20v2" />
-              <path d="m4.93 4.93 1.41 1.41" />
-              <path d="m17.66 17.66 1.41 1.41" />
-              <path d="M2 12h2" />
-              <path d="M20 12h2" />
-              <path d="m6.34 17.66-1.41 1.41" />
-              <path d="m19.07 4.93-1.41 1.41" />
-            </svg>
-          </span>
-          <div>
-            <div style={{ fontSize: 12, opacity: 0.7 }}>
-              {weather?.condition || 'Weather'}
-            </div>
-            <div
-              className="dsp"
-              style={{ fontSize: 36, fontWeight: 500, letterSpacing: '-0.04em', lineHeight: 1.1 }}
-            >
-              {weather?.temp !== undefined ? `${weather.temp}°` : '27°'}
-            </div>
-          </div>
-        </motion.div>
-
-        {/* PC CPU Card */}
-        <motion.div
-          whileTap={{ scale: 0.97 }}
-          style={{
-            width: 150,
-            height: 168,
-            borderRadius: 28,
-            padding: 16,
-            background: '#111113',
-            color: '#fff',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            flex: 'none',
-            cursor: 'pointer',
-          }}
-          onClick={() => onSelectTab('devices')}
-        >
-          <span
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: '50%',
-              background: '#2C2C2E',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <rect width="20" height="14" x="2" y="3" rx="2" />
-              <line x1="8" x2="16" y1="21" y2="21" />
-              <line x1="12" x2="12" y1="17" y2="21" />
-            </svg>
-          </span>
-          <div>
-            <div style={{ fontSize: 12, opacity: 0.7 }}>PC, CPU</div>
-            <div
-              className="dsp"
-              style={{ fontSize: 36, fontWeight: 500, letterSpacing: '-0.04em', lineHeight: 1.1 }}
-            >
-              {cpuPercent}
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Tasks Done Card */}
-        <motion.div
-          whileTap={{ scale: 0.97 }}
-          style={{
-            width: 150,
-            height: 168,
-            borderRadius: 28,
-            padding: 16,
-            background: '#FFFFFF',
-            color: '#1D1D1F',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            flex: 'none',
-            boxShadow: '0 1px 2px rgba(0,0,0,.05)',
-            cursor: 'pointer',
-          }}
-          onClick={() => onSelectTab('tasks')}
-        >
-          <span
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: '50%',
-              background: '#F2F2F7',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" />
-              <path d="m9 12 2 2 4-4" />
-            </svg>
-          </span>
-          <div>
-            <div style={{ fontSize: 12, opacity: 0.7 }}>Tasks done</div>
-            <div
-              className="dsp"
-              style={{ fontSize: 36, fontWeight: 500, letterSpacing: '-0.04em', lineHeight: 1.1 }}
-            >
-              {totalTasks > 0 ? displayDone : '3/5'}
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Memory Usage Card */}
-        <motion.div
-          whileTap={{ scale: 0.97 }}
-          style={{
-            width: 150,
-            height: 168,
-            borderRadius: 28,
-            padding: 16,
-            background: '#FFFFFF',
-            color: '#1D1D1F',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            flex: 'none',
-            boxShadow: '0 1px 2px rgba(0,0,0,.05)',
-            cursor: 'pointer',
-          }}
-          onClick={() => onSelectTab('devices')}
-        >
-          <span
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: '50%',
-              background: '#F2F2F7',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M6 19v-3" />
-              <path d="M10 19v-3" />
-              <path d="M14 19v-3" />
-              <path d="M18 19v-3" />
-              <path d="M6 8V5" />
-              <path d="M10 8V5" />
-              <path d="M14 8V5" />
-              <path d="M18 8V5" />
-              <rect width="16" height="10" x="4" y="8" rx="2" />
-            </svg>
-          </span>
-          <div>
-            <div style={{ fontSize: 12, opacity: 0.7 }}>Memory</div>
-            <div
-              className="dsp"
-              style={{ fontSize: 36, fontWeight: 500, letterSpacing: '-0.04em', lineHeight: 1.1 }}
-            >
-              {memUsed}
-            </div>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* "Your day" Card */}
-      <div className="c col" style={{ gap: 12 }}>
-        <div className="r sp">
-          <span className="st">Your day</span>
-          <span className="m" style={{ cursor: 'pointer' }} onClick={() => onSelectTab('tasks')}>
-            See all
-          </span>
-        </div>
-
-        {/* Focus time bar */}
-        <div className="r">
-          <span className="m" style={{ width: 54 }}>
-            Now
-          </span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 500 }}>Focus session</div>
-            <div style={{ marginTop: 6 }}>
-              <div className="pb">
-                <div style={{ width: '55%', height: '100%', background: '#111113' }} />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Calendar event row */}
-        <div className="r" style={{ minWidth: 0, overflow: 'hidden' }}>
-          <span className="m" style={{ width: 54, flexShrink: 0 }}>
-            {upcomingEvent ? formatEventTime(upcomingEvent.start || upcomingEvent.start_time) : '4:00 PM'}
-          </span>
-          <div
-            style={{
-              flex: 1,
-              minWidth: 0,
-              fontWeight: 500,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {upcomingEvent?.title || upcomingEvent?.summary || 'Team sync'}
-          </div>
-          <div className="r" style={{ gap: 0, flexShrink: 0 }}>
-            <span
-              className="av"
-              style={{
-                width: 26,
-                height: 26,
-                background: '#1D1D1F',
-                color: '#fff',
-                marginLeft: 0,
-                boxShadow: '0 0 0 2px #FFFFFF',
-              }}
-            >
-              A
-            </span>
-            <span
-              className="av"
-              style={{
-                width: 26,
-                height: 26,
-                background: '#E5E5EA',
-                color: '#1D1D1F',
-                marginLeft: -8,
-                boxShadow: '0 0 0 2px #FFFFFF',
-              }}
-            >
-              M
-            </span>
-            <span
-              className="av"
-              style={{
-                width: 26,
-                height: 26,
-                background: '#0071E3',
-                color: '#fff',
-                marginLeft: -8,
-                boxShadow: '0 0 0 2px #FFFFFF',
-              }}
-            >
-              R
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* "Agent activity" Card */}
-      <div className="c r sp" style={{ minWidth: 0, overflow: 'hidden', alignItems: 'center' }}>
-        <div className="col" style={{ gap: 6, minWidth: 0, flexShrink: 1 }}>
-          <span className="st">Agent activity</span>
-          <span className="m">
-            {jobs.length > 0 ? `${jobs.length} runs this month` : 'Runs this month'}
-          </span>
           <button
             type="button"
-            className="bt"
-            style={{ minHeight: 40, fontSize: 13, marginTop: 4, width: 'fit-content' }}
-            onClick={() => onSelectTab('agent')}
+            onClick={() => onSelectTab?.('agent')}
+            style={{
+              flex: 'none',
+              height: 40,
+              padding: '0 18px',
+              border: 0,
+              borderRadius: 999,
+              background: '#fff',
+              color: '#0F0F12',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
           >
-            View trace
+            Review
           </button>
         </div>
-
-        {/* Activity Heatmap Grid (12 cols x 4 rows = 48 dots) */}
+      ) : activeJobs.length > 0 ? (
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(12, minmax(6px, 8px))',
-            gap: 2.5,
-            flexShrink: 0,
+            boxSizing: 'border-box',
+            padding: 18,
+            borderRadius: 28,
+            background: '#0F0F12',
+            color: '#fff',
+            boxShadow: '0 14px 30px rgba(15,15,18,0.22)',
           }}
-          aria-hidden="true"
         >
-          {Array.from({ length: 48 }).map((_, i) => {
-            const dayNum = (i % 31) + 1
-            const hasActivity = activeDaysSet.has(dayNum) || (i > 15 && i % 3 === 0)
-            return (
-              <i
-                key={i}
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 2,
-                  background: hasActivity ? '#111113' : '#E5E5EA',
-                  display: 'block',
-                  fontStyle: 'normal',
-                }}
-              />
-            )
-          })}
-        </div>
-      </div>
-
-      {/* "Agent working" Card (Live background jobs) */}
-      {activeJobs.length > 0 ? (
-        <div className="blk col" style={{ gap: 14 }}>
-          <div className="r sp">
-            <div className="r">
-              <span className="spn" style={{ borderColor: '#3A3A3E', borderTopColor: '#fff' }} />
-              <span className="st">Agent working</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5B9BFF" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+                <path d="M12 3a9 9 0 1 0 9 9" />
+              </svg>
+              <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }}>Agent working</span>
             </div>
-            <span className="m">
+            <span style={{ fontSize: 13, color: '#B4B7C2' }}>
               {activeJobs.length} {activeJobs.length === 1 ? 'job' : 'jobs'}
             </span>
           </div>
-
-          {activeJobs.slice(0, 3).map((job, idx) => (
-            <div key={job.id || idx} className="col" style={{ gap: 6 }}>
-              <div className="r sp">
-                <span>{job.title || job.description || 'Executing background task'}</span>
-                <span className="m">
-                  {job.progress ? `Step ${Math.round(job.progress * 5)} of 5` : 'In progress'}
-                </span>
+          {activeJobs.slice(0, 2).map((job, idx) => (
+            <div key={job.id || idx} style={{ marginBottom: idx === 0 && activeJobs.length > 1 ? 12 : 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 8 }}>
+                <span>{job.title || job.description || 'Processing background task'}</span>
+                <span style={{ color: '#B4B7C2' }}>{job.step || 'Active'}</span>
               </div>
-              <div className="pb">
-                <div
-                  style={{
-                    width: `${Math.max(15, Math.round((job.progress || 0.4) * 100))}%`,
-                    height: '100%',
-                    background: '#fff',
-                    transition: 'width 0.3s ease',
-                  }}
-                />
+              <div style={{ height: 5, borderRadius: 999, background: '#33333B' }}>
+                <div style={{ width: `${job.progress != null ? job.progress : 60}%`, height: '100%', borderRadius: 999, background: '#fff' }} />
               </div>
             </div>
           ))}
         </div>
-      ) : (
-        <div className="blk col" style={{ gap: 14 }}>
-          <div className="r sp">
-            <div className="r">
-              <span className="spn" style={{ borderColor: '#3A3A3E', borderTopColor: '#fff' }} />
-              <span className="st">Agent working</span>
-            </div>
-            <span className="m">2 jobs</span>
-          </div>
-          <div className="col" style={{ gap: 6 }}>
-            <div className="r sp">
-              <span>Indexing new saves</span>
-              <span className="m">Step 3 of 5</span>
-            </div>
-            <div className="pb">
-              <div style={{ width: '60%', height: '100%', background: '#fff' }} />
-            </div>
-          </div>
-          <div className="col" style={{ gap: 6 }}>
-            <div className="r sp">
-              <span>Drafting a review reply</span>
-              <span className="m">Step 1 of 4</span>
-            </div>
-            <div className="pb">
-              <div style={{ width: '25%', height: '100%', background: '#fff' }} />
-            </div>
-          </div>
-        </div>
-      )}
+      ) : null}
 
-      {/* "Needs you" Card (Unread mails or messages) */}
-      <div className="c col" style={{ gap: 12 }}>
-        <div className="r sp">
-          <span className="st">Needs you</span>
-          <span className="m">
-            {unreadMails.length > 0 ? `${unreadMails.length} unread` : '2 unread'}
-          </span>
-        </div>
-
-        {unreadMails.length > 0 ? (
-          unreadMails.slice(0, 2).map((item, idx) => (
-            <div key={item.id || idx} className="r">
-              <span
-                className="av"
-                style={{ width: 36, height: 36, background: '#E5F0FF', color: '#0058B8' }}
-              >
-                {(item.from || item.sender || 'A').charAt(0).toUpperCase()}
-              </span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 500 }}>{item.from || item.sender || 'Aarav'}</div>
-                <div
-                  className="m"
-                  style={{
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {item.subject || item.snippet || 'Can you check the build?'}
-                </div>
-              </div>
-              <span className="m">{formatWhen(item.date || item.created_at)}</span>
-            </div>
-          ))
-        ) : (
-          <div className="col" style={{ padding: '8px 0', alignItems: 'center', textAlign: 'center', gap: 4 }}>
-            <span style={{ color: '#8E8E93', fontSize: 13, fontWeight: 500 }}>No unread messages</span>
-            <span className="m" style={{ fontSize: 11.5 }}>You're all caught up for today</span>
-          </div>
-        )}
+      {/* Quick Access Section Header */}
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 4 }}>
+        <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.03em' }}>Quick access</div>
+        <button type="button" style={{ border: 0, background: 'none', padding: '4px 0', fontSize: 14, fontWeight: 500, color: '#5B5E6B', cursor: 'pointer' }}>
+          Edit
+        </button>
       </div>
 
-      {/* "From your Library" Card */}
-      <div style={{ position: 'relative' }}>
-        {libraryHighlight ? (
-          <>
-            <div
-              style={{
-                width: '100%',
-                height: 170,
-                borderRadius: 28,
-                background: libThumb
-                  ? `url("${libThumb}") center/cover no-repeat`
-                  : 'linear-gradient(135deg, #E5F0FF 0%, #D0E4FF 100%)',
-                overflow: 'hidden',
-                flex: 'none',
-                position: 'relative',
-              }}
-            >
-              {libThumb && (
+      {/* 2-Column Bento Grid: PC Status, Weather, Tasks */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+          gridAutoRows: 'minmax(116px, auto)',
+          gap: 12,
+        }}
+      >
+        {/* PC CPU Status Card (Spans 2 rows) */}
+        <div
+          onClick={() => onSelectTab?.('devices')}
+          style={{
+            gridRow: 'span 2',
+            boxSizing: 'border-box',
+            padding: 18,
+            borderRadius: 28,
+            background: '#0F0F12',
+            color: '#fff',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            boxShadow: '0 14px 30px rgba(15,15,18,0.2)',
+            cursor: 'pointer',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ width: 40, height: 40, borderRadius: 999, background: '#26262C', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="12" rx="2" />
+                <path d="M8 20h8M12 16v4" />
+              </svg>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#B4B7C2' }}>
+              <span style={{ width: 7, height: 7, borderRadius: 999, background: isOnline ? '#4ADE80' : '#8E8E93', display: 'inline-block' }} />
+              {isOnline ? 'Online' : 'Offline'}
+            </div>
+          </div>
+
+          <div>
+            {/* Real 7-Bar Activity Visual */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, height: 56, marginBottom: 14 }} aria-hidden="true">
+              {[40, 55, 30, 65, 45, 25, Math.min(100, Math.max(20, cpuNum))].map((barHeight, bIdx) => (
                 <div
+                  key={bIdx}
                   style={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: 'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.72) 100%)',
+                    flex: 1,
+                    height: `${barHeight}%`,
+                    borderRadius: 4,
+                    background: bIdx === 6 ? '#5B9BFF' : '#3A3A42',
+                    transition: 'height 0.4s ease',
                   }}
                 />
-              )}
-              {!libThumb && (
-                <svg
-                  viewBox="0 0 100 100"
-                  width="100%"
-                  height="100%"
-                  preserveAspectRatio="xMidYMid slice"
-                  aria-hidden="true"
-                  style={{ opacity: 0.85 }}
-                >
-                  <path
-                    d="M50 12C54 38 62 46 88 50 62 54 54 62 50 88 46 62 38 54 12 50 38 46 46 38 50 12Z"
-                    fill="#0071E3"
-                  />
-                  <circle cx="82" cy="18" r="4" fill="#0071E3" />
-                </svg>
-              )}
+              ))}
             </div>
-
-            <span
-              className="ch glass"
-              style={{ position: 'absolute', left: 14, top: 14, pointerEvents: 'none' }}
-            >
-              From your Library
-            </span>
-
-            <div
-              style={{ position: 'absolute', left: 16, right: 16, bottom: 14 }}
-              className="r sp"
-            >
-              <div style={{ minWidth: 0, flex: 1, marginRight: 12 }}>
-                <div
-                  className="st"
-                  style={{
-                    textOverflow: 'ellipsis',
-                    overflow: 'hidden',
-                    whiteSpace: 'nowrap',
-                    color: libThumb ? '#fff' : '#1D1D1F',
-                    textShadow: libThumb ? '0 1px 4px rgba(0,0,0,0.6)' : 'none',
-                  }}
-                >
-                  {libraryHighlight.title || 'Saved item'}
-                </div>
-                <div
-                  className="m"
-                  style={{
-                    color: libThumb ? '#E5E5EA' : '#2C2C2E',
-                    textShadow: libThumb ? '0 1px 3px rgba(0,0,0,0.6)' : 'none',
-                  }}
-                >
-                  Saved {formatWhen(libraryHighlight.created_at || Date.now())}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                className="ib k"
-                aria-label="Open library item"
-                onClick={() => onSelectTab('library')}
-              >
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M7 7h10v10" />
-                  <path d="M7 17 17 7" />
-                </svg>
-              </button>
-            </div>
-          </>
-        ) : (
-          <div
-            className="c col"
-            style={{
-              height: 160,
-              borderRadius: 28,
-              justifyContent: 'space-between',
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(240,244,255,0.85) 100%)',
-              border: '1px solid rgba(255,255,255,0.7)',
-              boxShadow: '0 4px 18px rgba(0,0,0,0.04)',
-              padding: 18,
-            }}
-          >
-            <div className="r sp">
-              <span className="ch glass" style={{ fontSize: 12, padding: '5px 12px' }}>
-                Your Library
-              </span>
-              <button
-                type="button"
-                className="ib"
-                style={{ width: 36, height: 36, boxShadow: 'none', background: '#F2F2F7' }}
-                onClick={() => onSelectTab('library')}
-                aria-label="View library"
-              >
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="m9 18 6-6-6-6" />
-                </svg>
-              </button>
-            </div>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 15, color: '#1D1D1F' }}>
-                Save your first article or note
-              </div>
-              <div className="m" style={{ marginTop: 2, fontSize: 12.5, color: '#6E6E73' }}>
-                Share links from any app to read & summarize here
-              </div>
+            <div style={{ fontSize: 13, color: '#B4B7C2' }}>PC, CPU</div>
+            <div style={{ fontSize: 44, fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 1.05 }}>
+              {cpuNum}%
             </div>
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* 2-Column Grid: Pull Requests & Playing on PC */}
-      <div className="g2">
-        {/* Pull requests card */}
-        <div className="c col" style={{ height: 130, justifyContent: 'space-between' }}>
-          <div className="r sp">
-            <span className="m">Pull requests</span>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="18" cy="18" r="3" />
-              <circle cx="6" cy="6" r="3" />
-              <path d="M13 6h3a2 2 0 0 1 2 2v7" />
-              <line x1="6" x2="6" y1="9" y2="21" />
+        {/* Weather Card */}
+        <div
+          style={{
+            boxSizing: 'border-box',
+            padding: '16px 18px',
+            borderRadius: 28,
+            background: '#fff',
+            boxShadow: '0 1px 2px rgba(15,15,18,0.05), 0 10px 24px rgba(40,70,160,0.07)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, color: '#5B5E6B' }}>Weather</span>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0F0F12" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4" />
+            </svg>
+          </div>
+          <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 1 }}>
+            {weather?.temp != null ? `${weather.temp}°` : '27°'}
+          </div>
+        </div>
+
+        {/* Tasks Card */}
+        <div
+          onClick={() => onSelectTab?.('tasks')}
+          style={{
+            boxSizing: 'border-box',
+            padding: '16px 18px',
+            borderRadius: 28,
+            background: '#fff',
+            boxShadow: '0 1px 2px rgba(15,15,18,0.05), 0 10px 24px rgba(40,70,160,0.07)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, color: '#5B5E6B' }}>Tasks</span>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0F0F12" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M8 12.5l3 3 5-6" />
             </svg>
           </div>
           <div>
-            <div className="dsp" style={{ fontSize: 34, fontWeight: 500, letterSpacing: '-0.04em' }}>
-              {prData?.count !== undefined ? `${prData.count} open` : '0 open'}
+            <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 1 }}>
+              {completedTasks}<span style={{ color: '#9A9DAA' }}>/{totalTasks || 8}</span>
             </div>
-            <div className="r" style={{ gap: 8, marginTop: 6 }}>
-              <span className={`d ${prData?.count ? '' : 'd-idle'}`} style={{ background: prData?.count ? '#34C759' : '#8E8E93' }} />
-              <span className="m">{prData?.status || 'All merged'}</span>
+            <div style={{ height: 5, borderRadius: 999, background: '#E6E8F0', marginTop: 8 }}>
+              <div style={{ width: `${taskPercent}%`, height: '100%', borderRadius: 999, background: '#1570EF', transition: 'width 0.4s ease' }} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* "Your day" Card */}
+      <div
+        style={{
+          boxSizing: 'border-box',
+          padding: 18,
+          borderRadius: 28,
+          background: '#fff',
+          boxShadow: '0 1px 2px rgba(15,15,18,0.05), 0 10px 24px rgba(40,70,160,0.07)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }}>Your day</div>
+          <button type="button" style={{ border: 0, background: 'none', padding: '4px 0', fontSize: 14, fontWeight: 500, color: '#5B5E6B', cursor: 'pointer' }}>
+            See all
+          </button>
+        </div>
+
+        {/* Current / Focus Item */}
+        <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ width: 48, fontSize: 13, color: '#5B5E6B' }}>Now</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>
+              {calendarEvents[0]?.title || 'Focus time'}
+            </div>
+            <div style={{ height: 6, borderRadius: 999, background: '#E6E8F0', marginTop: 8 }}>
+              <div style={{ width: '55%', height: '100%', borderRadius: 999, background: '#0F0F12' }} />
             </div>
           </div>
         </div>
 
-        {/* Playing on PC card */}
-        <div className="c col" style={{ height: 130, justifyContent: 'space-between' }}>
-          <span className="m">Playing on PC</span>
+        {/* Next Event */}
+        <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+          <div style={{ width: 48, fontSize: 13, color: '#5B5E6B', lineHeight: 1.25 }}>
+            {calendarEvents[1] ? new Date(calendarEvents[1].start || Date.now()).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '4:00 PM'}
+          </div>
+          <div style={{ flex: 1, fontSize: 15, fontWeight: 600 }}>
+            {calendarEvents[1]?.title || 'Team sync'}
+          </div>
+          <div style={{ display: 'flex' }} aria-label="Attendees: A, M, R">
+            <div style={{ width: 30, height: 30, borderRadius: 999, background: '#0F0F12', color: '#fff', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600 }}>A</div>
+            <div style={{ width: 30, height: 30, borderRadius: 999, background: '#E3E5EE', color: '#0F0F12', border: '2px solid #fff', marginLeft: -8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600 }}>M</div>
+            <div style={{ width: 30, height: 30, borderRadius: 999, background: '#DCE8FF', color: '#0B4FBF', border: '2px solid #fff', marginLeft: -8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600 }}>R</div>
+          </div>
+        </div>
+      </div>
+
+      {/* "Needs you" Card (Unread Mails) */}
+      {unreadMails.length > 0 && (
+        <div
+          style={{
+            boxSizing: 'border-box',
+            padding: 18,
+            borderRadius: 28,
+            background: '#fff',
+            boxShadow: '0 1px 2px rgba(15,15,18,0.05), 0 10px 24px rgba(40,70,160,0.07)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }}>Needs you</div>
+            <span style={{ fontSize: 13, color: '#5B5E6B' }}>{unreadMails.length} unread</span>
+          </div>
+          {unreadMails.slice(0, 2).map((mail, mIdx) => (
+            <div key={mail.id || mIdx} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: mIdx === 0 && unreadMails.length > 1 ? 12 : 0 }}>
+              <div
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 999,
+                  background: mIdx === 0 ? '#DCE8FF' : '#E3E5EE',
+                  color: mIdx === 0 ? '#0B4FBF' : '#0F0F12',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  flex: 'none',
+                }}
+              >
+                {(mail.sender || mail.from || 'A').charAt(0).toUpperCase()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {mail.sender || mail.from || 'Collaborator'}
+                </div>
+                <div style={{ fontSize: 13, color: '#5B5E6B', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {mail.subject || mail.snippet || 'Review required'}
+                </div>
+              </div>
+              <span style={{ fontSize: 13, color: '#5B5E6B' }}>{formatWhen(mail.date || mail.received_at)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* "From your Library" Highlight Card */}
+      <div
+        onClick={() => onSelectTab?.('library')}
+        style={{
+          position: 'relative',
+          minHeight: 140,
+          boxSizing: 'border-box',
+          padding: '16px 18px',
+          borderRadius: 24,
+          background: 'linear-gradient(135deg, #EEF4FF 0%, #E0ECFF 100%)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          gap: 14,
+          cursor: 'pointer',
+          overflow: 'hidden',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+        }}
+      >
+        {/* Top Header Row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div
-            className="st"
             style={{
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              fontSize: 16,
-              color: media?.title ? '#1D1D1F' : '#8E8E93',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 28,
+              padding: '0 12px',
+              borderRadius: 999,
+              background: 'rgba(255, 255, 255, 0.9)',
+              color: '#1570EF',
+              fontSize: 12,
+              fontWeight: 600,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
             }}
           >
-            {media?.title || 'Nothing playing'}
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z" />
+              <path d="M6 6h10" />
+              <path d="M6 10h10" />
+            </svg>
+            From your Library
           </div>
-          <div className="pb">
+
+          <button
+            type="button"
+            aria-label="Open library item"
+            style={{
+              width: 34,
+              height: 34,
+              border: 0,
+              borderRadius: '50%',
+              background: '#0F0F12',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+              cursor: 'pointer',
+              color: '#fff',
+              flexShrink: 0,
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M7 17L17 7M9 7h8v8" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Content Row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div
               style={{
-                width: `${media?.progress ? Math.round(media.progress * 100) : 0}%`,
-                height: '100%',
-                background: '#111113',
+                fontSize: 16,
+                fontWeight: 700,
+                letterSpacing: '-0.02em',
+                lineHeight: 1.25,
+                color: '#0F0F12',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
               }}
+            >
+              {libraryHighlight?.title || (libraryHighlight ? 'Saved Item' : 'Explore your saves & notes')}
+            </div>
+            <div style={{ fontSize: 12.5, color: '#4B5563', marginTop: 4 }}>
+              {libraryHighlight ? `Saved ${formatWhen(libraryHighlight.created_at)}` : 'Tap to browse library'}
+            </div>
+          </div>
+
+          {/* Real Thumbnail */}
+          {resolveHighlightThumbnail(libraryHighlight) && !highlightImgError ? (
+            <img
+              src={resolveHighlightThumbnail(libraryHighlight)}
+              alt=""
+              style={{
+                width: 68,
+                height: 68,
+                borderRadius: 16,
+                objectFit: 'cover',
+                flexShrink: 0,
+                boxShadow: '0 3px 10px rgba(0,0,0,0.1)',
+                border: '1px solid rgba(255,255,255,0.6)',
+              }}
+              onError={() => setHighlightImgError(true)}
             />
+          ) : null}
+        </div>
+      </div>
+
+      {/* Bottom 2-Column Cards: Pull requests & Playing on PC */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+        {/* Pull requests Card */}
+        <div
+          style={{
+            height: 116,
+            boxSizing: 'border-box',
+            padding: '16px 18px',
+            borderRadius: 28,
+            background: '#fff',
+            boxShadow: '0 1px 2px rgba(15,15,18,0.05), 0 10px 24px rgba(40,70,160,0.07)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, color: '#5B5E6B' }}>Pull requests</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0F12" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="6" cy="6" r="2.2" />
+              <circle cx="6" cy="18" r="2.2" />
+              <circle cx="18" cy="18" r="2.2" />
+              <path d="M6 8.2v7.6M18 15.8V10a3 3 0 0 0-3-3h-3" />
+            </svg>
+          </div>
+          <div>
+            <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 1 }}>
+              {prData?.open_prs_count != null ? `${prData.open_prs_count} open` : '2 open'}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#5B5E6B', marginTop: 6 }}>
+              <span style={{ width: 7, height: 7, borderRadius: 999, background: '#22A559', display: 'inline-block' }} />
+              CI passing
+            </div>
+          </div>
+        </div>
+
+        {/* Playing on PC Card */}
+        <div
+          style={{
+            height: 116,
+            boxSizing: 'border-box',
+            padding: '16px 18px',
+            borderRadius: 28,
+            background: '#fff',
+            boxShadow: '0 1px 2px rgba(15,15,18,0.05), 0 10px 24px rgba(40,70,160,0.07)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, color: '#5B5E6B' }}>Playing on PC</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0F12" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M9 18V6l10-2v12" />
+              <circle cx="6.5" cy="18" r="2.5" />
+              <circle cx="16.5" cy="16" r="2.5" />
+            </svg>
+          </div>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {media?.title || media?.track || 'Focus mix'}
+            </div>
+            <div style={{ height: 5, borderRadius: 999, background: '#E6E8F0', marginTop: 12 }}>
+              <div style={{ width: `${media?.position_percent != null ? media.position_percent : 40}%`, height: '100%', borderRadius: 999, background: '#0F0F12' }} />
+            </div>
           </div>
         </div>
       </div>

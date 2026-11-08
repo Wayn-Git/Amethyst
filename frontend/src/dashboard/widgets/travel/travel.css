@@ -1,180 +1,52 @@
-/* Travel widget surface isolation: eliminate double boundaries, outer headers, and double padding */
-
-.home-layout-grid .today-widget-slot[data-slot-id='glance.travel'] {
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  box-sizing: border-box;
-}
-
-.home-layout-grid .today-widget-slot[data-slot-id='glance.travel']:hover {
-  box-shadow: none !important;
-}
-
-.home-layout-grid .today-widget-slot[data-slot-id='glance.travel'] > .today-slot-body {
+/* Apple Bento Travel Widget */
+.glance-travel {
   width: 100%;
   height: 100%;
-  min-width: 0;
-  min-height: 0;
-  padding: 0;
-  margin: 0;
-  border: 0;
   box-sizing: border-box;
-  overflow: visible !important;
-}
-
-/* Responsive slot dimensions */
-.home-layout-grid .today-widget-slot[data-slot-id='glance.travel'],
-.bento-foundation .home-widget[data-widget='glance.travel'] {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.home-layout-grid .today-widget-slot[data-slot-id='glance.travel'][data-size='s'],
-.bento-foundation .home-widget[data-widget='glance.travel'][data-size='s'] {
-  min-height: 170px;
-}
-
-.home-layout-grid .today-widget-slot[data-slot-id='glance.travel'][data-size='m'],
-.bento-foundation .home-widget[data-widget='glance.travel'][data-size='m'] {
-  min-height: 170px;
-}
-
-.home-layout-grid .today-widget-slot[data-slot-id='glance.travel'][data-size='l'],
-.bento-foundation .home-widget[data-widget='glance.travel'][data-size='l'] {
-  min-height: 356px;
-}
-
-.home-layout-grid .today-slot-body > .home-widget.widget-adoption[data-widget='glance.travel'],
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.travel'] {
-  width: 100%;
-  height: 100%;
   position: relative;
-  min-width: 0;
-  min-height: 0;
-  padding: 0 !important;
-  gap: 0;
-  box-sizing: border-box;
-  overflow: hidden;
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-/* Chrome: title, badges, freshness removed from outer card. Actions hover-only top-right. */
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.travel'] > .widget-header {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 10;
-  display: flex;
-  width: auto;
-  padding: 0;
-  margin: 0;
-  gap: 0;
-  background: transparent;
-  border: 0;
-  pointer-events: none;
-}
-
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.travel'] .widget-title,
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.travel'] .widget-source,
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.travel'] .widget-freshness,
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.travel'] .widget-chip {
-  display: none !important;
-}
-
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.travel'] .widget-actions {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 150ms ease;
-}
-
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.travel']:is(:hover, :focus-within) .widget-actions,
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.travel'] .widget-menu[open] {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.travel'] > .widget-footer {
-  display: none !important;
-}
-
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.travel'] > .widget-content {
-  display: flex;
-  flex: 1;
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0 !important;
-  padding: 0;
-  overflow: hidden;
-}
-
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.travel'] .widget-workbench.today-drawer.is-inline,
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.travel'] .widget-workbench.today-drawer.is-inline > .today-drawer-body {
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  padding: 0;
-  margin: 0;
-  border: 0;
-  display: flex;
-  flex: 1 1 auto;
-}
-
-.glance-travel-root {
-  width: 100%;
-  height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  border-radius: 28px;
+  padding: 22px;
+  background: var(--tr, #d1f5dc);
+  color: var(--trt, #0b2a14);
+  box-shadow: inset 0 0 0 1px var(--ln, rgba(0, 0, 0, 0.08));
 }
 
-.glance-travel-root .widget-root {
-  width: 100%;
-  height: 100%;
+.glance-travel.style-lightmap {
+  background: #f1eee7;
+  color: #1d1d1f;
 }
 
-.glance-travel-root .wg-card {
-  width: 100% !important;
-  max-width: 100% !important;
-  height: 100% !important;
-  border-radius: 24px !important;
-  box-sizing: border-box;
+.glance-travel.style-darkmap {
+  background: #1f2321;
+  color: #ffffff;
 }
 
-/* Direction pill selector in travel drawer */
-.travel-directions-row {
+.glance-travel.style-transit {
+  background: var(--cd, #ffffff);
+  color: var(--tx, #1d1d1f);
+}
+
+.glance-travel.style-ticket {
+  background: #e7e3d8;
+  color: #1d1d1f;
+}
+
+.glance-travel .gtr-label {
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  z-index: 2;
 }
 
-.travel-direction-btn {
-  padding: 6px 12px;
-  border-radius: 9999px;
-  font-size: 12px;
+.glance-travel .gtr-label b {
+  margin-left: auto;
   font-weight: 500;
-  border: 1px solid var(--w-border, #e5e5e7);
-  background: var(--w-card, #ffffff);
-  color: var(--w-text-2, #6b6b70);
-  cursor: pointer;
-  transition: all 120ms ease;
-}
-
-.travel-direction-btn:hover {
-  background: var(--w-card-hover, #f5f5f7);
-  color: var(--w-text, #1c1c1e);
-}
-
-.travel-direction-btn.is-active {
-  background: var(--w-text, #1c1c1e);
-  color: var(--w-card, #ffffff);
-  border-color: var(--w-text, #1c1c1e);
+  font-size: 12px;
+  opacity: 0.8;
 }

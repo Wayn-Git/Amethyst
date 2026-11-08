@@ -191,7 +191,13 @@ class ReelCapture:
             })
         if reel.slide_urls:
             initial_res.extend([
-                {"type": "slide", "name": f"Slide {i + 1}", "url": f"/api/library/{item_id}/slides/{i}", "index": i}
+                {
+                    "type": "slide",
+                    "name": f"Slide {i + 1}",
+                    "url": f"/api/library/{item_id}/slides/{i}",
+                    "remote_url": reel.slide_urls[i],
+                    "index": i,
+                }
                 for i in range(len(reel.slide_urls))
             ])
         if initial_res:

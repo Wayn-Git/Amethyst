@@ -57,7 +57,7 @@ export function previewRows(payload) {
 }
 
 export const ADOPTED_WIDGETS = new Set([
-  'glance.music', 'glance.air', 'glance.sun', 'glance.weather', 'glance.clock', 'glance.travel', 'glance.next-event',
+  'glance.music', 'glance.air', 'glance.sun', 'glance.weather', 'glance.clock', 'glance.travel', 'glance.next-event', 'glance.pc',
   'need.inbox', 'need.drafts', 'need.waiting', 'need.mentions', 'need.overdue', 'need.decisions', 'need.approvals', 'need.lor-slack', 'need.snoozed',
   'task.today', 'task.focus', 'task.agenda', 'task.backlog', 'task.deadlines', 'task.reminders', 'task.kanban', 'task.goals', 'task.habits', 'task.plan', 'task.conflicts', 'task.free', 'task.risk',
   'agent.brief', 'agent.feed',
@@ -84,7 +84,7 @@ export function rankNeeds(manifests, records) {
 
 export const WIDGET_ICONS = {
   'glance.clock': 'clock', 'glance.weather': 'cloud', 'glance.next-event': 'calendar', 'glance.music': 'music',
-  'glance.air': 'globe', 'glance.sun': 'sun', 'glance.travel': 'globe-west',
+  'glance.air': 'globe', 'glance.sun': 'sun', 'glance.travel': 'globe-west', 'glance.pc': 'monitor',
   'need.inbox': 'mail', 'need.drafts': 'compose', 'need.waiting': 'clock', 'need.mentions': 'chat', 'need.overdue': 'warning',
   'agent.brief': 'page', 'agent.feed': 'list', 'agent.running': 'play', 'agent.skills': 'skills', 'agent.knows': 'book', 'agent.usage': 'dash',
   'task.today': 'tasks', 'task.backlog': 'list', 'task.agenda': 'calendar', 'task.focus': 'clock', 'task.goals': 'check',

@@ -20,6 +20,7 @@ from backend.pairing.config import (
     set_phone_llm_config,
     set_use_separate_keys,
 )
+from backend.mcp.composio_service import composio_service
 from backend.pairing.service import pairing_service
 from backend.secrets import delete_secret, get_secret, set_secret
 
@@ -465,6 +466,7 @@ def test_phone_composio_settings_api():
 def test_auto_capture_bundle_contains_all_providers_and_default():
     set_use_separate_keys(False)
     MAIN_KEY = "main-composio-secret-super-key-auto"
+    composio_service._cached_api_key = None
     set_secret("amethyst/composio", MAIN_KEY)
 
     start_res = pairing_service.start_pairing()
@@ -511,6 +513,7 @@ def test_auto_capture_bundle_contains_all_providers_and_default():
     assert bundle["composio"]["api_key"] == MAIN_KEY
 
     delete_secret("amethyst/composio")
+    composio_service._cached_api_key = None
 
 
 def test_no_key_values_in_logs_or_approve_prompt(caplog):

@@ -616,13 +616,19 @@ export default function Library() {
         setCounts(meta.counts || {})
         setCategoryCounts(meta.category_counts || {})
         setTagCounts(meta.tag_counts || {})
+        loadLists()
+        if (selectedListId) {
+          api.getLibraryListDetail(selectedListId)
+            .then((detail) => setSelectedListDetail(detail))
+            .catch(() => {})
+        }
       } catch (err) {
         toast(err.message, 'bad')
       } finally {
         setBusyId(null)
       }
     },
-    [toast]
+    [toast, loadLists, selectedListId]
   )
 
   const handleItemUpdate = useCallback((updated) => {
@@ -633,7 +639,13 @@ export default function Library() {
     setActiveModalItem((curr) =>
       curr?.id === updated.id ? { ...updated, isProcessing: false } : curr
     )
-  }, [])
+    loadLists()
+    if (selectedListId) {
+      api.getLibraryListDetail(selectedListId)
+        .then((detail) => setSelectedListDetail(detail))
+        .catch(() => {})
+    }
+  }, [loadLists, selectedListId])
 
   const handleTogglePin = useCallback(
     async (item) => {

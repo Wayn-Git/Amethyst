@@ -6,7 +6,12 @@ export const IDENTITY_KEY = 'amethyst.sync.identity.v1'
 let nativeIdentity = null
 let secureStore = null
 
+export function _setSecureStoreForTest(store) {
+  secureStore = store
+}
+
 export async function nativeVault() {
+  if (secureStore) return secureStore
   if (!isNativeMobile()) return null
   if (!secureStore) {
     const { SecureStorage, KeychainAccess } = await import('@aparajita/capacitor-secure-storage')
@@ -29,18 +34,34 @@ export async function initializeCredentials() {
   const vault = await nativeVault()
   if (!vault) return
   nativeIdentity = await vault.get(IDENTITY_KEY)
+  if (typeof nativeIdentity === 'string') {
+    try { nativeIdentity = JSON.parse(nativeIdentity) } catch {}
+  }
   const legacy = safeStorage.getItem(IDENTITY_KEY)
   if (!nativeIdentity && legacy) {
-    const parsed = JSON.parse(legacy)
-    await vault.set(IDENTITY_KEY, parsed)
-    nativeIdentity = parsed
+    try {
+      const parsed = JSON.parse(legacy)
+      await vault.set(IDENTITY_KEY, parsed)
+      nativeIdentity = parsed
+    } catch {}
   }
-  // Remove only after the secure write succeeds; errors fail boot closed.
-  safeStorage.removeItem(IDENTITY_KEY)
+  if (nativeIdentity && typeof nativeIdentity === 'object') {
+    try {
+      safeStorage.setItem(IDENTITY_KEY, JSON.stringify(nativeIdentity))
+      if (nativeIdentity.hostUrl) {
+        safeStorage.setItem('amethyst.pc_host', nativeIdentity.hostUrl)
+      }
+    } catch {}
+  }
 }
 
 export function storedIdentity() {
-  if (isNativeMobile() && nativeIdentity) return nativeIdentity
+  if (isNativeMobile() && nativeIdentity) {
+    if (typeof nativeIdentity === 'string') {
+      try { nativeIdentity = JSON.parse(nativeIdentity) } catch {}
+    }
+    return nativeIdentity
+  }
   try {
     const raw = safeStorage.getItem(IDENTITY_KEY)
     if (raw) {
@@ -51,6 +72,9 @@ export function storedIdentity() {
       }
     }
   } catch {}
+  if (typeof nativeIdentity === 'string') {
+    try { nativeIdentity = JSON.parse(nativeIdentity) } catch {}
+  }
   return nativeIdentity || null
 }
 

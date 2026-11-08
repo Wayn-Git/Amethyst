@@ -246,6 +246,28 @@ class LibraryStore:
             except (sqlite3.OperationalError, sqlite3.DatabaseError, Exception):
                 pass
 
+        # Ensure library_lists columns for sync & UUID
+        for col, col_type in (
+            ("uuid", "TEXT"),
+            ("updated_hlc", "TEXT"),
+        ):
+            try:
+                self.conn.execute(f"ALTER TABLE library_lists ADD COLUMN {col} {col_type}")
+                self.conn.commit()
+            except (sqlite3.OperationalError, sqlite3.DatabaseError, Exception):
+                pass
+
+        # Backfill uuid for lists that lack it
+        try:
+            import uuid as _uuidlib
+            unassigned = self.conn.execute("SELECT id FROM library_lists WHERE uuid IS NULL").fetchall()
+            for r in unassigned:
+                self.conn.execute("UPDATE library_lists SET uuid = ? WHERE id = ?", (str(_uuidlib.uuid4()), r[0]))
+            if unassigned:
+                self.conn.commit()
+        except Exception:
+            pass
+
         try:
             import json as _json
             rows = self.conn.execute("SELECT id, url, tags FROM library_items WHERE url IS NOT NULL").fetchall()
@@ -291,14 +313,17 @@ class LibraryStore:
 
                 CREATE TABLE IF NOT EXISTS library_lists (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    uuid TEXT,
                     title TEXT NOT NULL,
                     description TEXT DEFAULT '',
                     icon TEXT DEFAULT 'bookmark',
                     is_smart BOOLEAN DEFAULT 0,
                     created_at TEXT DEFAULT (datetime('now')),
-                    updated_at TEXT DEFAULT (datetime('now'))
+                    updated_at TEXT DEFAULT (datetime('now')),
+                    updated_hlc TEXT
                 );
                 CREATE INDEX IF NOT EXISTS idx_library_lists_title ON library_lists(title);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_library_lists_uuid ON library_lists(uuid) WHERE uuid IS NOT NULL;
 
                 CREATE TABLE IF NOT EXISTS library_list_members (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -469,6 +494,7 @@ class LibraryStore:
         kind: str | None = None,
         category: str | None = None,
         tag: str | None = None,
+        list_id: int | None = None,
         order: str = "desc",
         since: str | None = None,
         limit: int = 50,
@@ -478,6 +504,10 @@ class LibraryStore:
         joins = []
         params: list = []
         where = []
+        if list_id is not None:
+            joins.append("JOIN library_list_members ON library_items.id = library_list_members.item_id")
+            where.append("library_list_members.list_id = ?")
+            params.append(list_id)
         if tag:
             joins.append(", json_each(library_items.tags)")
             where.append("json_each.value = ?")
@@ -590,6 +620,7 @@ class LibraryStore:
         return {row["category"]: row["n"] for row in rows}
 
     def delete(self, item_id: int) -> bool:
+        self.conn.execute("DELETE FROM library_list_members WHERE item_id = ?", (item_id,))
         cursor = self.conn.execute("DELETE FROM library_items WHERE id = ?", (item_id,))
         self.conn.commit()
         return cursor.rowcount > 0
@@ -669,19 +700,26 @@ class LibraryStore:
         description: str = "",
         icon: str = "bookmark",
         is_smart: bool = False,
+        uuid: str | None = None,
     ) -> int:
         """Create a new library list."""
+        import uuid as _uuidlib
+        row_uuid = uuid or str(_uuidlib.uuid4())
         cursor = self.conn.execute(
-            "INSERT INTO library_lists (title, description, icon, is_smart) VALUES (?, ?, ?, ?)",
-            (title.strip(), description.strip(), icon.strip(), 1 if is_smart else 0),
+            """
+            INSERT INTO library_lists (title, description, icon, is_smart, uuid, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            """,
+            (title.strip(), description.strip(), icon.strip(), 1 if is_smart else 0, row_uuid),
         )
         self.conn.commit()
         return cursor.lastrowid
 
-    def get_lists(self) -> list[dict]:
-        """Fetch all lists with member counts and optional cover thumbnail."""
+    def get_lists(self, include_empty: bool = False) -> list[dict]:
+        """Fetch all lists with member counts, cover thumbnail, and sample item thumbnails."""
+        having_clause = "" if include_empty else "HAVING item_count > 0"
         rows = self.conn.execute(
-            """
+            f"""
             SELECT l.*,
                    COUNT(DISTINCT m.item_id) as item_count,
                    COUNT(DISTINCT m.link_id) as link_count,
@@ -696,6 +734,7 @@ class LibraryStore:
             FROM library_lists l
             LEFT JOIN library_list_members m ON l.id = m.list_id
             GROUP BY l.id
+            {having_clause}
             ORDER BY l.is_smart DESC, l.title ASC
             """
         ).fetchall()
@@ -704,6 +743,29 @@ class LibraryStore:
             d = dict(r)
             if d.get("cover_item_id"):
                 d["thumbnail_url"] = f"/api/library/{d['cover_item_id']}/thumbnail"
+
+            # Query up to 4 sample item thumbnails for Apple-style folder collage
+            sample_rows = self.conn.execute(
+                """
+                SELECT m.item_id, i.thumbnail_path, i.url
+                FROM library_list_members m
+                JOIN library_items i ON m.item_id = i.id
+                WHERE m.list_id = ?
+                ORDER BY m.position ASC, m.added_at DESC
+                LIMIT 4
+                """,
+                (d["id"],),
+            ).fetchall()
+            sample_thumbs = []
+            for sr in sample_rows:
+                s_dict = dict(sr)
+                thumb_u = f"/api/library/{s_dict['item_id']}/thumbnail" if s_dict.get("thumbnail_path") or s_dict.get("item_id") else None
+                sample_thumbs.append({
+                    "item_id": s_dict["item_id"],
+                    "thumbnail_url": thumb_u,
+                    "url": s_dict.get("url"),
+                })
+            d["sample_thumbnails"] = sample_thumbs
             result.append(d)
         return result
 
@@ -714,6 +776,7 @@ class LibraryStore:
 
     def delete_list(self, list_id: int) -> bool:
         """Delete a list and its member relations."""
+        self.conn.execute("DELETE FROM library_list_members WHERE list_id = ?", (list_id,))
         cursor = self.conn.execute("DELETE FROM library_lists WHERE id = ?", (list_id,))
         self.conn.commit()
         return cursor.rowcount > 0
@@ -739,7 +802,7 @@ class LibraryStore:
             params.append(icon.strip())
         if not sets:
             return False
-        sets.append("updated_at = CURRENT_TIMESTAMP")
+        sets.append("updated_at = datetime('now')")
         params.append(list_id)
         cursor = self.conn.execute(
             f"UPDATE library_lists SET {', '.join(sets)} WHERE id = ?",
@@ -747,6 +810,20 @@ class LibraryStore:
         )
         self.conn.commit()
         return cursor.rowcount > 0
+
+    def get_item_collections(self, item_id: int) -> list[dict]:
+        """Fetch all collections/lists that an item belongs to."""
+        rows = self.conn.execute(
+            """
+            SELECT l.id, l.title, l.icon, l.is_smart
+            FROM library_lists l
+            JOIN library_list_members m ON l.id = m.list_id
+            WHERE m.item_id = ?
+            ORDER BY l.title ASC
+            """,
+            (item_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     def add_list_member(
         self,
@@ -814,7 +891,15 @@ class LibraryStore:
             (list_id,),
         ).fetchall()
 
+        from backend.library.service import as_dict
+        formatted_items = []
+        for r in item_rows:
+            d = as_dict(r, include_content=False, store=self)
+            d["member_position"] = r["member_position"]
+            d["member_added_at"] = r["member_added_at"]
+            formatted_items.append(d)
+
         return {
-            "items": [dict(r) for r in item_rows],
+            "items": formatted_items,
             "links": [dict(r) for r in link_rows],
         }

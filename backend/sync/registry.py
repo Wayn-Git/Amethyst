@@ -155,6 +155,14 @@ register(Entity(
     fields=("title", "provider", "model", "pinned", "archived"),
 ))
 
+#: Task lists. Concurrently editable and field-independent.
+register(Entity(
+    name="task_lists",
+    table="task_lists",
+    key_column="uuid",
+    fields=("name", "external_source", "external_id", "is_default", "position", "retired_at"),
+))
+
 #: The to-do list. Concurrently editable and field-independent, which is exactly
 #: what per-field LWW is for. `external_*` columns are absent: Microsoft To Do is
 #: the authority for those and `backend/sync/microsoft_todo.py` owns that half.
@@ -163,9 +171,19 @@ register(Entity(
     table="tasks",
     key_column="uuid",
     fields=(
-        "title", "notes", "due_at", "scheduled_at", "status", "priority",
-        "important", "list_id", "completed_at", "reminder_at",
+        "title", "notes", "due_at", "scheduled_at", "duration_estimate_minutes",
+        "status", "priority", "important", "list_id", "completed_at", "reminder_at",
+        "my_day_date", "checklist_items",
     ),
+))
+
+#: Integration auth credentials metadata. Carried sealed over AES-256-GCM wire;
+#: values are saved into local vault/keychain and never in plaintext database tables.
+register(Entity(
+    name="credentials",
+    table="synced_credentials",
+    key_column="key",
+    fields=("vault_key", "secret_value"),
 ))
 
 #: Agent runs, so a phone can see what a machine is doing. Single-writer -- the
@@ -258,4 +276,12 @@ register(Entity(
         "consumed_on", "notes", "rating", "summary", "tags",
         "word_count", "duration_seconds", "source_ref",
     ),
+))
+
+#: Library collections/lists.
+register(Entity(
+    name="library_lists",
+    table="library_lists",
+    key_column="uuid",
+    fields=("title", "description", "icon", "is_smart"),
 ))

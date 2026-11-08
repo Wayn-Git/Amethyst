@@ -15,16 +15,32 @@ export default function MobileQuickCapture({ open, onClose, isOnline, onSaved })
 
   const handleSend = async (e) => {
     e.preventDefault()
-    if (!title.trim() && !url.trim() && !notes.trim()) return
+    let rawTitle = title.trim()
+    let rawUrl = url.trim()
+    const rawNotes = notes.trim()
+
+    if (!rawTitle && !rawUrl && !rawNotes) return
+
+    // Smart URL detection: if user pasted a link into title, move it to url
+    const isUrl = (s) => /^(https?:\/\/[^\s]+)$/i.test(s)
+    if (!rawUrl && isUrl(rawTitle)) {
+      rawUrl = rawTitle
+      rawTitle = ''
+    }
 
     setSending(true)
     setNotice('')
 
     try {
+      let domainName = 'Web'
+      if (rawUrl) {
+        try { domainName = new URL(rawUrl).hostname.replace(/^www\./, '') } catch {}
+      }
+
       const payload = {
-        title: title.trim() || 'Untitled capture',
-        url: url.trim(),
-        text: notes.trim(),
+        title: rawTitle || (rawUrl ? `${domainName} save` : 'Untitled capture'),
+        url: rawUrl,
+        text: rawNotes,
         destination: target,
       }
 
@@ -40,8 +56,60 @@ export default function MobileQuickCapture({ open, onClose, isOnline, onSaved })
           await saveCapture(payload)
         }
       } else {
-        await saveCapture(payload)
-        await flushCaptures().catch(() => {})
+        // Immediate optimistic entry in local collection store so user sees it right away
+        const isReel = payload.url.includes('/reel/') || payload.url.includes('/shorts/') || payload.url.includes('tiktok.com') || payload.url.includes('youtube.com')
+        const optimisticItem = {
+          id: `temp_${Date.now()}`,
+          uuid: `temp_${Date.now()}`,
+          title: payload.title,
+          url: payload.url,
+          notes: payload.text,
+          author: domainName,
+          kind: isReel ? 'video' : 'article',
+          status: 'processing',
+          created_at: new Date().toISOString(),
+          is_optimistic: true,
+        }
+
+        try {
+          const { getStoredCollections, saveCollectionsToStore } = await import('../collectionsSync.js')
+          const store = getStoredCollections()
+          store.items = [optimisticItem, ...(store.items || []).filter((it) => it.id !== optimisticItem.id)]
+          await saveCollectionsToStore(store)
+        } catch {}
+
+        // 1. Queue or flush capture through PC if reachable
+        let savedToPc = false
+        try {
+          await saveCapture(payload)
+          await flushCaptures().catch(() => {})
+          savedToPc = true
+        } catch {}
+
+        // 2. Direct Drive fallback if off-LAN
+        if (!savedToPc) {
+          try {
+            const { getBundle } = await import('../bundle.js')
+            const bundle = await getBundle()
+            const inboxFolderId = bundle?.drive?.inbox_folder_id || bundle?.drive?.root_folder_id
+            if (bundle?.composio?.api_key && inboxFolderId) {
+              const { executeComposioTool } = await import('../composioClient.js')
+              const mdContent = `# ${payload.title}\n\n${payload.url ? `URL: ${payload.url}\n\n` : ''}${payload.text}\n\n*Captured from mobile phone companion*`
+              const fileName = `mobile-${Date.now()}.md`
+              await executeComposioTool({
+                composioConfig: bundle.composio,
+                toolSlug: 'GOOGLEDRIVE_CREATE_FILE_FROM_TEXT',
+                args: {
+                  file_name: fileName,
+                  text_content: mdContent,
+                  parent_id: inboxFolderId,
+                },
+              })
+            }
+          } catch (driveErr) {
+            console.warn('[QuickCapture] Direct Drive upload attempt:', driveErr.message)
+          }
+        }
       }
 
       if (onSaved) onSaved()

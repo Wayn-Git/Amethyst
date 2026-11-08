@@ -2,20 +2,23 @@ import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { identity, queued } from '../lib/sync/client.js'
 
-export default function ConnectionDiagnosticsModal({ open, onClose, transportState, lastSync }) {
+export default function ConnectionDiagnosticsModal({ open, onClose, onOpenSettings, transportState, lastSync }) {
   const [copied, setCopied] = useState(false)
 
   if (!open) return null
 
   const held = identity() || {}
-  const path = transportState?.path || 'offline'
+  const path = transportState?.path || 'standalone'
   const isDirect = path === 'direct'
+  const isStandalone = path === 'standalone'
   const isRelayed = path === 'relayed'
   const isReconnecting = path === 'reconnecting'
   const isOffline = path === 'offline'
 
   const statusLabel = isDirect
     ? 'Connected (Direct LAN)'
+    : isStandalone
+    ? 'Cloud Standalone'
     : isRelayed
     ? 'Connected (Cloud Relay)'
     : isReconnecting
@@ -24,9 +27,11 @@ export default function ConnectionDiagnosticsModal({ open, onClose, transportSta
 
   const transportLabel = isDirect
     ? 'Direct Local Wi-Fi'
+    : isStandalone
+    ? 'Direct Cloud (Google Drive & Cloud LLMs)'
     : isRelayed
     ? 'Encrypted Cloudflare Worker Relay'
-    : 'None'
+    : 'None (Offline)'
 
   const pendingCount = queued()
 
@@ -70,7 +75,7 @@ export default function ConnectionDiagnosticsModal({ open, onClose, transportSta
           <div className="diag-modal-title-row">
             <span
               className={`diag-status-dot diag-status-dot--${
-                isDirect ? 'direct' : isRelayed ? 'relayed' : isReconnecting ? 'reconnecting' : 'offline'
+                isDirect ? 'direct' : isStandalone || isRelayed ? 'standalone' : isReconnecting ? 'reconnecting' : 'offline'
               }`}
             />
             <h2>Connection Diagnostics</h2>
@@ -93,7 +98,7 @@ export default function ConnectionDiagnosticsModal({ open, onClose, transportSta
             <div className="diag-row">
               <span className="diag-label">Host Latency</span>
               <span className="diag-val">
-                {transportState?.latency >= 0 ? `${transportState.latency} ms` : isRelayed ? 'Relayed Mailbox' : '—'}
+                {transportState?.latency >= 0 ? `${transportState.latency} ms` : isStandalone ? 'Cloud Direct' : isRelayed ? 'Relayed Mailbox' : '—'}
               </span>
             </div>
             <div className="diag-row">
@@ -123,7 +128,30 @@ export default function ConnectionDiagnosticsModal({ open, onClose, transportSta
           </div>
         </div>
 
-        <div className="diag-modal-footer">
+        <div className="diag-modal-footer" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {onOpenSettings && (
+            <button
+              type="button"
+              className="bt"
+              style={{
+                width: '100%',
+                height: 40,
+                borderRadius: 12,
+                fontSize: 13,
+                fontWeight: 600,
+                background: '#0071E3',
+                color: '#fff',
+                cursor: 'pointer',
+                border: 0,
+              }}
+              onClick={() => {
+                onClose()
+                onOpenSettings()
+              }}
+            >
+              Configure PC Host IP Address
+            </button>
+          )}
           <button type="button" className="diag-copy-btn" onClick={copyDiagnostics}>
             <Icon name={copied ? 'check' : 'copy'} size={18} />
             <span>{copied ? 'Copied to Clipboard' : 'Copy Diagnostics'}</span>

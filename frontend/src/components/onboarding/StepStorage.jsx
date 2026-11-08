@@ -156,7 +156,7 @@ export default function StepStorage({ onNext, onBack }) {
       {/* Left Form Pane */}
       <div className="onb-pane-left">
         <AmethystLogo size={28} color="#ffffff" />
-        <p className="onb-eyebrow">Step 3 of 5 · Storage</p>
+        <p className="onb-eyebrow">Step 3 of 6 · Storage</p>
         <h1 className="onb-title">Knowledge &amp; storage</h1>
         <p className="onb-desc">
           Connect the places your work lives. Composio and Google Drive are required to continue; toolkits are optional.

@@ -160,7 +160,7 @@ def _json_dict(raw) -> dict | None:
     return parsed if isinstance(parsed, dict) else None
 
 
-def as_dict(row, *, include_content: bool = True) -> dict:
+def as_dict(row, *, include_content: bool = True, store=None) -> dict:
     """One item, as the interface and the model both see it."""
     from backend.library.enrich import infer_category
 
@@ -323,6 +323,22 @@ def as_dict(row, *, include_content: bool = True) -> dict:
     data["remind_action"] = data.get("remind_action") or "revisit"
     data["reminded_at"] = data.get("reminded_at") or None
     data["private_notes"] = data.get("private_notes") or None
+
+    if item_id:
+        try:
+            if store is not None:
+                cols = store.get_item_collections(item_id)
+            else:
+                from backend.library.store import LibraryStore
+                cols = LibraryStore().get_item_collections(item_id)
+            data["collections"] = [c["title"] for c in cols]
+            data["collection_details"] = cols
+        except Exception:
+            data["collections"] = []
+            data["collection_details"] = []
+    else:
+        data["collections"] = []
+        data["collection_details"] = []
 
     return data
 
@@ -1874,6 +1890,7 @@ class LibraryService:
         kind: str | None = None,
         category: str | None = None,
         tag: str | None = None,
+        list_id: int | None = None,
         order: str = "desc",
         limit: int = 50,
         offset: int = 0,
@@ -1888,9 +1905,9 @@ class LibraryService:
         # 5000 items.
         if not category:
             rows = self.store.list(
-                kind=kind, tag=tag, order=order, limit=limit, offset=offset
+                kind=kind, tag=tag, list_id=list_id, order=order, limit=limit, offset=offset
             )
-            return [as_dict(row, include_content=include_content) for row in rows]
+            return [as_dict(row, include_content=include_content, store=self.store) for row in rows]
 
         # A category filter has to find what `as_dict` *calls* an item, not
         # only what the column stores. Items filed as null or 'general' get an
@@ -1900,9 +1917,10 @@ class LibraryService:
         # queries: the ones stored under this category, plus the unfiled ones
         # whose inference lands on it.
         rows = list(
-            self.store.list(kind=kind, tag=tag, category=category, order=order, limit=5000)
+            self.store.list(kind=kind, tag=tag, list_id=list_id, category=category, order=order, limit=5000)
         )
-        rows += self.store.unfiled(kind=kind, tag=tag, order=order)
+        if not list_id:
+            rows += self.store.unfiled(kind=kind, tag=tag, order=order)
         items: list[dict] = []
         seen: set[int] = set()
         for row in rows:
@@ -1911,7 +1929,7 @@ class LibraryService:
             if row["id"] in seen:
                 continue
             seen.add(row["id"])
-            item = as_dict(row, include_content=include_content)
+            item = as_dict(row, include_content=include_content, store=self.store)
             if item.get("category") == category:
                 items.append(item)
         reverse = str(order).lower() != "asc"

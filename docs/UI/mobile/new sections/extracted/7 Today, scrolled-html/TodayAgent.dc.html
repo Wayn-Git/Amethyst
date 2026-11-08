@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Today, scrolled</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;box-sizing:border-box;overflow:hidden;font-family:'Inter',system-ui,sans-serif;color:#0F0F12;background:radial-gradient(90% 35% at 100% 0%, #DCE8FF 0%, rgba(220,232,255,0) 70%), #F2F4FA">
+
+<div style="position:absolute;left:24px;right:24px;top:56px;display:flex;align-items:center;justify-content:space-between">
+<div style="display:flex;align-items:center;gap:10px">
+<div style="width:40px;height:40px;border-radius:999px;background:#0F0F12;color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600">B</div>
+<div style="font-size:20px;font-weight:700;letter-spacing:-0.03em">Today</div>
+</div>
+<button type="button" aria-label="Notifications, 4 unread" style="position:relative;width:44px;height:44px;padding:0;border:0;border-radius:999px;background:#fff;box-shadow:0 1px 2px rgba(15,15,18,0.06),0 8px 20px rgba(40,70,160,0.08);display:flex;align-items:center;justify-content:center">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0F0F12" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9a6 6 0 1 1 12 0c0 6 2 7.5 2 7.5H4S6 15 6 9z"></path><path d="M10 20a2 2 0 0 0 4 0"></path></svg>
+<span style="position:absolute;top:10px;right:11px;width:9px;height:9px;border-radius:999px;background:#1570EF;border:2px solid #fff"></span>
+</button>
+</div>
+
+<div style="position:absolute;left:24px;right:24px;top:116px;display:flex;flex-direction:column;gap:12px">
+
+<div style="box-sizing:border-box;padding:18px;border-radius:28px;background:#0F0F12;color:#fff;box-shadow:0 14px 30px rgba(15,15,18,0.22)">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+<div style="display:flex;align-items:center;gap:10px">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5B9BFF" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"></path></svg>
+<span style="font-size:18px;font-weight:700;letter-spacing:-0.02em">Agent working</span>
+</div>
+<span style="font-size:13px;color:#B4B7C2">2 jobs</span>
+</div>
+<div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:8px"><span>Indexing 12 new saves</span><span style="color:#B4B7C2">Step 3 of 5</span></div>
+<div style="height:5px;border-radius:999px;background:#33333B;margin-bottom:16px"><div style="width:60%;height:100%;border-radius:999px;background:#fff"></div></div>
+<div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:8px"><span>Drafting a review reply</span><span style="color:#B4B7C2">Step 1 of 4</span></div>
+<div style="height:5px;border-radius:999px;background:#33333B"><div style="width:25%;height:100%;border-radius:999px;background:#fff"></div></div>
+</div>
+
+<div style="box-sizing:border-box;padding:18px;border-radius:28px;background:#fff;box-shadow:0 1px 2px rgba(15,15,18,0.05),0 10px 24px rgba(40,70,160,0.07)">
+<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
+<div style="font-size:18px;font-weight:700;letter-spacing:-0.02em">Needs you</div>
+<span style="font-size:13px;color:#5B5E6B">4 unread</span>
+</div>
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+<div style="width:40px;height:40px;border-radius:999px;background:#DCE8FF;color:#0B4FBF;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;flex:none">A</div>
+<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600">Aarav</div><div style="font-size:13px;color:#5B5E6B;margin-top:1px">Can you check the build?</div></div>
+<span style="font-size:13px;color:#5B5E6B">9m</span>
+</div>
+<div style="display:flex;align-items:center;gap:12px">
+<div style="width:40px;height:40px;border-radius:999px;background:#E3E5EE;color:#0F0F12;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;flex:none">M</div>
+<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600">Meera</div><div style="font-size:13px;color:#5B5E6B;margin-top:1px">Notes from today's sync</div></div>
+<span style="font-size:13px;color:#5B5E6B">1h</span>
+</div>
+</div>
+
+<div style="position:relative;height:148px;box-sizing:border-box;padding:18px;border-radius:28px;background:#DCE8FF;overflow:hidden">
+<svg width="150" height="150" viewBox="0 0 100 100" aria-hidden="true" style="position:absolute;right:-24px;top:-6px"><path d="M50 0C50 28 72 50 100 50C72 50 50 72 50 100C50 72 28 50 0 50C28 50 50 28 50 0Z" fill="#1570EF"></path></svg>
+<div style="position:relative;display:inline-block;height:34px;line-height:34px;padding:0 14px;border-radius:999px;background:rgba(255,255,255,0.85);font-size:13px;font-weight:500">From your Library</div>
+<div style="position:absolute;left:18px;bottom:18px;right:84px">
+<div style="font-size:19px;font-weight:700;letter-spacing:-0.025em;line-height:1.15">Hybrid retrieval explained</div>
+<div style="font-size:13px;color:#3A3C47;margin-top:4px">Saved 5 days ago</div>
+</div>
+<button type="button" aria-label="Open note" style="position:absolute;right:18px;bottom:18px;width:44px;height:44px;border:0;border-radius:999px;background:#0F0F12;display:flex;align-items:center;justify-content:center;padding:0">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"></path></svg>
+</button>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+<div style="height:116px;box-sizing:border-box;padding:16px 18px;border-radius:28px;background:#fff;box-shadow:0 1px 2px rgba(15,15,18,0.05),0 10px 24px rgba(40,70,160,0.07);display:flex;flex-direction:column;justify-content:space-between">
+<div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;color:#5B5E6B">Pull requests</span>
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0F12" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="2.2"></circle><circle cx="6" cy="18" r="2.2"></circle><circle cx="18" cy="18" r="2.2"></circle><path d="M6 8.2v7.6M18 15.8V10a3 3 0 0 0-3-3h-3"></path></svg></div>
+<div><div style="font-size:28px;font-weight:700;letter-spacing:-0.04em;line-height:1">2 open</div>
+<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#5B5E6B;margin-top:6px"><span style="width:7px;height:7px;border-radius:999px;background:#22A559;display:inline-block"></span>CI passing</div></div>
+</div>
+<div style="height:116px;box-sizing:border-box;padding:16px 18px;border-radius:28px;background:#fff;box-shadow:0 1px 2px rgba(15,15,18,0.05),0 10px 24px rgba(40,70,160,0.07);display:flex;flex-direction:column;justify-content:space-between">
+<div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;color:#5B5E6B">Playing on PC</span>
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0F12" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V6l10-2v12"></path><circle cx="6.5" cy="18" r="2.5"></circle><circle cx="16.5" cy="16" r="2.5"></circle></svg></div>
+<div><div style="font-size:20px;font-weight:700;letter-spacing:-0.03em;line-height:1.1">Focus mix</div>
+<div style="height:5px;border-radius:999px;background:#E6E8F0;margin-top:12px"><div style="width:40%;height:100%;border-radius:999px;background:#0F0F12"></div></div></div>
+</div>
+</div>
+
+</div>
+
+<div style="position:absolute;left:20px;right:20px;bottom:28px;display:flex;align-items:center;gap:10px">
+<nav aria-label="Main" style="flex:1;height:64px;box-sizing:border-box;padding:0 8px;border-radius:999px;background:rgba(255,255,255,0.92);box-shadow:0 1px 2px rgba(15,15,18,0.06),0 14px 34px rgba(40,70,160,0.16);display:flex;align-items:center;justify-content:space-between">
+<button type="button" aria-current="page" style="height:48px;padding:0 16px;border:0;border-radius:999px;background:#EEF3FF;color:#0B63E5;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0B63E5" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"></rect><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"></rect><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"></rect><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"></rect></svg>Today</button>
+<button type="button" aria-label="Agent" style="width:44px;height:48px;border:0;background:none;padding:0;display:flex;align-items:center;justify-content:center">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3A3C47" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg></button>
+<button type="button" aria-label="Library" style="width:44px;height:48px;border:0;background:none;padding:0;display:flex;align-items:center;justify-content:center">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3A3C47" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6c-2-1.5-5-2-8-1.5v13c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5v-13C17 4 14 4.5 12 6z"></path><path d="M12 6v13"></path></svg></button>
+<button type="button" aria-label="Tasks" style="width:44px;height:48px;border:0;background:none;padding:0;display:flex;align-items:center;justify-content:center">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3A3C47" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l3 3 5-6"></path></svg></button>
+<button type="button" aria-label="PC" style="width:44px;height:48px;border:0;background:none;padding:0;display:flex;align-items:center;justify-content:center">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3A3C47" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8M12 16v4"></path></svg></button>
+</nav>
+<button type="button" aria-label="New" style="flex:none;width:64px;height:64px;border:0;border-radius:999px;background:#1570EF;box-shadow:0 14px 30px rgba(21,112,239,0.4);display:flex;align-items:center;justify-content:center;padding:0">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+</button>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

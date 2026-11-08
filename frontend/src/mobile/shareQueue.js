@@ -301,10 +301,13 @@ export async function processJob(job, {
     // 1. Check pairing bundle
     const bundle = await bundleResolver()
     if (!bundle || !bundle.device_id) {
-      const err = new Error('Re-scan QR on your PC')
-      err.authError = true
-      err.source = 'bundle'
-      throw err
+      // Unpaired phone: queue locally without failing or setting authError
+      job.state = 'queued'
+      job.progress = 'Queued offline on device (standalone)'
+      job.authError = false
+      persistQueue()
+      notifySubscribers()
+      return false
     }
 
     if (job.route === 'summary') {
@@ -509,15 +512,18 @@ export function initShareQueue(options = {}) {
         processQueue(options).catch(() => {})
       }
     }, 5000)
+    if (typeof tickTimer?.unref === 'function') tickTimer.unref()
   }
 
   // Trigger immediate drain for pending jobs
   triggerQueueProcessing()
 
-  return () => {
-    if (tickTimer) {
-      clearInterval(tickTimer)
-      tickTimer = null
-    }
+  return stopShareQueue
+}
+
+export function stopShareQueue() {
+  if (tickTimer) {
+    clearInterval(tickTimer)
+    tickTimer = null
   }
 }

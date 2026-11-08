@@ -1,11 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, getBase } from '../../api.js'
-import * as syncClient from '../../lib/sync/client.js'
+import { usePairingStatus } from '../pairingVault.js'
+import PairPrompt from './PairPrompt.jsx'
 
 const STREAM_TIMEOUT_SECONDS = 45
 
+function isTokenRejectedError(err) {
+  if (!err) return false
+  const status = err.status || err.statusCode
+  if (status === 401 || status === 403) return true
+  const msg = (err.message || String(err)).toLowerCase()
+  return (
+    msg.includes('401') ||
+    msg.includes('403') ||
+    msg.includes('unauthorized') ||
+    msg.includes('forbidden') ||
+    msg.includes('pair a device') ||
+    msg.includes('token was rejected') ||
+    msg.includes('revoked')
+  )
+}
+
 export default function MobilePC({ telemetry, isOnline, onOpenTerminal }) {
+  const { isPaired, isRejected, token, markRejected, clearRejected } = usePairingStatus()
+
   const [screenshotData, setScreenshotData] = useState(null)
   const [loadingScreenshot, setLoadingScreenshot] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
@@ -13,6 +32,7 @@ export default function MobilePC({ telemetry, isOnline, onOpenTerminal }) {
   const [streamNotice, setStreamNotice] = useState('')
   const [fullscreenPreview, setFullscreenPreview] = useState(false)
   const [actionNotice, setActionNotice] = useState('')
+  const [rescanModalOpen, setRescanModalOpen] = useState(false)
 
   // Applications list modal state
   const [apps, setApps] = useState([])
@@ -21,14 +41,15 @@ export default function MobilePC({ telemetry, isOnline, onOpenTerminal }) {
   const [appSearch, setAppSearch] = useState('')
 
   const timerRef = useRef(null)
-  const token = syncClient.identity()?.token || ''
 
-  const cpu = telemetry?.cpu_percent !== undefined ? `${Math.round(telemetry.cpu_percent)}%` : '12%'
-  const mem = telemetry?.memory_used_gb ? `${telemetry.memory_used_gb.toFixed(1)} GB` : '6.1 GB'
-  const disk = telemetry?.disk_percent !== undefined ? `${Math.round(telemetry.disk_percent)}%` : '62%'
+  // No mock data: show actual telemetry or '--'
+  const cpu = telemetry?.cpu_percent !== undefined ? `${Math.round(telemetry.cpu_percent)}%` : '--'
+  const mem = telemetry?.memory_used_gb !== undefined ? `${telemetry.memory_used_gb.toFixed(1)} GB` : '--'
+  const disk = telemetry?.disk_percent !== undefined ? `${Math.round(telemetry.disk_percent)}%` : '--'
 
   // Still screenshot on-demand
   const loadScreenshot = useCallback(async () => {
+    if (!isPaired) return
     setLoadingScreenshot(true)
     setActionNotice('')
     try {
@@ -37,11 +58,14 @@ export default function MobilePC({ telemetry, isOnline, onOpenTerminal }) {
         setScreenshotData(res.image)
       }
     } catch (err) {
+      if (isTokenRejectedError(err)) {
+        markRejected(err.message)
+      }
       setActionNotice(`Screenshot: ${err.message}`)
     } finally {
       setLoadingScreenshot(false)
     }
-  }, [])
+  }, [isPaired, markRejected])
 
   // Auto-close countdown timer for live screen stream
   useEffect(() => {
@@ -71,6 +95,7 @@ export default function MobilePC({ telemetry, isOnline, onOpenTerminal }) {
   }, [isStreaming])
 
   const startStream = () => {
+    if (!isPaired || isRejected) return
     setIsStreaming(true)
     setStreamSecondsLeft(STREAM_TIMEOUT_SECONDS)
     setStreamNotice('')
@@ -87,16 +112,21 @@ export default function MobilePC({ telemetry, isOnline, onOpenTerminal }) {
   }
 
   const handlePowerAction = async (action) => {
+    if (!isPaired || isRejected) return
     try {
       setActionNotice(`Requesting ${action}…`)
       await api.remotePower(action)
       setActionNotice(`Sent ${action} command to your PC.`)
     } catch (err) {
+      if (isTokenRejectedError(err)) {
+        markRejected(err.message)
+      }
       setActionNotice(`Power failed: ${err.message}`)
     }
   }
 
   const handleOpenAppsModal = async () => {
+    if (!isPaired || isRejected) return
     setAppsModalOpen(true)
     setLoadingApps(true)
     try {
@@ -104,6 +134,9 @@ export default function MobilePC({ telemetry, isOnline, onOpenTerminal }) {
       if (Array.isArray(res)) setApps(res)
       else if (res?.applications) setApps(res.applications)
     } catch (err) {
+      if (isTokenRejectedError(err)) {
+        markRejected(err.message)
+      }
       console.warn('[MobilePC] Failed fetching apps:', err.message)
     } finally {
       setLoadingApps(false)
@@ -118,13 +151,38 @@ export default function MobilePC({ telemetry, isOnline, onOpenTerminal }) {
       setAppsModalOpen(false)
       setActionNotice(`Launched ${app.name || app}`)
     } catch (err) {
+      if (isTokenRejectedError(err)) {
+        markRejected(err.message)
+      }
       setActionNotice(`Launch failed: ${err.message}`)
     }
   }
 
   const base = getBase()
-  const streamUrl = `${base}/remote/screen/stream${token ? `?token=${encodeURIComponent(token)}` : ''}`
+  const streamUrl = isPaired && !isRejected && token
+    ? `${base}/remote/screen/stream?token=${encodeURIComponent(token)}`
+    : ''
 
+  // 1. UNPAIRED STATE: Render lazy PairPrompt, no mock data, no broken streams
+  if (!isPaired) {
+    return (
+      <motion.div
+        className="b"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <div className="r sp" style={{ marginBottom: 4 }}>
+          <h1 className="h">My PC</h1>
+        </div>
+
+        <PairPrompt />
+      </motion.div>
+    )
+  }
+
+  // 2. PAIRED STATE: Render live controls, plus Re-scan QR banner if rejected
   return (
     <motion.div
       className="b"
@@ -140,10 +198,53 @@ export default function MobilePC({ telemetry, isOnline, onOpenTerminal }) {
           <h1 className="h">My PC</h1>
         </div>
         <span className="ch">
-          <span className={`d ${isOnline ? '' : 'w'}`} />
-          {isOnline ? 'Online' : 'Connecting'}
+          <span className={`d ${isOnline && !isRejected ? '' : 'w'}`} />
+          {isRejected ? 'Rejected' : isOnline ? 'Online' : 'Connecting'}
         </span>
       </div>
+
+      {/* Rejected Token Re-scan Banner on these screens only */}
+      {isRejected && (
+        <aside
+          className="rescan-banner"
+          role="alert"
+          style={{
+            background: 'rgba(217, 84, 30, 0.12)',
+            border: '1px solid rgba(217, 84, 30, 0.3)',
+            borderRadius: 16,
+            padding: '12px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, color: '#D9541E', fontSize: 13 }}>
+              Pairing token rejected
+            </div>
+            <div style={{ fontSize: 12, color: '#6E6E73', marginTop: 2 }}>
+              Your PC rejected the pairing token. Re-scan the QR code to reconnect.
+            </div>
+          </div>
+          <button
+            type="button"
+            className="bt l"
+            style={{
+              height: 36,
+              minHeight: 36,
+              padding: '0 14px',
+              fontSize: 12,
+              flexShrink: 0,
+              background: '#D9541E',
+            }}
+            onClick={() => setRescanModalOpen(true)}
+            aria-label="Re-scan QR"
+          >
+            Re-scan QR
+          </button>
+        </aside>
+      )}
 
       {/* PC Live Screen & Screenshot Frame */}
       <div
@@ -161,7 +262,7 @@ export default function MobilePC({ telemetry, isOnline, onOpenTerminal }) {
         }}
         onClick={isStreaming ? extendStream : undefined}
       >
-        {isStreaming ? (
+        {isStreaming && streamUrl ? (
           <img
             src={streamUrl}
             alt="Live PC Screen"
@@ -336,7 +437,7 @@ export default function MobilePC({ telemetry, isOnline, onOpenTerminal }) {
         </div>
       )}
 
-      {/* Telemetry 3-Column Grid */}
+      {/* Telemetry 3-Column Grid (real values or '--') */}
       <div className="g3" style={{ gap: 8 }}>
         <div className="c" style={{ padding: '12px 14px' }}>
           <div className="m">CPU</div>
@@ -544,7 +645,7 @@ export default function MobilePC({ telemetry, isOnline, onOpenTerminal }) {
               style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               onClick={isStreaming ? extendStream : undefined}
             >
-              {isStreaming ? (
+              {isStreaming && streamUrl ? (
                 <img
                   src={streamUrl}
                   alt="Live PC Desktop Screen"
@@ -701,6 +802,20 @@ export default function MobilePC({ telemetry, isOnline, onOpenTerminal }) {
               )}
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Re-scan QR Modal */}
+      <AnimatePresence>
+        {rescanModalOpen && (
+          <PairPrompt
+            isRejected
+            onPaired={() => {
+              clearRejected()
+              setRescanModalOpen(false)
+            }}
+            onScan={() => {}}
+          />
         )}
       </AnimatePresence>
     </motion.div>

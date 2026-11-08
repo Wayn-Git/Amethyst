@@ -36,6 +36,8 @@ import { ToastStack } from './components/arc/toast-stack/toast-stack'
 import { useLiquidGlassManager } from './lib/liquid-glass/index.jsx'
 import MobileSplash from './mobile/views/MobileSplash.jsx'
 import MobileOnboarding from './mobile/views/MobileOnboarding.jsx'
+import MobileEnterCode from './mobile/views/MobileEnterCode.jsx'
+import MobileSkipConfirm from './mobile/views/MobileSkipConfirm.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
 
 /* The workbench.
@@ -374,8 +376,11 @@ function wantsDesktop() {
 function PhoneApp({ paired, onPaired, onDesktop }) {
   const [bundle, setBundle] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [hasUnpairedShare, setHasUnpairedShare] = useState(false)
-  const [flow, setFlow] = useState(paired ? 'companion' : 'splash') // 'splash' | 'onboarding' | 'pair' | 'companion'
+  const [flow, setFlow] = useState(() => {
+    if (paired) return 'companion'
+    if (safeStorage.getItem('amethyst.onboarding_seen')) return 'companion'
+    return 'splash'
+  })
   const [direction, setDirection] = useState(1)
 
   const checkBundle = useCallback(async () => {
@@ -414,6 +419,12 @@ function PhoneApp({ paired, onPaired, onDesktop }) {
       return () => { active = false }
     }
 
+    if (safeStorage.getItem('amethyst.onboarding_seen')) {
+      setFlow('companion')
+      checkBundle()
+      return () => { active = false }
+    }
+
     checkBundle().then((b) => {
       if (!active) return
       if (b) {
@@ -429,43 +440,32 @@ function PhoneApp({ paired, onPaired, onDesktop }) {
   useEffect(() => {
     initShareTarget()
     const stopQueue = initShareQueue()
-    const unsubscribe = subscribeShareQueue((jobs) => {
-      setHasUnpairedShare(jobs.some((j) => j.authError))
-    })
     return () => {
       stopQueue?.()
-      unsubscribe?.()
     }
   }, [])
 
+  const handlePaired = async () => {
+    await checkBundle()
+    safeStorage.setItem('amethyst.onboarding_seen', '1')
+    try {
+      const id = storedIdentity()
+      const { groupKey } = await import('./lib/sync/keystore.js')
+      const key = await groupKey()
+      if (id?.deviceId && key) {
+        const { migrateLocalRecordsToPaired } = await import('./mobile/storage.js')
+        await migrateLocalRecordsToPaired(id.deviceId, key)
+      }
+    } catch (err) {
+      console.warn('[PhoneApp] Migration failed:', err)
+    }
+    onPaired?.(true)
+    setDirection(1)
+    setFlow('companion')
+  }
+
   return (
     <>
-      {hasUnpairedShare && (
-        <div
-          role="alert"
-          style={{
-            position: 'fixed',
-            top: 16,
-            left: 20,
-            right: 20,
-            zIndex: 9999,
-            padding: '12px 16px',
-            background: '#ef4444',
-            color: '#fff',
-            borderRadius: 12,
-            fontSize: 13,
-            fontWeight: 600,
-            boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <Icon name="alert-triangle" size={18} />
-          <span>Re-scan QR on your PC</span>
-        </div>
-      )}
-
       <AnimatePresence mode="wait" custom={direction}>
         {flow === 'splash' && (
           <MobileSplash key="splash" />
@@ -479,13 +479,9 @@ function PhoneApp({ paired, onPaired, onDesktop }) {
               setDirection(1)
               setFlow('pair')
             }}
-            onSkip={() => {
-              setDirection(1)
-              setFlow('pair')
-            }}
             onHaveCode={() => {
               setDirection(1)
-              setFlow('pair')
+              setFlow('code')
             }}
           />
         )}
@@ -494,15 +490,56 @@ function PhoneApp({ paired, onPaired, onDesktop }) {
           <Pair
             key="pair"
             direction={direction}
-            onPaired={async () => {
-              await checkBundle()
-              onPaired?.(true)
-              setDirection(1)
-              setFlow('companion')
-            }}
+            onPaired={handlePaired}
             onBack={() => {
               setDirection(-1)
               setFlow('onboarding')
+            }}
+            onSkip={() => {
+              safeStorage.setItem('amethyst.onboarding_seen', '1')
+              setDirection(1)
+              setFlow('sure')
+            }}
+            onEnterCode={() => {
+              setDirection(1)
+              setFlow('code')
+            }}
+          />
+        )}
+
+        {flow === 'code' && (
+          <MobileEnterCode
+            key="code"
+            direction={direction}
+            onPaired={handlePaired}
+            onBack={() => {
+              setDirection(-1)
+              setFlow('pair')
+            }}
+            onSkip={() => {
+              safeStorage.setItem('amethyst.onboarding_seen', '1')
+              setDirection(1)
+              setFlow('sure')
+            }}
+            onScanCode={() => {
+              setDirection(-1)
+              setFlow('pair')
+            }}
+          />
+        )}
+
+        {flow === 'sure' && (
+          <MobileSkipConfirm
+            key="sure"
+            direction={direction}
+            onConnect={() => {
+              setDirection(-1)
+              setFlow('pair')
+            }}
+            onSkip={() => {
+              safeStorage.setItem('amethyst.onboarding_seen', '1')
+              setDirection(1)
+              setFlow('companion')
             }}
           />
         )}

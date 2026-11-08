@@ -958,16 +958,24 @@ class RemoteCallerGuard:
         token = token or headers.get(b"x-amethyst-device-token", b"").decode("latin1").strip()
         if not token:
             token = parse_qs(scope.get("query_string", b"").decode("latin1")).get("token", [""])[0]
-        forwarded = any(key in headers for key in (b"forwarded", b"x-forwarded-for", b"x-real-ip"))
+        forwarded_raw = headers.get(b"x-forwarded-for", b"") or headers.get(b"x-real-ip", b"")
+        forwarded_ips = [ip.strip().decode("latin1") for ip in forwarded_raw.split(b",") if ip.strip()]
+        forwarded = any(not _is_local(ip) for ip in forwarded_ips) if forwarded_ips else (b"forwarded" in headers)
         client = scope.get("client")
-        # A supplied credential is always checked, including over loopback.
-        # Proxy requests cannot inherit the local process's trust.
-        if not token and not forwarded and (
-            not _bound_wide() or _is_local(client[0] if client else None)
-        ):
-            return await self.app(scope, receive, send)
-
+        client_ip = client[0] if client else None
         path = scope.get("path", "")
+        # Local caller on loopback is always permitted on their own machine.
+        # Proxy requests from external networks cannot inherit local trust.
+        if not forwarded and _is_local(client_ip):
+            if token:
+                from backend.db.connection import get_connection
+                from backend.sync import devices as sync_devices
+
+                conn = get_connection()
+                device = sync_devices.authenticate(conn, token)
+                if device and device.revoked_at is None:
+                    scope["device"] = device
+            return await self.app(scope, receive, send)
         if not path.startswith("/api/") or path in _PUBLIC_PATHS:
             return await self.app(scope, receive, send)
         if scope["type"] == "http" and scope.get("method") == "OPTIONS":
@@ -2853,6 +2861,38 @@ def microsoft_disconnect_route() -> dict[str, Any]:
     from backend.auth.microsoft import disconnect
 
     return {"ok": disconnect()}
+
+
+@app.get("/api/auth/microsoft/bundle")
+def microsoft_bundle_route() -> dict[str, Any]:
+    """Provide Microsoft token bundle to paired companion if available on PC."""
+    from backend.auth.microsoft import get_connection_status, get_token_bundle_for_handoff
+
+    st = get_connection_status()
+    if not st.get("connected"):
+        return {"connected": False}
+
+    bundle = get_token_bundle_for_handoff()
+    if not bundle or not bundle.get("refresh_token"):
+        return {"connected": False}
+
+    return {"connected": True, "bundle": bundle}
+
+
+@app.post("/api/auth/microsoft/device/start")
+async def start_microsoft_device_auth_route() -> dict[str, Any]:
+    """Initiate a Microsoft device code authorization flow."""
+    from backend.auth.microsoft import start_device_flow
+
+    return await start_device_flow()
+
+
+@app.get("/api/auth/microsoft/device/poll/{device_code}")
+async def poll_microsoft_device_auth_route(device_code: str) -> dict[str, Any]:
+    """Poll Microsoft device code authorization status."""
+    from backend.auth.microsoft import poll_device_flow
+
+    return await poll_device_flow(device_code)
 
 
 @app.get("/api/share/http-shortcuts.json")
@@ -8481,6 +8521,7 @@ async def list_library(
     kind: str | None = None,
     category: str | None = None,
     tag: str | None = None,
+    list_id: int | None = None,
     order: str = "desc",
     limit: int = 50,
     offset: int = 0,
@@ -8498,6 +8539,8 @@ async def list_library(
 
     if q and q.strip():
         items = await service.search(q, limit=max(limit, 200))
+        if list_id is not None:
+            items = [it for it in items if list_id in [c.get("id") for c in it.get("collection_details", [])]]
         if kinds:
             items = [it for it in items if it.get("kind") in kinds]
         if categories:
@@ -8511,9 +8554,9 @@ async def list_library(
         # case. Multi-select needs an OR within a facet, so filter the bounded
         # full library result after it has applied category inference.
         if len(kinds) <= 1 and len(categories) <= 1 and len(tags) <= 1:
-            items = service.recent(kind=next(iter(kinds), None), category=next(iter(categories), None), tag=next(iter(tags), None), order=order, limit=limit, offset=offset)
+            items = service.recent(kind=next(iter(kinds), None), category=next(iter(categories), None), tag=next(iter(tags), None), list_id=list_id, order=order, limit=limit, offset=offset)
         else:
-            items = service.recent(order=order, limit=5000)
+            items = service.recent(list_id=list_id, order=order, limit=5000)
             if kinds:
                 items = [it for it in items if it.get("kind") in kinds]
             if categories:
@@ -11043,8 +11086,8 @@ _DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-@app.get("/amethyst-companion.apk", include_in_schema=False)
-@app.get("/download/companion.apk", include_in_schema=False)
+@app.api_route("/amethyst-companion.apk", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/download/companion.apk", methods=["GET", "HEAD"], include_in_schema=False)
 def download_companion_apk():
     """Direct unauthenticated download of the Amethyst Companion Android APK."""
     for candidate in [

@@ -79,6 +79,9 @@ export function validateBundle(bundle) {
   if (!bundle.prompts?.summary) {
     return { valid: false, error: 'Bundle missing prompts.summary' }
   }
+  if (bundle.microsoft !== undefined && bundle.microsoft !== null && typeof bundle.microsoft !== 'object') {
+    return { valid: false, error: 'Bundle microsoft must be an object' }
+  }
 
   return { valid: true }
 }
@@ -125,7 +128,41 @@ export async function saveBundle(bundle) {
     throw new Error(`Invalid bundle: ${check.error}`)
   }
 
+  // Preserve existing valid Microsoft credentials if new bundle omits them (e.g. re-pairing after handoff)
+  if (!bundle.microsoft || (!bundle.microsoft.refreshToken && !bundle.microsoft.refresh_token)) {
+    try {
+      const existing = await getBundle()
+      if (existing?.microsoft && (existing.microsoft.refreshToken || existing.microsoft.refresh_token)) {
+        bundle.microsoft = existing.microsoft
+      }
+    } catch {}
+  }
+
   memoryBundle = bundle
+
+  // If bundle carries Microsoft credentials, persist them to secure vault connections
+  if (bundle.microsoft && (bundle.microsoft.refreshToken || bundle.microsoft.refresh_token)) {
+    try {
+      const { updateServiceConnection } = await import('./connectionStatus.js')
+      const ms = bundle.microsoft
+      const rawExp = ms.expiresAt || ms.expires_at
+      let expiresAt = Date.now() + 3600000
+      if (typeof rawExp === 'number') {
+        expiresAt = rawExp > 1e11 ? rawExp : rawExp * 1000
+      }
+      await updateServiceConnection('microsoftTodo', {
+        accessToken: ms.accessToken || ms.access_token || '',
+        refreshToken: ms.refreshToken || ms.refresh_token,
+        accountId: ms.accountId || ms.account_id || '',
+        email: ms.email || ms.account_email || '',
+        scopes: ms.scopes || ms.scope || 'Tasks.ReadWrite offline_access',
+        expiresAt,
+        expired: false,
+      })
+    } catch {
+      // Non-blocking in test environment
+    }
+  }
 
   const vault = await nativeVault()
   if (vault) {

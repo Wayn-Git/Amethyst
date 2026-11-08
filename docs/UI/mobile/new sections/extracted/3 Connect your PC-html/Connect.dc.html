@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Connect your PC</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0;font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;box-sizing:border-box;overflow:hidden;font-family:'Inter',system-ui,sans-serif;color:#0F0F12;background:radial-gradient(90% 38% at 12% 0%, rgba(86,92,255,0.75) 0%, rgba(86,92,255,0) 75%), radial-gradient(70% 30% at 100% 6%, rgba(255,160,186,0.9) 0%, rgba(255,160,186,0) 75%), linear-gradient(180deg,#C9CBFF 0%,#EEF0FF 30%,#FFFFFF 52%,#FFFFFF 100%)">
+
+<div style="position:absolute;left:20px;right:20px;top:56px;display:flex;align-items:center;justify-content:space-between">
+<a href="Welcome.dc.html" aria-label="Back" style="width:44px;height:44px;border-radius:999px;background:rgba(255,255,255,0.9);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(40,40,160,0.18)">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+</a>
+<a href="SkipConfirm.dc.html" style="height:44px;padding:0 12px;display:flex;align-items:center;font-size:16px;font-weight:700;color:#0F0F12">Skip</a>
+</div>
+
+<div style="position:absolute;left:32px;right:32px;top:128px;text-align:center">
+<h1 style="margin:0;font-size:40px;line-height:1.04;font-weight:800;letter-spacing:-0.045em;color:#2D2DEB">Connect<br>your PC</h1>
+<p style="margin:14px auto 0;max-width:300px;font-size:16px;line-height:1.45;color:#16161C">Open Amethyst on your PC, go to <b>Settings</b>, then <b>Phone</b>, and scan the code it shows.</p>
+</div>
+
+<div style="position:absolute;left:24px;right:24px;top:322px;height:268px;border-radius:32px;background:#0B0B0E;box-shadow:0 24px 50px rgba(15,15,60,0.3);overflow:hidden">
+<div style="position:absolute;left:62px;top:44px;width:40px;height:40px;border-left:3px solid #fff;border-top:3px solid #fff;border-top-left-radius:14px"></div>
+<div style="position:absolute;right:62px;top:44px;width:40px;height:40px;border-right:3px solid #fff;border-top:3px solid #fff;border-top-right-radius:14px"></div>
+<div style="position:absolute;left:62px;bottom:74px;width:40px;height:40px;border-left:3px solid #fff;border-bottom:3px solid #fff;border-bottom-left-radius:14px"></div>
+<div style="position:absolute;right:62px;bottom:74px;width:40px;height:40px;border-right:3px solid #fff;border-bottom:3px solid #fff;border-bottom-right-radius:14px"></div>
+<div style="position:absolute;left:80px;right:80px;top:122px;height:2px;border-radius:2px;background:linear-gradient(90deg,rgba(91,155,255,0),#7B7BFF,rgba(91,155,255,0))"></div>
+<div style="position:absolute;left:0;right:0;bottom:26px;text-align:center;font-size:13px;color:#B4B7C2">Point the camera at the code</div>
+</div>
+
+<div style="position:absolute;left:24px;right:24px;top:610px;display:flex;align-items:center;justify-content:center;gap:10px;font-size:14px;color:#3A3C47">
+<span style="width:8px;height:8px;border-radius:999px;background:#2D2DEB;display:inline-block"></span>
+<span>Waiting for your PC</span>
+</div>
+
+<div style="position:absolute;left:24px;right:24px;bottom:44px;display:flex;flex-direction:column;align-items:center;gap:6px">
+<button type="button" style="box-sizing:border-box;width:100%;height:56px;border:0;border-radius:14px;background:#2D2DEB;color:#fff;font-size:17px;font-weight:700;box-shadow:0 14px 30px rgba(45,45,235,0.35)">Scan code</button>
+<a href="EnterCode.dc.html" style="height:48px;padding:0 20px;display:flex;align-items:center;color:#0F0F12;font-size:16px;font-weight:700">Enter code instead</a>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

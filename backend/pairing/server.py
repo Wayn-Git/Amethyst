@@ -54,6 +54,25 @@ class PairingRequestHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self) -> None:
+        if self.path in ("/pair/ack", "/ack"):
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+                raw_body = self.rfile.read(content_length)
+                payload = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+            except Exception:
+                payload = {}
+            received_token = str(payload.get("token", "")).strip()
+            device_id = str(payload.get("device_id", "")).strip() or None
+            if received_token and not hmac.compare_digest(received_token, self.server.token):
+                self._send_json(401, {"error": "invalid_token"})
+                return
+
+            from backend.pairing.service import pairing_service
+            pairing_service.confirm_pairing(device_id=device_id, token=received_token or self.server.token)
+            self._send_json(200, {"ok": True})
+            self.server.close_async()
+            return
+
         if self.path != "/pair":
             self._send_json(404, {"error": "not_found"})
             return
@@ -123,7 +142,6 @@ class PairingRequestHandler(http.server.BaseHTTPRequestHandler):
         decision = self.server.approval_decision
         if decision == "approve":
             self._send_json(200, self.server.approval_bundle or {})
-            # Server closes on success per CONTRACT v2
             self.server.close_async()
         else:
             self._send_json(403, {"error": "pairing_denied"})

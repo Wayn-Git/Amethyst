@@ -101,7 +101,12 @@ class FileContentAccessor:
             return content_bytes.decode("utf-8", errors="replace")
         except Exception as exc:
             log.warning("Could not download text for item %s from %s: %s", item_id, provider_name, exc)
-            raise StorageUnavailableError(f"Cloud text unavailable: {exc}") from exc
+            row_dict = dict(row)
+            summary = row_dict.get("summary") or row_dict.get("excerpt") or ""
+            title = row_dict.get("title") or "Untitled"
+            if summary:
+                return f"# {title}\n\n> *[Offline: Full text stored in Google Drive and not yet cached locally]*\n\n{summary}"
+            return f"# {title}\n\n> *[Offline: Full text stored in Google Drive and not yet cached locally]*"
 
     async def get_media_path(self, item_id: int) -> Path | None:
         """Resolve a local file path for media streaming."""

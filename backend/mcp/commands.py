@@ -1520,6 +1520,13 @@ def is_signed_in(config: ServerConfig) -> bool | None:
     kind = auth_kind(config)
     if kind == "none":
         return None
+    if config.name == "microsoft-todo":
+        try:
+            from backend.auth.microsoft import migrate_token_cache_to_vault, sync_token_cache_from_vault
+            migrate_token_cache_to_vault()
+            sync_token_cache_from_vault()
+        except Exception:
+            pass
     if _credentials_dir(config) is not None:
         return bool(_accounts_of(config))
     if kind == "setup":

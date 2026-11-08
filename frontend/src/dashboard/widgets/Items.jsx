@@ -188,6 +188,7 @@ function LegacyItems({ data, summaryData = data, widgetId }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [msConnected, setMsConnected] = useState(false)
+  const [msHandedOff, setMsHandedOff] = useState(false)
   const [msConnecting, setMsConnecting] = useState(false)
   const msPoll = useRef(null)
   const msAttempt = useRef(0)
@@ -196,8 +197,14 @@ function LegacyItems({ data, summaryData = data, widgetId }) {
     let cancelled = false
     if (widgetId?.startsWith('task.')) {
       api.microsoftStatus?.().then(res => {
-        if (!cancelled && res?.connected) {
-          setMsConnected(true)
+        if (!cancelled) {
+          if (res?.connected) {
+            setMsConnected(true)
+            setMsHandedOff(false)
+          } else if (res?.handed_off) {
+            setMsConnected(false)
+            setMsHandedOff(true)
+          }
         }
       }).catch(() => {})
     }
@@ -322,6 +329,11 @@ function LegacyItems({ data, summaryData = data, widgetId }) {
       })}</ul>
       {!(data?.items?.length) && widgetId?.startsWith('task.') && !msConnected && !editing && (
         <div className="widget-empty-connect" style={{ padding: '16px 8px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+          {msHandedOff && (
+            <p style={{ margin: 0, fontSize: '12px', opacity: 0.8 }}>
+              Signed in on your phone. Sign in here to use on PC too.
+            </p>
+          )}
           <Button
             size="small"
             variant="primary"

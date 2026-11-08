@@ -20,6 +20,7 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:8000',
         ws: true,
+        xfwd: false,
         // SSE through the proxy hangs when http-proxy reuses a keep-alive
         // socket whose upstream side the backend already closed. Fresh
         // connection per request removes the race.

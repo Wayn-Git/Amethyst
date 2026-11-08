@@ -46,7 +46,7 @@ No client secret is required or stored anywhere in the application.
 
 ## 4. Configure Amethyst Environment
 
-1. On your app's **Overview** page, copy the **Application (client) ID** (a UUID such as `d3590ed6-52b3-4102-aeff-aad2292ab01c`).
+1. On your app's **Overview** page, copy the **Application (client) ID** (a UUID such as `a7c42b18-1137-4d78-8d4c-91cd6be3acff`).
 2. Add the client ID to your `.env` file or export it:
    ```bash
    MICROSOFT_TODO_CLIENT_ID="<your-application-client-id>"

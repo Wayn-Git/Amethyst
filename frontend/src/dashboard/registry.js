@@ -19,6 +19,7 @@ export const WIDGETS = {
   'glance.air': lazy(() => import('./widgets/AirQuality.jsx')),
   'glance.sun': lazy(() => import('./widgets/Sun.jsx')),
   'glance.weather': lazy(() => import('./widgets/WeatherGlance.jsx')),
+  'glance.pc': lazy(() => import('./widgets/ThisPC.jsx')),
   'need.lor-slack': lazy(() => import('./widgets/SlackDMs.jsx')),
   'comm.thread-summary': lazy(() => import('./widgets/Communication.jsx')),
   'comm.newsletters': lazy(() => import('./widgets/Communication.jsx')),

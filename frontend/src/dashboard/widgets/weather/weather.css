@@ -1,145 +1,118 @@
-/* Weather widget surface isolation: eliminate double boundaries, outer headers, and double padding */
-
-.home-layout-grid .today-widget-slot[data-slot-id='glance.weather'],
-.today-widgets-canvas .today-widget-slot[data-slot-id='glance.weather'] {
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  box-sizing: border-box;
-}
-
-.home-layout-grid .today-widget-slot[data-slot-id='glance.weather']:hover,
-.today-widgets-canvas .today-widget-slot[data-slot-id='glance.weather']:hover {
-  box-shadow: none !important;
-}
-
-.home-layout-grid .today-widget-slot[data-slot-id='glance.weather'] > .today-slot-body,
-.today-widgets-canvas .today-widget-slot[data-slot-id='glance.weather'] > .today-slot-body {
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  padding: 0;
-  margin: 0;
-  border: 0;
-  box-sizing: border-box;
-  overflow: hidden !important;
-}
-
-/* Responsive slot dimensions */
-.home-layout-grid .today-widget-slot[data-slot-id='glance.weather'],
-.bento-foundation .home-widget[data-widget='glance.weather'] {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.home-layout-grid .today-widget-slot[data-slot-id='glance.weather'][data-size='s'],
-.bento-foundation .home-widget[data-widget='glance.weather'][data-size='s'] {
-  min-height: 170px;
-}
-
-.home-layout-grid .today-widget-slot[data-slot-id='glance.weather'][data-size='m'],
-.bento-foundation .home-widget[data-widget='glance.weather'][data-size='m'] {
-  min-height: 170px;
-}
-
-.home-layout-grid .today-widget-slot[data-slot-id='glance.weather'][data-size='l'],
-.bento-foundation .home-widget[data-widget='glance.weather'][data-size='l'] {
-  min-height: 356px;
-}
-
-.bento-foundation .home-widget[data-widget='glance.weather'],
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.weather'] {
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-}
-
-/* Chrome: title, badges, freshness removed from outer card. Actions hover-only top-right. */
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.weather'] > .widget-header {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 10;
-  display: flex;
-  width: auto;
-  padding: 0;
-  margin: 0;
-  gap: 0;
-  background: transparent;
-  border: 0;
-  pointer-events: none;
-}
-
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.weather'] .widget-title,
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.weather'] .widget-source,
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.weather'] .widget-freshness,
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.weather'] .widget-chip {
-  display: none !important;
-}
-
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.weather'] .widget-actions {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 150ms ease;
-}
-
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.weather']:is(:hover, :focus-within) .widget-actions,
-.bento-foundation .home-widget.widget-adoption[data-widget='glance.weather'] .widget-menu[open] {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.bento-foundation .home-widget[data-widget='glance.weather'] > .today-slot-header,
-.bento-foundation .home-widget[data-widget='glance.weather'] .today-header-chip {
-  display: none !important;
-}
-
-.glance-weather-root {
+/* Apple-style Bento Glance Weather */
+.glance-weather {
   width: 100%;
   height: 100%;
   box-sizing: border-box;
   position: relative;
-  overflow: hidden;
-  border-radius: var(--w-radius, 24px);
-}
-
-.glance-weather-root .tugan-card {
-  box-sizing: border-box;
-  height: 100%;
-  width: 100%;
-}
-
-.weather-directions-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 28px;
+  padding: 22px;
+  background: var(--wx, #dce8ff);
+  color: var(--wxt, #0f1f45);
+  box-shadow: inset 0 0 0 1px var(--ln, rgba(0, 0, 0, 0.08));
+}
+
+.glance-weather.style-poster {
+  background: #f4efe6;
+  color: #1d1d1f;
+}
+
+.glance-weather.style-curve {
+  background: var(--cd, #ffffff);
+  color: var(--tx, #1d1d1f);
+}
+
+.glance-weather.style-dial {
+  background: var(--cd, #1c1c1e);
+  color: #ffffff;
+}
+
+.glance-weather .gw-label {
+  display: flex;
+  align-items: center;
   gap: 8px;
-}
-
-.weather-direction-btn {
-  font-size: 12px;
-  font-weight: 500;
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--w-border, rgba(0, 0, 0, 0.1));
-  background: var(--w-surface, #ffffff);
-  color: var(--w-text, #111111);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.weather-direction-btn:hover {
-  background: var(--w-surface-hover, rgba(0, 0, 0, 0.04));
-}
-
-.weather-direction-btn.is-active {
-  border-color: var(--w-accent, #6366f1);
-  background: var(--w-accent-subtle, rgba(99, 102, 241, 0.08));
-  color: var(--w-accent, #6366f1);
+  font-size: 14px;
   font-weight: 600;
+  margin: 0;
+  z-index: 2;
+}
+
+.glance-weather .gw-label b {
+  margin-left: auto;
+  font-weight: 500;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.glance-weather .gw-pill {
+  border-radius: 99px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.7);
+  display: inline-block;
+  color: inherit;
+}
+
+.glance-weather.style-dial .gw-pill,
+.glance-weather.style-dial .gw-label {
+  color: #fff;
+}
+
+/* Hourly row in large/medium */
+.gw-hourly-row {
+  display: flex;
+  justify-content: space-between;
+  background: var(--ws, rgba(255, 255, 255, 0.7));
+  border-radius: 20px;
+  padding: 10px 14px;
+  margin-top: auto;
+  gap: 6px;
+  z-index: 2;
+}
+
+.gw-hourly-item {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.gw-hourly-item.is-now {
+  background: #fff;
+  color: #2563eb;
+  border-radius: 16px;
+  padding: 6px 0;
+}
+
+/* 3-day forecast rows */
+.gw-daily-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  height: 34px;
+}
+
+.gw-daily-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--wt, rgba(15, 31, 69, 0.15));
+  position: relative;
+}
+
+.gw-daily-bar-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  background: currentColor;
 }

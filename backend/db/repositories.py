@@ -14,6 +14,7 @@ import queue
 import sqlite3
 import threading
 import uuid
+import uuid as _uuidlib
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -1112,15 +1113,17 @@ class TaskRepository:
         dirty_at: str | None = None,
         my_day_date: str | None = None,
         checklist_items: str | None = None,
+        uuid: str | None = None,
     ) -> int:
+        task_uuid = uuid or str(_uuidlib.uuid4()) if uuid is not False else None
         try:
             cur = self.conn.execute(
                 "INSERT INTO tasks (title, notes, due_at, scheduled_at, duration_estimate_minutes,"
                 " priority, source, reminder_at, external_source, external_id, external_etag,"
                 " list_id, important, external_categories, completed_at, dirty_at,"
-                " my_day_date, checklist_items, status, last_synced_at)"
+                " my_day_date, checklist_items, status, last_synced_at, uuid)"
                 " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 'todo'),"
-                " CASE WHEN ? IS NULL THEN NULL ELSE datetime('now') END)",
+                " CASE WHEN ? IS NULL THEN NULL ELSE datetime('now') END, ?)",
                 (
                     title,
                     notes,
@@ -1142,6 +1145,7 @@ class TaskRepository:
                     checklist_items,
                     status,
                     external_id,
+                    task_uuid,
                 ),
             )
         except sqlite3.IntegrityError:
@@ -1486,11 +1490,13 @@ class TaskListRepository:
         external_id: str | None = None,
         is_default: bool = False,
         position: int | None = None,
+        uuid: str | None = None,
     ) -> int:
+        list_uuid = uuid or str(_uuidlib.uuid4()) if uuid is not False else None
         cur = self.conn.execute(
-            "INSERT INTO task_lists (name, external_source, external_id, is_default, position)"
-            " VALUES (?, ?, ?, ?, ?)",
-            (name, external_source, external_id, 1 if is_default else 0, position),
+            "INSERT INTO task_lists (name, external_source, external_id, is_default, position, uuid)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (name, external_source, external_id, 1 if is_default else 0, position, list_uuid),
         )
         self.conn.commit()
         return cur.lastrowid

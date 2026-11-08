@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { storedIdentity, saveIdentity } from '../../lib/credentials.js'
 import { safeStorage } from '../../lib/storage.js'
+import { getTransportManager } from '../../lib/sync/transportManager.js'
 
 export default function MobileSettings({
   onClose,
@@ -28,6 +29,11 @@ export default function MobileSettings({
     if (current) {
       await saveIdentity({ ...current, hostUrl: formatted })
     }
+    try {
+      const tm = getTransportManager()
+      tm.forcePath('direct')
+      await tm.probe()
+    } catch {}
     setEditingHost(false)
   }
 

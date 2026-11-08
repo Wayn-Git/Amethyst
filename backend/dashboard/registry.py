@@ -226,6 +226,11 @@ MANIFESTS = [
         "empty": "Set location.",
     },
     {
+        **manifest("glance.pc", "This PC", ["s", "m", "l"]),
+        "refresh": {"mode": "poll", "interval_s": 10},
+        "empty": "Hardware telemetry unavailable.",
+    },
+    {
         **need_manifest("need.mentions", "Unanswered mentions"),
         "source": [{"type": "composio", "toolkit": tk} for tk in ("slack", "github")],
         "refresh": {"mode": "poll", "interval_s": 900},
@@ -462,6 +467,7 @@ CATALOG = {
     'glance.air': ('Air quality readings for your saved location.', 'wind'),
     'glance.sun': ('Sunrise and sunset times for your location.', 'sun'),
     'glance.weather': ('Current weather and forecast for your location.', 'cloud'),
+    'glance.pc': ('Real-time CPU, memory, and disk telemetry for this PC.', 'monitor'),
     'need.mentions': ('Unanswered mentions from Slack and GitHub.', 'chat'),
     'need.inbox': ('Mail that may need your attention or a reply.', 'mail'),
     'need.drafts': ('Review and approve your saved mail drafts.', 'edit'),
