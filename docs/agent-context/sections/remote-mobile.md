@@ -3,7 +3,7 @@
 The phone companion and remote-control surfaces: `/pair`, `/remote`, the
 Capacitor app, and the `/api/remote/*` backend.
 
-**Verified 2026-11-06 · commit `9606fbbf` · phone connectivity improvements.**
+**Verified 2026-11-09 · commit `f6303e8d` · remote library permissions and credential sync.**
 
 ## Entry points
 
@@ -67,7 +67,9 @@ clipboard  system  agent  library  dashboard
 Defaults are `False` for the invasive capabilities and `True` for `agent`,
 `library` and `dashboard`. A missing field in an older grant is not permission
 to use a new API. `backend/security/remote_access.py` checks the grant on every
-call and re-reads it so an open socket does not retain a revoked permission.
+call and re-reads it so an open socket does not retain a revoked permission:
+- Library read/enrichment/mutation routes (`GET /api/library*`, `POST /api/library/{id}/enrich`, `reindex`, `sync`, `DELETE /api/library/{id}`) require the `library` permission.
+- AI transformation routes (`POST /api/ai/transform`) and credentials bundle retrieval (`GET /api/remote/credentials/bundle`) require `paired` access.
 
 ## Remote API
 
@@ -75,6 +77,7 @@ call and re-reads it so an open socket does not retain a revoked permission.
 
 | Area | Routes |
 |---|---|
+| Credentials | `GET /credentials/bundle` |
 | Capabilities | `GET /capabilities` |
 | System | `GET /status`, `/processes`, `/applications`, `POST /command` |
 | Media | `GET /media`, `POST /media/*` |
@@ -90,6 +93,11 @@ call and re-reads it so an open socket does not retain a revoked permission.
 Every route requires an authenticated device token and the matching permission.
 `RemoteCallerGuard` rejects non-loopback callers without a token. The terminal
 WebSocket checks permission on each message.
+
+`GET /api/remote/credentials/bundle` provides point-to-point credential synchronization
+to authenticated companion devices. Companion clients automatically sync credentials on
+WebSocket `credentials_updated` events, app resume (`visibilitychange`), and transport
+transitions to `direct` mode, storing updated keys in the mobile secure keystore.
 
 `GET /api/remote/capabilities` reports what the host can actually do. For
 example, screen capture is unavailable on Wayland or without ffmpeg, and
@@ -126,7 +134,9 @@ storage, and queues captures when offline.
 - `frontend/src/mobile/views/MobileToday.jsx` — live profile, quick telemetry carousel, day schedule, agent activity heatmap, background jobs, unread mail, PR status, and audio playback.
 - `frontend/src/mobile/views/MobileTasks.jsx` — live tasks, week calendar selector, status banner, completion toggle, and quick add.
 - `frontend/src/mobile/views/MobileLibrary.jsx` & `MobileLibraryItem.jsx` — live library feed, collections, real thumbnails, enrichment, tagging, and notes.
-- `frontend/src/mobile/views/MobileAgentSessions.jsx` & `MobileAgentChat.jsx` — live agent conversations, streaming turns, tool chips, approval cards, and voice/attachment controls.
+- `frontend/src/mobile/views/MobileAgentSessions.jsx` & `MobileAgentChat.jsx` — live agent conversations, turn grouping (`groupMessagesIntoTurns`), structured `Markdown` rendering (`.m-shell`), and integrated `MobileActivity` drawer.
+- `frontend/src/mobile/components/MobileActivity.jsx` — desktop-parity activity drawer with pulsing `BrandMark`, elapsed ticker, collapsible `<thought>` reasoning, and category-badged tool execution rows.
+- `frontend/src/mobile/agent/toolRegistry.js` — in-memory tool cache (5-minute TTL) avoiding repetitive multi-second Composio network roundtrips per prompt.
 - `frontend/src/mobile/views/MobilePC.jsx` & `MobileTerminal.jsx` — live PC screenshot/telemetry, app launcher, remote power, and interactive WebSocket terminal.
 - `frontend/src/mobile/views/MobileSettings.jsx` — preferences, connectors, Face ID, pairing diagnostics, and device management.
 - `frontend/src/mobile/modals/MobileQuickCapture.jsx` — frosted liquid glass bottom sheet for saving to library, task, or agent.
