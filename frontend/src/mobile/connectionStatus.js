@@ -75,8 +75,8 @@ export async function loadConnections() {
         }
       }
       memoryConnections = {
-        composio: b.composio ? { apiKey: b.composio.api_key, userId: b.composio.user_id } : null,
-        googleDrive: b.drive ? { rootFolderId: b.drive.root_folder_id, inboxFolderId: b.drive.inbox_folder_id } : null,
+        composio: (b.composio?.api_key && b.composio?.user_id) ? { apiKey: b.composio.api_key, userId: b.composio.user_id } : null,
+        googleDrive: (b.drive?.root_folder_id || b.drive?.inbox_folder_id) ? { rootFolderId: b.drive.root_folder_id, inboxFolderId: b.drive.inbox_folder_id } : null,
         microsoftTodo: msConn,
       }
       return memoryConnections

@@ -482,6 +482,7 @@ export const api = {
   savePhonePairingSettings: (cfg) => j('/settings/phone-pairing', json('POST', cfg)),
 
   // Remote PC & System Telemetry
+  getCredentialsBundle: () => j('/remote/credentials/bundle'),
   remoteStatus: () => j('/remote/status'),
   remoteProcesses: () => j('/remote/processes'),
   remoteKillProcess: (pid, sig = 15) => reviewedRemoteAction('/remote/processes/kill', { pid, signal: sig === 9 ? 'SIGKILL' : 'SIGTERM' }),

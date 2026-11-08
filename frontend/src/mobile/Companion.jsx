@@ -27,6 +27,8 @@ import MobileLibraryItem from './views/MobileLibraryItem.jsx'
 import MobilePC from './views/MobilePC.jsx'
 import MobileTerminal from './views/MobileTerminal.jsx'
 import MobileQuickCapture from './modals/MobileQuickCapture.jsx'
+import { getBundle, saveBundle, validateBundle } from './bundle.js'
+import { loadConnections, saveConnections } from './connectionStatus.js'
 import './companion.css'
 
 const AppUpdates = registerPlugin('AppUpdates')
@@ -110,6 +112,8 @@ export default function Companion({ onUnpair }) {
   }
 
   // Initialize Dual-Transport Manager
+  const syncCredentialsRef = useRef(null)
+
   useEffect(() => {
     const tm = getTransportManager({
       getHostUrl: () => safeStorage.getItem('amethyst.pc_host') || identity()?.hostUrl || storedIdentity()?.hostUrl || getBase().replace(/\/api$/, ''),
@@ -120,6 +124,7 @@ export default function Companion({ onUnpair }) {
           try {
             safeStorage.setItem('amethyst.pc_host', state.hostUrl)
           } catch {}
+          syncCredentialsRef.current?.()
         }
         setTransportState(state)
       },
@@ -286,6 +291,48 @@ export default function Companion({ onUnpair }) {
     } catch {}
   }, [])
 
+  const syncCredentials = useCallback(async () => {
+    try {
+      const id = identity() || storedIdentity()
+      if (!id?.token) return
+      const fresh = await api.getCredentialsBundle().catch(() => null)
+      if (!fresh) return
+
+      const check = validateBundle(fresh)
+      if (!check.valid) {
+        return
+      }
+
+      const currentBundle = await getBundle()
+      const llmChanged = JSON.stringify(fresh.llm) !== JSON.stringify(currentBundle?.llm)
+      const composioChanged = JSON.stringify(fresh.composio) !== JSON.stringify(currentBundle?.composio)
+      const driveChanged = JSON.stringify(fresh.drive) !== JSON.stringify(currentBundle?.drive)
+      const msChanged = fresh.microsoft && JSON.stringify(fresh.microsoft) !== JSON.stringify(currentBundle?.microsoft)
+
+      if (llmChanged || composioChanged || driveChanged || msChanged || !currentBundle) {
+        await saveBundle(fresh)
+        const conns = await loadConnections()
+        if (fresh.composio?.api_key && fresh.composio?.user_id) {
+          conns.composio = { apiKey: fresh.composio.api_key, userId: fresh.composio.user_id }
+        } else {
+          conns.composio = null
+        }
+        if (fresh.drive?.root_folder_id || fresh.drive?.inbox_folder_id) {
+          conns.googleDrive = {
+            rootFolderId: fresh.drive.root_folder_id,
+            inboxFolderId: fresh.drive.inbox_folder_id,
+          }
+        } else {
+          conns.googleDrive = null
+        }
+        await saveConnections(conns)
+      }
+    } catch {
+      // Non-blocking background credential sync
+    }
+  }, [])
+  syncCredentialsRef.current = syncCredentials
+
   useEffect(() => {
     active.current = true
     let stopped = false
@@ -314,11 +361,15 @@ export default function Companion({ onUnpair }) {
         if (!stopped) setNotice(error.message)
       }
       await tick()
+      syncCredentials()
     })()
 
     const timer = setInterval(tick, 60000)
     const onVis = () => {
-      if (document.visibilityState === 'visible') tick()
+      if (document.visibilityState === 'visible') {
+        tick()
+        syncCredentials()
+      }
     }
     document.addEventListener('visibilitychange', onVis)
     window.addEventListener('online', tick)
@@ -347,6 +398,9 @@ export default function Companion({ onUnpair }) {
           try {
             const data = JSON.parse(event.data)
             if (data.type === 'sync_event') {
+              if (data.event === 'credentials_updated') {
+                syncCredentials()
+              }
               tick()
             }
           } catch {}
@@ -377,7 +431,7 @@ export default function Companion({ onUnpair }) {
       document.removeEventListener('visibilitychange', onVis)
       window.removeEventListener('online', tick)
     }
-  }, [refresh])
+  }, [refresh, syncCredentials])
 
   async function unpair() {
     active.current = false

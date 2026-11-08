@@ -70,11 +70,11 @@ export function validateBundle(bundle) {
     }
   }
 
-  if (!bundle.composio?.api_key || !bundle.composio?.user_id) {
-    return { valid: false, error: 'Bundle missing composio credentials' }
+  if (bundle.composio !== undefined && bundle.composio !== null && typeof bundle.composio !== 'object') {
+    return { valid: false, error: 'Bundle composio must be an object' }
   }
-  if (!bundle.drive?.root_folder_id || !bundle.drive?.inbox_folder_id) {
-    return { valid: false, error: 'Bundle missing drive folder IDs' }
+  if (bundle.drive !== undefined && bundle.drive !== null && typeof bundle.drive !== 'object') {
+    return { valid: false, error: 'Bundle drive must be an object' }
   }
   if (!bundle.prompts?.summary) {
     return { valid: false, error: 'Bundle missing prompts.summary' }
