@@ -1,5 +1,6 @@
 import React from 'react'
 import { motion } from 'framer-motion'
+import AmethystLogo from '../../components/AmethystLogo.jsx'
 import '../companion.css'
 
 export default function MobileSplash() {
@@ -56,12 +57,7 @@ export default function MobileSplash() {
             y: { type: 'spring', stiffness: 360, damping: 26 },
           }}
         >
-          <svg width="54" height="54" viewBox="0 0 24 24" fill="none" stroke="#2D2DEB" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
-            <path d="M6 3h12l4 6-10 12L2 9z" />
-            <path d="M2 9h20" />
-            <path d="M9 3l3 6 3-6" />
-            <path d="M12 21L9 9M12 21l3-12" />
-          </svg>
+          <AmethystLogo size={58} color="#2441ff" />
         </motion.div>
 
         <motion.div

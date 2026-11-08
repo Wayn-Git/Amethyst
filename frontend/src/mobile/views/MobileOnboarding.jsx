@@ -1,5 +1,6 @@
 import React from 'react'
 import { motion } from 'framer-motion'
+import AmethystLogo from '../../components/AmethystLogo.jsx'
 import '../companion.css'
 
 const pageVariants = {
@@ -81,12 +82,7 @@ export default function MobileOnboarding({ onGetStarted, onHaveCode, direction =
             boxShadow: '0 10px 28px rgba(20, 10, 120, 0.35)',
           }}
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2D2DEB" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
-            <path d="M6 3h12l4 6-10 12L2 9z" />
-            <path d="M2 9h20" />
-            <path d="M9 3l3 6 3-6" />
-            <path d="M12 21L9 9M12 21l3-12" />
-          </svg>
+          <AmethystLogo size={24} color="#2441ff" />
         </div>
       </motion.div>
 
