@@ -21,6 +21,7 @@ import Integrations from './settings/Integrations.jsx'
 import Configuration from './settings/Configuration.jsx'
 import Storage from './settings/Storage.jsx'
 import Devices from './settings/Devices.jsx'
+import ShortcutRecorder from '../components/damon/ShortcutRecorder.jsx'
 import { LiquidGlass, GlisseButton, GlisseSwitch } from '../lib/liquid-glass/index.jsx'
 
 /* ==========================================================================
@@ -5963,9 +5964,15 @@ function Shortcuts() {
 
   return (
     <div className="set-panel">
-      {/* 1. Global Desktop Launcher Chord */}
+      {/* 1. Global Desktop Launcher Chord & Key Recorder */}
       <div className="set-section-label">Global Desktop Launcher</div>
-      <div className="set-box">
+      <ShortcutRecorder
+        onShortcutChange={(sc) => {
+          setHotkeyDraft(sc)
+          handleSaveHotkeyExplicit(sc)
+        }}
+      />
+      <div className="set-box" style={{ marginTop: 12 }}>
         <div className="set-box-row">
           <div className="set-row-text">
             <span className="set-row-title">Global Summon Shortcut</span>
