@@ -401,6 +401,7 @@ export const api = {
   addProvider: (body) => j('/providers', json('POST', body)),
   verifyProvider: (name, body) =>
     j(`/providers/${encodeURIComponent(name)}/verify`, json('POST', body)),
+  testModel: (body) => j('/models/test', json('POST', body)),
   removeProvider: (name) => j(`/providers/${encodeURIComponent(name)}`, json('DELETE')),
   deleteProvider: (name) => j(`/providers/${encodeURIComponent(name)}`, json('DELETE')),
   // A fresh liveness check the user asked for, cache ignored. `pingAll` is the
@@ -1093,6 +1094,9 @@ export const api = {
   // Library cloud storage and Google Drive migration
   storageConfig: () => j('/storage/config'),
   updateStorageConfig: (patch) => j('/storage/config', json('PATCH', patch)),
+  libraryCloudStorageStatus: () => j('/storage/config'),
+  updateLibraryCloudStorage: (patch) => j('/storage/config', json('PATCH', patch)),
+  connectComposioApp: (slug) => j(`/connectors/${encodeURIComponent(slug)}/authorize`, json('POST', {})),
   migrationStatus: () => j('/storage/migration/status'),
   startMigration: () => j('/storage/migration/start', json('POST', {})),
   retryMigration: () => j('/storage/migration/retry', json('POST', {})),

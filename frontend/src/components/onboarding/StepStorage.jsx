@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import AmethystLogo from '../AmethystLogo.jsx'
 import Icon from '../Icon.jsx'
 import BrandIcon from './BrandIcon.jsx'
@@ -32,9 +32,16 @@ export default function StepStorage({ onNext, onBack }) {
 
   const [composioKey, setComposioKey] = useState('')
   const [composioConnected, setComposioConnected] = useState(false)
+  const [validatingKey, setValidatingKey] = useState(false)
+  const [keyError, setKeyError] = useState('')
+  const [isEditingKey, setIsEditingKey] = useState(false)
+
   const [driveConnected, setDriveConnected] = useState(false)
-  const [driveEmail, setDriveEmail] = useState('user@domain.com')
+  const [driveEmail, setDriveEmail] = useState('')
   const [connectingDrive, setConnectingDrive] = useState(false)
+  const [driveError, setDriveError] = useState('')
+  const pollTimerRef = useRef(null)
+
   const [enabledToolkits, setEnabledToolkits] = useState(new Set(['gmail', 'googlecalendar']))
 
   // Exploration & search state
@@ -45,13 +52,22 @@ export default function StepStorage({ onNext, onBack }) {
   const checkStorageStatus = useCallback(async () => {
     try {
       const res = await api.composioStatus?.()
-      if (res?.connected || res?.has_key) {
+      if (res?.connected || res?.has_key || (res?.configured && res?.active)) {
         setComposioConnected(true)
       }
-      const driveRes = await api.libraryCloudStorageStatus?.()
-      if (driveRes?.active_provider === 'google_drive' || driveRes?.connected) {
+
+      // Live connected accounts check
+      const conns = await api.connectorsConnected?.()
+      const gd = conns?.services?.googledrive || conns?.services?.google_drive
+      if (gd && (gd.connected || gd.status === 'ACTIVE')) {
         setDriveConnected(true)
-        if (driveRes.account_email) setDriveEmail(driveRes.account_email)
+        const email = gd.accounts?.[0]?.email || gd.accounts?.[0]?.account_identifier || gd.accounts?.[0]?.id || 'Connected'
+        setDriveEmail(email)
+      } else {
+        const driveRes = await api.storageConfig?.()
+        if (driveRes?.active_provider === 'google_drive') {
+          setDriveConnected(true)
+        }
       }
 
       // Fetch dynamic toolkits from Composio backend
@@ -80,32 +96,74 @@ export default function StepStorage({ onNext, onBack }) {
 
   useEffect(() => {
     checkStorageStatus()
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current)
+    }
   }, [checkStorageStatus])
 
   const handleSaveComposioKey = async (val) => {
-    setComposioKey(val)
-    if (val && val.trim().length > 10) {
-      try {
-        await api.saveComposioKey?.(val.trim())
+    const raw = (typeof val === 'string' ? val : composioKey).trim()
+    if (!raw) return
+    setValidatingKey(true)
+    setKeyError('')
+    try {
+      const res = await api.saveComposioKey?.(raw)
+      if (res?.ok) {
         setComposioConnected(true)
-      } catch {
-        // Fallback
+        setIsEditingKey(false)
+        setComposioKey('')
+        checkStorageStatus()
+      } else {
+        setKeyError(res?.error || 'Failed to save Composio API key')
       }
+    } catch (err) {
+      setKeyError(err?.message || 'Invalid Composio API key. Please check your credentials.')
+    } finally {
+      setValidatingKey(false)
     }
   }
 
   const handleConnectDrive = async () => {
     setConnectingDrive(true)
+    setDriveError('')
     try {
-      const res = await api.connectComposioApp?.('googledrive')
-      if (res?.auth_url && typeof window !== 'undefined') {
-        window.open(res.auth_url, '_blank', 'noopener,noreferrer')
+      const res = await api.connectorsAuthorize?.('googledrive')
+      if (res?.url) {
+        if (typeof window !== 'undefined') {
+          window.open(res.url, '_blank', 'noopener,noreferrer')
+        }
+        let attempts = 0
+        if (pollTimerRef.current) clearInterval(pollTimerRef.current)
+        pollTimerRef.current = setInterval(async () => {
+          attempts += 1
+          try {
+            const conns = await api.connectorsConnected?.()
+            const gd = conns?.services?.googledrive || conns?.services?.google_drive
+            if (gd && (gd.connected || gd.status === 'ACTIVE')) {
+              clearInterval(pollTimerRef.current)
+              setDriveConnected(true)
+              const email = gd.accounts?.[0]?.email || gd.accounts?.[0]?.account_identifier || gd.accounts?.[0]?.id || 'Connected'
+              setDriveEmail(email)
+              setConnectingDrive(false)
+              await api.updateStorageConfig?.({
+                active_provider: 'google_drive',
+                gdrive_root_name: 'Amethyst',
+              })
+            }
+          } catch {
+            // keep polling
+          }
+          if (attempts >= 30) {
+            clearInterval(pollTimerRef.current)
+            setConnectingDrive(false)
+          }
+        }, 2000)
+      } else {
+        setDriveError('No authorization link returned. Verify your Composio API key.')
+        setConnectingDrive(false)
       }
-      setDriveConnected(true)
-    } catch {
-      // Fallback
-      setDriveConnected(true)
-    } finally {
+    } catch (err) {
+      setDriveError(err?.message || 'Failed to initiate Google Drive authorization.')
       setConnectingDrive(false)
     }
   }
@@ -135,9 +193,9 @@ export default function StepStorage({ onNext, onBack }) {
   const handleContinue = async () => {
     try {
       if (driveConnected) {
-        await api.updateLibraryCloudStorage?.({
+        await api.updateStorageConfig?.({
           active_provider: 'google_drive',
-          root_folder_name: 'Amethyst',
+          gdrive_root_name: 'Amethyst',
         })
       }
 
@@ -190,33 +248,103 @@ export default function StepStorage({ onNext, onBack }) {
         {/* Required Group */}
         <div className="onb-group" style={{ marginBottom: 8 }}>
           {/* Composio Row */}
-          <div className="onb-row">
-            <div className="onb-row-icon" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>
-              <BrandIcon name="composio" size={20} />
+          <div className="onb-row" style={{ flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 200 }}>
+              <div className="onb-row-icon" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>
+                <BrandIcon name="composio" size={20} />
+              </div>
+              <div className="onb-row-meta">
+                Composio
+                <span>Connects Amethyst to your apps and Google Drive.</span>
+              </div>
             </div>
-            <div className="onb-row-meta">
-              Composio
-              <span>Connects Amethyst to your apps and Google Drive.</span>
-            </div>
-            <input
-              type="password"
-              className="onb-input"
-              style={{ width: 140, height: 34, fontSize: 13 }}
-              placeholder={composioConnected ? '••••••••••••' : 'Enter API key'}
-              value={composioKey}
-              onChange={(e) => handleSaveComposioKey(e.target.value)}
-              aria-label="Composio API key"
-            />
+            {composioConnected && !isEditingKey ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="onb-tag" style={{ color: '#34d399' }}>
+                  <Icon name="check" size={14} />
+                  <span>Connected</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingKey(true)}
+                  style={{
+                    background: 'transparent',
+                    border: 0,
+                    color: '#9ea3c4',
+                    fontSize: 11,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: 0,
+                  }}
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input
+                  type="password"
+                  className="onb-input"
+                  style={{ width: 140, height: 32, fontSize: 13 }}
+                  placeholder="Paste API key"
+                  value={composioKey}
+                  onChange={(e) => {
+                    setComposioKey(e.target.value)
+                    setKeyError('')
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveComposioKey(composioKey)
+                  }}
+                  aria-label="Composio API key"
+                  autoFocus={isEditingKey}
+                />
+                <button
+                  type="button"
+                  className="onb-pill-btn"
+                  style={{ minHeight: 32, padding: '0 10px', fontSize: 12 }}
+                  disabled={validatingKey || !composioKey.trim()}
+                  onClick={() => handleSaveComposioKey(composioKey)}
+                >
+                  {validatingKey ? 'Verifying…' : 'Save'}
+                </button>
+                {isEditingKey && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingKey(false)
+                      setKeyError('')
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 0,
+                      color: '#9ea3c4',
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      padding: '0 4px',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            )}
+            {keyError && (
+              <div style={{ width: '100%', fontSize: 12, color: '#f87171', marginLeft: 46 }}>
+                {keyError}
+              </div>
+            )}
           </div>
 
           {/* Google Drive Row */}
-          <div className="onb-row">
-            <div className="onb-row-icon" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>
-              <BrandIcon name="googledrive" size={20} />
-            </div>
-            <div className="onb-row-meta">
-              Google Drive
-              <span>{driveConnected ? driveEmail : 'Not connected'}</span>
+          <div className="onb-row" style={{ flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 200 }}>
+              <div className="onb-row-icon" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>
+                <BrandIcon name="googledrive" size={20} />
+              </div>
+              <div className="onb-row-meta">
+                Google Drive
+                <span>{driveConnected ? (driveEmail || 'Connected') : 'Not connected'}</span>
+              </div>
             </div>
             {driveConnected ? (
               <span className="onb-tag" style={{ color: '#34d399' }}>
@@ -228,11 +356,17 @@ export default function StepStorage({ onNext, onBack }) {
                 type="button"
                 className="onb-pill-btn"
                 style={{ minHeight: 32, padding: '0 12px', fontSize: 12 }}
-                disabled={connectingDrive}
+                disabled={connectingDrive || !composioConnected}
                 onClick={handleConnectDrive}
+                title={!composioConnected ? 'Connect Composio API key first' : undefined}
               >
                 {connectingDrive ? 'Connecting…' : 'Connect Drive'}
               </button>
+            )}
+            {driveError && (
+              <div style={{ width: '100%', fontSize: 12, color: '#f87171', marginLeft: 46 }}>
+                {driveError}
+              </div>
             )}
           </div>
 
@@ -246,12 +380,12 @@ export default function StepStorage({ onNext, onBack }) {
 
         <p style={{ fontSize: 12, color: '#9ea3c4', margin: '6px 4px 16px', lineHeight: 1.45 }}>
           <a
-            href="https://composio.dev"
+            href="https://app.composio.dev/settings/api-keys"
             target="_blank"
             rel="noopener noreferrer"
             style={{ color: '#dfe5ff', textDecoration: 'none', fontWeight: 500 }}
           >
-            Get a free key ↗
+            Copy API key from Composio ↗
           </a>{' '}
           · Library items and your phone’s drop-box live in this folder. We create it if it’s missing.
         </p>
