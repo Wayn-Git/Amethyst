@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { getBase, getAuthHeaders, API_ORIGIN } from '../../api.js'
-import * as syncClient from '../../lib/sync/client.js'
+import { usePairingStatus } from '../pairingVault.js'
+import PairPrompt from './PairPrompt.jsx'
 
 const XTERM_THEME = {
   background: '#111113',
@@ -34,24 +35,29 @@ function getWsOrigin() {
   if (API_ORIGIN) {
     return API_ORIGIN.replace(/^http/, 'ws')
   }
-  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${proto}//${window.location.host}`
+  const proto = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const host = typeof window !== 'undefined' ? window.location.host : 'localhost:8000'
+  return `${proto}//${host}`
 }
 
 export default function MobileTerminal({ onBack, isOnline }) {
+  const { isPaired, isRejected, token, markRejected, clearRejected } = usePairingStatus()
+
   const [session, setSession] = useState(null)
   const [connected, setConnected] = useState(false)
   const [currentCwd, setCurrentCwd] = useState('~')
   const [statusMsg, setStatusMsg] = useState('Connecting to PC terminal…')
   const [command, setCommand] = useState('')
+  const [rescanModalOpen, setRescanModalOpen] = useState(false)
 
   const containerRef = useRef(null)
   const xtermRef = useRef(null)
   const fitAddonRef = useRef(null)
   const wsRef = useRef(null)
-  const token = syncClient.identity()?.token || ''
 
   useEffect(() => {
+    if (!isPaired || isRejected) return
+
     let unmounted = false
     let term = null
     let ws = null
@@ -73,6 +79,9 @@ export default function MobileTerminal({ onBack, isOnline }) {
         })
 
         if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            markRejected(`Session rejected (${res.status})`)
+          }
           if (!unmounted) {
             setStatusMsg(`Session unavailable (${res.status}). Verify PC is online.`)
           }
@@ -156,7 +165,10 @@ export default function MobileTerminal({ onBack, isOnline }) {
           if (!unmounted) setStatusMsg('Terminal connection error')
         }
 
-        ws.onclose = () => {
+        ws.onclose = (event) => {
+          if (event?.code === 1008) {
+            markRejected('WebSocket rejected (1008)')
+          }
           if (!unmounted) {
             setConnected(false)
             setStatusMsg('Session closed')
@@ -204,7 +216,7 @@ export default function MobileTerminal({ onBack, isOnline }) {
       if (ws) ws.close()
       if (term) term.dispose()
     }
-  }, [token])
+  }, [token, isPaired, isRejected, markRejected])
 
   const sendCommand = (cmdStr) => {
     const toSend = (cmdStr || command).trim()
@@ -219,6 +231,55 @@ export default function MobileTerminal({ onBack, isOnline }) {
     setCommand('')
   }
 
+  // 1. UNPAIRED STATE: Lazy PairPrompt appears, no mock data, no broken connection
+  if (!isPaired) {
+    return (
+      <motion.div
+        className="s"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 120,
+          background: '#F2F2F7',
+          maxWidth: 480,
+          margin: '0 auto',
+        }}
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: 20 }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <div className="b" style={{ paddingBottom: 20, gap: 14 }}>
+          {/* Header */}
+          <div className="r sp">
+            {onBack && (
+              <button
+                type="button"
+                className="ib"
+                aria-label="Back"
+                onClick={onBack}
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              </button>
+            )}
+            <div className="ttl" style={{ fontSize: 17 }}>
+              Terminal
+            </div>
+            <span className="ch">
+              <span className="d w" />
+              Unpaired
+            </span>
+          </div>
+
+          <PairPrompt />
+        </div>
+      </motion.div>
+    )
+  }
+
+  // 2. PAIRED STATE: Interactive PTY + Re-scan QR banner if rejected
   return (
     <motion.div
       className="s"
@@ -253,9 +314,52 @@ export default function MobileTerminal({ onBack, isOnline }) {
           </div>
           <span className="ch">
             <span className={`d ${connected ? '' : 'w'}`} />
-            {connected ? 'Live' : isOnline ? 'Ready' : 'Offline'}
+            {isRejected ? 'Rejected' : connected ? 'Live' : isOnline ? 'Ready' : 'Offline'}
           </span>
         </div>
+
+        {/* Rejected Token Re-scan Banner on these screens only */}
+        {isRejected && (
+          <aside
+            className="rescan-banner"
+            role="alert"
+            style={{
+              background: 'rgba(217, 84, 30, 0.12)',
+              border: '1px solid rgba(217, 84, 30, 0.3)',
+              borderRadius: 16,
+              padding: '12px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, color: '#D9541E', fontSize: 13 }}>
+                Pairing token rejected
+              </div>
+              <div style={{ fontSize: 12, color: '#6E6E73', marginTop: 2 }}>
+                Your PC rejected the pairing token. Re-scan the QR code to reconnect.
+              </div>
+            </div>
+            <button
+              type="button"
+              className="bt l"
+              style={{
+                height: 36,
+                minHeight: 36,
+                padding: '0 14px',
+                fontSize: 12,
+                flexShrink: 0,
+                background: '#D9541E',
+              }}
+              onClick={() => setRescanModalOpen(true)}
+              aria-label="Re-scan QR"
+            >
+              Re-scan QR
+            </button>
+          </aside>
+        )}
 
         {/* CWD & Status Bar */}
         <div className="r sp" style={{ padding: '0 4px', fontSize: 12 }}>
@@ -263,8 +367,8 @@ export default function MobileTerminal({ onBack, isOnline }) {
             {currentCwd}
           </span>
           {statusMsg && (
-            <span style={{ color: '#FF9500', fontSize: 11 }}>
-              {statusMsg}
+            <span style={{ color: isRejected ? '#D9541E' : '#FF9500', fontSize: 11 }}>
+              {isRejected ? 'Token rejected by PC' : statusMsg}
             </span>
           )}
         </div>
@@ -374,6 +478,20 @@ export default function MobileTerminal({ onBack, isOnline }) {
           Interactive PTY session running on your PC.
         </div>
       </div>
+
+      {/* Re-scan QR Modal */}
+      <AnimatePresence>
+        {rescanModalOpen && (
+          <PairPrompt
+            isRejected
+            onPaired={() => {
+              clearRejected()
+              setRescanModalOpen(false)
+            }}
+            onScan={() => {}}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }
