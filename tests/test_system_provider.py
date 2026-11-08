@@ -37,3 +37,4 @@ async def test_system_provider_resolves_action_id_without_payload_command_id(mon
     # 2. Calling with action_id='act-sys-restart'
     res2 = await provider.execute("act-sys-restart", {})
     assert res2.get("ok") is True
+

@@ -163,6 +163,22 @@ body.spotlight-only-mode #root {
     0 20px 48px -10px rgba(0, 0, 0, 0.35) !important;
 }
 
+.palette.damon-spotlight.is-compact .damon-header {
+  border-bottom: none !important;
+}
+
+.damon-prefix-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: all 0.15s ease;
+}
+
 .palette.damon-spotlight.palette--bar {
   margin: 6px !important;
   width: calc(100% - 12px) !important;

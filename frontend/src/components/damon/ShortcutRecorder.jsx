@@ -262,3 +262,4 @@ export default function ShortcutRecorder({ onShortcutChange }) {
     </div>
   )
 }
+

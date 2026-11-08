@@ -31,3 +31,4 @@ test('evaluateMath returns null for plain non-math text', () => {
   const res = evaluateMath('hello world')
   assert.equal(res, null)
 })
+

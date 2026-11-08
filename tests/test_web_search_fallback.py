@@ -23,3 +23,4 @@ async def test_search_web_uses_ddg_over_wikipedia():
     # At least some results should be from web/duckduckgo, not purely wikipedia
     sources = [r.get("source") for r in results]
     assert "duckduckgo" in sources or "mixed" in sources or any("wikipedia.org" not in r.get("url", "") for r in results)
+

@@ -17,6 +17,8 @@ import DamonFooter from './damon/DamonFooter.jsx'
 import DamonLibraryView from './damon/views/DamonLibraryView.jsx'
 import DamonAppsView from './damon/views/DamonAppsView.jsx'
 import DamonWebView from './damon/views/DamonWebView.jsx'
+import YouTubeBentoView from './damon/views/YouTubeBentoView.jsx'
+import GitHubResultsView from './damon/views/GitHubResultsView.jsx'
 import DamonActionsView, { SYSTEM_ACTIONS } from './damon/views/DamonActionsView.jsx'
 import { evaluateMath } from './damon/calculator.js'
 import { woxFuzzyMatch } from './damon/woxMatcher.js'
@@ -104,17 +106,20 @@ export default function CommandPalette({ bare = false }) {
   const [installedApps, setInstalledApps] = useState([])
   const [initialFiles, setInitialFiles] = useState([])
   const [libraryPool, setLibraryPool] = useState([])
-  const [compactMode, setCompactMode] = useState(() => localStorage.getItem('damon_compact_mode') === 'true')
+  const [expandedFeatures, setExpandedFeatures] = useState(() => localStorage.getItem('damon_expanded_features') === 'true')
+  const [activePrefix, setActivePrefix] = useState(null)
 
-  const toggleCompactMode = useCallback(() => {
-    setCompactMode((prev) => {
+  const [youtubeResults, setYoutubeResults] = useState([])
+  const [youtubeLoading, setYoutubeLoading] = useState(false)
+  const [githubResults, setGithubResults] = useState([])
+  const [githubLoading, setGithubLoading] = useState(false)
+
+  const toggleExpandedFeatures = useCallback(() => {
+    setExpandedFeatures((prev) => {
       const next = !prev
       try {
-        localStorage.setItem('damon_compact_mode', String(next))
+        localStorage.setItem('damon_expanded_features', String(next))
       } catch {}
-      if (next) {
-        setActiveTab('all')
-      }
       return next
     })
   }, [])
@@ -331,6 +336,62 @@ export default function CommandPalette({ bare = false }) {
       if (es) es.close()
     }
   }, [open, query, activeTab])
+
+  // Fetch YouTube results when in YouTube prefix or tab
+  useEffect(() => {
+    const isYt = activePrefix === 'yt' || activeTab === 'youtube'
+    if (!open || !isYt || !query.trim()) {
+      if (!query.trim()) setYoutubeResults([])
+      return
+    }
+    setYoutubeLoading(true)
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => {
+      api
+        .searchYouTube(query.trim(), 8, ctrl.signal)
+        .then((data) => {
+          setYoutubeResults(data?.results || [])
+        })
+        .catch(() => {
+          setYoutubeResults([])
+        })
+        .finally(() => {
+          setYoutubeLoading(false)
+        })
+    }, 180)
+    return () => {
+      clearTimeout(timer)
+      ctrl.abort()
+    }
+  }, [open, query, activePrefix, activeTab])
+
+  // Fetch GitHub results when in GitHub prefix or tab
+  useEffect(() => {
+    const isGh = activePrefix === 'gh' || activeTab === 'github'
+    if (!open || !isGh || !query.trim()) {
+      if (!query.trim()) setGithubResults([])
+      return
+    }
+    setGithubLoading(true)
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => {
+      api
+        .searchGitHub(query.trim(), 6, ctrl.signal)
+        .then((data) => {
+          setGithubResults(data?.results || [])
+        })
+        .catch(() => {
+          setGithubResults([])
+        })
+        .finally(() => {
+          setGithubLoading(false)
+        })
+    }, 180)
+    return () => {
+      clearTimeout(timer)
+      ctrl.abort()
+    }
+  }, [open, query, activePrefix, activeTab])
 
   // Add query to recent searches
   const recordRecentSearch = useCallback((q) => {
@@ -876,7 +937,7 @@ export default function CommandPalette({ bare = false }) {
     ? 'split'
     : 'standard'
 
-  const isBarOnly = compactMode && !query.trim() && !isAskMode && !pendingConfirmation
+  const isBarOnly = !expandedFeatures && !query.trim() && !activePrefix && !isAskMode && !pendingConfirmation
 
   const card = (
     <div
@@ -893,30 +954,58 @@ export default function CommandPalette({ bare = false }) {
         <DamonHeader
           query={query}
           inputRef={inputRef}
+          activePrefix={activePrefix}
+          onClearPrefix={() => setActivePrefix(null)}
           onChange={(val) => {
-            setQuery(val)
-            setSelectedIndex(0)
+            const prefixMatch = val.match(/^>?(yt|youtube|gh|github|g|web|wiki|sys)\s+(.*)/i)
+            if (prefixMatch) {
+              const p = prefixMatch[1].toLowerCase()
+              const normalized = p === 'youtube' ? 'yt' : p === 'github' ? 'gh' : p === 'web' ? 'g' : p
+              setActivePrefix(normalized)
+              setQuery(prefixMatch[2])
+              setSelectedIndex(0)
+              return
+            }
             if (val.toLowerCase().startsWith('ask:')) {
               setIsAskMode(true)
               setQuery(val.slice(4).trim())
+              setSelectedIndex(0)
+              return
             }
+            setQuery(val)
+            setSelectedIndex(0)
           }}
-          onKeyDown={onKeyDown}
+          onKeyDown={(e) => {
+            if (e.key === 'Backspace' && !query && activePrefix) {
+              e.preventDefault()
+              setActivePrefix(null)
+              return
+            }
+            onKeyDown?.(e)
+          }}
           onClear={() => {
             setQuery('')
+            setActivePrefix(null)
             setIsAskMode(false)
             setSelectedIndex(0)
           }}
           isAskMode={isAskMode}
           onToggleAsk={() => setIsAskMode((prev) => !prev)}
-          compactMode={compactMode}
-          onToggleCompact={toggleCompactMode}
-          hotkeyLabel="⌥ Space"
+          expandedFeatures={expandedFeatures}
+          onToggleExpanded={toggleExpandedFeatures}
+          hotkeyLabel={localStorage.getItem('amethyst_custom_shortcut') || 'Alt+Shift+Space'}
         />
 
         {/* Mode Tabs (when not in Ask or Approval mode, and not collapsed in bar-only mode) */}
         {!isBarOnly && !isAskMode && !pendingConfirmation && (
-          <DamonModes activeTab={activeTab} onSelectTab={(t) => { setActiveTab(t); setSelectedIndex(0); }} />
+          <DamonModes
+            activeTab={activePrefix === 'yt' ? 'web' : activePrefix === 'gh' ? 'web' : activeTab}
+            onSelectTab={(t) => {
+              setActiveTab(t)
+              setActivePrefix(null)
+              setSelectedIndex(0)
+            }}
+          />
         )}
 
         {/* Body Content Area (hidden in clean bar mode until typed) */}
@@ -953,6 +1042,21 @@ export default function CommandPalette({ bare = false }) {
                 selectedIndex={selectedIndex}
                 getItemIndex={getItemIndex}
               />
+            ) : activePrefix === 'yt' || activeTab === 'youtube' ? (
+              <YouTubeBentoView
+                results={youtubeResults}
+                loading={youtubeLoading}
+                activeIndex={selectedIndex}
+                onSelect={(item) => executeItem(item)}
+                onToast={toast}
+              />
+            ) : activePrefix === 'gh' || activeTab === 'github' ? (
+              <GitHubResultsView
+                results={githubResults}
+                loading={githubLoading}
+                activeIndex={selectedIndex}
+                onSelect={(item) => executeItem(item)}
+              />
             ) : activeTab === 'apps' ? (
               <DamonAppsView
                 apps={filteredApps.length > 0 ? filteredApps : installedApps}
@@ -977,7 +1081,7 @@ export default function CommandPalette({ bare = false }) {
                 selectedIndex={selectedIndex}
                 getItemIndex={getItemIndex}
               />
-            ) : activeTab === 'web' ? (
+            ) : activePrefix === 'g' || activeTab === 'web' ? (
               <DamonWebView
                 query={query}
                 selectedIndex={selectedIndex}
@@ -1003,7 +1107,7 @@ export default function CommandPalette({ bare = false }) {
                 selectedIndex={selectedIndex}
                 onExecuteAction={(act) => executeItem(act)}
               />
-            ) : !query.trim() ? (
+            ) : !query.trim() && !activePrefix ? (
               <DamonRecents
                 recents={recents}
                 continueItems={continueItems}
@@ -1021,6 +1125,7 @@ export default function CommandPalette({ bare = false }) {
             ) : (
               <DamonUniversalResults
                 query={query}
+                mathResult={mathResult}
                 topHit={topHit}
                 libraryItems={filteredLibrary}
                 fileItems={filteredFiles}

@@ -43,6 +43,7 @@ function AppIconRenderer({ icon, iconUrl, title, isApp = false, isMath = false }
 
 export default function DamonUniversalResults({
   query,
+  mathResult,
   topHit,
   libraryItems = [],
   fileItems = [],
@@ -53,8 +54,85 @@ export default function DamonUniversalResults({
   selectedIndex,
   getItemIndex,
 }) {
+  const cleanQ = (query || '').trim()
+
+  const quickSearchSuggestions = cleanQ
+    ? [
+        {
+          id: 'sugg-web',
+          type: 'web',
+          title: `Search the web for “${cleanQ}”`,
+          subtitle: 'DuckDuckGo / Web search',
+          icon: 'globe',
+          color: '#3b82f6',
+          url: `https://duckduckgo.com/?q=${encodeURIComponent(cleanQ)}`,
+        },
+        {
+          id: 'sugg-yt',
+          type: 'web',
+          title: `Search YouTube for “${cleanQ}”`,
+          subtitle: 'Videos & tutorials',
+          icon: 'play',
+          color: '#ef4444',
+          url: `https://www.youtube.com/results?search_query=${encodeURIComponent(cleanQ)}`,
+        },
+        {
+          id: 'sugg-gh',
+          type: 'web',
+          title: `Search GitHub for “${cleanQ}”`,
+          subtitle: 'Repositories & code',
+          icon: 'code',
+          color: '#8b5cf6',
+          url: `https://github.com/search?q=${encodeURIComponent(cleanQ)}`,
+        },
+        {
+          id: 'sugg-ask',
+          type: 'ask',
+          title: `Ask Amethyst: “${cleanQ}”`,
+          subtitle: 'AI reasoning & synthesis',
+          icon: 'spark',
+          color: '#7132f5',
+          isAsk: true,
+          askQuery: cleanQ,
+        },
+      ]
+    : []
+
   return (
     <div className="damon-universal-results">
+      {/* 0. Calculator Syntax Error / Math Result */}
+      {mathResult?.type === 'math-error' && (
+        <div className="damon-section-group">
+          <div className="damon-section-header">
+            <div className="damon-section-title-wrap">
+              <span>Calculator</span>
+            </div>
+          </div>
+          <div className="damon-list-container">
+            <div
+              className="damon-row is-error"
+              style={{
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                cursor: 'default',
+              }}
+            >
+              <div className="damon-row-icon-wrap" style={{ background: 'rgba(239, 68, 68, 0.18)', color: '#ef4444' }}>
+                <Icon name="alert-triangle" size={17} />
+              </div>
+              <div className="damon-row-main">
+                <div className="damon-row-title" style={{ color: '#ef4444' }}>
+                  {mathResult.error}
+                </div>
+                <div className="damon-row-subtitle" style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11 }}>
+                  Expression: {mathResult.expression}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 1. Top Hit */}
       {topHit && (
         <div className="damon-section-group">
@@ -93,6 +171,50 @@ export default function DamonUniversalResults({
                 </button>
               )
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* 1.5 Top Search Suggestions (Web, YouTube, GitHub, Ask) */}
+      {quickSearchSuggestions.length > 0 && (
+        <div className="damon-section-group">
+          <div className="damon-section-header">
+            <div className="damon-section-title-wrap">
+              <span>Suggestions</span>
+            </div>
+          </div>
+
+          <div className="damon-list-container">
+            {quickSearchSuggestions.map((item) => {
+              const idx = getItemIndex(item)
+              const isSelected = selectedIndex === idx
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`damon-row palette-item${isSelected ? ' is-selected' : ''}`}
+                  onClick={() => onSelectResult(item)}
+                >
+                  <div
+                    className="damon-row-icon-wrap"
+                    style={{
+                      background: `${item.color}22`,
+                      color: item.color,
+                      borderRadius: 8,
+                    }}
+                  >
+                    <Icon name={item.icon} size={16} />
+                  </div>
+                  <div className="damon-row-main">
+                    <div className="damon-row-title">{item.title}</div>
+                    <div className="damon-row-subtitle">{item.subtitle}</div>
+                  </div>
+                  <div className="damon-row-trailing">
+                    <Icon name="arrow-up-right" size={14} />
+                  </div>
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
@@ -324,84 +446,6 @@ export default function DamonUniversalResults({
         </div>
       )}
 
-      {/* 7. Web & AI Fallback Actions */}
-      {query && (
-        <div className="damon-section-group">
-          <div className="damon-section-header">
-            <div className="damon-section-title-wrap">
-              <span>Actions & Search</span>
-            </div>
-          </div>
-
-          <div className="damon-list-container">
-            {/* Ask AI row */}
-            {(() => {
-              const askItem = {
-                id: 'ask-amethyst-fallback',
-                type: 'ask',
-                title: `Ask Amethyst: “${query}”`,
-                subtitle: 'AI reasoning, answer, and follow-ups',
-                isAsk: true,
-              }
-              const idx = getItemIndex(askItem)
-              const isSelected = selectedIndex === idx
-
-              return (
-                <button
-                  key="ask-amethyst-fallback"
-                  type="button"
-                  className={`damon-row palette-item${isSelected ? ' is-selected' : ''}`}
-                  onClick={() => onSelectResult(askItem)}
-                >
-                  <div className="damon-row-icon-wrap" style={{ background: 'rgba(113, 50, 245, 0.12)', color: '#7132f5' }}>
-                    <Icon name="spark" size={17} />
-                  </div>
-                  <div className="damon-row-main">
-                    <div className="damon-row-title">Ask Amethyst: “{query}”</div>
-                    <div className="damon-row-subtitle">AI reasoning, answer, and follow-ups</div>
-                  </div>
-                  <div className="damon-row-trailing">
-                    <span className="damon-row-shortcut">↵</span>
-                  </div>
-                </button>
-              )
-            })()}
-
-            {/* Web Search row */}
-            {(() => {
-              const webItem = {
-                id: 'web-fallback',
-                type: 'web',
-                title: `Search the web for “${query}”`,
-                subtitle: 'Default search engine',
-                url: `https://www.google.com/search?q=${encodeURIComponent(query)}`,
-              }
-              const idx = getItemIndex(webItem)
-              const isSelected = selectedIndex === idx
-
-              return (
-                <button
-                  key="web-fallback"
-                  type="button"
-                  className={`damon-row palette-item${isSelected ? ' is-selected' : ''}`}
-                  onClick={() => onSelectResult(webItem)}
-                >
-                  <div className="damon-row-icon-wrap">
-                    <Icon name="globe" size={17} />
-                  </div>
-                  <div className="damon-row-main">
-                    <div className="damon-row-title">Search the web for “{query}”</div>
-                    <div className="damon-row-subtitle">Default search engine</div>
-                  </div>
-                  <div className="damon-row-trailing">
-                    <Icon name="arrow-up-right" size={16} />
-                  </div>
-                </button>
-              )
-            })()}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
