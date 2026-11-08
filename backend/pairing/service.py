@@ -423,6 +423,7 @@ class PairingService:
                 "drive": {
                     "root_folder_id": root_id,
                     "inbox_folder_id": inbox_id,
+                    "connected": bool(root_id),
                 },
                 "prompts": {
                     "summary": DEFAULT_SUMMARY_PROMPT,

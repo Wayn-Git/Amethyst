@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, appendAuthToken, getBase } from '../../api.js'
 import { safeStorage } from '../../lib/storage.js'
+import Icon from '../../components/Icon.jsx'
 import {
   getStoredCollections,
   loadCollectionsFromStore,
@@ -58,27 +59,44 @@ function resolveThumbnail(item) {
       return `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`
     }
   }
-  const hostBase = getResolvedBase()
-  // 2. Direct external thumbnail URL (do not append local Amethyst auth tokens to external CDNs)
+
+  // 2. Direct external or data URL thumbnail
   if (item.thumbnail_url) {
-    if (item.thumbnail_url.startsWith('http')) return item.thumbnail_url
-    if (item.thumbnail_url.startsWith('/api')) {
+    if (item.thumbnail_url.startsWith('http') || item.thumbnail_url.startsWith('data:')) {
+      return item.thumbnail_url
+    }
+  }
+
+  // 3. Fallback to image, slide, or poster in item.resources
+  let resList = item.resources
+  if (typeof resList === 'string') {
+    try { resList = JSON.parse(resList) } catch { resList = [] }
+  }
+  if (Array.isArray(resList)) {
+    for (const r of resList) {
+      if (r && typeof r === 'object') {
+        const u = r.remote_url || r.url
+        if (u && typeof u === 'string' && u.startsWith('http') && !u.includes('.mp4') && (r.type === 'slide' || r.type === 'image' || r.type === 'avatar')) {
+          return u
+        }
+      }
+    }
+  }
+
+  const hostBase = getResolvedBase()
+  // 4. Amethyst local thumbnail endpoint if LAN host available
+  if (hostBase && (item.thumbnail_path || item.has_thumbnail || item.id)) {
+    if (item.thumbnail_url?.startsWith('/api')) {
       return appendAuthToken(`${hostBase}${item.thumbnail_url}`)
     }
-    return api.thumbnailUrl ? api.thumbnailUrl(item.id) : item.thumbnail_url
+    return appendAuthToken(`${hostBase}/api/library/${item.id}/thumbnail`)
   }
-  // 3. Amethyst local thumbnail endpoint
-  if (item.thumbnail_path || item.has_thumbnail || item.id) {
-    if (hostBase) {
-      return appendAuthToken(`${hostBase}/api/library/${item.id}/thumbnail`)
-    }
-    return api.thumbnailUrl ? api.thumbnailUrl(item.id) : ''
-  }
-  // 4. Drive / Cloud poster frame fallback
+
+  // 5. Drive / Cloud poster frame fallback
   if (item.external_id || item.drive_id) {
     return resolvePosterFrame(item)
   }
-  return PLACEHOLDER_THUMBNAIL
+  return ''
 }
 
 function resolveCollectionCover(collection) {
@@ -100,7 +118,7 @@ function resolveCollectionCover(collection) {
   return ''
 }
 
-export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
+export default function MobileLibrary({ onSelectItem, onOpenAsk, onOpenCapture }) {
   const [items, setItems] = useState(() => {
     try {
       const stored = getStoredCollections()
@@ -116,6 +134,7 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
   const [lastSynced, setLastSynced] = useState(() => getLastSyncedTime())
   const [counts, setCounts] = useState({})
   const [activeTab, setActiveTab] = useState('saved') // 'saved' | 'collections'
+  const [selectedCollection, setSelectedCollection] = useState(null)
   const [filter, setFilter] = useState('all') // 'all' | 'video' | 'article' | 'post'
   const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -203,6 +222,23 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
       return true
     })
   }, [items, filter, query])
+
+  // Items for currently selected collection
+  const collectionItems = useMemo(() => {
+    if (!selectedCollection) return []
+    const colTitle = (selectedCollection.title || selectedCollection.name || '').toLowerCase()
+    const colId = selectedCollection.id
+    return items.filter((it) => {
+      if (colId !== undefined && it.collection_id === colId) return true
+      if (Array.isArray(it.collections)) {
+        return it.collections.some((c) => String(c).toLowerCase() === colTitle)
+      }
+      if (Array.isArray(it.collection_details)) {
+        return it.collection_details.some((c) => (colId !== undefined && c.id === colId) || String(c.title).toLowerCase() === colTitle)
+      }
+      return false
+    })
+  }, [items, selectedCollection])
 
   // Clean chronological grouping: Today, Yesterday, This Week, and Month groups
   const dateGroups = useMemo(() => {
@@ -421,7 +457,7 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
             className="ib"
             aria-label="Add"
             style={{ width: 38, height: 38 }}
-            onClick={onOpenAsk}
+            onClick={onOpenCapture || onOpenAsk}
           >
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M5 12h14" />
@@ -502,7 +538,10 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
       <div className="seg">
         <span
           className={activeTab === 'saved' ? 'on' : ''}
-          onClick={() => setActiveTab('saved')}
+          onClick={() => {
+            setActiveTab('saved')
+            setSelectedCollection(null)
+          }}
         >
           Saved ({filteredItems.length})
         </span>
@@ -609,8 +648,61 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
             </div>
           )}
         </>
+      ) : selectedCollection ? (
+        <div className="col" style={{ gap: 14 }}>
+          {/* Collection Detail Header with Back Button */}
+          <div className="r sp" style={{ alignItems: 'center' }}>
+            <button
+              type="button"
+              className="ch glass"
+              style={{
+                height: 38,
+                padding: '0 14px',
+                fontSize: 13,
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                border: 'none',
+                cursor: 'pointer',
+              }}
+              onClick={() => setSelectedCollection(null)}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+              Collections
+            </button>
+
+            <span className="m" style={{ fontSize: 13 }}>
+              {collectionItems.length} {collectionItems.length === 1 ? 'item' : 'items'}
+            </span>
+          </div>
+
+          <div>
+            <h2 className="h" style={{ fontSize: 24, margin: 0 }}>
+              {selectedCollection.title || selectedCollection.name}
+            </h2>
+            {selectedCollection.description && (
+              <div className="m" style={{ marginTop: 4, fontSize: 13 }}>
+                {selectedCollection.description}
+              </div>
+            )}
+          </div>
+
+          {/* Collection Items List */}
+          {collectionItems.length > 0 ? (
+            <div className="c" style={{ padding: '2px 16px' }}>
+              {collectionItems.map((item, idx) => renderItemCard(item, idx, collectionItems))}
+            </div>
+          ) : (
+            <div className="c m" style={{ textAlign: 'center', padding: 36, background: '#FFFFFF', borderRadius: 18 }}>
+              No items in this collection yet.
+            </div>
+          )}
+        </div>
       ) : (
-        /* Collections Grid with real cover thumbnails */
+        /* Collections Grid with real cover thumbnails or icon logos */
         <div className="g2" style={{ rowGap: 18 }}>
           {lists.length > 0 ? (
             lists.map((collection, idx) => {
@@ -622,20 +714,22 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
                   className="col"
                   style={{ gap: 8, cursor: 'pointer' }}
                   whileTap={{ scale: 0.97 }}
+                  onClick={() => setSelectedCollection(collection)}
                 >
                   <div
                     style={{
                       width: '100%',
                       height: 120,
                       borderRadius: 24,
-                      background: idx % 2 === 0 ? '#111113' : '#E5E5EA',
-                      color: idx % 2 === 0 ? '#fff' : '#1D1D1F',
+                      background: idx % 2 === 0 ? 'linear-gradient(135deg, #1C1C1E 0%, #2C2C2E 100%)' : 'linear-gradient(135deg, #2441FF 0%, #16167A 100%)',
+                      color: '#fff',
                       overflow: 'hidden',
                       flex: 'none',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       position: 'relative',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
                     }}
                   >
                     {coverThumb ? (
@@ -649,11 +743,21 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
                         }}
                       />
                     ) : (
-                      <svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-                        <circle cx="50" cy="50" r="14" fill="none" stroke="currentColor" strokeOpacity="0.4" strokeWidth="2" />
-                        <circle cx="50" cy="50" r="28" fill="none" stroke="currentColor" strokeOpacity="0.4" strokeWidth="2" />
-                        <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeOpacity="0.4" strokeWidth="2" />
-                      </svg>
+                      <div
+                        style={{
+                          width: 52,
+                          height: 52,
+                          borderRadius: 16,
+                          background: 'rgba(255,255,255,0.18)',
+                          backdropFilter: 'blur(8px)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#fff',
+                        }}
+                      >
+                        <Icon name={collection.icon || 'folder'} size={28} />
+                      </div>
                     )}
                   </div>
                   <div>

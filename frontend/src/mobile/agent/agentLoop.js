@@ -25,7 +25,21 @@ export async function runAgentTurn({
   http = undefined,
   maxSteps = DEFAULT_MAX_STEPS,
 }) {
-  // 1. Validate bundle
+  // 1. Check network connectivity
+  const isOnline = (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean') ? navigator.onLine : true
+  if (isOnline === false) {
+    const errorMsg = 'Offline — AI generation paused until internet reconnected.'
+    onEvent({
+      type: 'error',
+      error: errorMsg,
+      offline: true,
+    })
+    const err = new Error(errorMsg)
+    err.offline = true
+    throw err
+  }
+
+  // 2. Validate bundle
   if (!bundle || !bundle.device_id || !bundle.llm) {
     const errorMsg = 'Pair with your PC to start using the mobile agent.'
     onEvent({
@@ -38,7 +52,7 @@ export async function runAgentTurn({
     throw err
   }
 
-  // 2. Resolve or create local conversation
+  // 3. Resolve or create local conversation
   let conversation = null
   if (conversationId) {
     conversation = await getConversation(conversationId)

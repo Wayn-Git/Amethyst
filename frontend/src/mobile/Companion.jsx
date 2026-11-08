@@ -221,12 +221,12 @@ export default function Companion({ onUnpair }) {
     try {
       const next = (await records('snapshot'))[0]?.value || {}
 
-      // Requirement 1: Remove PC-capability gating for library; load from Drive/Composio/API directly
+      // Load full items from API or Drive/Composio sync without stripping metadata
       let loadedItems = null
       try {
-        const libRes = await api.library({ limit: 100 }).catch(() => null)
+        const libRes = await api.library({ limit: 500 }).catch(() => null)
         if (libRes?.items && libRes.items.length > 0) {
-          loadedItems = libRes.items.map(({ id, uuid, title, summary, notes, url }) => ({ id, uuid, title, summary, notes, url }))
+          loadedItems = libRes.items
         }
       } catch {}
 
@@ -234,7 +234,7 @@ export default function Companion({ onUnpair }) {
         try {
           const syncRes = await syncCollections({ apiClient: api })
           if (syncRes?.store?.items?.length) {
-            loadedItems = syncRes.store.items.map(({ id, uuid, title, summary, notes, url }) => ({ id, uuid, title, summary, notes, url }))
+            loadedItems = syncRes.store.items
           }
         } catch {}
       }
@@ -385,7 +385,8 @@ export default function Companion({ onUnpair }) {
   const permissions = connection?.permissions || {}
   const currentPath = transportState?.path || (connection ? 'direct' : 'relayed')
   const hideTopStatus =
-    (tab === 'library' && (librarySubView === 'item' || librarySubView === 'ask')) ||
+    tab === 'today' ||
+    tab === 'library' ||
     (tab === 'agent' && activeSession) ||
     (tab === 'devices' && pcSubView === 'terminal')
 
@@ -573,6 +574,7 @@ export default function Companion({ onUnpair }) {
                   setLibrarySubView('item')
                 }}
                 onOpenAsk={() => setLibrarySubView('ask')}
+                onOpenCapture={() => setQuickCaptureOpen(true)}
               />
             )
           )}

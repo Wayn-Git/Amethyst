@@ -5,13 +5,14 @@
  */
 
 export class TransportManager {
-  constructor({ getHostUrl, getToken, onStateChange } = {}) {
+  constructor({ getHostUrl, getToken, onStateChange, isOnline } = {}) {
     this.getHostUrl = getHostUrl || (() => '')
     this.getToken = getToken || (() => '')
     this.onStateChange = onStateChange || (() => {})
+    this.isOnline = isOnline || (() => (typeof navigator !== 'undefined' ? Boolean(navigator.onLine) : true))
 
     this._state = {
-      path: 'offline',
+      path: 'offline', // 'direct' | 'standalone' | 'offline'
       latency: -1,
       lastProbe: 0,
       hostUrl: '',
@@ -21,6 +22,8 @@ export class TransportManager {
 
     this._probeTimer = null
     this._probing = false
+    this._onOnline = null
+    this._onOffline = null
   }
 
   getState() {
@@ -83,13 +86,17 @@ export class TransportManager {
       }
     }
 
-    // 2. Direct LAN probe failed or not configured; offline
+    // 2. Direct LAN probe failed or not configured.
+    // Check if network is online (Cloud Standalone) or completely offline.
+    const online = this.isOnline()
+    const nextPath = online ? 'standalone' : 'offline'
+
     this._state.lastProbe = Date.now()
-    this._state.path = 'offline'
+    this._state.path = nextPath
     this._state.latency = -1
     this._probing = false
     this.onStateChange(this.getState())
-    return 'offline'
+    return nextPath
   }
 
   /**
@@ -112,7 +119,7 @@ export class TransportManager {
       const sub = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`
       targetUrl = `${state.hostUrl}/api${sub}`
     } else {
-      throw new Error('No transport available')
+      throw new Error(state.path === 'standalone' ? 'PC host not reachable on LAN' : 'No transport available')
     }
 
     return fetch(targetUrl, {
@@ -137,7 +144,12 @@ export class TransportManager {
 
     if (typeof window !== 'undefined') {
       this._onOnline = () => this.probe().catch(() => {})
+      this._onOffline = () => {
+        this._state.path = 'offline'
+        this.onStateChange(this.getState())
+      }
       window.addEventListener('online', this._onOnline)
+      window.addEventListener('offline', this._onOffline)
     }
   }
 
@@ -146,9 +158,15 @@ export class TransportManager {
       clearInterval(this._probeTimer)
       this._probeTimer = null
     }
-    if (typeof window !== 'undefined' && this._onOnline) {
-      window.removeEventListener('online', this._onOnline)
-      this._onOnline = null
+    if (typeof window !== 'undefined') {
+      if (this._onOnline) {
+        window.removeEventListener('online', this._onOnline)
+        this._onOnline = null
+      }
+      if (this._onOffline) {
+        window.removeEventListener('offline', this._onOffline)
+        this._onOffline = null
+      }
     }
   }
 }

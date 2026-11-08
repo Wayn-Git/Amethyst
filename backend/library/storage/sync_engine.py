@@ -539,12 +539,94 @@ class LibrarySyncEngine:
         conn = get_connection()
         rows = conn.execute("SELECT * FROM library_items ORDER BY id ASC").fetchall()
         items: list[dict[str, Any]] = []
+        import base64
         for r in rows:
             d = dict(r)
             d.pop("document_id", None)
             d.pop("text_path", None)
-            d.pop("thumbnail_path", None)
+            th_path = d.pop("thumbnail_path", None)
             d.pop("media_path", None)
+
+            # Preserve & populate thumbnail_url for mobile off-LAN access
+            thumb_url = None
+            raw_res = d.get("resources")
+            parsed_res = []
+            if raw_res:
+                try:
+                    parsed_res = json.loads(raw_res) if isinstance(raw_res, str) else raw_res
+                except Exception:
+                    parsed_res = []
+
+            # 1. YouTube direct thumbnail
+            if d.get("url"):
+                yt_m = re.search(r"(?:watch\?v=|shorts/|youtu\.be/)([\w-]{11})", d["url"])
+                if yt_m:
+                    thumb_url = f"https://img.youtube.com/vi/{yt_m.group(1)}/hqdefault.jpg"
+
+            # 2. External thumbnail, avatar, or slide from resources
+            if not thumb_url and parsed_res:
+                for res in parsed_res:
+                    if not isinstance(res, dict):
+                        continue
+                    r_type = res.get("type")
+                    r_url = res.get("url") or ""
+                    r_remote = res.get("remote_url") or ""
+                    if r_type in ("slide", "image", "avatar") and r_url.startswith("http"):
+                        thumb_url = r_url
+                        break
+                    if r_remote.startswith("http"):
+                        thumb_url = r_remote
+                        break
+
+            # 3. Local disk thumbnail embedded as compact base64 data URI for instant offline display
+            if not thumb_url and (th_path or d.get("id")):
+                cand_path = None
+                if th_path:
+                    p = Path(th_path).expanduser()
+                    if p.is_file():
+                        cand_path = p
+                    else:
+                        opt = p.parent / f"{int(d['id']):06d}-thumb-opt.jpg"
+                        if opt.is_file():
+                            cand_path = opt
+                        else:
+                            reg = p.parent / f"{int(d['id']):06d}-thumb.jpg"
+                            if reg.is_file():
+                                cand_path = reg
+                if not cand_path and d.get("id"):
+                    from backend.library.store import thumbnail_path
+                    try:
+                        p = thumbnail_path(d["id"])
+                        if p and p.is_file():
+                            cand_path = p
+                    except Exception:
+                        pass
+
+                if cand_path and cand_path.is_file():
+                    try:
+                        import io
+                        from PIL import Image
+                        im = Image.open(cand_path)
+                        im.thumbnail((320, 240))
+                        buf = io.BytesIO()
+                        im.convert("RGB").save(buf, format="JPEG", quality=75, optimize=True)
+                        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+                        thumb_url = f"data:image/jpeg;base64,{b64}"
+                    except Exception:
+                        try:
+                            if cand_path.stat().st_size <= 200 * 1024:
+                                b64 = base64.b64encode(cand_path.read_bytes()).decode("ascii")
+                                mime = "image/jpeg" if cand_path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
+                                thumb_url = f"data:{mime};base64,{b64}"
+                        except Exception:
+                            pass
+
+            # 4. Fallback to API endpoint
+            if not thumb_url and (th_path or d.get("id")):
+                thumb_url = f"/api/library/{d['id']}/thumbnail"
+
+            d["thumbnail_url"] = thumb_url
+            d["has_thumbnail"] = bool(thumb_url or th_path)
             items.append(d)
 
         lists = [dict(r) for r in conn.execute("SELECT * FROM library_lists ORDER BY id ASC").fetchall()]
@@ -569,17 +651,16 @@ class LibrarySyncEngine:
                 file_id = existing["files"][0]["id"]
 
             if file_id:
-                await self.bridge._execute(
-                    "GOOGLEDRIVE_UPDATE_FILE",
-                    {"file_id": file_id, "text_content": catalog_bytes.decode("utf-8")},
-                )
-            else:
-                await self.bridge.upload_file(
-                    name="library-catalog.json",
-                    content=catalog_bytes,
-                    mime_type="application/json",
-                    parent_id=root_folder_id,
-                )
+                try:
+                    await self.bridge.delete_file(file_id)
+                except Exception:
+                    pass
+            await self.bridge.upload_file(
+                name="library-catalog.json",
+                content=catalog_bytes,
+                mime_type="application/json",
+                parent_id=root_folder_id,
+            )
         except Exception as exc:
             log.warning("Could not export library-catalog.json to Drive: %s", exc)
 
@@ -682,12 +763,53 @@ class LibrarySyncEngine:
             LibrarySyncEngine._status["stage"] = "complete" if not LibrarySyncEngine._cancelled else "cancelled"
 
         except Exception as exc:
-            log.exception("Two-way library sync failed: %s", exc)
-            LibrarySyncEngine._status["stage"] = "failed"
-            LibrarySyncEngine._status["last_error"] = str(exc)
-            LibrarySyncEngine._status["errors"].append(str(exc))
+            err_str = str(exc).lower()
+            is_offline = any(term in err_str for term in ("connect", "network", "offline", "unreachable", "name resolution", "timeout", "ehostunreach", "enotfound"))
+            if is_offline:
+                log.info("Two-way library sync paused (offline): %s", exc)
+                LibrarySyncEngine._status["stage"] = "offline_paused"
+                LibrarySyncEngine._status["last_error"] = "Offline: Sync paused until internet reconnected"
+            else:
+                log.exception("Two-way library sync failed: %s", exc)
+                LibrarySyncEngine._status["stage"] = "failed"
+                LibrarySyncEngine._status["last_error"] = str(exc)
+                LibrarySyncEngine._status["errors"].append(str(exc))
         finally:
             LibrarySyncEngine._is_running = False
             LibrarySyncEngine._status["is_running"] = False
 
         return self.get_status()
+
+
+_EXPORT_TASK: asyncio.Task | None = None
+
+
+def schedule_catalog_export(delay: float = 3.0) -> None:
+    """Schedule background catalog export to Google Drive with debounce."""
+    global _EXPORT_TASK
+    try:
+        from backend.pairing.service import load_drive_inbox_settings
+        cfg = load_drive_inbox_settings()
+        root_id = cfg.root_folder_id
+        if not root_id:
+            return
+    except Exception:
+        return
+
+    async def _debounced_export():
+        try:
+            await asyncio.sleep(delay)
+            bridge = GoogleDriveBridge()
+            if bridge.is_connected():
+                engine = LibrarySyncEngine(bridge=bridge)
+                await engine.export_catalog_to_drive(root_id)
+        except Exception as exc:
+            log.debug("Debounced catalog export skipped: %s", exc)
+
+    try:
+        loop = asyncio.get_running_loop()
+        if _EXPORT_TASK and not _EXPORT_TASK.done():
+            _EXPORT_TASK.cancel()
+        _EXPORT_TASK = loop.create_task(_debounced_export())
+    except RuntimeError:
+        pass

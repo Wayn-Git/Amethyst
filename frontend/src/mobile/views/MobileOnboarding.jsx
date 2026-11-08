@@ -90,9 +90,9 @@ export default function MobileOnboarding({ onGetStarted, onHaveCode, direction =
       <div
         style={{
           position: 'absolute',
-          left: 32,
-          right: 32,
-          bottom: 'max(140px, calc(env(safe-area-inset-bottom, 24px) + 116px))',
+          left: 28,
+          right: 28,
+          bottom: 'max(186px, calc(env(safe-area-inset-bottom, 24px) + 154px))',
           textAlign: 'center',
           zIndex: 10,
         }}
@@ -100,10 +100,10 @@ export default function MobileOnboarding({ onGetStarted, onHaveCode, direction =
         <motion.h1
           style={{
             margin: 0,
-            fontSize: 'clamp(34px, 8.5vw, 42px)',
-            lineHeight: 1.06,
+            fontSize: 'clamp(30px, 7.8vw, 38px)',
+            lineHeight: 1.08,
             fontWeight: 800,
-            letterSpacing: '-0.045em',
+            letterSpacing: '-0.04em',
             color: '#fff',
           }}
           initial={{ y: 22, opacity: 0 }}
@@ -114,12 +114,12 @@ export default function MobileOnboarding({ onGetStarted, onHaveCode, direction =
         </motion.h1>
         <motion.p
           style={{
-            margin: '16px auto 0',
-            maxWidth: 290,
-            fontSize: 16,
-            lineHeight: 1.4,
+            margin: '14px auto 0',
+            maxWidth: 300,
+            fontSize: 15.5,
+            lineHeight: 1.42,
             fontWeight: 500,
-            color: 'rgba(255, 255, 255, 0.9)',
+            color: 'rgba(255, 255, 255, 0.92)',
           }}
           initial={{ y: 18, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}

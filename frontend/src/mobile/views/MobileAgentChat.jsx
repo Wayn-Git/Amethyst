@@ -22,6 +22,18 @@ export default function MobileAgentChat({ session, onBack }) {
   const [availableModels, setAvailableModels] = useState([])
   const [selectedModelId, setSelectedModelId] = useState(null)
   const [bundleData, setBundleData] = useState(null)
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
+
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true)
+    const onOffline = () => setIsOnline(false)
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+    }
+  }, [])
 
   const abortControllerRef = useRef(null)
   const messagesEndRef = useRef(null)
@@ -74,6 +86,11 @@ export default function MobileAgentChat({ session, onBack }) {
   const handleSend = async (textToSend) => {
     const text = (textToSend || input).trim()
     if (!text || sending) return
+
+    if (!isOnline || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+      setErrorBanner('Offline — Connect to the internet to chat with AI.')
+      return
+    }
 
     setInput('')
     setSending(true)
@@ -547,6 +564,28 @@ export default function MobileAgentChat({ session, onBack }) {
           </button>
         </div>
 
+        {/* Offline Warning Banner */}
+        {!isOnline && (
+          <div
+            style={{
+              padding: '6px 12px',
+              borderRadius: 12,
+              background: 'rgba(255, 149, 0, 0.12)',
+              border: '1px solid rgba(255, 149, 0, 0.25)',
+              color: '#D97706',
+              fontSize: 12,
+              fontWeight: 500,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              marginBottom: 6,
+            }}
+          >
+            <span>⚠️</span>
+            <span>Offline — Connect to internet to chat with AI</span>
+          </div>
+        )}
+
         {/* Input Pill */}
         <form
           onSubmit={(e) => {
@@ -581,7 +620,7 @@ export default function MobileAgentChat({ session, onBack }) {
             className="in"
             style={{ minWidth: 0, flex: 1, padding: '0 4px', fontSize: 15 }}
             aria-label="Message Amethyst"
-            placeholder="Message Amethyst"
+            placeholder={isOnline ? "Message Amethyst" : "Offline — AI generation unavailable"}
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
@@ -601,7 +640,7 @@ export default function MobileAgentChat({ session, onBack }) {
 
           <button
             type="submit"
-            disabled={!input.trim() || sending}
+            disabled={!input.trim() || sending || !isOnline}
             className="ib k"
             aria-label="Send"
             style={{
@@ -609,7 +648,7 @@ export default function MobileAgentChat({ session, onBack }) {
               height: 38,
               minWidth: 38,
               flexShrink: 0,
-              opacity: !input.trim() || sending ? 0.35 : 1,
+              opacity: !input.trim() || sending || !isOnline ? 0.35 : 1,
               transition: 'opacity 0.2s ease',
             }}
           >

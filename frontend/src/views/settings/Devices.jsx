@@ -73,6 +73,7 @@ export default function Devices() {
   const [activeTab, setActiveTab] = useState('control') // 'control' | 'ssh'
   const [showAddModal, setShowAddModal] = useState(false)
   const [modalTab, setModalTab] = useState('phone') // 'phone' | 'computer'
+  const [showPortHelp, setShowPortHelp] = useState(false)
   const [pairMode, setPairMode] = useState('lan')
 
   // Switches
@@ -1262,8 +1263,11 @@ export default function Devices() {
               {/* Modal Body */}
               <div className="conn-modal-body">
                 <h2 className="conn-modal-title">
-                  Approve on your device to control this computer remotely
+                  Pair with Amethyst
                 </h2>
+                <p style={{ fontSize: 12.5, color: '#8e8e93', margin: '-10px 0 16px 0', lineHeight: 1.4, maxWidth: 320 }}>
+                  {modalTab === 'phone' ? 'Scan to connect your phone over local Wi-Fi' : 'Enter this code on your phone or computer'}
+                </p>
 
                 {/* Segmented Control Tabs */}
                 <div className="conn-segmented-tabs">
@@ -1314,7 +1318,7 @@ export default function Devices() {
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.97 }}
                         transition={{ duration: 0.16 }}
-                        style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
                       >
                         {v2Status?.status === 'pending_approval' ? (
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '12px 10px', gap: 10, width: '100%' }}>
@@ -1413,19 +1417,6 @@ export default function Devices() {
                               </div>
                             </div>
 
-                            {v2Pairing.code && (
-                              <div style={{ marginTop: 8, fontSize: 13, fontWeight: 700, color: 'var(--text)', background: 'rgba(255, 255, 255, 0.06)', padding: '5px 14px', borderRadius: 999, border: '1px solid var(--hairline)', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <span style={{ color: 'var(--text-sub)', fontSize: 11, fontWeight: 600 }}>OR ENTER CODE:</span>
-                                <strong style={{ color: '#007aff', fontSize: 15, letterSpacing: '0.18em' }}>{v2Pairing.code.slice(0, 3)} {v2Pairing.code.slice(3)}</strong>
-                              </div>
-                            )}
-
-                            {v2Pairing.port && (
-                              <div style={{ marginTop: 4, fontSize: 11, fontWeight: 600, color: '#a1a1aa' }}>
-                                Port: <strong>{v2Pairing.port}</strong>
-                              </div>
-                            )}
-
                             <div className="conn-box-corner-tools">
                               <motion.button
                                 type="button"
@@ -1469,27 +1460,46 @@ export default function Devices() {
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.97 }}
                         transition={{ duration: 0.16 }}
-                        style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
                       >
-                        {invite ? (
+                        {v2Pairing?.code || invite?.secret ? (
                           <>
-                            <div className="conn-computer-code">
-                              {invite.secret
-                                ? invite.secret.replace(/[^A-Za-z0-9]/g, '').slice(0, 8).replace(/(.{4})/, '$1-').toUpperCase()
-                                : '93RK-GH4C'}
+                            <div className="conn-code-display-wrap">
+                              <div
+                                className="conn-code-display-number"
+                                title="Click to copy code"
+                                onClick={() => {
+                                  const c = v2Pairing?.code || invite?.secret
+                                  if (c) {
+                                    copyText(c)
+                                    toast('Pairing code copied', 'ok')
+                                  }
+                                }}
+                              >
+                                {v2Pairing?.code
+                                  ? `${v2Pairing.code.slice(0, 3)} ${v2Pairing.code.slice(3)}`
+                                  : invite.secret.replace(/[^A-Za-z0-9]/g, '').slice(0, 8).replace(/(.{4})/, '$1-').toUpperCase()}
+                              </div>
+
+                              <motion.button
+                                type="button"
+                                className="conn-code-copy-pill"
+                                onClick={() => {
+                                  const c = v2Pairing?.code || invite?.secret
+                                  if (c) {
+                                    copyText(c)
+                                    toast('Pairing code copied', 'ok')
+                                  }
+                                }}
+                                whileHover={{ scale: 1.04 }}
+                                whileTap={{ scale: 0.96 }}
+                              >
+                                <Icon name="copy" size={12} />
+                                <span>Copy Code</span>
+                              </motion.button>
                             </div>
 
                             <div className="conn-box-corner-tools">
-                              <motion.button
-                                type="button"
-                                className="conn-tool-btn"
-                                title="Copy code"
-                                onClick={() => handleCopyCode(invite.secret)}
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.92 }}
-                              >
-                                <Icon name="copy" size={13} />
-                              </motion.button>
                               <motion.button
                                 type="button"
                                 className="conn-tool-btn"
@@ -1517,23 +1527,37 @@ export default function Devices() {
                 {/* Instructions footer */}
                 <div className="conn-modal-instruction">
                   {modalTab === 'phone' ? (
-                    <span>
-                      {v2Pairing ? (
-                        <>
-                          Scan with your phone. Local Wi-Fi only (pinned self-signed TLS cert, port {v2Pairing.port}).
-                          {v2Status?.remaining_seconds !== undefined ? ` Window closes in ${v2Status.remaining_seconds}s.` : ''}
-                          <span style={{ display: 'block', marginTop: 4, fontSize: 11, color: '#71717a' }}>
-                            If connection fails, check that your PC firewall allows port {v2Pairing.port} (e.g. <code>sudo ufw allow {v2Pairing.port}/tcp</code>).
-                          </span>
-                        </>
-                      ) : (
-                        <>Point your phone’s camera at the QR code to connect directly over local Wi-Fi.</>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span>Point your camera or Amethyst companion at the QR code.</span>
+                      {v2Status?.remaining_seconds !== undefined && (
+                        <span className="conn-expiry-badge">
+                          <span className="conn-dot-pulse" />
+                          Expires in {v2Status.remaining_seconds}s
+                        </span>
                       )}
-                    </span>
+                      <button
+                        type="button"
+                        className="conn-help-toggle"
+                        onClick={() => setShowPortHelp((prev) => !prev)}
+                      >
+                        {showPortHelp ? 'Hide troubleshooting' : 'Trouble connecting?'}
+                      </button>
+                      {showPortHelp && v2Pairing?.port && (
+                        <span style={{ display: 'block', marginTop: 6, fontSize: 11, color: '#71717a', maxWidth: 320, lineHeight: 1.35 }}>
+                          Local Wi-Fi port {v2Pairing.port}. If your PC firewall blocks incoming LAN traffic, allow port {v2Pairing.port}/tcp.
+                        </span>
+                      )}
+                    </div>
                   ) : (
-                    <span>
-                      Click <strong>Add</strong> in the <strong>Settings &gt; Connections &gt; Control other devices</strong> tab on your other computer and enter this code
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span>Enter this 6-digit code on your companion device or computer.</span>
+                      {v2Status?.remaining_seconds !== undefined && (
+                        <span className="conn-expiry-badge">
+                          <span className="conn-dot-pulse" />
+                          Expires in {v2Status.remaining_seconds}s
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

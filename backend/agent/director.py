@@ -2572,6 +2572,8 @@ class Director:
                         clean_msg = f"{provider_name} timed out. Please try again."
                     elif "input stream" in str(raw_message).lower():
                         clean_msg = f"{provider_name} connection was interrupted. Please try again."
+                    elif kind == FailureKind.UNREACHABLE or any(t in provider_detail.lower() for t in ("resolution", "connect", "network", "offline", "unreachable")):
+                        clean_msg = f"Network offline: could not reach {provider_name}. Check your internet connection or start local Ollama."
                     else:
                         clean_msg = message
 

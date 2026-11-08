@@ -360,7 +360,7 @@ export default function MobileTasks() {
             </svg>
             <div style={{ fontWeight: 600, fontSize: 16 }}>Not connected</div>
             <div className="m" style={{ maxWidth: 260, margin: '6px auto 16px', lineHeight: 1.4 }}>
-              Connect your Microsoft To Do account to view and synchronize your tasks directly.
+              Microsoft To Do is not connected. Connect in PC Settings or sign in directly below to sync tasks.
             </div>
             {deviceFlow ? (
               <div style={{ padding: '12px', background: '#F2F2F7', borderRadius: '12px', margin: '8px 0' }}>
