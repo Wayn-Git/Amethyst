@@ -59,6 +59,7 @@ class PairingService:
         self._last_port: int | None = None
         self._last_qr_payload: dict[str, Any] | None = None
         self._last_qr_base64: str | None = None
+        self._pending_ack: dict[str, Any] | None = None
 
     def start_pairing(self) -> dict[str, Any]:
         """Start CONTRACT v2 pairing session.
@@ -104,6 +105,7 @@ class PairingService:
             code = f"{secrets.randbelow(900000) + 100000}"
             self._last_code = code
             self._last_bundle = None
+            self._pending_ack = None
 
             # 2. LAN IPv4 detection
             hosts = get_lan_ipv4_addresses()
@@ -435,6 +437,11 @@ class PairingService:
                     bundle["microsoft"] = ms_bundle
 
             self._last_bundle = bundle
+            self._pending_ack = {
+                "token": server.token,
+                "device_id": device_id,
+                "has_microsoft": bool("microsoft" in bundle),
+            }
 
             # Unblock phone response
             server.approve(bundle)
@@ -448,20 +455,22 @@ class PairingService:
     def confirm_pairing(self, device_id: str | None = None, token: str | None = None) -> dict[str, Any]:
         """Acknowledge pairing bundle receipt from phone, safely triggering one-way token handoff."""
         with self._lock:
-            valid = False
-            if token and self._last_token and hmac.compare_digest(token, self._last_token):
-                valid = True
-            elif device_id:
-                conn = get_connection()
-                row = conn.execute("SELECT id FROM devices WHERE id = ?", (device_id,)).fetchone()
-                if row:
-                    valid = True
+            if not self._pending_ack or not token:
+                raise ValueError("No pending pairing session to confirm or missing token")
 
-            if not valid and (token or device_id):
-                raise ValueError("Invalid pairing confirmation token or device_id")
+            if not hmac.compare_digest(str(token).strip(), self._pending_ack["token"]):
+                raise ValueError("Invalid pairing confirmation token")
 
-            from backend.auth import microsoft
-            microsoft.relinquish_refresh_token_after_handoff()
+            if device_id and str(device_id).strip() != self._pending_ack["device_id"]:
+                raise ValueError("Invalid pairing confirmation device_id")
+
+            has_ms = self._pending_ack.get("has_microsoft", False)
+            self._pending_ack = None
+            self._last_token = None
+
+            if has_ms:
+                from backend.auth import microsoft
+                microsoft.relinquish_refresh_token_after_handoff()
 
             if self._server and not self._server.is_closed:
                 self._server.close_async()
@@ -516,6 +525,7 @@ class PairingService:
     def deny_pairing(self) -> dict[str, Any]:
         """Deny pending pairing and close the server."""
         with self._lock:
+            self._pending_ack = None
             server = self._server
             if not server:
                 return {"ok": True, "status": "idle"}
@@ -526,6 +536,7 @@ class PairingService:
     def cancel_pairing(self) -> dict[str, Any]:
         """Close active pairing server."""
         with self._lock:
+            self._pending_ack = None
             if self._server:
                 self._server.close()
                 self._server = None

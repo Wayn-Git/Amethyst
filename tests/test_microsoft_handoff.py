@@ -213,3 +213,83 @@ def test_disconnect_clears_pc_vault():
     assert res.json()["ok"] is True
     assert microsoft.get_connection_status()["connected"] is False
     assert get_secret(microsoft.VAULT_KEY) is None
+
+
+def test_pairing_ack_auth_and_anti_replay():
+    """POST /api/pairing/v2/ack requires proof of pairing session and blocks bad/replayed acks."""
+    client = TestClient(app)
+
+    # 1. Setup Microsoft connection on PC
+    tokens = {
+        "access_token": "pc-access-token",
+        "refresh_token": "pc-refresh-token",
+        "expires_at": time.time() + 3600,
+        "scope": microsoft.DEFAULT_SCOPES,
+    }
+    set_secret(microsoft.VAULT_KEY, json.dumps(tokens))
+
+    # 2. Before any pairing is active: arbitrary caller cannot trigger handoff
+    empty_ack = client.post("/api/pairing/v2/ack", json={})
+    assert empty_ack.status_code == 400
+    assert microsoft.get_connection_status()["connected"] is True
+    assert json.loads(get_secret(microsoft.VAULT_KEY))["refresh_token"] == "pc-refresh-token"
+
+    # 3. Start pairing and approve
+    pairing_service.start_pairing()
+    valid_token = pairing_service._last_token
+    pairing_service._server.pending_device_label = "Phone"
+    appr = pairing_service.approve_pairing()
+    dev_id = appr["device_id"]
+
+    # 4. Bad token fails and does NOT wipe PC token
+    bad_ack = client.post("/api/pairing/v2/ack", json={"token": "wrong-token", "device_id": dev_id})
+    assert bad_ack.status_code == 400
+    assert microsoft.get_connection_status()["connected"] is True
+    assert json.loads(get_secret(microsoft.VAULT_KEY))["refresh_token"] == "pc-refresh-token"
+
+    # 5. Remote unauthenticated caller is blocked by RemoteCallerGuard
+    remote_ack = client.post(
+        "/api/pairing/v2/ack",
+        headers={"x-forwarded-for": "192.168.1.100"},
+        json={"token": valid_token, "device_id": dev_id},
+    )
+    assert remote_ack.status_code == 403
+    assert microsoft.get_connection_status()["connected"] is True
+
+    # 6. Valid ACK succeeds and relinquishes PC token
+    good_ack = client.post("/api/pairing/v2/ack", json={"token": valid_token, "device_id": dev_id})
+    assert good_ack.status_code == 200
+    assert good_ack.json()["ok"] is True
+    assert json.loads(get_secret(microsoft.VAULT_KEY))["refresh_token"] is None
+    assert json.loads(get_secret(microsoft.VAULT_KEY))["handed_off"] is True
+
+    # 7. Replayed ACK fails and does not error or re-wipe
+    replay_ack = client.post("/api/pairing/v2/ack", json={"token": valid_token, "device_id": dev_id})
+    assert replay_ack.status_code == 400
+
+
+def test_microsoft_bundle_auth_and_guard(caplog):
+    """GET /api/auth/microsoft/bundle is guarded by RemoteCallerGuard and never logs credentials."""
+    import logging
+    caplog.set_level(logging.DEBUG)
+
+    client = TestClient(app)
+
+    # 1. Remote unauthenticated caller receives 403
+    res_remote = client.get("/api/auth/microsoft/bundle", headers={"x-forwarded-for": "192.168.1.55"})
+    assert res_remote.status_code == 403
+
+    # 2. Handed-off PC returns connected: False
+    tokens = {
+        "access_token": None,
+        "refresh_token": None,
+        "handed_off": True,
+    }
+    set_secret(microsoft.VAULT_KEY, json.dumps(tokens))
+    res_handed = client.get("/api/auth/microsoft/bundle")
+    assert res_handed.status_code == 200
+    assert res_handed.json()["connected"] is False
+
+    # 3. Response is never logged
+    assert "pc-refresh-token" not in caplog.text
+
