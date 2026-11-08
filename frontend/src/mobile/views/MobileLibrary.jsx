@@ -2,6 +2,25 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, appendAuthToken, getBase } from '../../api.js'
 import { safeStorage } from '../../lib/storage.js'
+import {
+  getStoredCollections,
+  loadCollectionsFromStore,
+  syncCollections,
+  getCollectionsDisplayState,
+  getCollectionsCount,
+  getLastSyncedTime,
+  formatLastSyncedTime,
+  subscribeCollections,
+} from '../collectionsSync.js'
+import {
+  PLACEHOLDER_THUMBNAIL,
+  ERROR_THUMBNAIL,
+  resolvePosterFrame,
+} from '../driveMediaLoader.js'
+import {
+  getConnectionStatus,
+  formatConnectionLabel,
+} from '../connectionStatus.js'
 
 function formatSavedDate(dateStr) {
   if (!dateStr) return 'Recently'
@@ -55,7 +74,11 @@ function resolveThumbnail(item) {
     }
     return api.thumbnailUrl ? api.thumbnailUrl(item.id) : ''
   }
-  return ''
+  // 4. Drive / Cloud poster frame fallback
+  if (item.external_id || item.drive_id) {
+    return resolvePosterFrame(item)
+  }
+  return PLACEHOLDER_THUMBNAIL
 }
 
 function resolveCollectionCover(collection) {
@@ -80,13 +103,17 @@ function resolveCollectionCover(collection) {
 export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
   const [items, setItems] = useState(() => {
     try {
+      const stored = getStoredCollections()
+      if (stored.items?.length) return stored.items
       const cached = safeStorage.getItem('amethyst.cached_library')
       return cached ? JSON.parse(cached) : []
     } catch {
       return []
     }
   })
-  const [lists, setLists] = useState([])
+  const [lists, setLists] = useState(() => getStoredCollections().lists || [])
+  const [collectionsState, setCollectionsState] = useState(() => getCollectionsDisplayState())
+  const [lastSynced, setLastSynced] = useState(() => getLastSyncedTime())
   const [counts, setCounts] = useState({})
   const [activeTab, setActiveTab] = useState('saved') // 'saved' | 'collections'
   const [filter, setFilter] = useState('all') // 'all' | 'video' | 'article' | 'post'
@@ -97,43 +124,55 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
   const [syncNotice, setSyncNotice] = useState('')
   const [earlierLimit, setEarlierLimit] = useState(15)
 
+  // Subscribe to collections store changes
+  useEffect(() => {
+    loadCollectionsFromStore().catch(() => {})
+    const unsub = subscribeCollections((store) => {
+      setLists(store.lists || [])
+      if (Array.isArray(store.items) && store.items.length > 0) {
+        setItems(store.items)
+      }
+      setLastSynced(store.lastSyncedAt || null)
+      setCollectionsState(getCollectionsDisplayState())
+    })
+    return unsub
+  }, [])
+
   const loadLibrary = useCallback(async (isManualSync = false) => {
     if (isManualSync) setSyncing(true)
     try {
       if (isManualSync) {
-        // Trigger background Google Drive sync engine run if connected
         try {
           await api.post('/library/sync/start', {})
         } catch {}
       }
 
-      const [libRes, listsRes] = await Promise.allSettled([
-        api.library({ limit: 300 }),
-        api.get('/library/lists'),
-      ])
+      const syncResult = await syncCollections({
+        isManual: isManualSync,
+        apiClient: api,
+      })
 
-      let loadedCount = 0
-      if (libRes.status === 'fulfilled' && libRes.value) {
-        if (libRes.value.items) {
-          setItems(libRes.value.items)
-          loadedCount = libRes.value.items.length
+      if (syncResult && syncResult.store) {
+        setLists(syncResult.store.lists || [])
+        if (syncResult.store.items?.length) {
+          setItems(syncResult.store.items)
           try {
-            safeStorage.setItem('amethyst.cached_library', JSON.stringify(libRes.value.items))
+            safeStorage.setItem('amethyst.cached_library', JSON.stringify(syncResult.store.items))
           } catch {}
         }
-        if (libRes.value.counts) setCounts(libRes.value.counts)
+        setLastSynced(syncResult.lastSyncedAt)
       }
 
-      if (listsRes.status === 'fulfilled' && Array.isArray(listsRes.value)) {
-        setLists(listsRes.value)
-      }
+      setCollectionsState(getCollectionsDisplayState())
 
       if (isManualSync) {
-        setSyncNotice(`Synced ${loadedCount} items with Google Drive`)
+        const timeStr = formatLastSyncedTime(syncResult?.lastSyncedAt || new Date().toISOString())
+        setSyncNotice(`Synced ${syncResult?.itemsCount || items.length} items with Google Drive (${timeStr})`)
         setTimeout(() => setSyncNotice(''), 4000)
       }
     } catch (err) {
       console.warn('[MobileLibrary] Load failed:', err.message)
+      setCollectionsState(getCollectionsDisplayState())
       if (isManualSync) {
         setSyncNotice(`Sync notice: ${err.message}`)
         setTimeout(() => setSyncNotice(''), 4000)
@@ -142,7 +181,7 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
       setLoading(false)
       setSyncing(false)
     }
-  }, [])
+  }, [items.length])
 
   useEffect(() => {
     loadLibrary()
@@ -327,7 +366,12 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
     >
       {/* Top Header */}
       <div className="r sp">
-        <h1 className="h">Library</h1>
+        <div>
+          <h1 className="h" style={{ margin: 0 }}>Library</h1>
+          <div className="m" style={{ fontSize: 11.5, color: '#8E8E93', marginTop: 2 }}>
+            {lastSynced ? `Synced ${formatLastSyncedTime(lastSynced)}` : 'Not yet synced'}
+          </div>
+        </div>
         <div className="r" style={{ gap: 8 }}>
           {/* Real Sync Button */}
           <button
@@ -466,7 +510,7 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
           className={activeTab === 'collections' ? 'on' : ''}
           onClick={() => setActiveTab('collections')}
         >
-          Collections ({lists.length})
+          Collections ({collectionsState.label})
         </span>
       </div>
 
@@ -625,7 +669,13 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
             })
           ) : (
             <div className="c m" style={{ gridColumn: 'span 2', textAlign: 'center', padding: 24 }}>
-              No collections created yet.
+              {collectionsState.status === 'offline'
+                ? 'Offline · Collections unavailable without internet'
+                : collectionsState.status === 'expired'
+                ? 'Authentication expired · Reconnect Google Drive to sync'
+                : collectionsState.status === 'not connected'
+                ? 'Not connected · Connect Google Drive to sync collections'
+                : 'No collections created yet.'}
             </div>
           )}
         </div>

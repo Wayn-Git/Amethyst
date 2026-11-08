@@ -121,16 +121,35 @@ export function evaluateServiceStatus(service, data) {
 }
 
 /**
+ * Convert technical status code ('missing' | 'expired' | 'offline' | 'connected')
+ * to display string ('not connected' | 'expired' | 'offline' | 'connected').
+ */
+export function formatConnectionLabel(status) {
+  if (status === 'missing' || !status) return 'not connected'
+  if (status === 'expired') return 'expired'
+  if (status === 'offline') return 'offline'
+  if (status === 'connected') return 'connected'
+  return String(status)
+}
+
+/**
  * Synchronous read of current connections status object.
  * Returns: { googleDrive, composio, microsoftTodo }
  */
 export function getConnectionStatus() {
   const c = memoryConnections || {}
-  return {
+  const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false
+  const base = {
     googleDrive: evaluateServiceStatus('googleDrive', c.googleDrive),
     composio: evaluateServiceStatus('composio', c.composio),
     microsoftTodo: evaluateServiceStatus('microsoftTodo', c.microsoftTodo),
   }
+  if (isOffline) {
+    if (base.googleDrive === 'connected') base.googleDrive = 'offline'
+    if (base.composio === 'connected') base.composio = 'offline'
+    if (base.microsoftTodo === 'connected') base.microsoftTodo = 'offline'
+  }
+  return base
 }
 
 /**
@@ -140,7 +159,7 @@ export async function updateServiceConnection(service, data) {
   const current = await loadConnections()
   const next = {
     ...current,
-    [service]: data ? { ...(current[service] || {}), ...data, expired: false } : null,
+    [service]: data ? { ...(current[service] || {}), ...data, expired: data.expired ?? false } : null,
   }
   await saveConnections(next)
   return getConnectionStatus()
@@ -352,4 +371,103 @@ export async function getMicrosoftAccessToken({ httpPost } = {}) {
   }
 
   return ms.accessToken
+}
+
+export const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
+
+/**
+ * Refresh Google Drive access token using refresh_token.
+ */
+export async function refreshGoogleDriveToken({ httpPost } = {}) {
+  const current = await loadConnections()
+  const gd = current?.googleDrive
+  if (!gd?.refreshToken) {
+    await markServiceExpired('googleDrive')
+    const err = new Error('Token expired, reconnect Google Drive')
+    err.code = 'TOKEN_EXPIRED'
+    err.status = 401
+    throw err
+  }
+
+  const bodyParams = new URLSearchParams({
+    client_id: gd.clientId || gd.client_id || '',
+    refresh_token: gd.refreshToken,
+    grant_type: 'refresh_token',
+  })
+  if (gd.clientSecret || gd.client_secret) {
+    bodyParams.set('client_secret', gd.clientSecret || gd.client_secret)
+  }
+
+  try {
+    let data
+    if (httpPost) {
+      const res = await httpPost({
+        url: GOOGLE_TOKEN_ENDPOINT,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        data: bodyParams.toString(),
+      })
+      if (res.status >= 400) {
+        throw new Error(res.data?.error_description || `Google Drive refresh failed (${res.status})`)
+      }
+      data = res.data || res
+    } else {
+      const res = await fetch(GOOGLE_TOKEN_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: bodyParams.toString(),
+      })
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        const err = new Error(errBody.error_description || `Google Drive refresh failed (${res.status})`)
+        err.body = errBody
+        err.code = 'TOKEN_EXPIRED'
+        throw err
+      }
+      data = await res.json()
+    }
+
+    const expiresAt = Date.now() + ((data.expires_in || 3600) - 60) * 1000
+    const tokenPayload = {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token || gd.refreshToken,
+      expiresAt,
+      tokenType: data.token_type || 'Bearer',
+      expired: false,
+    }
+
+    await updateServiceConnection('googleDrive', tokenPayload)
+    return tokenPayload
+  } catch (err) {
+    await markServiceExpired('googleDrive')
+    throw err
+  }
+}
+
+/**
+ * Get valid Google Drive access token, refreshing if close to expiration.
+ */
+export async function getGoogleDriveAccessToken({ httpPost, forceRefresh = false } = {}) {
+  const current = await loadConnections()
+  const gd = current?.googleDrive
+  if (!gd || (!gd.accessToken && !gd.refreshToken)) {
+    const err = new Error('Not connected')
+    err.code = 'NOT_CONNECTED'
+    err.status = 401
+    throw err
+  }
+
+  const isExpired = gd.expired || !gd.accessToken || (gd.expiresAt && Date.now() >= gd.expiresAt) || forceRefresh
+  if (isExpired) {
+    if (gd.refreshToken) {
+      const refreshed = await refreshGoogleDriveToken({ httpPost })
+      return refreshed.accessToken
+    }
+    await markServiceExpired('googleDrive')
+    const err = new Error('Token expired, reconnect Google Drive')
+    err.code = 'TOKEN_EXPIRED'
+    err.status = 401
+    throw err
+  }
+
+  return gd.accessToken
 }
