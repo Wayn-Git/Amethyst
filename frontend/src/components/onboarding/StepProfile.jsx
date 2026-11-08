@@ -78,7 +78,7 @@ export default function StepProfile({ onNext, onBack }) {
       {/* Left Form Pane */}
       <div className="onb-pane-left">
         <AmethystLogo size={28} color="#ffffff" />
-        <p className="onb-eyebrow">Step 1 of 5 · Profile</p>
+        <p className="onb-eyebrow">Step 1 of 6 · Profile</p>
         <h1 className="onb-title">Make it yours</h1>
         <p className="onb-desc">
           Tell Amethyst who you are and how it should look. Changes apply right away.

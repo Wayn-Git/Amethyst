@@ -588,86 +588,92 @@
 .m-nav,
 .nav {
   position: fixed;
-  left: 16px;
-  right: 16px;
-  bottom: max(18px, env(safe-area-inset-bottom, 18px));
+  left: 12px;
+  right: 12px;
+  bottom: max(16px, env(safe-area-inset-bottom, 16px));
   display: flex;
   gap: 8px;
   align-items: center;
-  max-width: 448px;
+  max-width: 440px;
   margin: 0 auto;
   z-index: 100;
+  box-sizing: border-box;
   pointer-events: none;
 }
 
 .m-pill,
 .pill {
   flex: 1;
+  min-width: 0;
   height: 60px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(255, 255, 255, 0.58);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
-  backdrop-filter: blur(22px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.94);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.85);
   border-radius: 999px;
-  padding: 6px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  padding: 0 6px;
+  box-shadow: 0 1px 2px rgba(15, 15, 18, 0.06), 0 14px 34px rgba(40, 70, 160, 0.16);
   pointer-events: auto;
 }
 
 .m-pill button,
 .pill button,
 .pill a {
-  height: 48px;
-  min-width: 44px;
+  height: 44px;
+  flex: 1;
+  min-width: 0;
+  max-width: 44px;
   border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  color: var(--m-text-muted);
-  font-size: 13px;
+  color: #3A3C47;
+  font-size: 13.5px;
   font-weight: 600;
   background: transparent;
   border: 0;
   cursor: pointer;
-  padding: 0 10px;
+  padding: 0;
   text-decoration: none;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .m-pill button:active,
 .pill button:active {
-  transform: scale(0.94);
+  transform: scale(0.92);
 }
 
 .m-pill button.on,
 .pill button.on,
 .pill a.on {
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--m-accent-active);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14), inset 0 1px 0 #fff;
+  flex: none;
+  max-width: none;
+  background: #EEF3FF;
+  color: #0B63E5;
+  box-shadow: none;
   padding: 0 14px;
+  font-weight: 700;
 }
 
 .m-pill button.on svg,
 .pill button.on svg,
 .pill a.on svg {
-  color: var(--m-accent);
+  color: #0B63E5;
+  stroke: #0B63E5;
 }
 
 .m-fab,
 .fab {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: rgba(0, 113, 227, 0.9);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  backdrop-filter: blur(16px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  box-shadow: 0 10px 28px rgba(0, 113, 227, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  width: 58px;
+  height: 58px;
+  border-radius: 999px;
+  background: #1570EF;
+  box-shadow: 0 14px 30px rgba(21, 112, 239, 0.4);
   color: #fff;
   border: 0;
   display: flex;
@@ -797,3 +803,64 @@
   flex-shrink: 0;
   border-radius: 50%;
 }
+
+/* Mobile Markdown High Contrast Styling */
+.m-shell .md {
+  color: var(--m-text, #1D1D1F) !important;
+}
+
+.m-shell .md-p,
+.m-shell p.md-p {
+  color: var(--m-text, #1D1D1F) !important;
+  font-size: 14.5px !important;
+  line-height: 1.6 !important;
+  margin-bottom: 12px !important;
+}
+
+.m-shell .md-p strong,
+.m-shell .md strong {
+  color: #000000 !important;
+  font-weight: 600 !important;
+}
+
+.m-shell .md-h,
+.m-shell h1.md-h,
+.m-shell h2.md-h,
+.m-shell h3.md-h {
+  color: #000000 !important;
+  font-weight: 700 !important;
+  margin-top: 14px !important;
+  margin-bottom: 8px !important;
+}
+
+.m-shell .md-list,
+.m-shell .md-list li {
+  color: var(--m-text, #1D1D1F) !important;
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+}
+
+.m-shell .md-list li strong {
+  color: #000000 !important;
+}
+
+.m-shell .md code {
+  color: #0071E3 !important;
+  background: rgba(0, 113, 227, 0.08) !important;
+  padding: 2px 5px !important;
+  border-radius: 4px !important;
+  font-size: 13px !important;
+}
+
+.m-shell .md-pre-wrap {
+  background: #1C1C1E !important;
+  border: 1px solid rgba(0,0,0,0.08) !important;
+  border-radius: 14px !important;
+  margin: 10px 0 !important;
+}
+
+.m-shell .md-pre {
+  color: #F2F2F7 !important;
+  font-size: 12.5px !important;
+}
+

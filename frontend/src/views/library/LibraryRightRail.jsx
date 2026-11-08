@@ -8,6 +8,9 @@ import { api } from '../../api.js'
 export default function LibraryRightRail({
   item,
   tags = [],
+  availableLists = [],
+  onAddItemToList,
+  onRemoveItemFromList,
   onAddTag,
   onRemoveTag,
   rating,
@@ -21,6 +24,7 @@ export default function LibraryRightRail({
   const [isAddingCollection, setIsAddingCollection] = useState(false)
   const [collectionInput, setCollectionInput] = useState('')
   const [collections, setCollections] = useState(() => {
+    if (Array.isArray(item?.collection_details) && item.collection_details.length > 0) return item.collection_details
     if (Array.isArray(item?.collections)) return item.collections
     if (item?.collection) return [item.collection]
     return []
@@ -32,14 +36,16 @@ export default function LibraryRightRail({
 
   // Sync collections when item changes
   useEffect(() => {
-    if (Array.isArray(item?.collections)) {
+    if (Array.isArray(item?.collection_details) && item.collection_details.length > 0) {
+      setCollections(item.collection_details)
+    } else if (Array.isArray(item?.collections)) {
       setCollections(item.collections)
     } else if (item?.collection) {
       setCollections([item.collection])
     } else {
       setCollections([])
     }
-  }, [item?.id, item?.collections, item?.collection])
+  }, [item?.id, item?.collections, item?.collection, item?.collection_details])
 
   // Fetch 3-5 related saves via semantic / text search query
   useEffect(() => {
@@ -124,15 +130,61 @@ export default function LibraryRightRail({
     }
   }
 
-  const handleAddCollectionSubmit = (e) => {
+  const handleAddCollectionSubmit = async (e) => {
     e.preventDefault()
     const clean = collectionInput.trim()
-    if (clean) {
-      const next = Array.from(new Set([...collections, clean]))
-      setCollections(next)
-      setCollectionInput('')
-      setIsAddingCollection(false)
-      onAddTag?.(`collection:${clean}`)
+    if (!clean || !item?.id) return
+
+    setCollectionInput('')
+    setIsAddingCollection(false)
+
+    try {
+      let targetList = availableLists.find(
+        (l) => (l.title || '').toLowerCase() === clean.toLowerCase()
+      )
+      if (!targetList) {
+        const created = await api.createLibraryList({ title: clean })
+        targetList = { id: created.id, title: clean }
+      }
+
+      if (onAddItemToList) {
+        await onAddItemToList(targetList.id)
+      } else {
+        await api.addLibraryListMember(targetList.id, { item_id: item.id })
+      }
+
+      setCollections((prev) => {
+        const exists = prev.some((c) => {
+          const t = typeof c === 'object' && c !== null ? (c.title || c.name) : String(c)
+          return t.toLowerCase() === clean.toLowerCase()
+        })
+        return exists ? prev : [...prev, targetList]
+      })
+    } catch (err) {
+      console.error('Failed to add collection:', err)
+    }
+  }
+
+  const handleRemoveCollection = async (col) => {
+    const colTitle = typeof col === 'object' && col !== null ? (col.title || col.name) : String(col)
+    const listId =
+      (typeof col === 'object' && col?.id) ||
+      availableLists.find((l) => (l.title || '').toLowerCase() === colTitle.toLowerCase())?.id
+
+    try {
+      if (listId && onRemoveItemFromList) {
+        await onRemoveItemFromList(listId)
+      } else if (listId && item?.id) {
+        await api.removeLibraryListMember(listId, { itemId: item.id })
+      }
+      setCollections((prev) =>
+        prev.filter((c) => {
+          const t = typeof c === 'object' && c !== null ? (c.title || c.name) : String(c)
+          return t.toLowerCase() !== colTitle.toLowerCase()
+        })
+      )
+    } catch (err) {
+      console.error('Failed to remove collection:', err)
     }
   }
 
@@ -241,12 +293,24 @@ export default function LibraryRightRail({
         </div>
 
         <div className="lib-rail-collections-wrap">
-          {collections.map((col) => (
-            <span key={col} className="lib-rail-collection-chip">
-              <Icon name="folder" size={12} className="lib-rail-col-icon" />
-              <span>{col}</span>
-            </span>
-          ))}
+          {collections.map((col, idx) => {
+            const title = typeof col === 'object' && col !== null ? (col.title || col.name) : String(col)
+            return (
+              <span key={col?.id || title || idx} className="lib-rail-collection-chip">
+                <Icon name="folder" size={12} className="lib-rail-col-icon" />
+                <span>{title}</span>
+                <button
+                  type="button"
+                  className="lib-rail-col-remove"
+                  onClick={() => handleRemoveCollection(col)}
+                  title={`Remove from ${title}`}
+                  aria-label={`Remove from ${title}`}
+                >
+                  <Icon name="x" size={10} />
+                </button>
+              </span>
+            )
+          })}
 
           {isAddingCollection ? (
             <form onSubmit={handleAddCollectionSubmit} className="lib-rail-col-form">

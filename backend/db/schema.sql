@@ -147,14 +147,26 @@ CREATE TABLE IF NOT EXISTS task_lists (
     -- account look identical and only one of them is recoverable.
     retired_at      TEXT,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    uuid            TEXT,
+    updated_hlc     TEXT
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_task_lists_uuid
+    ON task_lists(uuid) WHERE uuid IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_task_lists_external
     ON task_lists(external_source, external_id)
     WHERE external_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_task_lists_local_name
     ON task_lists(name)
     WHERE external_id IS NULL;
+
+-- Stored metadata and HLC stamps for synced integration credentials.
+-- Plaintext secrets are NEVER stored in this table; they live in the secure vault/keychain.
+CREATE TABLE IF NOT EXISTS synced_credentials (
+    key         TEXT PRIMARY KEY,
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_hlc TEXT
+);
 
 
 CREATE TABLE IF NOT EXISTS tasks (
@@ -628,14 +640,17 @@ CREATE INDEX IF NOT EXISTS idx_extracted_links_domain ON library_extracted_links
 
 CREATE TABLE IF NOT EXISTS library_lists (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    uuid TEXT,
     title TEXT NOT NULL,
     description TEXT DEFAULT '',
     icon TEXT DEFAULT 'bookmark',
     is_smart BOOLEAN DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
+    updated_at TEXT DEFAULT (datetime('now')),
+    updated_hlc TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_library_lists_title ON library_lists(title);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_library_lists_uuid ON library_lists(uuid) WHERE uuid IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS library_list_members (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

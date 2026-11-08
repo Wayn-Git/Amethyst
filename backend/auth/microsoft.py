@@ -18,6 +18,7 @@ import hashlib
 import json
 import logging
 import os
+from pathlib import Path
 import secrets
 import time
 from typing import Any
@@ -31,8 +32,134 @@ log = logging.getLogger(__name__)
 VAULT_KEY = "amethyst/microsoft-todo.tokens"
 DEFAULT_CLIENT_ID = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
 AUTH_ENDPOINT = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+DEVICE_ENDPOINT = "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode"
 TOKEN_ENDPOINT = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
 DEFAULT_SCOPES = "Tasks.ReadWrite offline_access User.Read"
+
+
+def get_token_cache_path() -> Path:
+    """Location of connector token cache."""
+    try:
+        from backend.mcp.catalogue import get as cat_get
+        entry = cat_get("microsoft-todo")
+        if entry and entry.credentials_path:
+            return Path(entry.credentials_path).expanduser()
+    except Exception:
+        pass
+    return Path("~/.config/microsoft-todo-mcp/token-cache.json").expanduser()
+
+
+def sync_token_cache_from_vault(tokens: dict[str, Any] | str | None = None) -> None:
+    """Sync credentials from vault to connector cache with strict 0600 permissions."""
+    if tokens is None:
+        raw = get_secret(VAULT_KEY)
+        try:
+            tokens = json.loads(raw) if raw else None
+        except Exception:
+            tokens = None
+    elif isinstance(tokens, str):
+        try:
+            tokens = json.loads(tokens)
+        except Exception:
+            tokens = None
+
+    if not tokens or not isinstance(tokens, dict):
+        remove_token_cache()
+        return
+
+    path = get_token_cache_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.chmod(path.parent, 0o700)
+        except OSError:
+            pass
+
+        cache_data = {
+            "accessToken": tokens.get("access_token"),
+            "refreshToken": tokens.get("refresh_token"),
+            "access_token": tokens.get("access_token"),
+            "refresh_token": tokens.get("refresh_token"),
+            "expires_at": tokens.get("expires_at"),
+            "scope": tokens.get("scope", DEFAULT_SCOPES),
+            "client_id": tokens.get("client_id") or get_client_id(),
+            "updated_at": tokens.get("updated_at") or time.time(),
+        }
+
+        tmp = path.with_name(f"{path.name}.tmp")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(cache_data, f)
+        os.replace(tmp, path)
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+    except Exception as exc:
+        log.warning("Could not sync token cache for microsoft-todo: %s", exc)
+
+
+def remove_token_cache() -> None:
+    """Remove connector token cache file on disconnect or logout."""
+    try:
+        path = get_token_cache_path()
+        if path.is_file():
+            path.unlink()
+    except Exception as exc:
+        log.warning("Could not remove token cache: %s", exc)
+
+
+def migrate_token_cache_to_vault() -> bool:
+    """Migrate legacy or filesystem token-cache.json into encrypted vault."""
+    path = get_token_cache_path()
+    if not path.is_file():
+        return False
+
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+    if get_secret(VAULT_KEY):
+        return False
+
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return False
+        at = data.get("access_token") or data.get("accessToken")
+        rt = data.get("refresh_token") or data.get("refreshToken")
+        if not (at or rt):
+            return False
+
+        record = {
+            "access_token": at or "",
+            "refresh_token": rt,
+            "expires_at": data.get("expires_at") or (time.time() + 3600),
+            "scope": data.get("scope") or DEFAULT_SCOPES,
+            "client_id": data.get("client_id") or get_client_id(),
+            "updated_at": time.time(),
+        }
+        set_secret(VAULT_KEY, json.dumps(record))
+        record_credential_change(record)
+        return True
+    except Exception as exc:
+        log.warning("Could not migrate token cache to vault: %s", exc)
+        return False
+
+
+def record_credential_change(tokens: dict[str, Any] | None = None, conn: Any = None) -> None:
+    """Mark credential changed for peer multi-device sync."""
+    try:
+        from backend.db.connection import get_connection
+        c = conn or get_connection()
+        c.execute(
+            "INSERT INTO synced_credentials (key, updated_at) VALUES ('microsoft-todo', datetime('now'))"
+            " ON CONFLICT(key) DO UPDATE SET updated_at = datetime('now')"
+        )
+        c.commit()
+    except Exception as exc:
+        log.debug("Could not record credential change in synced_credentials: %s", exc)
 
 # In-memory pending PKCE states: state -> dict
 _PENDING_STATES: dict[str, dict[str, Any]] = {}
@@ -143,6 +270,8 @@ async def exchange_code_for_tokens(code: str, state: str) -> dict[str, Any]:
 
     # Store in vault
     set_secret(VAULT_KEY, json.dumps(token_record))
+    sync_token_cache_from_vault(token_record)
+    record_credential_change(token_record)
 
     entry["status"] = "completed"
     return token_record
@@ -183,6 +312,8 @@ async def refresh_tokens(tokens: dict[str, Any]) -> dict[str, Any]:
     }
 
     set_secret(VAULT_KEY, json.dumps(updated_record))
+    sync_token_cache_from_vault(updated_record)
+    record_credential_change(updated_record)
     return updated_record
 
 
@@ -213,6 +344,7 @@ async def get_valid_access_token() -> str | None:
 
 def get_connection_status() -> dict[str, Any]:
     """Check if Microsoft To Do credentials exist in the vault."""
+    migrate_token_cache_to_vault()
     raw = get_secret(VAULT_KEY)
     if not raw:
         return {"connected": False}
@@ -233,6 +365,8 @@ def disconnect() -> bool:
     """Clear Microsoft To Do credentials from the vault."""
     try:
         delete_secret(VAULT_KEY)
+        remove_token_cache()
+        record_credential_change(None)
         return True
     except Exception as exc:
         log.warning("Failed to delete Microsoft To Do secret: %s", exc)
@@ -250,3 +384,69 @@ def get_auth_state(state: str) -> dict[str, Any]:
         "connected": entry["status"] == "completed",
         "error": entry.get("error"),
     }
+
+
+async def start_device_flow(client_id: str | None = None) -> dict[str, Any]:
+    """Start Microsoft device authorization flow, returning code and verification url."""
+    cid = client_id or get_client_id()
+    data = {
+        "client_id": cid,
+        "scope": DEFAULT_SCOPES,
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(DEVICE_ENDPOINT, data=data)
+        if resp.status_code != 200:
+            raise RuntimeError(f"Microsoft device auth request failed ({resp.status_code}): {resp.text[:200]}")
+        payload = resp.json()
+
+    return {
+        "device_code": payload["device_code"],
+        "user_code": payload["user_code"],
+        "verification_uri": payload.get("verification_uri") or "https://microsoft.com/devicelogin",
+        "expires_in": payload.get("expires_in", 900),
+        "interval": payload.get("interval", 5),
+        "message": payload.get("message", ""),
+    }
+
+
+async def poll_device_flow(device_code: str, client_id: str | None = None) -> dict[str, Any]:
+    """Poll Microsoft token endpoint for device code authorization."""
+    cid = client_id or get_client_id()
+    data = {
+        "client_id": cid,
+        "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+        "device_code": device_code,
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(TOKEN_ENDPOINT, data=data)
+        if resp.status_code == 200:
+            payload = resp.json()
+            access_token = payload.get("access_token")
+            expires_in = int(payload.get("expires_in", 3600))
+            token_record = {
+                "access_token": access_token,
+                "refresh_token": payload.get("refresh_token"),
+                "expires_at": time.time() + expires_in,
+                "scope": payload.get("scope", DEFAULT_SCOPES),
+                "client_id": cid,
+                "updated_at": time.time(),
+            }
+            set_secret(VAULT_KEY, json.dumps(token_record))
+            sync_token_cache_from_vault(token_record)
+            record_credential_change(token_record)
+            return {"connected": True, "status": "completed"}
+
+        try:
+            err_payload = resp.json()
+        except Exception:
+            err_payload = {}
+        if not isinstance(err_payload, dict):
+            err_payload = {}
+
+        err = err_payload.get("error", "")
+        if err in ("authorization_pending", "slow_down"):
+            return {"connected": False, "status": "pending"}
+        if err in ("expired_token", "code_expired"):
+            return {"connected": False, "status": "expired", "error": "Code expired. Please request a new code."}
+        return {"connected": False, "status": "failed", "error": err_payload.get("error_description", f"Login failed: {err}")}
+

@@ -25,6 +25,7 @@ from __future__ import annotations
 import logging
 import uuid as uuidlib
 
+from backend.secrets import get_secret
 from backend.sync import ops
 from backend.sync.registry import MAX_SYNCED_CONTENT, TRUNCATION_MARKER
 
@@ -56,6 +57,10 @@ MESSAGE_WATERMARK = "sync.watermark.messages"
 CONVERSATION_WATERMARK = "sync.watermark.conversations"
 RUN_WATERMARK = "sync.watermark.runs"
 LIBRARY_WATERMARK = "sync.watermark.library"
+LIBRARY_LISTS_WATERMARK = "sync.watermark.library_lists"
+TASK_LIST_WATERMARK = "sync.watermark.task_lists"
+TASK_WATERMARK = "sync.watermark.tasks"
+CREDENTIAL_WATERMARK = "sync.watermark.credentials"
 
 #: How many rows one poll publishes. A machine that has been running for a month
 #: before its first phone is paired catches up over several polls rather than
@@ -168,7 +173,16 @@ def rewind(conn) -> None:
     Safe to run with a device already paired: the merge is idempotent by
     construction, so a row it has already seen costs one op and changes nothing.
     """
-    for key in (MESSAGE_WATERMARK, CONVERSATION_WATERMARK, RUN_WATERMARK, LIBRARY_WATERMARK):
+    for key in (
+        MESSAGE_WATERMARK,
+        CONVERSATION_WATERMARK,
+        RUN_WATERMARK,
+        LIBRARY_WATERMARK,
+        LIBRARY_LISTS_WATERMARK,
+        TASK_LIST_WATERMARK,
+        TASK_WATERMARK,
+        CREDENTIAL_WATERMARK,
+    ):
         conn.execute("DELETE FROM app_settings WHERE key = ?", (key,))
 
 
@@ -179,10 +193,14 @@ def publish(conn, clock, *, limit: int = BATCH) -> int:
     second ago leaves on the poll that follows it rather than the one after.
     """
     return (
-        _publish_conversations(conn, clock, limit)
+        _publish_task_lists(conn, clock, limit)
+        + _publish_tasks(conn, clock, limit)
+        + _publish_credentials(conn, clock, limit)
+        + _publish_conversations(conn, clock, limit)
         + _publish_messages(conn, clock, limit)
         + _publish_runs(conn, clock, limit)
         + _publish_library(conn, clock, limit)
+        + _publish_library_lists(conn, clock, limit)
     )
 
 
@@ -288,4 +306,142 @@ def _publish_library(conn, clock, limit: int) -> int:
             published += 1
         mark = _advance(mark, row[16], row[0])
         _set_cursor(conn, LIBRARY_WATERMARK, *mark)
+    return published
+
+
+def _publish_library_lists(conn, clock, limit: int) -> int:
+    """Library collections/lists so paired replicas and control devices have them."""
+    import sqlite3
+    mark = _cursor(conn, LIBRARY_LISTS_WATERMARK)
+    where, binds = _unseen("updated_at", mark)
+    try:
+        rows = conn.execute(
+            "SELECT id, uuid, title, description, icon, is_smart, updated_at"
+            f" FROM library_lists WHERE {where} ORDER BY updated_at, id LIMIT ?",
+            (*binds, limit),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return 0
+    published = 0
+    for row in rows:
+        row_uuid = row[1]
+        if not row_uuid:
+            row_uuid = str(uuidlib.uuid4())
+            conn.execute("UPDATE library_lists SET uuid = ? WHERE id = ?", (row_uuid, row[0]))
+        emitted = ops.emit(conn, clock, "library_lists", row_uuid, {
+            "title": row[2],
+            "description": row[3],
+            "icon": row[4],
+            "is_smart": row[5],
+        })
+        if emitted is not None:
+            published += 1
+        mark = _advance(mark, row[6], row[0])
+        _set_cursor(conn, LIBRARY_LISTS_WATERMARK, *mark)
+    return published
+
+
+def _publish_task_lists(conn, clock, limit: int) -> int:
+    """Task lists so a control device or paired replica has the list containers."""
+    import sqlite3
+    mark = _cursor(conn, TASK_LIST_WATERMARK)
+    where, binds = _unseen("updated_at", mark)
+    try:
+        rows = conn.execute(
+            "SELECT id, uuid, name, external_source, external_id, is_default, position, retired_at, updated_at"
+            f" FROM task_lists WHERE {where} ORDER BY updated_at, id LIMIT ?",
+            (*binds, limit),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return 0
+    published = 0
+    for row in rows:
+        row_uuid = row[1]
+        if not row_uuid:
+            row_uuid = str(uuidlib.uuid4())
+            conn.execute("UPDATE task_lists SET uuid = ? WHERE id = ?", (row_uuid, row[0]))
+        emitted = ops.emit(conn, clock, "task_lists", row_uuid, {
+            "name": row[2],
+            "external_source": row[3],
+            "external_id": row[4],
+            "is_default": row[5],
+            "position": row[6],
+            "retired_at": row[7],
+        })
+        if emitted is not None:
+            published += 1
+        mark = _advance(mark, row[8], row[0])
+        _set_cursor(conn, TASK_LIST_WATERMARK, *mark)
+    return published
+
+
+def _publish_tasks(conn, clock, limit: int) -> int:
+    """Tasks and their checklist subtasks, due dates, and priorities."""
+    import sqlite3
+    mark = _cursor(conn, TASK_WATERMARK)
+    where, binds = _unseen("updated_at", mark)
+    try:
+        rows = conn.execute(
+            "SELECT id, uuid, title, notes, due_at, scheduled_at, duration_estimate_minutes,"
+            " status, priority, important, list_id, completed_at, reminder_at, my_day_date,"
+            " checklist_items, updated_at"
+            f" FROM tasks WHERE {where} ORDER BY updated_at, id LIMIT ?",
+            (*binds, limit),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return 0
+    published = 0
+    for row in rows:
+        row_uuid = row[1]
+        if not row_uuid:
+            row_uuid = str(uuidlib.uuid4())
+            conn.execute("UPDATE tasks SET uuid = ? WHERE id = ?", (row_uuid, row[0]))
+        emitted = ops.emit(conn, clock, "tasks", row_uuid, {
+            "title": row[2],
+            "notes": row[3],
+            "due_at": row[4],
+            "scheduled_at": row[5],
+            "duration_estimate_minutes": row[6],
+            "status": row[7],
+            "priority": row[8],
+            "important": row[9],
+            "list_id": row[10],
+            "completed_at": row[11],
+            "reminder_at": row[12],
+            "my_day_date": row[13],
+            "checklist_items": row[14],
+        })
+        if emitted is not None:
+            published += 1
+        mark = _advance(mark, row[15], row[0])
+        _set_cursor(conn, TASK_WATERMARK, *mark)
+    return published
+
+
+def _publish_credentials(conn, clock, limit: int) -> int:
+    """Publish integration credentials metadata so paired devices carry auth over."""
+    import sqlite3
+    mark = _watermark(conn, CREDENTIAL_WATERMARK)
+    try:
+        rows = conn.execute(
+            "SELECT key, updated_at FROM synced_credentials WHERE updated_at > ? ORDER BY updated_at LIMIT ?",
+            (mark, limit),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return 0
+    published = 0
+    last_stamp = mark
+    for row in rows:
+        key = row[0]
+        vault_key = f"amethyst/{key}.tokens"
+        secret_val = get_secret(vault_key) or ""
+        emitted = ops.emit(conn, clock, "credentials", key, {
+            "vault_key": vault_key,
+            "secret_value": secret_val,
+        })
+        if emitted is not None:
+            published += 1
+        last_stamp = row[1]
+    if rows:
+        _set_watermark(conn, CREDENTIAL_WATERMARK, last_stamp)
     return published

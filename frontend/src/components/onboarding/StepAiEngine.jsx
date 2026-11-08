@@ -132,7 +132,7 @@ export default function StepAiEngine({ onNext, onBack, onSkip }) {
       {/* Left Form Pane */}
       <div className="onb-pane-left">
         <AmethystLogo size={28} color="#ffffff" />
-        <p className="onb-eyebrow">Step 2 of 5 · AI engine</p>
+        <p className="onb-eyebrow">Step 2 of 6 · AI engine</p>
         <h1 className="onb-title">Choose your AI engine</h1>
         <p className="onb-desc">
           Run a model on this {osName}, or connect a free cloud provider. You can add more later.

@@ -6,6 +6,7 @@ import StepWelcome from './onboarding/StepWelcome.jsx'
 import StepProfile from './onboarding/StepProfile.jsx'
 import StepAiEngine from './onboarding/StepAiEngine.jsx'
 import StepStorage from './onboarding/StepStorage.jsx'
+import StepMicrosoftTodo from './onboarding/StepMicrosoftTodo.jsx'
 import StepMobile from './onboarding/StepMobile.jsx'
 import StepLaunch from './onboarding/StepLaunch.jsx'
 import { triggerConfetti } from './ConfettiCannon.jsx'
@@ -20,7 +21,7 @@ import './onboarding/onboarding.css'
    docs/UI/mobile/Amethyst Desktop Onboarding.html
    ========================================================================== */
 
-const STEPS = ['splash', 'welcome', 'profile', 'ai_engine', 'storage', 'mobile', 'launch']
+const STEPS = ['splash', 'welcome', 'profile', 'ai_engine', 'storage', 'microsoft_todo', 'mobile', 'launch']
 
 const slideVariants = {
   enter: (dir) => ({ x: dir > 0 ? 20 : -20, opacity: 0 }),
@@ -82,6 +83,8 @@ export default function SplashScreenWizard() {
         return <StepAiEngine onNext={next} onBack={prev} onSkip={next} />
       case 'storage':
         return <StepStorage onNext={next} onBack={prev} />
+      case 'microsoft_todo':
+        return <StepMicrosoftTodo onNext={next} onBack={prev} onSkip={next} />
       case 'mobile':
         return <StepMobile onNext={next} onBack={prev} onSkip={next} />
       case 'launch':

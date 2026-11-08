@@ -52,6 +52,8 @@ class PairingService:
         self._server: PairingServer | None = None
         self._lock = threading.Lock()
         self._last_token: str | None = None
+        self._last_code: str | None = None
+        self._last_bundle: dict[str, Any] | None = None
         self._last_hosts: list[str] = []
         self._last_port: int | None = None
         self._last_qr_payload: dict[str, Any] | None = None
@@ -95,9 +97,12 @@ class PairingService:
                 self._server.close()
                 self._server = None
 
-            # 1. 128-bit random token CSPRNG (16 bytes = 32 hex chars)
+            # 1. 128-bit random token CSPRNG (16 bytes = 32 hex chars) & 6-digit numeric code
             token = secrets.token_hex(16)
             self._last_token = token
+            code = f"{secrets.randbelow(900000) + 100000}"
+            self._last_code = code
+            self._last_bundle = None
 
             # 2. LAN IPv4 detection
             hosts = get_lan_ipv4_addresses()
@@ -129,6 +134,7 @@ class PairingService:
                 "hosts": hosts,
                 "port": server.port,
                 "token": token,
+                "code": code,
                 "fp": fp,
                 "exp": exp,
             }
@@ -154,6 +160,7 @@ class PairingService:
                 "payload": payload,
                 "qr": qr_base64url,
                 "qr_svg": qr_svg,
+                "code": code,
                 "port": server.port,
                 "hosts": hosts,
                 "exp": exp,
@@ -419,6 +426,8 @@ class PairingService:
                 },
             }
 
+            self._last_bundle = bundle
+
             # Unblock phone response and trigger server shutdown
             server.approve(bundle)
 
@@ -427,6 +436,51 @@ class PairingService:
                 "device_id": device_id,
                 "device_label": label,
             }
+
+    def claim_code(self, code: str, device_label: str | None = None) -> dict[str, Any]:
+        """Claim a pairing session using a 6-digit numeric code."""
+        with self._lock:
+            server = self._server
+            if not server or server.is_closed or time.time() >= server.exp:
+                raise ValueError("No active pairing session or session has expired")
+
+            clean_code = str(code).strip().replace("-", "").replace(" ", "")
+            if not self._last_code or not hmac.compare_digest(clean_code, self._last_code):
+                server.bad_attempts += 1
+                if server.bad_attempts >= 5:
+                    server.close()
+                    raise ValueError("Too many failed attempts. Pairing locked out.")
+                raise ValueError("Invalid pairing code. Check code on PC.")
+
+            label = (device_label or "Mobile Companion").strip()
+            server.pending_device_label = label
+            return {
+                "ok": True,
+                "status": "waiting_approval",
+                "device_label": label,
+            }
+
+    def get_code_status(self, code: str) -> dict[str, Any]:
+        """Check status of a code-based claim."""
+        with self._lock:
+            server = self._server
+            clean_code = str(code).strip().replace("-", "").replace(" ", "")
+            if not self._last_code or not hmac.compare_digest(clean_code, self._last_code):
+                return {"status": "invalid"}
+
+            if self._last_bundle:
+                return {
+                    "status": "approved",
+                    "bundle": self._last_bundle,
+                }
+
+            if not server or server.is_closed or time.time() >= server.exp:
+                return {"status": "expired"}
+
+            if server.pending_device_label:
+                return {"status": "waiting_approval"}
+
+            return {"status": "waiting_for_phone"}
 
     def deny_pairing(self) -> dict[str, Any]:
         """Deny pending pairing and close the server."""

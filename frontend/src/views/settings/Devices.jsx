@@ -1413,8 +1413,15 @@ export default function Devices() {
                               </div>
                             </div>
 
+                            {v2Pairing.code && (
+                              <div style={{ marginTop: 8, fontSize: 13, fontWeight: 700, color: 'var(--text)', background: 'rgba(255, 255, 255, 0.06)', padding: '5px 14px', borderRadius: 999, border: '1px solid var(--hairline)', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ color: 'var(--text-sub)', fontSize: 11, fontWeight: 600 }}>OR ENTER CODE:</span>
+                                <strong style={{ color: '#007aff', fontSize: 15, letterSpacing: '0.18em' }}>{v2Pairing.code.slice(0, 3)} {v2Pairing.code.slice(3)}</strong>
+                              </div>
+                            )}
+
                             {v2Pairing.port && (
-                              <div style={{ marginTop: 6, fontSize: 11, fontWeight: 600, color: '#a1a1aa' }}>
+                              <div style={{ marginTop: 4, fontSize: 11, fontWeight: 600, color: '#a1a1aa' }}>
                                 Port: <strong>{v2Pairing.port}</strong>
                               </div>
                             )}

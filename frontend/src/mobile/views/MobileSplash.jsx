@@ -1,12 +1,11 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import AmethystLogo from '../../components/AmethystLogo.jsx'
 import '../companion.css'
 
 export default function MobileSplash() {
   return (
     <motion.div
-      className="m-shell s"
+      className="m-shell"
       style={{
         position: 'relative',
         width: '100%',
@@ -14,109 +13,113 @@ export default function MobileSplash() {
         height: '100dvh',
         margin: '0 auto',
         overflow: 'hidden',
-        background: '#F4F6FB',
-        display: 'flex',
-        flexDirection: 'column',
+        boxSizing: 'border-box',
+        fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+        color: '#fff',
+        background: 'radial-gradient(70% 40% at 105% 8%, rgba(255,176,196,0.95) 0%, rgba(255,176,196,0) 70%), radial-gradient(75% 34% at 100% 42%, #F2214B 0%, rgba(242,33,75,0.65) 40%, rgba(242,33,75,0) 100%), radial-gradient(60% 30% at 38% 36%, rgba(194,60,170,0.7) 0%, rgba(194,60,170,0) 100%), radial-gradient(90% 40% at 0% 8%, #2A19C9 0%, rgba(42,25,201,0) 80%), linear-gradient(180deg,#3B2BE6 0%,#3A32F2 50%,#2E22D8 100%)',
       }}
       initial={{ opacity: 1 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] } }}
-      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
     >
-      {/* Background Pastel Gradient */}
+      {/* Center Brand Lockup */}
       <div
         style={{
           position: 'absolute',
-          inset: 0,
-          background: 'radial-gradient(90% 55% at 12% 100%, #FFB68A 0%, rgba(255,182,138,0) 70%), radial-gradient(90% 60% at 100% 80%, #5B9BFF 0%, rgba(91,155,255,0) 70%), radial-gradient(80% 50% at 50% 0%, #DCE9FF 0%, rgba(220,233,255,0) 75%), #F4F6FB',
-          pointerEvents: 'none',
-        }}
-      />
-
-      {/* Subtle Noise Texture */}
-      <svg
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', mixBlendMode: 'soft-light', opacity: 0.5, pointerEvents: 'none' }}
-        aria-hidden="true"
-      >
-        <filter id="splash-noise">
-          <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch" />
-          <feColorMatrix type="saturate" values="0" />
-        </filter>
-        <rect width="100%" height="100%" filter="url(#splash-noise)" />
-      </svg>
-
-      {/* Center Logo Lockup */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
+          left: 0,
+          right: 0,
+          top: '38%',
+          transform: 'translateY(-50%)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
-          gap: 20,
+          gap: 22,
           zIndex: 10,
         }}
       >
         <motion.div
-          className="glass"
           style={{
-            width: 96,
-            height: 96,
-            borderRadius: 28,
+            width: 104,
+            height: 104,
+            borderRadius: 30,
+            background: '#fff',
+            boxShadow: '0 24px 60px rgba(20, 10, 120, 0.45)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.95)',
           }}
-          initial={{ scale: 0.86, opacity: 0, y: 16 }}
-          animate={{ scale: [0.86, 1, 1.03, 1], opacity: 1, y: 0 }}
+          initial={{ scale: 0.88, opacity: 0, y: 16 }}
+          animate={{ scale: [0.92, 1, 1.02, 1], opacity: 1, y: 0 }}
           transition={{
-            scale: { repeat: Infinity, duration: 2.6, ease: 'easeInOut' },
-            opacity: { duration: 0.4 },
-            y: { type: 'spring', stiffness: 340, damping: 24, delay: 0.05 },
+            scale: { repeat: Infinity, duration: 2.4, ease: 'easeInOut' },
+            opacity: { duration: 0.35 },
+            y: { type: 'spring', stiffness: 360, damping: 26 },
           }}
         >
-          <AmethystLogo size={52} color="#873FFF" />
+          <svg width="54" height="54" viewBox="0 0 24 24" fill="none" stroke="#2D2DEB" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+            <path d="M6 3h12l4 6-10 12L2 9z" />
+            <path d="M2 9h20" />
+            <path d="M9 3l3 6 3-6" />
+            <path d="M12 21L9 9M12 21l3-12" />
+          </svg>
         </motion.div>
 
         <motion.div
           style={{
-            fontSize: 32,
-            fontWeight: 700,
+            fontSize: 34,
+            fontWeight: 800,
             letterSpacing: '-0.045em',
-            color: '#1D1D1F',
-            fontFamily: "'Inter', system-ui, sans-serif",
+            color: '#fff',
           }}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.15 }}
+          transition={{ duration: 0.35, delay: 0.12 }}
         >
           Amethyst
         </motion.div>
       </div>
 
-      {/* Bottom Tagline */}
+      {/* Tagline */}
       <motion.div
-        className="m"
         style={{
           position: 'absolute',
           left: 0,
           right: 0,
-          bottom: 'max(48px, env(safe-area-inset-bottom, 48px))',
+          bottom: 'max(92px, calc(env(safe-area-inset-bottom, 24px) + 68px))',
           textAlign: 'center',
-          color: '#3A3A3C',
-          fontSize: 14,
+          fontSize: 15,
           fontWeight: 500,
+          color: 'rgba(255, 255, 255, 0.88)',
           zIndex: 10,
         }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.4, delay: 0.25 }}
+        transition={{ duration: 0.4, delay: 0.2 }}
       >
         One mind for your digital life.
+      </motion.div>
+
+      {/* 3 Pagination / Loading Dots */}
+      <motion.div
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 'max(56px, calc(env(safe-area-inset-bottom, 24px) + 32px))',
+          display: 'flex',
+          justifyContent: 'center',
+          gap: 8,
+          zIndex: 10,
+        }}
+        aria-hidden="true"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.4, delay: 0.25 }}
+      >
+        <div style={{ width: 8, height: 8, borderRadius: 999, background: '#fff' }} />
+        <div style={{ width: 8, height: 8, borderRadius: 999, background: 'rgba(255, 255, 255, 0.5)' }} />
+        <div style={{ width: 8, height: 8, borderRadius: 999, background: 'rgba(255, 255, 255, 0.25)' }} />
       </motion.div>
     </motion.div>
   )
 }
-

@@ -1,11 +1,8 @@
 import React, { useCallback, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import QrScanner from '../components/QrScanner.jsx'
-import AmethystLogo from '../components/AmethystLogo.jsx'
 import { decodeAndValidateQr, pairDevice } from '../mobile/pairingClient.js'
-import { loadFixtureBundle } from '../mobile/bundle.js'
 import '../mobile/companion.css'
-import './pair.css'
 
 const pageVariants = {
   enter: (dir) => ({
@@ -35,11 +32,10 @@ const pageVariants = {
   }),
 }
 
-export default function Pair({ onPaired, onBack, onDesktop, direction = 1 }) {
+export default function Pair({ onPaired, onBack, onSkip, onEnterCode, direction = 1 }) {
   // Phases: 'idle' | 'scanning' | 'connecting' | 'waiting_approval' | 'paired' | 'trouble'
   const [phase, setPhase] = useState('idle')
   const [trouble, setTrouble] = useState(null)
-  const [loadingFixture, setLoadingFixture] = useState(false)
 
   const handleBack = () => {
     if (phase === 'scanning' || phase === 'trouble') {
@@ -100,70 +96,33 @@ export default function Pair({ onPaired, onBack, onDesktop, direction = 1 }) {
 
       let title = 'Connection Failed'
       let body = err.message || 'Could not complete pairing with PC.'
-      let hint = null
 
       if (code === 'CONNECTION_REFUSED') {
         title = 'Connection Refused'
-        body = `Could not connect to PC on port ${port}. The computer refused the connection.`
-        hint = `Check that Amethyst is running on your PC, the pairing dialog is open, and your PC firewall allows port ${port}.`
+        body = `Could not connect to PC on port ${port}. Computer refused connection.`
       } else if (code === 'CONNECT_TIMEOUT') {
         title = 'Connection Timed Out'
-        body = `Connection to your PC timed out on port ${port}.`
-        hint = 'Make sure your phone and PC are connected to the same Wi-Fi network.'
-      } else if (code === 'CERT_MISMATCH') {
-        title = 'Security Verification Failed'
-        body = 'TLS certificate does not match the pairing QR code.'
-        hint = 'The certificate presented by the PC differs from the scanned QR code. Please close the PC pairing window and generate a new code.'
-      } else if (code === 'TLS_ERROR') {
-        title = 'Secure Handshake Failed'
-        body = 'Could not establish a secure TLS connection with the PC.'
-        hint = 'Verify your PC local network settings, then try scanning a fresh QR code.'
+        body = 'Make sure phone and PC are connected to the same Wi-Fi network.'
       } else if (code === 'DENIED') {
         title = 'Pairing Denied'
         body = 'Pairing was denied on your PC.'
-        hint = "Click 'Add' in Amethyst on your PC to start a new pairing session."
       } else if (code === 'APPROVAL_TIMEOUT') {
         title = 'Approval Timed Out'
-        body = 'Approval timed out on your PC.'
-        hint = "The pairing window expired before approval was granted. Try again."
-      } else if (code === 'TOO_MANY_ATTEMPTS') {
-        title = 'Pairing Locked Out'
-        body = 'Too many failed pairing attempts (HTTP 429).'
-        hint = 'Please close and reopen the pairing dialog on your PC.'
-      } else if (code === 'INVALID_TOKEN') {
-        title = 'Invalid or Expired Token'
-        body = 'The pairing token was rejected or already used.'
-        hint = 'Please scan a fresh QR code from your PC.'
-      } else {
-        hint = `Ensure phone and PC are on the same Wi-Fi network and firewall allows port ${port}.`
+        body = 'Pairing window expired before approval was granted.'
       }
 
       setTrouble({
         title,
         body,
-        hint,
-        tried: ['DENIED', 'APPROVAL_TIMEOUT', 'TOO_MANY_ATTEMPTS', 'INVALID_TOKEN'].includes(code) ? null : tried,
         retry: 'Try again',
       })
       setPhase('trouble')
     }
   }, [onPaired])
 
-  const handleLoadFixture = async () => {
-    if (loadingFixture) return
-    setLoadingFixture(true)
-    try {
-      await loadFixtureBundle()
-      setPhase('paired')
-      setTimeout(() => onPaired?.(), 500)
-    } finally {
-      setLoadingFixture(false)
-    }
-  }
-
   return (
     <motion.div
-      className="m-shell s"
+      className="m-shell"
       style={{
         position: 'relative',
         width: '100%',
@@ -171,7 +130,10 @@ export default function Pair({ onPaired, onBack, onDesktop, direction = 1 }) {
         height: '100dvh',
         margin: '0 auto',
         overflow: 'hidden',
-        background: '#F2F2F7',
+        boxSizing: 'border-box',
+        fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+        color: '#0F0F12',
+        background: 'radial-gradient(90% 38% at 12% 0%, rgba(86,92,255,0.75) 0%, rgba(86,92,255,0) 75%), radial-gradient(70% 30% at 100% 6%, rgba(255,160,186,0.9) 0%, rgba(255,160,186,0) 75%), linear-gradient(180deg,#C9CBFF 0%,#EEF0FF 30%,#FFFFFF 52%,#FFFFFF 100%)',
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -180,197 +142,289 @@ export default function Pair({ onPaired, onBack, onDesktop, direction = 1 }) {
       initial="enter"
       animate="center"
       exit="exit"
-      transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
     >
-      {/* Background radial gradient from Pair.dc.html */}
+      {/* Top Navigation Bar */}
       <div
         style={{
           position: 'absolute',
-          inset: 0,
-          background: 'radial-gradient(90% 40% at 50% 0%, #D6E6FF 0%, rgba(214,230,255,0) 75%), radial-gradient(70% 30% at 100% 100%, #FFD9C2 0%, rgba(255,217,194,0) 70%), #F2F2F7',
-          pointerEvents: 'none',
-        }}
-      />
-
-      {/* Subtle Noise Texture */}
-      <svg
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', mixBlendMode: 'soft-light', opacity: 0.5, pointerEvents: 'none' }}
-        aria-hidden="true"
-      >
-        <filter id="pair-noise">
-          <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch" />
-          <feColorMatrix type="saturate" values="0" />
-        </filter>
-        <rect width="100%" height="100%" filter="url(#pair-noise)" />
-      </svg>
-
-      <div
-        className="b"
-        style={{
-          flex: 1,
-          padding: 'max(20px, env(safe-area-inset-top, 20px)) 20px max(32px, env(safe-area-inset-bottom, 32px))',
+          left: 20,
+          right: 20,
+          top: 'max(48px, calc(env(safe-area-inset-top, 24px) + 20px))',
           display: 'flex',
-          flexDirection: 'column',
-          gap: 14,
-          position: 'relative',
+          alignItems: 'center',
+          justifyContent: 'space-between',
           zIndex: 10,
         }}
       >
-        {/* Header Bar */}
-        <div className="r sp">
-          <button
-            type="button"
-            className="ib"
-            aria-label="Back"
-            onClick={handleBack}
-            style={{ cursor: 'pointer' }}
-          >
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="m15 18-6-6 6-6" />
-            </svg>
-          </button>
-          <div className="r" style={{ gap: 6 }}>
-            <span style={{ width: 6, height: 6, borderRadius: 3, background: 'rgba(0,0,0,0.25)' }} />
-            <motion.span
-              layoutId="stepper-active"
-              style={{ width: 22, height: 6, borderRadius: 3, background: '#1D1D1F' }}
-              transition={{ type: 'spring', stiffness: 350, damping: 26 }}
-            />
-          </div>
-          <span style={{ width: 44 }} />
-        </div>
-
-        {/* Title & Instructions */}
-        <div style={{ marginTop: 6 }}>
-          <h1 className="h" style={{ fontSize: 'clamp(30px, 8vw, 36px)', lineHeight: 1.05, margin: 0 }}>
-            Connect your PC
-          </h1>
-          <p style={{ margin: '8px 0 0', color: '#3A3A3C', fontSize: 14.5, lineHeight: 1.45, maxWidth: 320 }}>
-            Open Amethyst on your PC, go to Settings, then Phone, and scan the code it shows.
-          </p>
-        </div>
-
-        {/* Viewfinder Box / Scanning Area (Constrained 300px Card) */}
-        <div
+        <motion.button
+          type="button"
+          aria-label="Back"
+          onClick={handleBack}
           style={{
-            height: 300,
-            borderRadius: 36,
-            background: '#0B0B0C',
-            position: 'relative',
+            width: 44,
+            height: 44,
+            borderRadius: 999,
+            background: 'rgba(255, 255, 255, 0.9)',
+            border: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            marginTop: 6,
-            overflow: 'hidden',
-            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.16)',
+            boxShadow: '0 6px 18px rgba(40, 40, 160, 0.18)',
+            cursor: 'pointer',
           }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.92 }}
         >
-          {phase === 'scanning' ? (
-            <QrScanner inline onScan={handleScan} onCancel={() => setPhase('idle')} />
-          ) : phase === 'connecting' ? (
-            <div className="col" style={{ alignItems: 'center', color: '#fff', gap: 12 }}>
-              <span className="spn" style={{ width: 26, height: 26, borderColor: '#3A3A3E', borderTopColor: '#fff' }} />
-              <div style={{ fontWeight: 600, fontSize: 15 }}>Connecting to PC…</div>
-              <div className="m" style={{ color: '#A1A1A6' }}>Establishing secure connection</div>
-            </div>
-          ) : phase === 'waiting_approval' ? (
-            <div className="col" style={{ alignItems: 'center', color: '#fff', gap: 12, padding: 20 }}>
-              <span className="spn" style={{ width: 26, height: 26, borderColor: '#3A3A3E', borderTopColor: '#0071E3' }} />
-              <div style={{ fontWeight: 600, fontSize: 15 }}>Waiting for approval…</div>
-              <div className="m" style={{ color: '#A1A1A6', textAlign: 'center', maxWidth: 220 }}>
-                Click Approve on your computer screen
-              </div>
-            </div>
-          ) : phase === 'paired' ? (
-            <div className="col" style={{ alignItems: 'center', color: '#fff', gap: 12 }}>
-              <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#34C759', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              </div>
-              <div style={{ fontWeight: 600, fontSize: 16 }}>Connected</div>
-            </div>
-          ) : phase === 'trouble' ? (
-            <div className="col" style={{ alignItems: 'center', color: '#fff', gap: 8, padding: 20, textAlign: 'center' }}>
-              <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#B8430F', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" x2="12" y1="8" y2="12" />
-                  <line x1="12" x2="12.01" y1="16" y2="16" />
-                </svg>
-              </div>
-              <div style={{ fontWeight: 600, fontSize: 15 }}>{trouble?.title || 'Connection Failed'}</div>
-              <div className="m" style={{ color: '#A1A1A6', fontSize: 12.5, maxWidth: 260 }}>{trouble?.body}</div>
-            </div>
-          ) : (
-            <>
-              {/* Authentic Amethyst Crystal Logo in Center */}
-              <AmethystLogo size={64} color="#873FFF" style={{ opacity: 0.95 }} />
-
-              {/* Viewfinder Corners from Pair.dc.html */}
-              <svg width="220" height="220" viewBox="0 0 220 220" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" style={{ position: 'absolute', pointerEvents: 'none' }} aria-hidden="true">
-                <path d="M10 50V20a10 10 0 0 1 10-10h30M170 10h30a10 10 0 0 1 10 10v30M210 170v30a10 10 0 0 1-10 10h-30M50 210H20a10 10 0 0 1-10-10v-30" />
-              </svg>
-              <span className="m" style={{ position: 'absolute', bottom: 18, color: '#A1A1A6', fontSize: 12.5 }}>
-                Point the camera at the code
-              </span>
-            </>
-          )}
-        </div>
-
-        {/* Bottom Actions Area */}
-        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {phase === 'scanning' ? (
-            <button
-              type="button"
-              className="bt"
-              style={{ width: '100%', justifyContent: 'center', minHeight: 52, fontSize: 15 }}
-              onClick={() => setPhase('idle')}
-            >
-              Cancel scanning
-            </button>
-          ) : phase === 'trouble' ? (
-            <button
-              type="button"
-              className="bt"
-              style={{ width: '100%', justifyContent: 'center', minHeight: 52, fontSize: 15 }}
-              onClick={() => setPhase('scanning')}
-            >
-              {trouble?.retry || 'Scan code again'}
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="bt"
-              style={{ width: '100%', justifyContent: 'space-between', minHeight: 52, padding: '0 24px', fontSize: 15 }}
-              onClick={() => setPhase('scanning')}
-            >
-              <span>Scan code</span>
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M5 12h14" />
-                <path d="m12 5 7 7-7 7" />
-              </svg>
-            </button>
-          )}
-
-          {phase === 'idle' && (
-            <button
-              type="button"
-              className="bt glass"
-              style={{
-                width: '100%',
-                minHeight: 50,
-                fontSize: 15,
-                fontWeight: 600,
-              }}
-              onClick={handleLoadFixture}
-              disabled={loadingFixture}
-            >
-              {loadingFixture ? 'Loading…' : 'Enter code instead'}
-            </button>
-          )}
-        </div>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F0F12" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M15 6l-6 6 6 6" />
+          </svg>
+        </motion.button>
+        <motion.button
+          type="button"
+          onClick={onSkip}
+          style={{
+            height: 44,
+            padding: '0 12px',
+            background: 'transparent',
+            border: 0,
+            display: 'flex',
+            alignItems: 'center',
+            fontSize: 16,
+            fontWeight: 700,
+            color: '#0F0F12',
+            cursor: 'pointer',
+          }}
+          whileHover={{ opacity: 0.7 }}
+          whileTap={{ scale: 0.94 }}
+        >
+          Skip
+        </motion.button>
       </div>
+
+      {/* Header */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 32,
+          right: 32,
+          top: 'max(110px, calc(env(safe-area-inset-top, 24px) + 70px))',
+          textAlign: 'center',
+          zIndex: 10,
+        }}
+      >
+        <h1 style={{ margin: 0, fontSize: 'clamp(32px, 8.5vw, 40px)', lineHeight: 1.04, fontWeight: 800, letterSpacing: '-0.045em', color: '#2D2DEB' }}>
+          Connect<br />your PC
+        </h1>
+        <p style={{ margin: '14px auto 0', maxWidth: 300, fontSize: 15, lineHeight: 1.45, color: '#16161C' }}>
+          Open Amethyst on your PC, go to <b>Settings</b>, then <b>Phone</b>, and scan the code it shows.
+        </p>
+      </div>
+
+      {/* Viewfinder Card */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 24,
+          right: 24,
+          top: 'max(260px, calc(env(safe-area-inset-top, 24px) + 210px))',
+          height: 268,
+          borderRadius: 32,
+          background: '#0B0B0E',
+          boxShadow: '0 24px 50px rgba(15, 15, 60, 0.3)',
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10,
+        }}
+      >
+        {phase === 'scanning' ? (
+          <QrScanner inline onScan={handleScan} onCancel={() => setPhase('idle')} />
+        ) : phase === 'connecting' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, color: '#fff' }}>
+            <span className="spn" style={{ width: 28, height: 28, borderColor: '#3A3A3E', borderTopColor: '#5B9BFF' }} />
+            <div style={{ fontWeight: 600, fontSize: 15 }}>Connecting to PC…</div>
+          </div>
+        ) : phase === 'waiting_approval' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, color: '#fff', padding: 20, textAlign: 'center' }}>
+            <span className="spn" style={{ width: 28, height: 28, borderColor: '#3A3A3E', borderTopColor: '#2D2DEB' }} />
+            <div style={{ fontWeight: 600, fontSize: 16 }}>Waiting for approval…</div>
+            <div style={{ color: '#B4B7C2', fontSize: 13, maxWidth: 220 }}>Click Approve on your computer screen</div>
+          </div>
+        ) : phase === 'paired' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, color: '#fff' }}>
+            <div style={{ width: 52, height: 52, borderRadius: 999, background: '#22A559', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+            </div>
+            <div style={{ fontWeight: 600, fontSize: 16 }}>Connected</div>
+          </div>
+        ) : phase === 'trouble' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: '#fff', padding: 20, textAlign: 'center' }}>
+            <div style={{ width: 44, height: 44, borderRadius: 999, background: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </div>
+            <div style={{ fontWeight: 600, fontSize: 15 }}>{trouble?.title || 'Connection Failed'}</div>
+            <div style={{ color: '#B4B7C2', fontSize: 13, maxWidth: 260 }}>{trouble?.body}</div>
+          </div>
+        ) : (
+          <>
+            {/* Viewfinder Corners from Connect.dc.html */}
+            <div style={{ position: 'absolute', left: 44, top: 40, width: 36, height: 36, borderLeft: '3px solid #fff', borderTop: '3px solid #fff', borderTopLeftRadius: 14 }} />
+            <div style={{ position: 'absolute', right: 44, top: 40, width: 36, height: 36, borderRight: '3px solid #fff', borderTop: '3px solid #fff', borderTopRightRadius: 14 }} />
+            <div style={{ position: 'absolute', left: 44, bottom: 64, width: 36, height: 36, borderLeft: '3px solid #fff', borderBottom: '3px solid #fff', borderBottomLeftRadius: 14 }} />
+            <div style={{ position: 'absolute', right: 44, bottom: 64, width: 36, height: 36, borderRight: '3px solid #fff', borderBottom: '3px solid #fff', borderBottomRightRadius: 14 }} />
+
+            {/* Glowing Laser Scan Line */}
+            <motion.div
+              style={{
+                position: 'absolute',
+                left: 60,
+                right: 60,
+                height: 2,
+                borderRadius: 2,
+                background: 'linear-gradient(90deg, rgba(91,155,255,0), #7B7BFF, rgba(91,155,255,0))',
+              }}
+              animate={{ y: [-40, 40, -40] }}
+              transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
+            />
+
+            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 24, textAlign: 'center', fontSize: 13, color: '#B4B7C2' }}>
+              Point the camera at the code
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Status Row */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 24,
+          right: 24,
+          top: 'max(544px, calc(env(safe-area-inset-top, 24px) + 494px))',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          fontSize: 14,
+          color: '#3A3C47',
+          zIndex: 10,
+        }}
+      >
+        <span style={{ width: 8, height: 8, borderRadius: 999, background: phase === 'trouble' ? '#EF4444' : '#2D2DEB', display: 'inline-block' }} />
+        <span>{phase === 'scanning' ? 'Scanning QR code…' : phase === 'trouble' ? 'Connection trouble' : 'Waiting for your PC'}</span>
+      </div>
+
+      {/* Bottom Action Buttons */}
+      <motion.div
+        style={{
+          position: 'absolute',
+          left: 24,
+          right: 24,
+          bottom: 'max(36px, env(safe-area-inset-bottom, 24px))',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 6,
+          zIndex: 10,
+        }}
+      >
+        {phase === 'scanning' ? (
+          <motion.button
+            type="button"
+            onClick={() => setPhase('idle')}
+            style={{
+              boxSizing: 'border-box',
+              width: '100%',
+              height: 56,
+              border: 0,
+              borderRadius: 14,
+              background: '#0F0F12',
+              color: '#fff',
+              fontSize: 17,
+              fontWeight: 700,
+              boxShadow: '0 14px 30px rgba(15,15,18,0.25)',
+              cursor: 'pointer',
+            }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.96 }}
+          >
+            Cancel scanning
+          </motion.button>
+        ) : phase === 'trouble' ? (
+          <motion.button
+            type="button"
+            onClick={() => setPhase('scanning')}
+            style={{
+              boxSizing: 'border-box',
+              width: '100%',
+              height: 56,
+              border: 0,
+              borderRadius: 14,
+              background: '#2D2DEB',
+              color: '#fff',
+              fontSize: 17,
+              fontWeight: 700,
+              boxShadow: '0 14px 30px rgba(45,45,235,0.35)',
+              cursor: 'pointer',
+            }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.96 }}
+          >
+            {trouble?.retry || 'Scan code again'}
+          </motion.button>
+        ) : (
+          <motion.button
+            type="button"
+            onClick={() => setPhase('scanning')}
+            style={{
+              boxSizing: 'border-box',
+              width: '100%',
+              height: 56,
+              border: 0,
+              borderRadius: 14,
+              background: '#2D2DEB',
+              color: '#fff',
+              fontSize: 17,
+              fontWeight: 700,
+              boxShadow: '0 14px 30px rgba(45,45,235,0.35)',
+              cursor: 'pointer',
+            }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.96 }}
+          >
+            Scan code
+          </motion.button>
+        )}
+
+        <motion.button
+          type="button"
+          onClick={onEnterCode}
+          style={{
+            height: 48,
+            padding: '0 20px',
+            background: 'transparent',
+            border: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#0F0F12',
+            fontSize: 16,
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+          whileHover={{ opacity: 0.7 }}
+          whileTap={{ scale: 0.96 }}
+        >
+          Enter code instead
+        </motion.button>
+      </motion.div>
     </motion.div>
   )
 }

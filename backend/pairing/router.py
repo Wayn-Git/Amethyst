@@ -49,6 +49,11 @@ class ApprovePairingRequest(BaseModel):
     device_label: str | None = None
 
 
+class ClaimCodeRequest(BaseModel):
+    code: str
+    device_label: str | None = None
+
+
 # --- Pairing Endpoints ---
 
 
@@ -81,6 +86,24 @@ def approve_pairing(body: ApprovePairingRequest | None = None) -> dict[str, Any]
     except Exception as exc:
         log.exception("Error approving pairing v2")
         raise HTTPException(status_code=500, detail=f"Failed to approve pairing: {exc}")
+
+
+@router.post("/claim-code")
+def claim_code(body: ClaimCodeRequest) -> dict[str, Any]:
+    """Claim active pairing session using 6-digit numeric code."""
+    try:
+        return pairing_service.claim_code(code=body.code, device_label=body.device_label)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        log.exception("Error claiming pairing code")
+        raise HTTPException(status_code=500, detail=f"Failed to claim code: {exc}")
+
+
+@router.get("/claim-code-status")
+def get_code_status(code: str) -> dict[str, Any]:
+    """Poll status of claimed 6-digit pairing code."""
+    return pairing_service.get_code_status(code=code)
 
 
 @router.post("/deny")

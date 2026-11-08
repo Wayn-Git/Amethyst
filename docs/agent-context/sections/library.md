@@ -48,6 +48,7 @@ as a Markdown file, enrich it, index it, and search it by keyword or meaning.
   with zero duplicates per item.
 - `library_lists` and `library_list_members` support grouping items and extracted links with
   database-level `UNIQUE(list_id, item_id)` and `UNIQUE(list_id, link_id)` constraints.
+  `library_lists` tracks `uuid` and `updated_hlc` for bi-directional peer relay sync and Google Drive catalog sync preservation.
 - `backend/library/clustering.py` automatically synthesizes thematic smart lists using
   shared tags, semantic vector representations, and domain analysis.
 - Detail modals feature a "Referenced Outbound Links" card allowing single-click external navigation

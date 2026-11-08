@@ -2855,6 +2855,22 @@ def microsoft_disconnect_route() -> dict[str, Any]:
     return {"ok": disconnect()}
 
 
+@app.post("/api/auth/microsoft/device/start")
+async def start_microsoft_device_auth_route() -> dict[str, Any]:
+    """Initiate a Microsoft device code authorization flow."""
+    from backend.auth.microsoft import start_device_flow
+
+    return await start_device_flow()
+
+
+@app.get("/api/auth/microsoft/device/poll/{device_code}")
+async def poll_microsoft_device_auth_route(device_code: str) -> dict[str, Any]:
+    """Poll Microsoft device code authorization status."""
+    from backend.auth.microsoft import poll_device_flow
+
+    return await poll_device_flow(device_code)
+
+
 @app.get("/api/share/http-shortcuts.json")
 def get_http_shortcuts_config(request: Request, download: int = 0) -> Response:
     """Return preconfigured HTTP Shortcuts JSON file with current endpoint and token."""
@@ -8481,6 +8497,7 @@ async def list_library(
     kind: str | None = None,
     category: str | None = None,
     tag: str | None = None,
+    list_id: int | None = None,
     order: str = "desc",
     limit: int = 50,
     offset: int = 0,
@@ -8498,6 +8515,8 @@ async def list_library(
 
     if q and q.strip():
         items = await service.search(q, limit=max(limit, 200))
+        if list_id is not None:
+            items = [it for it in items if list_id in [c.get("id") for c in it.get("collection_details", [])]]
         if kinds:
             items = [it for it in items if it.get("kind") in kinds]
         if categories:
@@ -8511,9 +8530,9 @@ async def list_library(
         # case. Multi-select needs an OR within a facet, so filter the bounded
         # full library result after it has applied category inference.
         if len(kinds) <= 1 and len(categories) <= 1 and len(tags) <= 1:
-            items = service.recent(kind=next(iter(kinds), None), category=next(iter(categories), None), tag=next(iter(tags), None), order=order, limit=limit, offset=offset)
+            items = service.recent(kind=next(iter(kinds), None), category=next(iter(categories), None), tag=next(iter(tags), None), list_id=list_id, order=order, limit=limit, offset=offset)
         else:
-            items = service.recent(order=order, limit=5000)
+            items = service.recent(list_id=list_id, order=order, limit=5000)
             if kinds:
                 items = [it for it in items if it.get("kind") in kinds]
             if categories:
@@ -11043,8 +11062,8 @@ _DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-@app.get("/amethyst-companion.apk", include_in_schema=False)
-@app.get("/download/companion.apk", include_in_schema=False)
+@app.api_route("/amethyst-companion.apk", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/download/companion.apk", methods=["GET", "HEAD"], include_in_schema=False)
 def download_companion_apk():
     """Direct unauthenticated download of the Amethyst Companion Android APK."""
     for candidate in [

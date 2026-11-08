@@ -27,6 +27,28 @@ export default function BrandIcon({ name, slug, size = 18, color, className = ''
     )
   }
 
+  // Microsoft To Do
+  if (key === 'microsofttodo' || key === 'microsoft-todo' || key === 'microsoft') {
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={color || '#2441ff'}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={className}
+        style={{ flexShrink: 0, ...style }}
+        aria-hidden="true"
+      >
+        <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z" />
+        <path d="M8 12.5l3 3 5-6" />
+      </svg>
+    )
+  }
+
   // Google Drive
   if (key === 'googledrive' || key === 'gdrive' || key === 'drive') {
     return (

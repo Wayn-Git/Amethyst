@@ -1,6 +1,5 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import AmethystLogo from '../../components/AmethystLogo.jsx'
 import '../companion.css'
 
 const pageVariants = {
@@ -31,10 +30,10 @@ const pageVariants = {
   }),
 }
 
-export default function MobileOnboarding({ onGetStarted, onSkip, onHaveCode, direction = 1 }) {
+export default function MobileOnboarding({ onGetStarted, onHaveCode, direction = 1 }) {
   return (
     <motion.div
-      className="m-shell s"
+      className="m-shell"
       style={{
         position: 'relative',
         width: '100%',
@@ -42,7 +41,10 @@ export default function MobileOnboarding({ onGetStarted, onSkip, onHaveCode, dir
         height: '100dvh',
         margin: '0 auto',
         overflow: 'hidden',
-        background: '#EEF3FF',
+        boxSizing: 'border-box',
+        fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+        color: '#fff',
+        background: 'radial-gradient(70% 40% at 105% 8%, rgba(255,176,196,0.95) 0%, rgba(255,176,196,0) 70%), radial-gradient(75% 34% at 100% 42%, #F2214B 0%, rgba(242,33,75,0.65) 40%, rgba(242,33,75,0) 100%), radial-gradient(60% 30% at 38% 36%, rgba(194,60,170,0.7) 0%, rgba(194,60,170,0) 100%), radial-gradient(90% 40% at 0% 8%, #2A19C9 0%, rgba(42,25,201,0) 80%), linear-gradient(180deg,#3B2BE6 0%,#3A32F2 50%,#2E22D8 100%)',
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -51,179 +53,149 @@ export default function MobileOnboarding({ onGetStarted, onSkip, onHaveCode, dir
       initial="enter"
       animate="center"
       exit="exit"
-      transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
     >
-      {/* Background Pastel Gradient from Onboarding.dc.html */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'radial-gradient(110% 65% at 0% 95%, #FFAE7C 0%, rgba(255,174,124,0) 68%), radial-gradient(100% 70% at 100% 60%, #4F92FF 0%, rgba(79,146,255,0) 70%), radial-gradient(90% 55% at 40% 0%, #CFE0FF 0%, rgba(207,224,255,0) 75%), #EEF3FF',
-          pointerEvents: 'none',
-        }}
-      />
-
-      {/* Subtle Noise Texture */}
-      <svg
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', mixBlendMode: 'soft-light', opacity: 0.5, pointerEvents: 'none' }}
-        aria-hidden="true"
-      >
-        <filter id="onboarding-noise">
-          <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch" />
-          <feColorMatrix type="saturate" values="0" />
-        </filter>
-        <rect width="100%" height="100%" filter="url(#onboarding-noise)" />
-      </svg>
-
-      {/* Top Header Row with animated entrance */}
+      {/* Top Logo Badge */}
       <motion.div
-        className="r sp"
         style={{
           position: 'absolute',
-          top: 'max(24px, env(safe-area-inset-top, 24px))',
-          left: 24,
-          right: 24,
+          left: 0,
+          right: 0,
+          top: 'max(48px, calc(env(safe-area-inset-top, 24px) + 24px))',
+          display: 'flex',
+          justifyContent: 'center',
           zIndex: 10,
         }}
         initial={{ y: -16, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 360, damping: 28, delay: 0.05 }}
       >
-        <div className="r" style={{ gap: 10 }}>
-          <AmethystLogo size={24} color="#873FFF" />
-          <span style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-0.02em', color: '#1D1D1F' }}>
-            Amethyst
-          </span>
-        </div>
-        <motion.button
-          type="button"
-          className="ch glass"
+        <div
           style={{
-            font: "600 13px 'Inter', sans-serif",
-            padding: '9px 16px',
-            border: '1px solid rgba(255, 255, 255, 0.75)',
-            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.05)',
-            cursor: 'pointer',
+            width: 44,
+            height: 44,
+            borderRadius: 14,
+            background: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 10px 28px rgba(20, 10, 120, 0.35)',
           }}
-          onClick={onSkip}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.94 }}
         >
-          Skip
-        </motion.button>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2D2DEB" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+            <path d="M6 3h12l4 6-10 12L2 9z" />
+            <path d="M2 9h20" />
+            <path d="M9 3l3 6 3-6" />
+            <path d="M12 21L9 9M12 21l3-12" />
+          </svg>
+        </div>
       </motion.div>
 
-      {/* Bottom Content Card with Staggered Entrance */}
+      {/* Middle Headline & Copy */}
       <div
-        className="col"
+        style={{
+          position: 'absolute',
+          left: 32,
+          right: 32,
+          bottom: 'max(140px, calc(env(safe-area-inset-bottom, 24px) + 116px))',
+          textAlign: 'center',
+          zIndex: 10,
+        }}
+      >
+        <motion.h1
+          style={{
+            margin: 0,
+            fontSize: 'clamp(34px, 8.5vw, 42px)',
+            lineHeight: 1.06,
+            fontWeight: 800,
+            letterSpacing: '-0.045em',
+            color: '#fff',
+          }}
+          initial={{ y: 22, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 28, delay: 0.1 }}
+        >
+          One mind for your digital life.
+        </motion.h1>
+        <motion.p
+          style={{
+            margin: '16px auto 0',
+            maxWidth: 290,
+            fontSize: 16,
+            lineHeight: 1.4,
+            fontWeight: 500,
+            color: 'rgba(255, 255, 255, 0.9)',
+          }}
+          initial={{ y: 18, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 28, delay: 0.16 }}
+        >
+          Your Library, tasks and agent, with your PC always within reach.
+        </motion.p>
+      </div>
+
+      {/* Bottom Action Buttons */}
+      <motion.div
         style={{
           position: 'absolute',
           left: 24,
           right: 24,
-          bottom: 'max(36px, env(safe-area-inset-bottom, 36px))',
-          gap: 16,
+          bottom: 'max(36px, env(safe-area-inset-bottom, 24px))',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 6,
           zIndex: 10,
         }}
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 28, delay: 0.22 }}
       >
-        {/* Stepper Dots */}
-        <motion.div
-          className="r"
-          style={{ gap: 6, marginBottom: 4 }}
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 26, delay: 0.1 }}
-        >
-          <motion.span
-            layoutId="stepper-active"
-            style={{ width: 22, height: 6, borderRadius: 3, background: '#1D1D1F' }}
-            transition={{ type: 'spring', stiffness: 350, damping: 26 }}
-          />
-          <span style={{ width: 6, height: 6, borderRadius: 3, background: 'rgba(0,0,0,0.25)' }} />
-          <span style={{ width: 6, height: 6, borderRadius: 3, background: 'rgba(0,0,0,0.25)' }} />
-        </motion.div>
-
-        {/* Title */}
-        <motion.h1
-          style={{
-            margin: 0,
-            fontSize: 'clamp(36px, 9vw, 44px)',
-            lineHeight: 1.05,
-            fontWeight: 700,
-            letterSpacing: '-0.05em',
-            color: '#1D1D1F',
-          }}
-          initial={{ y: 26, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 380, damping: 28, delay: 0.12 }}
-        >
-          One mind for your digital life.
-        </motion.h1>
-
-        {/* Subtitle */}
-        <motion.p
-          style={{
-            margin: 0,
-            fontSize: 16,
-            lineHeight: 1.45,
-            color: '#1D1D1F',
-            maxWidth: 320,
-            opacity: 0.9,
-          }}
-          initial={{ y: 22, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 380, damping: 28, delay: 0.18 }}
-        >
-          Your Library, tasks and agent, with your PC always within reach.
-        </motion.p>
-
-        {/* Primary Action Button */}
         <motion.button
           type="button"
-          className="bt"
           style={{
+            boxSizing: 'border-box',
             width: '100%',
-            justifyContent: 'space-between',
-            marginTop: 6,
-            minHeight: 52,
-            padding: '0 24px',
-            fontSize: 15,
-            fontWeight: 600,
+            height: 56,
+            borderRadius: 14,
+            background: '#16167A',
+            border: 0,
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 17,
+            fontWeight: 700,
+            boxShadow: '0 14px 30px rgba(10, 8, 90, 0.35)',
+            cursor: 'pointer',
           }}
           onClick={onGetStarted}
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 380, damping: 28, delay: 0.24 }}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.96 }}
         >
-          <span>Get started</span>
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M5 12h14" />
-            <path d="m12 5 7 7-7 7" />
-          </svg>
+          Get started
         </motion.button>
-
-        {/* Secondary Action Button */}
         <motion.button
           type="button"
-          className="bt glass"
           style={{
-            width: '100%',
-            color: '#1D1D1F',
-            minHeight: 50,
-            fontSize: 15,
-            fontWeight: 600,
+            height: 48,
+            padding: '0 20px',
+            background: 'transparent',
+            border: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            fontSize: 16,
+            fontWeight: 700,
+            cursor: 'pointer',
           }}
           onClick={onHaveCode}
-          initial={{ y: 16, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 380, damping: 28, delay: 0.3 }}
-          whileHover={{ scale: 1.02 }}
+          whileHover={{ opacity: 0.85 }}
           whileTap={{ scale: 0.96 }}
         >
           I have a code
         </motion.button>
-      </div>
+      </motion.div>
     </motion.div>
   )
 }

@@ -492,8 +492,9 @@ export default function LibraryDetailModal({
 
     api.getLibraryLists()
       .then((res) => {
-        if (!cancelled && res?.lists) {
-          setAvailableLists(res.lists)
+        if (!cancelled) {
+          const listArr = Array.isArray(res) ? res : (res?.lists || [])
+          setAvailableLists(listArr)
         }
       })
       .catch(() => {})
@@ -521,11 +522,34 @@ export default function LibraryDetailModal({
       try {
         await api.addLibraryListMember(listId, { item_id: item.id })
         toast?.('Added item to list', 'ok')
+        const fresh = await api.libraryItem(item.id)
+        if (fresh) {
+          setDetailItem(fresh)
+          onUpdate?.(fresh)
+        }
       } catch (err) {
         toast?.(err.message || 'Failed to add item to list', 'bad')
       }
     },
-    [item?.id, toast]
+    [item?.id, onUpdate, toast]
+  )
+
+  const handleRemoveItemFromList = useCallback(
+    async (listId) => {
+      if (!item?.id) return
+      try {
+        await api.removeLibraryListMember(listId, { itemId: item.id })
+        toast?.('Removed from collection', 'ok')
+        const fresh = await api.libraryItem(item.id)
+        if (fresh) {
+          setDetailItem(fresh)
+          onUpdate?.(fresh)
+        }
+      } catch (err) {
+        toast?.(err.message || 'Failed to remove from collection', 'bad')
+      }
+    },
+    [item?.id, onUpdate, toast]
   )
 
   // Pager index and handlers
@@ -1803,6 +1827,9 @@ export default function LibraryDetailModal({
             <LibraryRightRail
               item={item}
               tags={tags}
+              availableLists={availableLists}
+              onAddItemToList={handleAddItemToList}
+              onRemoveItemFromList={handleRemoveItemFromList}
               onAddTag={handleAddTag}
               onRemoveTag={handleRemoveTag}
               rating={rating}

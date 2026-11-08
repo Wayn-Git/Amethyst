@@ -121,3 +121,84 @@ def test_api_routes():
     status_res = client.get("/api/auth/microsoft/status")
     assert status_res.status_code == 200
     assert "connected" in status_res.json()
+
+
+@pytest.mark.asyncio
+async def test_device_flow():
+    from backend.auth.microsoft import poll_device_flow, start_device_flow
+
+    mock_device_resp = AsyncMock()
+    mock_device_resp.status_code = 200
+    mock_device_resp.json = MagicMock(return_value={
+        "device_code": "mock-device-code-abc",
+        "user_code": "ABCD-EFGH",
+        "verification_uri": "https://login.microsoft.com/device",
+        "expires_in": 900,
+        "interval": 5,
+        "message": "To sign in, use a web browser to open the page https://login.microsoft.com/device and enter the code ABCD-EFGH to authenticate.",
+    })
+
+    with patch("httpx.AsyncClient.post", return_value=mock_device_resp):
+        info = await start_device_flow()
+        assert info["user_code"] == "ABCD-EFGH"
+        assert info["device_code"] == "mock-device-code-abc"
+        assert info["verification_uri"] == "https://login.microsoft.com/device"
+
+    # Pending poll
+    mock_poll_pending = AsyncMock()
+    mock_poll_pending.status_code = 400
+    mock_poll_pending.json = MagicMock(return_value={
+        "error": "authorization_pending",
+        "error_description": "Authorization pending",
+    })
+
+    with patch("httpx.AsyncClient.post", return_value=mock_poll_pending):
+        poll_res = await poll_device_flow("mock-device-code-abc")
+        assert poll_res["connected"] is False
+        assert poll_res["status"] == "pending"
+
+    # Success poll
+    mock_poll_success = AsyncMock()
+    mock_poll_success.status_code = 200
+    mock_poll_success.json = MagicMock(return_value={
+        "access_token": "token-12345",
+        "refresh_token": "refresh-67890",
+        "expires_in": 3600,
+    })
+
+    with patch("httpx.AsyncClient.post", return_value=mock_poll_success):
+        poll_res = await poll_device_flow("mock-device-code-abc")
+        assert poll_res["connected"] is True
+        assert poll_res["status"] == "completed"
+        assert get_connection_status()["connected"] is True
+
+
+def test_device_flow_api_routes():
+    client = TestClient(app)
+
+    mock_device_resp = AsyncMock()
+    mock_device_resp.status_code = 200
+    mock_device_resp.json = MagicMock(return_value={
+        "device_code": "test-device-code-xyz",
+        "user_code": "WXYZ-1234",
+        "verification_uri": "https://login.microsoft.com/device",
+        "expires_in": 900,
+        "interval": 5,
+    })
+
+    with patch("httpx.AsyncClient.post", return_value=mock_device_resp):
+        start_res = client.post("/api/auth/microsoft/device/start")
+        assert start_res.status_code == 200
+        data = start_res.json()
+        assert data["user_code"] == "WXYZ-1234"
+        assert data["device_code"] == "test-device-code-xyz"
+
+    mock_poll_pending = AsyncMock()
+    mock_poll_pending.status_code = 400
+    mock_poll_pending.json = MagicMock(return_value={"error": "authorization_pending"})
+
+    with patch("httpx.AsyncClient.post", return_value=mock_poll_pending):
+        poll_res = client.get("/api/auth/microsoft/device/poll/test-device-code-xyz")
+        assert poll_res.status_code == 200
+        assert poll_res.json()["connected"] is False
+        assert poll_res.json()["status"] == "pending"

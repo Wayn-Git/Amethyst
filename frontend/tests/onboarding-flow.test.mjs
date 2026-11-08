@@ -2,13 +2,14 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 
-test('SplashScreenWizard integrates the 7 modern onboarding screens', () => {
+test('SplashScreenWizard integrates the 8 modern onboarding screens', () => {
   const content = fs.readFileSync('frontend/src/components/SplashScreenWizard.jsx', 'utf8')
   assert.match(content, /StepSplash/)
   assert.match(content, /StepWelcome/)
   assert.match(content, /StepProfile/)
   assert.match(content, /StepAiEngine/)
   assert.match(content, /StepStorage/)
+  assert.match(content, /StepMicrosoftTodo/)
   assert.match(content, /StepMobile/)
   assert.match(content, /StepLaunch/)
   assert.equal(content.includes('StepCloudflare'), false, 'Should not contain StepCloudflare')
@@ -23,6 +24,7 @@ test('StepLaunch renders setup summary with verified rows and Open Amethyst CTA'
   assert.match(content, /Profile/)
   assert.match(content, /AI engine/)
   assert.match(content, /Storage/)
+  assert.match(content, /Tasks/)
   assert.match(content, /Mobile/)
 })
 

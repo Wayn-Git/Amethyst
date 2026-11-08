@@ -37,6 +37,7 @@ import sqlite3
 import uuid
 from dataclasses import dataclass, field as _field
 
+from backend.secrets import delete_secret, get_secret, set_secret
 from backend.sync import hlc, registry
 
 log = logging.getLogger(__name__)
@@ -190,6 +191,24 @@ def stable_key(conn: sqlite3.Connection, entity_name: str, row_id) -> str | None
 
 # -- receiving -----------------------------------------------------------
 
+def _resolve_task_list_id(conn: sqlite3.Connection, list_id: Any) -> int | None:
+    if list_id is None:
+        return None
+    try:
+        row = conn.execute("SELECT id FROM task_lists WHERE id = ?", (list_id,)).fetchone()
+        if row:
+            return row[0]
+        row = conn.execute("SELECT id FROM task_lists WHERE is_default = 1 AND retired_at IS NULL").fetchone()
+        if row:
+            return row[0]
+        row = conn.execute("SELECT id FROM task_lists WHERE retired_at IS NULL LIMIT 1").fetchone()
+        if row:
+            return row[0]
+    except Exception:
+        pass
+    return None
+
+
 def apply_op(conn: sqlite3.Connection, op: Op, clock: hlc.Clock | None = None) -> bool:
     """Merge one op. Returns whether it changed anything.
 
@@ -223,6 +242,11 @@ def apply_op(conn: sqlite3.Connection, op: Op, clock: hlc.Clock | None = None) -
     claimed = {k: v for k, v in op.fields.items() if k in entity.fields}
     if not claimed:
         return False
+
+    if entity.name == "tasks" and "list_id" in claimed:
+        claimed["list_id"] = _resolve_task_list_id(conn, claimed["list_id"])
+
+    table_cols = {r[1] for r in conn.execute(f"PRAGMA table_info({entity.table})")}
 
     row = conn.execute(
         f"SELECT {entity.stamp_column} FROM {entity.table} WHERE {entity.key_column} = ?",
@@ -263,12 +287,38 @@ def apply_op(conn: sqlite3.Connection, op: Op, clock: hlc.Clock | None = None) -
         return False  # every field here was overwritten by something later
 
     stamps.update({name: op.hlc for name in winning})
-    assignments = ", ".join(f"{name} = ?" for name in winning)
-    conn.execute(
-        f"UPDATE {entity.table} SET {assignments}, {entity.stamp_column} = ?"
-        f" WHERE {entity.key_column} = ?",
-        (*winning.values(), json.dumps(stamps, sort_keys=True), op.key),
-    )
+    table_winning = {name: value for name, value in winning.items() if name in table_cols}
+    assignments = ", ".join(f"{name} = ?" for name in table_winning)
+    if assignments:
+        conn.execute(
+            f"UPDATE {entity.table} SET {assignments}, {entity.stamp_column} = ?"
+            f" WHERE {entity.key_column} = ?",
+            (*table_winning.values(), json.dumps(stamps, sort_keys=True), op.key),
+        )
+    else:
+        conn.execute(
+            f"UPDATE {entity.table} SET {entity.stamp_column} = ?"
+            f" WHERE {entity.key_column} = ?",
+            (json.dumps(stamps, sort_keys=True), op.key),
+        )
+
+    if entity.name == "credentials":
+        vault_key = claimed.get("vault_key") or f"amethyst/{op.key}.tokens"
+        secret_val = claimed.get("secret_value")
+        try:
+            if secret_val:
+                set_secret(vault_key, secret_val)
+                if op.key == "microsoft-todo" or "microsoft-todo" in vault_key:
+                    from backend.auth.microsoft import sync_token_cache_from_vault
+                    sync_token_cache_from_vault(secret_val)
+            else:
+                delete_secret(vault_key)
+                if op.key == "microsoft-todo" or "microsoft-todo" in vault_key:
+                    from backend.auth.microsoft import remove_token_cache
+                    remove_token_cache()
+        except Exception as exc:
+            log.warning("could not apply credential sync for %s: %s", op.key, exc)
+
     return True
 
 

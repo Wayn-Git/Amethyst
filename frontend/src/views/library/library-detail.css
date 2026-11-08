@@ -1631,7 +1631,8 @@
   color: var(--text, var(--foreground));
 }
 
-.lib-rail-tag-del {
+.lib-rail-tag-del,
+.lib-rail-col-remove {
   border: none;
   background: transparent;
   color: var(--text-dim, var(--muted));
@@ -1641,7 +1642,8 @@
   align-items: center;
 }
 
-.lib-rail-tag-del:hover {
+.lib-rail-tag-del:hover,
+.lib-rail-col-remove:hover {
   color: var(--accent);
 }
 

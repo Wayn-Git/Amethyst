@@ -18,16 +18,41 @@ function getItemDomain(url) {
   }
 }
 
+function getResolvedBase() {
+  const base = getBase().replace(/\/api$/, '')
+  if (base) return base
+  try {
+    const pcHost = safeStorage.getItem('amethyst.pc_host')
+    if (pcHost && !pcHost.includes('localhost')) {
+      return pcHost.replace(/\/+$/, '')
+    }
+  } catch {}
+  return ''
+}
+
 function resolveThumbnail(item) {
   if (!item) return ''
+  // 1. YouTube direct thumbnail fallback if no custom still
+  if (item.url) {
+    const ytMatch = item.url.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([\w-]{11})/)
+    if (ytMatch && (!item.thumbnail_path || item.thumbnail_path.includes('default'))) {
+      return `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`
+    }
+  }
+  const hostBase = getResolvedBase()
+  // 2. Direct external thumbnail URL (do not append local Amethyst auth tokens to external CDNs)
   if (item.thumbnail_url) {
-    if (item.thumbnail_url.startsWith('http')) return appendAuthToken(item.thumbnail_url)
+    if (item.thumbnail_url.startsWith('http')) return item.thumbnail_url
     if (item.thumbnail_url.startsWith('/api')) {
-      return appendAuthToken(`${getBase().replace(/\/api$/, '')}${item.thumbnail_url}`)
+      return appendAuthToken(`${hostBase}${item.thumbnail_url}`)
     }
     return api.thumbnailUrl ? api.thumbnailUrl(item.id) : item.thumbnail_url
   }
-  if (item.thumbnail_path || item.has_thumbnail) {
+  // 3. Amethyst local thumbnail endpoint
+  if (item.thumbnail_path || item.has_thumbnail || item.id) {
+    if (hostBase) {
+      return appendAuthToken(`${hostBase}/api/library/${item.id}/thumbnail`)
+    }
     return api.thumbnailUrl ? api.thumbnailUrl(item.id) : ''
   }
   return ''
@@ -35,13 +60,17 @@ function resolveThumbnail(item) {
 
 function resolveCollectionCover(collection) {
   if (!collection) return ''
+  const hostBase = getResolvedBase()
   if (collection.cover_item_id) {
+    if (hostBase) {
+      return appendAuthToken(`${hostBase}/api/library/${collection.cover_item_id}/thumbnail`)
+    }
     return api.thumbnailUrl ? api.thumbnailUrl(collection.cover_item_id) : ''
   }
   if (collection.thumbnail_url) {
-    if (collection.thumbnail_url.startsWith('http')) return appendAuthToken(collection.thumbnail_url)
+    if (collection.thumbnail_url.startsWith('http')) return collection.thumbnail_url
     if (collection.thumbnail_url.startsWith('/api')) {
-      return appendAuthToken(`${getBase().replace(/\/api$/, '')}${collection.thumbnail_url}`)
+      return appendAuthToken(`${hostBase}${collection.thumbnail_url}`)
     }
     return collection.thumbnail_url
   }
@@ -199,7 +228,7 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
               width: 88,
               height: 56,
               borderRadius: 14,
-              background: '#101012',
+              background: '#1A1A1E',
               color: '#fff',
               display: 'flex',
               alignItems: 'center',
@@ -212,37 +241,36 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
               position: 'relative',
             }}
           >
-            {thumb && (
-              <img
-                src={thumb}
-                alt={item.title}
-                loading="lazy"
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none'
-                  if (e.currentTarget.nextElementSibling) {
-                    e.currentTarget.nextElementSibling.style.display = 'flex'
-                  }
-                }}
-              />
-            )}
-            <span
+            {/* Fallback label / card is always positioned behind the image */}
+            <div
               style={{
-                display: thumb ? 'none' : 'flex',
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '100%',
-                height: '100%',
                 textAlign: 'center',
                 padding: '0 6px',
                 color: '#8E8E93',
                 fontSize: 11,
                 fontWeight: 600,
-                background: '#1A1A1E',
+                background: 'linear-gradient(135deg, #1C1C1E 0%, #121214 100%)',
               }}
             >
               {item.kind === 'note' ? '📝 Note' : (item.channel || item.author || getItemDomain(item.url) || 'Amethyst')}
-            </span>
+            </div>
+
+            {thumb && (
+              <img
+                src={thumb}
+                alt={item.title}
+                loading="lazy"
+                style={{ position: 'relative', width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
+            )}
 
             {isVideo && (
               <span
@@ -253,6 +281,7 @@ export default function MobileLibrary({ onSelectItem, onOpenAsk }) {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  zIndex: 2,
                 }}
               >
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="#fff" aria-hidden="true">

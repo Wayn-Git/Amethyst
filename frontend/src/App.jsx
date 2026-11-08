@@ -36,6 +36,8 @@ import { ToastStack } from './components/arc/toast-stack/toast-stack'
 import { useLiquidGlassManager } from './lib/liquid-glass/index.jsx'
 import MobileSplash from './mobile/views/MobileSplash.jsx'
 import MobileOnboarding from './mobile/views/MobileOnboarding.jsx'
+import MobileEnterCode from './mobile/views/MobileEnterCode.jsx'
+import MobileSkipConfirm from './mobile/views/MobileSkipConfirm.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
 
 /* The workbench.
@@ -479,13 +481,9 @@ function PhoneApp({ paired, onPaired, onDesktop }) {
               setDirection(1)
               setFlow('pair')
             }}
-            onSkip={() => {
-              setDirection(1)
-              setFlow('pair')
-            }}
             onHaveCode={() => {
               setDirection(1)
-              setFlow('pair')
+              setFlow('code')
             }}
           />
         )}
@@ -503,6 +501,54 @@ function PhoneApp({ paired, onPaired, onDesktop }) {
             onBack={() => {
               setDirection(-1)
               setFlow('onboarding')
+            }}
+            onSkip={() => {
+              setDirection(1)
+              setFlow('sure')
+            }}
+            onEnterCode={() => {
+              setDirection(1)
+              setFlow('code')
+            }}
+          />
+        )}
+
+        {flow === 'code' && (
+          <MobileEnterCode
+            key="code"
+            direction={direction}
+            onPaired={async () => {
+              await checkBundle()
+              onPaired?.(true)
+              setDirection(1)
+              setFlow('companion')
+            }}
+            onBack={() => {
+              setDirection(-1)
+              setFlow('pair')
+            }}
+            onSkip={() => {
+              setDirection(1)
+              setFlow('sure')
+            }}
+            onScanCode={() => {
+              setDirection(-1)
+              setFlow('pair')
+            }}
+          />
+        )}
+
+        {flow === 'sure' && (
+          <MobileSkipConfirm
+            key="sure"
+            direction={direction}
+            onConnect={() => {
+              setDirection(-1)
+              setFlow('pair')
+            }}
+            onSkip={() => {
+              setDirection(1)
+              setFlow('companion')
             }}
           />
         )}

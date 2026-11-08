@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { identity, queued } from '../lib/sync/client.js'
 
-export default function ConnectionDiagnosticsModal({ open, onClose, transportState, lastSync }) {
+export default function ConnectionDiagnosticsModal({ open, onClose, onOpenSettings, transportState, lastSync }) {
   const [copied, setCopied] = useState(false)
 
   if (!open) return null
@@ -123,7 +123,30 @@ export default function ConnectionDiagnosticsModal({ open, onClose, transportSta
           </div>
         </div>
 
-        <div className="diag-modal-footer">
+        <div className="diag-modal-footer" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {onOpenSettings && (
+            <button
+              type="button"
+              className="bt"
+              style={{
+                width: '100%',
+                height: 40,
+                borderRadius: 12,
+                fontSize: 13,
+                fontWeight: 600,
+                background: '#0071E3',
+                color: '#fff',
+                cursor: 'pointer',
+                border: 0,
+              }}
+              onClick={() => {
+                onClose()
+                onOpenSettings()
+              }}
+            >
+              Configure PC Host IP Address
+            </button>
+          )}
           <button type="button" className="diag-copy-btn" onClick={copyDiagnostics}>
             <Icon name={copied ? 'check' : 'copy'} size={18} />
             <span>{copied ? 'Copied to Clipboard' : 'Copy Diagnostics'}</span>

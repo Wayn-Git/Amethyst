@@ -511,8 +511,8 @@ class LibrarySyncEngine:
             now_iso = datetime.now().isoformat()
             if not cur:
                 conn.execute(
-                    "INSERT INTO library_lists (id, title, description, icon, is_smart, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (lid, l.get("title") or "List", l.get("description") or "", l.get("icon") or "bookmark", 1 if l.get("is_smart") else 0, l.get("created_at") or now_iso, l.get("updated_at") or now_iso),
+                    "INSERT INTO library_lists (id, title, description, icon, is_smart, uuid, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (lid, l.get("title") or "List", l.get("description") or "", l.get("icon") or "bookmark", 1 if l.get("is_smart") else 0, l.get("uuid"), l.get("created_at") or now_iso, l.get("updated_at") or now_iso),
                 )
             else:
                 conn.execute(
@@ -525,8 +525,12 @@ class LibrarySyncEngine:
         for m in members:
             lid = m.get("list_id")
             iid = m.get("item_id")
+            link_id = m.get("link_id")
+            pos = m.get("position", 0)
             if lid and iid:
-                conn.execute("INSERT OR IGNORE INTO library_list_members (list_id, item_id) VALUES (?, ?)", (lid, iid))
+                conn.execute("INSERT OR IGNORE INTO library_list_members (list_id, item_id, position) VALUES (?, ?, ?)", (lid, iid, pos))
+            elif lid and link_id:
+                conn.execute("INSERT OR IGNORE INTO library_list_members (list_id, link_id, position) VALUES (?, ?, ?)", (lid, link_id, pos))
 
         conn.commit()
 

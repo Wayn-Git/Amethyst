@@ -8,6 +8,8 @@ import Icon from '../components/Icon.jsx'
 import ConfirmDialogHost from '../components/ui/ConfirmDialog.jsx'
 import { identity, replica, sync } from '../lib/sync/client.js'
 import { getTransportManager } from '../lib/sync/transportManager.js'
+import { safeStorage } from '../lib/storage.js'
+import { storedIdentity } from '../lib/credentials.js'
 import ConnectionDiagnosticsModal from './ConnectionDiagnosticsModal.jsx'
 import { captures, saveCapture, flushCaptures } from './captures.js'
 import { putRecord, records } from './storage.js'
@@ -109,7 +111,7 @@ export default function Companion({ onUnpair }) {
   // Initialize Dual-Transport Manager
   useEffect(() => {
     const tm = getTransportManager({
-      getHostUrl: () => identity()?.hostUrl,
+      getHostUrl: () => safeStorage.getItem('amethyst.pc_host') || identity()?.hostUrl || storedIdentity()?.hostUrl || getBase().replace(/\/api$/, ''),
       getRelayUrl: () => identity()?.relayUrl,
       getToken: () => identity()?.token,
       onStateChange: (state) => setTransportState(state),
@@ -341,56 +343,68 @@ export default function Companion({ onUnpair }) {
 
   const permissions = connection?.permissions || {}
   const currentPath = transportState?.path || (connection ? 'direct' : 'relayed')
+  const hideTopStatus =
+    (tab === 'library' && (librarySubView === 'item' || librarySubView === 'ask')) ||
+    (tab === 'agent' && activeSession) ||
+    (tab === 'devices' && pcSubView === 'terminal')
 
   return (
     <div className="m-shell">
-      {/* Top Floating Status Strip */}
-      <header
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '8px 16px',
-          background: 'transparent',
-          zIndex: 30,
-        }}
-      >
-        <button
-          type="button"
-          className="transport-pill"
-          onClick={() => setDiagnosticsOpen(true)}
-          aria-label="Connection Diagnostics"
-          style={{ height: 32, padding: '0 10px', fontSize: 11.5 }}
+      {/* Top Floating Status Strip (hidden in focused subviews) */}
+      {!hideTopStatus && (
+        <header
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 16px',
+            background: 'transparent',
+            zIndex: 30,
+          }}
         >
-          <span className={`transport-dot transport-dot--${currentPath}`} />
-          <span>
-            {currentPath === 'direct' ? 'Direct LAN' : currentPath === 'relayed' ? 'Cloud Relay' : 'Offline'}
-          </span>
-        </button>
+          <button
+            type="button"
+            className="transport-pill"
+            onClick={() => {
+              if (currentPath === 'offline') {
+                setSettingsOpen(true)
+              } else {
+                setDiagnosticsOpen(true)
+              }
+            }}
+            aria-label="Connection Diagnostics"
+            style={{ height: 32, padding: '0 10px', fontSize: 11.5 }}
+          >
+            <span className={`transport-dot transport-dot--${currentPath}`} />
+            <span>
+              {currentPath === 'direct' ? 'Direct LAN' : currentPath === 'relayed' ? 'Cloud Relay' : 'Offline · Tap to connect'}
+            </span>
+          </button>
 
-        <button
-          type="button"
-          className="m-ib"
-          style={{ width: 34, height: 34, boxShadow: 'none' }}
-          onClick={() => setSettingsOpen(true)}
-          aria-label="Device settings"
-        >
-          <Icon name="sliders" size={17} />
-          {availableUpdate && (
-            <span
-              style={{
-                position: 'absolute',
-                top: 4,
-                right: 4,
-                width: 7,
-                height: 7,
-                borderRadius: '50%',
-                background: '#007aff',
-              }}
-            />
-          )}
-        </button>
-      </header>
+          <button
+            type="button"
+            className="m-ib"
+            style={{ width: 34, height: 34, boxShadow: 'none' }}
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Device settings"
+          >
+            <Icon name="sliders" size={17} />
+            {availableUpdate && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 4,
+                  right: 4,
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  background: '#007aff',
+                }}
+              />
+            )}
+          </button>
+        </header>
+      )}
 
       {/* Floating Proactive Mobile Update Notification */}
       <AnimatePresence>
@@ -496,6 +510,11 @@ export default function Companion({ onUnpair }) {
                 onBack={() => {
                   setLibrarySubView(null)
                   setSelectedLibraryItem(null)
+                }}
+                onDeleteItem={() => {
+                  setLibrarySubView(null)
+                  setSelectedLibraryItem(null)
+                  refresh()
                 }}
                 onAskAgent={(item) => {
                   setActiveSession({
@@ -689,6 +708,7 @@ export default function Companion({ onUnpair }) {
       <ConnectionDiagnosticsModal
         open={diagnosticsOpen}
         onClose={() => setDiagnosticsOpen(false)}
+        onOpenSettings={() => setSettingsOpen(true)}
         transportState={transportState}
         lastSync={lastSync}
       />
