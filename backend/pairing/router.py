@@ -49,6 +49,11 @@ class ApprovePairingRequest(BaseModel):
     device_label: str | None = None
 
 
+class ConfirmPairingRequest(BaseModel):
+    token: str | None = None
+    device_id: str | None = None
+
+
 class ClaimCodeRequest(BaseModel):
     code: str
     device_label: str | None = None
@@ -86,6 +91,20 @@ def approve_pairing(body: ApprovePairingRequest | None = None) -> dict[str, Any]
     except Exception as exc:
         log.exception("Error approving pairing v2")
         raise HTTPException(status_code=500, detail=f"Failed to approve pairing: {exc}")
+
+
+@router.post("/ack")
+def acknowledge_pairing(body: ConfirmPairingRequest | None = None) -> dict[str, Any]:
+    """Phone companion confirms receipt and storage of pairing bundle."""
+    try:
+        token = body.token if body else None
+        device_id = body.device_id if body else None
+        return pairing_service.confirm_pairing(device_id=device_id, token=token)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        log.exception("Error acknowledging pairing v2")
+        raise HTTPException(status_code=500, detail=f"Failed to acknowledge pairing: {exc}")
 
 
 @router.post("/claim-code")

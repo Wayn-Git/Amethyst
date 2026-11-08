@@ -2855,6 +2855,22 @@ def microsoft_disconnect_route() -> dict[str, Any]:
     return {"ok": disconnect()}
 
 
+@app.get("/api/auth/microsoft/bundle")
+def microsoft_bundle_route() -> dict[str, Any]:
+    """Provide Microsoft token bundle to paired companion if available on PC."""
+    from backend.auth.microsoft import get_connection_status, get_token_bundle_for_handoff
+
+    st = get_connection_status()
+    if not st.get("connected"):
+        return {"connected": False}
+
+    bundle = get_token_bundle_for_handoff()
+    if not bundle or not bundle.get("refresh_token"):
+        return {"connected": False}
+
+    return {"connected": True, "bundle": bundle}
+
+
 @app.post("/api/auth/microsoft/device/start")
 async def start_microsoft_device_auth_route() -> dict[str, Any]:
     """Initiate a Microsoft device code authorization flow."""

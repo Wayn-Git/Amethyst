@@ -30,7 +30,7 @@ from backend.secrets import delete_secret, get_secret, set_secret
 log = logging.getLogger(__name__)
 
 VAULT_KEY = "amethyst/microsoft-todo.tokens"
-DEFAULT_CLIENT_ID = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+DEFAULT_CLIENT_ID = "a7c42b18-1137-4d78-8d4c-91cd6be3acff"
 AUTH_ENDPOINT = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
 DEVICE_ENDPOINT = "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode"
 TOKEN_ENDPOINT = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
@@ -146,6 +146,88 @@ def migrate_token_cache_to_vault() -> bool:
     except Exception as exc:
         log.warning("Could not migrate token cache to vault: %s", exc)
         return False
+
+
+def _extract_jwt_claims(token: str | None) -> dict[str, Any]:
+    """Safely decode JWT payload without verification (for metadata claims only)."""
+    if not token or not isinstance(token, str) or token.count(".") < 2:
+        return {}
+    try:
+        payload_part = token.split(".")[1]
+        rem = len(payload_part) % 4
+        if rem > 0:
+            payload_part += "=" * (4 - rem)
+        decoded = base64.urlsafe_b64decode(payload_part.encode("ascii")).decode("utf-8")
+        parsed = json.loads(decoded)
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
+
+
+def get_token_bundle_for_handoff() -> dict[str, Any] | None:
+    """Build bundle for mobile pairing handoff containing refresh token, account metadata, scopes, expiry."""
+    raw = get_secret(VAULT_KEY)
+    if not raw:
+        return None
+    try:
+        tokens = json.loads(raw)
+        if not isinstance(tokens, dict):
+            return None
+        refresh_token = tokens.get("refresh_token")
+        if not refresh_token:
+            return None
+
+        access_token = tokens.get("access_token") or ""
+        claims = _extract_jwt_claims(access_token) or _extract_jwt_claims(tokens.get("id_token"))
+
+        account_id = (
+            tokens.get("account_id")
+            or claims.get("oid")
+            or claims.get("sub")
+            or ""
+        )
+        email = (
+            tokens.get("email")
+            or claims.get("upn")
+            or claims.get("email")
+            or claims.get("preferred_username")
+            or ""
+        )
+
+        return {
+            "refresh_token": refresh_token,
+            "access_token": access_token,
+            "account_id": account_id,
+            "email": email,
+            "scopes": tokens.get("scope") or DEFAULT_SCOPES,
+            "expires_at": tokens.get("expires_at") or (time.time() + 3600),
+        }
+    except Exception as exc:
+        log.warning("Failed to prepare Microsoft token bundle for handoff: %s", exc)
+        return None
+
+
+def relinquish_refresh_token_after_handoff() -> None:
+    """Relinquish PC copy of the refresh token after pairing handoff to the phone.
+
+    The phone now owns the token and refreshes directly against login.microsoftonline.com.
+    The PC stops using the refresh token to prevent rotation conflicts (invalid_grant).
+    The PC re-authenticates itself when it next needs Graph access.
+    """
+    raw = get_secret(VAULT_KEY)
+    if not raw:
+        return
+    try:
+        tokens = json.loads(raw)
+        if isinstance(tokens, dict):
+            tokens["refresh_token"] = None
+            tokens["access_token"] = None
+            tokens["handed_off"] = True
+            tokens["handed_off_at"] = time.time()
+            set_secret(VAULT_KEY, json.dumps(tokens))
+            remove_token_cache()
+    except Exception as exc:
+        log.warning("Failed to update vault when relinquishing refresh token: %s", exc)
 
 
 def record_credential_change(tokens: dict[str, Any] | None = None, conn: Any = None) -> None:
@@ -351,12 +433,20 @@ def get_connection_status() -> dict[str, Any]:
 
     try:
         tokens = json.loads(raw)
-        has_token = bool(tokens.get("access_token") or tokens.get("refresh_token"))
-        return {
+        is_handed_off = bool(tokens.get("handed_off"))
+        if is_handed_off:
+            has_token = bool(tokens.get("refresh_token"))
+        else:
+            has_token = bool(tokens.get("access_token") or tokens.get("refresh_token"))
+
+        res: dict[str, Any] = {
             "connected": has_token,
             "expires_at": tokens.get("expires_at"),
             "scope": tokens.get("scope"),
         }
+        if is_handed_off and not has_token:
+            res["handed_off"] = True
+        return res
     except Exception:
         return {"connected": False}
 

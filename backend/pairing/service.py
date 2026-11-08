@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import io
 import json
 import logging
@@ -426,9 +427,16 @@ class PairingService:
                 },
             }
 
+            from backend.auth import microsoft
+            ms_status = microsoft.get_connection_status()
+            if ms_status.get("connected"):
+                ms_bundle = microsoft.get_token_bundle_for_handoff()
+                if ms_bundle and ms_bundle.get("refresh_token"):
+                    bundle["microsoft"] = ms_bundle
+
             self._last_bundle = bundle
 
-            # Unblock phone response and trigger server shutdown
+            # Unblock phone response
             server.approve(bundle)
 
             return {
@@ -436,6 +444,29 @@ class PairingService:
                 "device_id": device_id,
                 "device_label": label,
             }
+
+    def confirm_pairing(self, device_id: str | None = None, token: str | None = None) -> dict[str, Any]:
+        """Acknowledge pairing bundle receipt from phone, safely triggering one-way token handoff."""
+        with self._lock:
+            valid = False
+            if token and self._last_token and hmac.compare_digest(token, self._last_token):
+                valid = True
+            elif device_id:
+                conn = get_connection()
+                row = conn.execute("SELECT id FROM devices WHERE id = ?", (device_id,)).fetchone()
+                if row:
+                    valid = True
+
+            if not valid and (token or device_id):
+                raise ValueError("Invalid pairing confirmation token or device_id")
+
+            from backend.auth import microsoft
+            microsoft.relinquish_refresh_token_after_handoff()
+
+            if self._server and not self._server.is_closed:
+                self._server.close_async()
+
+            return {"ok": True}
 
     def claim_code(self, code: str, device_label: str | None = None) -> dict[str, Any]:
         """Claim a pairing session using a 6-digit numeric code."""

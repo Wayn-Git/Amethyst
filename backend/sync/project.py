@@ -420,6 +420,7 @@ def _publish_tasks(conn, clock, limit: int) -> int:
 
 def _publish_credentials(conn, clock, limit: int) -> int:
     """Publish integration credentials metadata so paired devices carry auth over."""
+    import json
     import sqlite3
     mark = _watermark(conn, CREDENTIAL_WATERMARK)
     try:
@@ -435,6 +436,15 @@ def _publish_credentials(conn, clock, limit: int) -> int:
         key = row[0]
         vault_key = f"amethyst/{key}.tokens"
         secret_val = get_secret(vault_key) or ""
+        if secret_val:
+            try:
+                parsed = json.loads(secret_val)
+                if isinstance(parsed, dict) and parsed.get("handed_off"):
+                    # Handed off to mobile: do not publish over relay to other desktops
+                    last_stamp = row[1]
+                    continue
+            except Exception:
+                pass
         emitted = ops.emit(conn, clock, "credentials", key, {
             "vault_key": vault_key,
             "secret_value": secret_val,

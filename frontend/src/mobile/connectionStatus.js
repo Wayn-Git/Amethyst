@@ -2,11 +2,11 @@ import { safeStorage } from '../lib/storage.js'
 import { nativeVault, isNativeMobile } from '../lib/credentials.js'
 
 export const CONNECTIONS_STORAGE_KEY = 'amethyst.connections.v1'
-export const MS_CLIENT_ID = 'd3590ed6-52b3-4102-aeff-aad2292ab01c'
+export const MS_CLIENT_ID = 'a7c42b18-1137-4d78-8d4c-91cd6be3acff'
 export const MS_AUTH_ENDPOINT = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize'
 export const MS_TOKEN_ENDPOINT = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
 export const MS_DEFAULT_SCOPES = 'Tasks.ReadWrite offline_access User.Read'
-export const MS_DEFAULT_REDIRECT_URI = 'http://localhost:8000/api/auth/microsoft/callback'
+export const MS_DEFAULT_REDIRECT_URI = 'app.amethyst.companion://auth'
 
 let memoryConnections = null
 const subscribers = new Set()
@@ -55,10 +55,28 @@ export async function loadConnections() {
     const { getBundle } = await import('./bundle.js')
     const b = await getBundle()
     if (b) {
+      const bMs = b.microsoft || b.microsoftTodo
+      let msConn = null
+      if (bMs && (bMs.refreshToken || bMs.refresh_token || bMs.accessToken || bMs.access_token)) {
+        const rawExp = bMs.expiresAt || bMs.expires_at
+        let expiresAt = Date.now() + 3600000
+        if (typeof rawExp === 'number') {
+          expiresAt = rawExp > 1e11 ? rawExp : rawExp * 1000
+        }
+        msConn = {
+          accessToken: bMs.accessToken || bMs.access_token || '',
+          refreshToken: bMs.refreshToken || bMs.refresh_token || '',
+          accountId: bMs.accountId || bMs.account_id || '',
+          email: bMs.email || bMs.account_email || '',
+          scopes: bMs.scopes || bMs.scope || MS_DEFAULT_SCOPES,
+          expiresAt,
+          expired: false,
+        }
+      }
       memoryConnections = {
         composio: b.composio ? { apiKey: b.composio.api_key, userId: b.composio.user_id } : null,
         googleDrive: b.drive ? { rootFolderId: b.drive.root_folder_id, inboxFolderId: b.drive.inbox_folder_id } : null,
-        microsoftTodo: null,
+        microsoftTodo: msConn,
       }
       return memoryConnections
     }
@@ -77,16 +95,21 @@ export async function loadConnections() {
  */
 export async function saveConnections(connections) {
   memoryConnections = { ...connections }
+  let hasNativeVault = false
   try {
     const vault = await nativeVault()
     if (vault) {
+      hasNativeVault = true
       await vault.set(CONNECTIONS_STORAGE_KEY, memoryConnections)
+      safeStorage.removeItem(CONNECTIONS_STORAGE_KEY)
     }
   } catch {}
 
-  try {
-    safeStorage.setItem(CONNECTIONS_STORAGE_KEY, JSON.stringify(memoryConnections))
-  } catch {}
+  if (!hasNativeVault) {
+    try {
+      safeStorage.setItem(CONNECTIONS_STORAGE_KEY, JSON.stringify(memoryConnections))
+    } catch {}
+  }
 
   notifySubscribers(getConnectionStatus())
 }
@@ -314,12 +337,12 @@ export async function exchangeMicrosoftCode({ code, state, redirectUri, verifier
       if (isDev) {
         console.error('[connectionStatus] Microsoft code exchange error:', {
           status: res.status,
-          body: res.data,
+          error: res.data?.error || res.data?.error_description || 'OAuth exchange failed',
         })
       }
       const err = new Error(res.data?.error_description || `OAuth exchange failed (${res.status})`)
       err.status = res.status
-      err.body = res.data
+      err.body = { error: res.data?.error, error_description: res.data?.error_description }
       throw err
     }
     data = res.data || res
@@ -334,12 +357,12 @@ export async function exchangeMicrosoftCode({ code, state, redirectUri, verifier
       if (isDev) {
         console.error('[connectionStatus] Microsoft code exchange error:', {
           status: res.status,
-          body: errBody,
+          error: errBody.error || errBody.error_description || 'OAuth exchange failed',
         })
       }
       const err = new Error(errBody.error_description || `OAuth exchange failed (${res.status})`)
       err.status = res.status
-      err.body = errBody
+      err.body = { error: errBody.error, error_description: errBody.error_description }
       throw err
     }
     data = await res.json()
@@ -395,12 +418,12 @@ export async function refreshMicrosoftToken({ httpPost } = {}) {
         if (isDev) {
           console.error('[connectionStatus] Microsoft token refresh failed:', {
             status: res.status,
-            body: res.data,
+            error: res.data?.error || res.data?.error_description || 'Refresh failed',
           })
         }
         const err = new Error(res.data?.error_description || `Refresh failed (${res.status})`)
         err.status = res.status
-        err.body = res.data
+        err.body = { error: res.data?.error, error_description: res.data?.error_description }
         err.code = 'TOKEN_EXPIRED'
         throw err
       }
@@ -416,12 +439,12 @@ export async function refreshMicrosoftToken({ httpPost } = {}) {
         if (isDev) {
           console.error('[connectionStatus] Microsoft token refresh failed:', {
             status: res.status,
-            body: errBody,
+            error: errBody.error || errBody.error_description || 'Refresh failed',
           })
         }
         const err = new Error(errBody.error_description || `Refresh failed (${res.status})`)
         err.status = res.status
-        err.body = errBody
+        err.body = { error: errBody.error, error_description: errBody.error_description }
         err.code = 'TOKEN_EXPIRED'
         throw err
       }
@@ -434,13 +457,273 @@ export async function refreshMicrosoftToken({ httpPost } = {}) {
       refreshToken: data.refresh_token || ms.refreshToken,
       expiresAt,
       tokenType: data.token_type || 'Bearer',
+      scopes: data.scope || ms.scopes || MS_DEFAULT_SCOPES,
+      expired: false,
     }
 
     await updateServiceConnection('microsoftTodo', tokenPayload)
     return tokenPayload
   } catch (err) {
+    const isInvalidGrant =
+      err.body?.error === 'invalid_grant' ||
+      (err.message && err.message.toLowerCase().includes('invalid_grant'))
+
+    if (isInvalidGrant) {
+      // 1. Optional re-request to PC if reachable (never block, never loop)
+      let pcBundle = null
+      try {
+        pcBundle = await requestFreshBundleFromPc({ timeoutMs: 1500 })
+      } catch {
+        pcBundle = null
+      }
+
+      if (pcBundle?.refreshToken && pcBundle.refreshToken !== ms.refreshToken) {
+        await updateServiceConnection('microsoftTodo', pcBundle)
+        return pcBundle
+      }
+
+      // 2. Primary recovery: direct device code fallback (works PC-off)
+      await markServiceExpired('microsoftTodo')
+      err.isInvalidGrant = true
+      err.requiresDeviceCode = true
+      throw err
+    }
+
     await markServiceExpired('microsoftTodo')
     throw err
+  }
+}
+
+/**
+ * Retrieve PC host URL from local storage or identity if available.
+ */
+export function getPcHostUrl() {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = safeStorage.getItem('amethyst.pc_host')
+      if (stored) return stored
+      const rawIdentity = safeStorage.getItem('amethyst.identity')
+      if (rawIdentity) {
+        const id = JSON.parse(rawIdentity)
+        if (id?.hostUrl) return id.hostUrl
+      }
+    }
+  } catch {}
+  return ''
+}
+
+/**
+ * Optional re-request for fresh Microsoft token bundle from PC if reachable.
+ * Never blocks, never loops.
+ */
+export async function requestFreshBundleFromPc({ timeoutMs = 1500, httpGet } = {}) {
+  const hostUrl = getPcHostUrl()
+  if (!hostUrl) return null
+
+  const cleanHost = hostUrl.replace(/\/+$/, '')
+  const url = `${cleanHost}/api/auth/microsoft/bundle`
+
+  try {
+    if (httpGet) {
+      const res = await httpGet({ url, timeout: timeoutMs })
+      if (res?.status === 200 && res.data?.connected && res.data?.bundle?.refresh_token) {
+        const b = res.data.bundle
+        const rawExp = b.expires_at || b.expiresAt
+        let expiresAt = Date.now() + 3600000
+        if (typeof rawExp === 'number') {
+          expiresAt = rawExp > 1e11 ? rawExp : rawExp * 1000
+        }
+        return {
+          refreshToken: b.refresh_token,
+          accessToken: b.access_token || '',
+          accountId: b.account_id || '',
+          email: b.email || '',
+          scopes: b.scopes || MS_DEFAULT_SCOPES,
+          expiresAt,
+          expired: false,
+        }
+      }
+      return null
+    }
+
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    let res
+    try {
+      res = await fetch(url, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+      })
+    } finally {
+      clearTimeout(timer)
+    }
+
+    if (!res || !res.ok) return null
+    const data = await res.json().catch(() => null)
+    if (data?.connected && data?.bundle?.refresh_token) {
+      const b = data.bundle
+      const rawExp = b.expires_at || b.expiresAt
+      let expiresAt = Date.now() + 3600000
+      if (typeof rawExp === 'number') {
+        expiresAt = rawExp > 1e11 ? rawExp : rawExp * 1000
+      }
+      return {
+        refreshToken: b.refresh_token,
+        accessToken: b.access_token || '',
+        accountId: b.account_id || '',
+        email: b.email || '',
+        scopes: b.scopes || MS_DEFAULT_SCOPES,
+        expiresAt,
+        expired: false,
+      }
+    }
+    return null
+  } catch {
+    // Unreachable, offline, or timed out - skip without blocking or looping
+    return null
+  }
+}
+
+export const MS_DEVICE_ENDPOINT = 'https://login.microsoftonline.com/common/oauth2/v2.0/devicecode'
+
+/**
+ * Start direct Microsoft device code authorization flow on phone (primary recovery, works PC-off).
+ */
+export async function startPhoneDeviceCodeFlow({ httpPost } = {}) {
+  const bodyParams = new URLSearchParams({
+    client_id: MS_CLIENT_ID,
+    scope: MS_DEFAULT_SCOPES,
+  })
+
+  let data
+  if (httpPost) {
+    const res = await httpPost({
+      url: MS_DEVICE_ENDPOINT,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      data: bodyParams.toString(),
+    })
+    if (res.status >= 400) {
+      throw new Error(res.data?.error_description || `Device auth request failed (${res.status})`)
+    }
+    data = res.data || res
+  } else {
+    const res = await fetch(MS_DEVICE_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: bodyParams.toString(),
+    })
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new Error(errBody.error_description || `Device auth request failed (${res.status})`)
+    }
+    data = await res.json()
+  }
+
+  return {
+    deviceCode: data.device_code,
+    userCode: data.user_code,
+    verificationUri: data.verification_uri || 'https://microsoft.com/devicelogin',
+    expiresIn: data.expires_in || 900,
+    interval: data.interval || 5,
+    message: data.message || '',
+  }
+}
+
+/**
+ * Poll Microsoft token endpoint for device code authorization on phone (works PC-off).
+ */
+export async function pollPhoneDeviceCodeFlow({ deviceCode, httpPost } = {}) {
+  if (!deviceCode) throw new Error('deviceCode is required')
+
+  const bodyParams = new URLSearchParams({
+    client_id: MS_CLIENT_ID,
+    grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+    device_code: deviceCode,
+  })
+
+  let status = 200
+  let payload = null
+
+  if (httpPost) {
+    const res = await httpPost({
+      url: MS_TOKEN_ENDPOINT,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      data: bodyParams.toString(),
+    })
+    status = res.status
+    payload = res.data || res
+  } else {
+    const res = await fetch(MS_TOKEN_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: bodyParams.toString(),
+    })
+    status = res.status
+    payload = await res.json().catch(() => ({}))
+  }
+
+  if (status === 200 && payload?.access_token) {
+    const expiresAt = Date.now() + ((payload.expires_in || 3600) - 60) * 1000
+    const tokenPayload = {
+      accessToken: payload.access_token,
+      refreshToken: payload.refresh_token,
+      expiresAt,
+      tokenType: payload.token_type || 'Bearer',
+      scopes: payload.scope || MS_DEFAULT_SCOPES,
+      expired: false,
+    }
+    await updateServiceConnection('microsoftTodo', tokenPayload)
+    return { connected: true, status: 'completed', tokens: tokenPayload }
+  }
+
+  const err = payload?.error || ''
+  if (err === 'authorization_pending' || err === 'slow_down') {
+    return { connected: false, status: 'pending' }
+  }
+  if (err === 'expired_token' || err === 'code_expired') {
+    return { connected: false, status: 'expired', error: 'Code expired. Please request a new code.' }
+  }
+  return { connected: false, status: 'failed', error: payload?.error_description || `Login failed: ${err}` }
+}
+
+/**
+ * Disconnect Microsoft To Do, clearing bundle on both devices (best-effort on PC if offline).
+ */
+export async function disconnectMicrosoftTodo({ timeoutMs = 1500, httpPost } = {}) {
+  await disconnectService('microsoftTodo')
+  try {
+    const { getBundle, saveBundle } = await import('./bundle.js')
+    const b = await getBundle()
+    if (b && b.microsoft) {
+      delete b.microsoft
+      await saveBundle(b)
+    }
+  } catch {}
+
+  const hostUrl = getPcHostUrl()
+  if (hostUrl) {
+    const cleanHost = hostUrl.replace(/\/+$/, '')
+    const url = `${cleanHost}/api/auth/microsoft/disconnect`
+    try {
+      if (httpPost) {
+        await httpPost({ url, timeout: timeoutMs }).catch(() => {})
+      } else {
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), timeoutMs)
+        try {
+          await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+          }).catch(() => {})
+        } finally {
+          clearTimeout(timer)
+        }
+      }
+    } catch {
+      // Best-effort: ignore if PC is offline/unreachable
+    }
   }
 }
 

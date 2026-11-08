@@ -109,6 +109,31 @@ export function getDeviceLabel() {
 }
 
 /**
+ * Send explicit receipt acknowledgement to PC after vault write.
+ */
+async function sendPairingAck({ host, port, apiPort, token, deviceId }) {
+  const payload = JSON.stringify({ token, device_id: deviceId })
+  if (host && port) {
+    try {
+      await fetch(`https://${host}:${port}/pair/ack`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+      }).catch(() => {})
+    } catch (_) {}
+  }
+  if (host && apiPort) {
+    try {
+      await fetch(`http://${host}:${apiPort}/api/pairing/v2/ack`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+      }).catch(() => {})
+    } catch (_) {}
+  }
+}
+
+/**
  * Execute scan-and-pair under CONTRACT v2.
  *
  * 1. POST https://<host>:<port>/pair body {"token","device_label"}
@@ -170,6 +195,16 @@ export async function pairDevice({ qrPayload, deviceLabel, onStatusChange }) {
         })
       } catch (e) {
         console.warn('[PairingClient] Could not save identity:', e)
+      }
+
+      if (result.bundle?.microsoft) {
+        await sendPairingAck({
+          host: matchedHost,
+          port,
+          apiPort,
+          token,
+          deviceId: result.bundle.device_id,
+        })
       }
 
       return result.bundle
@@ -264,6 +299,16 @@ export async function pairDevice({ qrPayload, deviceLabel, onStatusChange }) {
           })
         } catch (e) {
           console.warn('[PairingClient] Could not save identity:', e)
+        }
+
+        if (bundle?.microsoft) {
+          await sendPairingAck({
+            host,
+            port,
+            apiPort,
+            token,
+            deviceId: bundle.device_id,
+          })
         }
 
         return bundle

@@ -8,8 +8,8 @@ import {
 import {
   getConnectionStatus,
   subscribeConnectionStatus,
-  createMicrosoftAuthUrl,
-  MS_DEFAULT_REDIRECT_URI,
+  startPhoneDeviceCodeFlow,
+  pollPhoneDeviceCodeFlow,
 } from '../connectionStatus.js'
 
 export default function MobileTasks() {
@@ -20,6 +20,8 @@ export default function MobileTasks() {
   const [currentListId, setCurrentListId] = useState(null)
   const [newTitle, setNewTitle] = useState('')
   const [adding, setAdding] = useState(false)
+  const [deviceFlow, setDeviceFlow] = useState(null)
+  const [connecting, setConnecting] = useState(false)
 
   // Compute current week dates
   const now = new Date()
@@ -166,13 +168,25 @@ export default function MobileTasks() {
 
   const handleConnect = async () => {
     try {
-      const { url } = await createMicrosoftAuthUrl({
-        redirectUri: MS_DEFAULT_REDIRECT_URI,
-      })
-      if (url && typeof window !== 'undefined') {
-        window.location.href = url
+      setConnecting(true)
+      const flow = await startPhoneDeviceCodeFlow()
+      setDeviceFlow(flow)
+      if (flow.verificationUri && typeof window !== 'undefined') {
+        window.open(flow.verificationUri, '_blank')
       }
+      pollPhoneDeviceCodeFlow({ deviceCode: flow.deviceCode })
+        .then(() => {
+          setDeviceFlow(null)
+          setConnecting(false)
+          setConnectionState('connected')
+          loadTasks()
+        })
+        .catch((e) => {
+          setConnecting(false)
+          console.warn('[MobileTasks] Device code poll ended:', e.message)
+        })
     } catch (err) {
+      setConnecting(false)
       console.error('[MobileTasks] Failed to initiate Microsoft connect:', err.message)
     }
   }
@@ -348,14 +362,32 @@ export default function MobileTasks() {
             <div className="m" style={{ maxWidth: 260, margin: '6px auto 16px', lineHeight: 1.4 }}>
               Connect your Microsoft To Do account to view and synchronize your tasks directly.
             </div>
-            <button
-              type="button"
-              className="bt"
-              style={{ alignSelf: 'center', minHeight: 40, padding: '0 20px' }}
-              onClick={handleConnect}
-            >
-              Connect Microsoft To Do
-            </button>
+            {deviceFlow ? (
+              <div style={{ padding: '12px', background: '#F2F2F7', borderRadius: '12px', margin: '8px 0' }}>
+                <div style={{ fontSize: '13px', color: '#6E6E73' }}>Enter code on login.microsoft.com/device:</div>
+                <div style={{ fontSize: '20px', fontWeight: 'bold', letterSpacing: '2px', margin: '6px 0' }}>
+                  {deviceFlow.userCode}
+                </div>
+                <a
+                  href={deviceFlow.verificationUri || 'https://microsoft.com/devicelogin'}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontSize: '13px', color: '#0071E3', textDecoration: 'none' }}
+                >
+                  Open sign-in page →
+                </a>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="bt"
+                style={{ alignSelf: 'center', minHeight: 40, padding: '0 20px' }}
+                onClick={handleConnect}
+                disabled={connecting}
+              >
+                {connecting ? 'Starting sign-in…' : 'Connect Microsoft To Do'}
+              </button>
+            )}
           </div>
         )}
 
@@ -382,14 +414,32 @@ export default function MobileTasks() {
             <div className="m" style={{ maxWidth: 260, margin: '6px auto 16px', lineHeight: 1.4 }}>
               Your Microsoft sign-in session expired. Reconnect to resume sync.
             </div>
-            <button
-              type="button"
-              className="bt"
-              style={{ alignSelf: 'center', minHeight: 40, padding: '0 20px' }}
-              onClick={handleConnect}
-            >
-              Reconnect
-            </button>
+            {deviceFlow ? (
+              <div style={{ padding: '12px', background: '#F2F2F7', borderRadius: '12px', margin: '8px 0' }}>
+                <div style={{ fontSize: '13px', color: '#6E6E73' }}>Enter code on login.microsoft.com/device:</div>
+                <div style={{ fontSize: '20px', fontWeight: 'bold', letterSpacing: '2px', margin: '6px 0' }}>
+                  {deviceFlow.userCode}
+                </div>
+                <a
+                  href={deviceFlow.verificationUri || 'https://microsoft.com/devicelogin'}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontSize: '13px', color: '#0071E3', textDecoration: 'none' }}
+                >
+                  Open sign-in page →
+                </a>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="bt"
+                style={{ alignSelf: 'center', minHeight: 40, padding: '0 20px' }}
+                onClick={handleConnect}
+                disabled={connecting}
+              >
+                {connecting ? 'Starting sign-in…' : 'Reconnect'}
+              </button>
+            )}
           </div>
         )}
 
