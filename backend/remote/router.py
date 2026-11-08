@@ -87,6 +87,22 @@ def remote_capabilities(request: Request) -> dict[str, Any]:
     }
 
 
+@router.get("/credentials/bundle")
+def remote_credentials_bundle(request: Request) -> dict[str, Any]:
+    """Return complete credentials and configuration bundle for authenticated companion device."""
+    device = request.scope.get("device")
+    if not device:
+        raise HTTPException(403, "Device authentication required")
+    if getattr(device, "revoked_at", None):
+        raise HTTPException(403, "Device has been revoked")
+
+    from backend.pairing.network import get_lan_ipv4_addresses
+    from backend.pairing.service import build_credentials_bundle
+
+    hosts = get_lan_ipv4_addresses()
+    return build_credentials_bundle(device_id=device.id, hosts=hosts)
+
+
 # -- System telemetry & Processes --
 
 @router.get("/status")
@@ -401,6 +417,20 @@ async def broadcast_remote_event(event_type: str, data: dict[str, Any] | None = 
             dead.append(ws)
     for ws in dead:
         _connected_remote_websockets.discard(ws)
+
+
+async def broadcast_credentials_updated() -> None:
+    """Notify all connected companion devices that credentials were updated."""
+    await broadcast_remote_event("credentials_updated", {})
+
+
+def notify_credentials_updated() -> None:
+    """Best-effort trigger for credentials_updated broadcast from sync or async contexts."""
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(broadcast_credentials_updated())
+    except RuntimeError:
+        pass
 
 
 @router.websocket("/ws")

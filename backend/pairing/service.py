@@ -46,6 +46,159 @@ DEFAULT_SUMMARY_PROMPT = (
 )
 
 
+def build_credentials_bundle(
+    device_id: str,
+    token: str = "",
+    hosts: list[str] | None = None,
+) -> dict[str, Any]:
+    """Construct complete credentials and configuration bundle for a paired companion device."""
+    if get_use_separate_keys():
+        phone_cfg = get_phone_llm_config()
+        phone_composio_cfg = get_phone_composio_config()
+        if not phone_cfg.get("api_key"):
+            raise ValueError("Phone-only LLM API key is missing.")
+        if not phone_composio_cfg.get("api_key") or not phone_composio_cfg.get("user_id"):
+            raise ValueError(
+                "Phone-only Composio credentials (API key and User ID) are missing."
+            )
+
+        llm_bundle = {
+            "providers": [
+                {
+                    "provider": phone_cfg["provider"],
+                    "model": phone_cfg["model"],
+                    "api_key": phone_cfg["api_key"],
+                }
+            ],
+            "default": 0,
+            "provider": phone_cfg["provider"],
+            "model": phone_cfg["model"],
+            "api_key": phone_cfg["api_key"],
+        }
+        composio_bundle = {
+            "api_key": phone_composio_cfg["api_key"],
+            "user_id": phone_composio_cfg["user_id"],
+        }
+        shared_providers_list = [phone_cfg["provider"], "composio"]
+    else:
+        configured = configured_providers()
+        tiers = load_tiers()
+        default_tier = tiers.get("default")
+
+        if default_tier and default_tier.provider in configured:
+            default_provider_name = default_tier.provider
+            default_model = default_tier.model
+            default_api_key = (
+                resolve_api_key(
+                    ref=configured[default_tier.provider].api_key_ref,
+                    env=configured[default_tier.provider].api_key_env,
+                )
+                or ""
+            )
+        elif configured:
+            first_name = next(iter(configured))
+            first_cfg = configured[first_name]
+            default_provider_name = first_name
+            default_model = first_cfg.default_model or ""
+            default_api_key = (
+                resolve_api_key(
+                    ref=first_cfg.api_key_ref,
+                    env=first_cfg.api_key_env,
+                )
+                or ""
+            )
+        else:
+            default_provider_name = ""
+            default_model = ""
+            default_api_key = ""
+
+        default_idx = 0
+        providers_list = []
+        for idx, (name, cfg) in enumerate(configured.items()):
+            if name == default_provider_name:
+                default_idx = idx
+            p_key = resolve_api_key(ref=cfg.api_key_ref, env=cfg.api_key_env) or ""
+            p_model = (
+                default_tier.model
+                if (default_tier and default_tier.provider == name and default_tier.model)
+                else (cfg.default_model or "")
+            )
+            item = {
+                "provider": name,
+                "model": p_model,
+                "api_key": p_key,
+            }
+            if cfg.base_url:
+                item["base_url"] = cfg.base_url
+            providers_list.append(item)
+
+        llm_bundle = {
+            "providers": providers_list,
+            "default": default_idx,
+            "provider": default_provider_name,
+            "model": default_model,
+            "api_key": default_api_key,
+        }
+
+        main_composio_key = composio_service.get_api_key() or ""
+        main_composio_uid = (
+            composio_service._get_stable_user_id()
+            if hasattr(composio_service, "_get_stable_user_id")
+            else ""
+        )
+        if not main_composio_key or not main_composio_uid:
+            phone_composio = get_phone_composio_config()
+            if not main_composio_key:
+                main_composio_key = phone_composio.get("api_key") or ""
+            if not main_composio_uid:
+                main_composio_uid = phone_composio.get("user_id") or ""
+
+        composio_bundle = {
+            "api_key": main_composio_key,
+            "user_id": main_composio_uid,
+        }
+        shared_providers_list = [p["provider"] for p in providers_list]
+        if main_composio_key or main_composio_uid:
+            shared_providers_list.append("composio")
+
+    drive_cfg = load_drive_inbox_settings()
+    root_id = drive_cfg.root_folder_id or ""
+    inbox_id = drive_cfg.inbox_folder_id or ""
+    if not inbox_id and root_id:
+        inbox_id = root_id
+
+    main_port = int(os.environ.get("AMETHYST_BIND_PORT", "8000").strip() or "8000")
+    bundle: dict[str, Any] = {
+        "device_id": device_id,
+        "token": token,
+        "hosts": hosts or [],
+        "api_port": main_port,
+        "llm": llm_bundle,
+        "composio": composio_bundle,
+        "drive": {
+            "root_folder_id": root_id,
+            "inbox_folder_id": inbox_id,
+            "connected": bool(root_id),
+        },
+        "prompts": {
+            "summary": DEFAULT_SUMMARY_PROMPT,
+        },
+        "shared_providers": shared_providers_list,
+    }
+
+    try:
+        from backend.auth import microsoft
+        ms_status = microsoft.get_connection_status()
+        if ms_status.get("connected"):
+            ms_bundle = microsoft.get_token_bundle_for_handoff()
+            if ms_bundle and ms_bundle.get("refresh_token"):
+                bundle["microsoft"] = ms_bundle
+    except Exception as exc:
+        log.warning("Could not append microsoft handoff bundle: %s", exc)
+
+    return bundle
+
+
 class PairingService:
     """Singleton coordinator for PC-side CONTRACT v2 pairing."""
 
@@ -262,114 +415,12 @@ class PairingService:
             device_id = f"phone_{secrets.token_hex(8)}"
             token_hash = hashlib.sha256(server.token.encode("utf-8")).hexdigest()
 
-            if get_use_separate_keys():
-                phone_cfg = get_phone_llm_config()
-                phone_composio_cfg = get_phone_composio_config()
-                if not phone_cfg.get("api_key"):
-                    raise ValueError("Phone-only LLM API key is missing.")
-                if not phone_composio_cfg.get("api_key") or not phone_composio_cfg.get("user_id"):
-                    raise ValueError(
-                        "Phone-only Composio credentials (API key and User ID) are missing."
-                    )
-
-                llm_bundle = {
-                    "providers": [
-                        {
-                            "provider": phone_cfg["provider"],
-                            "model": phone_cfg["model"],
-                            "api_key": phone_cfg["api_key"],
-                        }
-                    ],
-                    "default": 0,
-                    "provider": phone_cfg["provider"],
-                    "model": phone_cfg["model"],
-                    "api_key": phone_cfg["api_key"],
-                }
-                composio_bundle = {
-                    "api_key": phone_composio_cfg["api_key"],
-                    "user_id": phone_composio_cfg["user_id"],
-                }
-                shared_providers_list = [phone_cfg["provider"], "composio"]
-            else:
-                configured = configured_providers()
-                tiers = load_tiers()
-                default_tier = tiers.get("default")
-
-                if default_tier and default_tier.provider in configured:
-                    default_provider_name = default_tier.provider
-                    default_model = default_tier.model
-                    default_api_key = (
-                        resolve_api_key(
-                            ref=configured[default_tier.provider].api_key_ref,
-                            env=configured[default_tier.provider].api_key_env,
-                        )
-                        or ""
-                    )
-                elif configured:
-                    first_name = next(iter(configured))
-                    first_cfg = configured[first_name]
-                    default_provider_name = first_name
-                    default_model = first_cfg.default_model or ""
-                    default_api_key = (
-                        resolve_api_key(
-                            ref=first_cfg.api_key_ref,
-                            env=first_cfg.api_key_env,
-                        )
-                        or ""
-                    )
-                else:
-                    default_provider_name = ""
-                    default_model = ""
-                    default_api_key = ""
-
-                default_idx = 0
-                providers_list = []
-                for idx, (name, cfg) in enumerate(configured.items()):
-                    if name == default_provider_name:
-                        default_idx = idx
-                    p_key = resolve_api_key(ref=cfg.api_key_ref, env=cfg.api_key_env) or ""
-                    p_model = (
-                        default_tier.model
-                        if (default_tier and default_tier.provider == name and default_tier.model)
-                        else (cfg.default_model or "")
-                    )
-                    item = {
-                        "provider": name,
-                        "model": p_model,
-                        "api_key": p_key,
-                    }
-                    if cfg.base_url:
-                        item["base_url"] = cfg.base_url
-                    providers_list.append(item)
-
-                llm_bundle = {
-                    "providers": providers_list,
-                    "default": default_idx,
-                    "provider": default_provider_name,
-                    "model": default_model,
-                    "api_key": default_api_key,
-                }
-
-                main_composio_key = composio_service.get_api_key() or ""
-                main_composio_uid = (
-                    composio_service._get_stable_user_id()
-                    if hasattr(composio_service, "_get_stable_user_id")
-                    else ""
-                )
-                if not main_composio_key or not main_composio_uid:
-                    phone_composio = get_phone_composio_config()
-                    if not main_composio_key:
-                        main_composio_key = phone_composio.get("api_key") or ""
-                    if not main_composio_uid:
-                        main_composio_uid = phone_composio.get("user_id") or ""
-
-                composio_bundle = {
-                    "api_key": main_composio_key,
-                    "user_id": main_composio_uid,
-                }
-                shared_providers_list = [p["provider"] for p in providers_list]
-                if main_composio_key or main_composio_uid:
-                    shared_providers_list.append("composio")
+            bundle = build_credentials_bundle(
+                device_id=device_id,
+                token=server.token,
+                hosts=self._last_hosts,
+            )
+            shared_providers_list = bundle.get("shared_providers", [])
 
             from backend.sync.devices import DEFAULT_PERMISSIONS
 
@@ -405,37 +456,6 @@ class PairingService:
                     """,
                     (device_id, label, token_hash, permissions_json),
                 )
-
-            drive_cfg = load_drive_inbox_settings()
-            root_id = drive_cfg.root_folder_id or ""
-            inbox_id = drive_cfg.inbox_folder_id or ""
-            if not inbox_id and root_id:
-                inbox_id = root_id
-
-            main_port = int(os.environ.get("AMETHYST_BIND_PORT", "8000").strip() or "8000")
-            bundle = {
-                "device_id": device_id,
-                "token": server.token,
-                "hosts": self._last_hosts,
-                "api_port": main_port,
-                "llm": llm_bundle,
-                "composio": composio_bundle,
-                "drive": {
-                    "root_folder_id": root_id,
-                    "inbox_folder_id": inbox_id,
-                    "connected": bool(root_id),
-                },
-                "prompts": {
-                    "summary": DEFAULT_SUMMARY_PROMPT,
-                },
-            }
-
-            from backend.auth import microsoft
-            ms_status = microsoft.get_connection_status()
-            if ms_status.get("connected"):
-                ms_bundle = microsoft.get_token_bundle_for_handoff()
-                if ms_bundle and ms_bundle.get("refresh_token"):
-                    bundle["microsoft"] = ms_bundle
 
             self._last_bundle = bundle
             self._pending_ack = {
