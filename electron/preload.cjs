@@ -33,6 +33,10 @@ contextBridge.exposeInMainWorld('amethystDesktop', {
     ipcRenderer.on('palette:toggle', handler);
     return () => ipcRenderer.removeListener('palette:toggle', handler);
   },
+  hideSpotlight: () => ipcRenderer.invoke('desktop:hide-spotlight'),
+  getShortcut: () => ipcRenderer.invoke('desktop:get-shortcut'),
+  setShortcut: (chord) => ipcRenderer.invoke('desktop:set-shortcut', chord),
+  checkShortcutConflict: (chord) => ipcRenderer.invoke('desktop:check-shortcut-conflict', chord),
   setZoomFactor: (factor) => {
     try {
       if (typeof factor === 'number' && Number.isFinite(factor) && factor > 0) {

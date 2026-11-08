@@ -21,6 +21,8 @@ if (process.platform === 'linux') {
 
 let mainWindow = null;
 let splashWindow = null;
+let spotlightWindow = null;
+let currentRegisteredShortcut = null;
 let tray = null;
 let backendProcess = null;
 let isQuitting = false;
@@ -363,6 +365,7 @@ async function createMainWindow() {
     }
     mainWindow.show();
     mainWindow.focus();
+    createSpotlightWindow().catch(() => {});
   });
 
   mainWindow.on('close', (e) => {
@@ -389,6 +392,67 @@ async function createMainWindow() {
   });
 }
 
+async function createSpotlightWindow() {
+  if (spotlightWindow && !spotlightWindow.isDestroyed()) return;
+
+  spotlightWindow = new BrowserWindow({
+    width: 820,
+    height: 640,
+    show: false,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    movable: true,
+    center: true,
+    hasShadow: false,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      backgroundThrottling: false,
+      spellcheck: false,
+    },
+  });
+
+  let targetUrl = `http://127.0.0.1:${activePort}/?spotlight=1&native=1`;
+  if (IS_DEV) {
+    const isViteUp = await isPortInUse(5173);
+    if (isViteUp) {
+      targetUrl = 'http://127.0.0.1:5173/?spotlight=1&native=1';
+    }
+  }
+
+  spotlightWindow.webContents.on('did-fail-load', (_e, errorCode, errorDescription, validatedURL) => {
+    if (validatedURL.includes('5173')) {
+      spotlightWindow?.loadURL(`http://127.0.0.1:${activePort}/?spotlight=1&native=1`);
+    }
+  });
+
+  console.log('[Amethyst Supervisor] Loading Spotlight Window:', targetUrl);
+  spotlightWindow.loadURL(targetUrl);
+
+  spotlightWindow.on('blur', () => {
+    if (spotlightWindow && !spotlightWindow.isDestroyed() && spotlightWindow.isVisible()) {
+      spotlightWindow.hide();
+    }
+  });
+
+  spotlightWindow.on('close', (e) => {
+    if (!isQuitting) {
+      e.preventDefault();
+      spotlightWindow.hide();
+      return;
+    }
+  });
+
+  spotlightWindow.on('closed', () => {
+    spotlightWindow = null;
+  });
+}
+
 function initTray() {
   const iconPath = process.platform === 'win32'
     ? path.join(__dirname, 'assets', 'icon.ico')
@@ -396,6 +460,13 @@ function initTray() {
   try {
     tray = new Tray(iconPath);
     const contextMenu = Menu.buildFromTemplate([
+      {
+        label: 'Command Palette',
+        accelerator: 'Alt+Shift+Space',
+        click: () => {
+          toggleSpotlight();
+        },
+      },
       {
         label: 'Show Amethyst',
         click: () => {
@@ -596,6 +667,80 @@ ipcMain.handle('desktop:window-close', () => {
   }
 });
 
+ipcMain.handle('desktop:hide-spotlight', () => {
+  if (spotlightWindow && !spotlightWindow.isDestroyed() && spotlightWindow.isVisible()) {
+    spotlightWindow.hide();
+  }
+});
+ipcMain.handle('desktop:get-shortcut', () => currentRegisteredShortcut || 'Alt+Shift+Space');
+ipcMain.handle('desktop:set-shortcut', (_e, chord) => registerGlobalShortcut(chord));
+ipcMain.handle('desktop:check-shortcut-conflict', (_e, chord) => {
+  if (!chord) return { conflict: true, reason: 'Empty shortcut' };
+  try {
+    const isRegistered = globalShortcut.isRegistered(chord);
+    return { conflict: isRegistered && chord !== currentRegisteredShortcut };
+  } catch (err) {
+    return { conflict: true, reason: err.message };
+  }
+});
+
+function toggleSpotlight() {
+  if (!spotlightWindow || spotlightWindow.isDestroyed()) {
+    createSpotlightWindow().then(() => {
+      if (spotlightWindow && !spotlightWindow.isDestroyed()) {
+        spotlightWindow.center();
+        spotlightWindow.show();
+        spotlightWindow.focus();
+        spotlightWindow.webContents.send('palette:toggle', true);
+      }
+    });
+    return;
+  }
+
+  if (spotlightWindow.isVisible()) {
+    spotlightWindow.hide();
+  } else {
+    spotlightWindow.center();
+    spotlightWindow.show();
+    spotlightWindow.focus();
+    spotlightWindow.webContents.send('palette:toggle', true);
+  }
+}
+
+function registerGlobalShortcut(preferred) {
+  if (currentRegisteredShortcut) {
+    try {
+      globalShortcut.unregister(currentRegisteredShortcut);
+    } catch {}
+    currentRegisteredShortcut = null;
+  }
+
+  const candidates = [
+    preferred,
+    'Alt+Shift+Space',
+    'CommandOrControl+Shift+Space',
+    'Ctrl+Alt+Space',
+  ].filter(Boolean);
+
+  for (const combo of candidates) {
+    try {
+      if (globalShortcut.isRegistered(combo)) {
+        continue;
+      }
+      const success = globalShortcut.register(combo, toggleSpotlight);
+      if (success) {
+        currentRegisteredShortcut = combo;
+        console.log(`[Amethyst Supervisor] Registered global shortcut: ${combo}`);
+        return { ok: true, shortcut: combo };
+      }
+    } catch (e) {
+      console.warn(`[Amethyst Supervisor] Could not register ${combo}:`, e.message);
+    }
+  }
+
+  return { ok: false, error: 'Could not register global shortcut without conflict' };
+}
+
 app.whenReady().then(() => {
   if (process.platform === 'darwin' && app.dock) {
     try {
@@ -607,27 +752,7 @@ app.whenReady().then(() => {
   initTray();
   setupAutoUpdater();
 
-  // Register global shortcuts for spotlight summoning
-  const toggleSpotlight = () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      if (!mainWindow.isVisible() || mainWindow.isMinimized()) {
-        mainWindow.restore();
-        mainWindow.show();
-        mainWindow.focus();
-        mainWindow.webContents.send('palette:toggle', true);
-      } else {
-        mainWindow.webContents.send('palette:toggle');
-      }
-    }
-  };
-
-  try {
-    globalShortcut.register('CommandOrControl+Space', toggleSpotlight);
-    globalShortcut.register('Alt+Space', toggleSpotlight);
-    globalShortcut.register('CommandOrControl+K', toggleSpotlight);
-  } catch (e) {
-    console.warn('[Amethyst Supervisor] Could not register global shortcuts:', e);
-  }
+  registerGlobalShortcut('Alt+Shift+Space');
 
   bootSupervisor();
 });

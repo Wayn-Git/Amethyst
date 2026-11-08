@@ -71,8 +71,17 @@ export default function CommandPalette({ bare = false }) {
   )
 
   const hideBar = useCallback(() => {
-    if (bare) window.pywebview?.api?.hide?.()
-    else setOverlay(null)
+    if (bare) {
+      if (window.amethystDesktop?.hideSpotlight) {
+        window.amethystDesktop.hideSpotlight()
+      } else if (window.pywebview?.api?.hide) {
+        window.pywebview.api.hide()
+      } else {
+        setOverlay(null)
+      }
+    } else {
+      setOverlay(null)
+    }
   }, [bare, setOverlay])
 
   // Smooth staged dismissal

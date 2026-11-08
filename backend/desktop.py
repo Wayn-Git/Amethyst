@@ -43,7 +43,7 @@ from typing import Any
 log = logging.getLogger(__name__)
 
 #: Default global chord for the spotlight.
-DEFAULT_HOTKEY = "<ctrl>+<space>"
+DEFAULT_HOTKEY = "<alt>+<shift>+<space>"
 
 DEFAULT_PORT = 8000
 
