@@ -416,8 +416,8 @@ async def _build_web_pool(
 
     engines = {
         "api": _call_api,
+        "duckduckgo": _search_ddg_html,
         "bing": _search_bing,
-        "duckduckgo": _search_ddg_lite,
     }
     tasks = {
         asyncio.create_task(engine(query, _WEB_POOL_FETCH)): name
@@ -463,7 +463,7 @@ async def _build_web_pool(
 
     # Best-first for dedup: keyed API, then Bing, then DDG. Whoever links a URL
     # first keeps the slot; ranking then reorders the union by relevance.
-    ordered = [passed[name] for name in ("api", "bing", "duckduckgo") if name in passed]
+    ordered = [passed[name] for name in ("api", "duckduckgo", "bing") if name in passed]
     if ordered:
         pool = _merge_rank_dedup(ordered, query)
         source = "mixed" if len(ordered) > 1 else next(iter(passed))
@@ -786,6 +786,82 @@ async def _search_api(
             cb.record_success(prov_name)
             return results
     return []
+
+
+async def _search_ddg_html(query: str, limit: int = 8) -> list[dict[str, Any]]:
+    """Parse DuckDuckGo HTML with standard browser headers and lxml extraction.
+    
+    Acts as high-priority public web search fallback when no external API key is set.
+    """
+    q = query.strip()
+    if not q:
+        return []
+    limit = max(1, min(limit, 20))
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://duckduckgo.com/",
+        "Sec-Ch-Ua": '"Not/A)Brand";v="8", "Chromium";v="126", "Google Chrome";v="126"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Linux"',
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+    }
+
+    try:
+        client = await _pool_client()
+        resp = await client.post(
+            "https://html.duckduckgo.com/html/",
+            data={"q": q},
+            headers=headers,
+            timeout=5.0,
+        )
+        if resp.status_code != 200 or "web-result" not in resp.text:
+            return await _search_ddg_lite(query, limit)
+
+        from lxml import html
+        tree = html.fromstring(resp.text)
+        results: list[dict[str, Any]] = []
+        seen_urls: set[str] = set()
+
+        for res in tree.xpath('//div[contains(@class, "web-result")]'):
+            t_el = res.xpath('.//h2/a[contains(@class, "result__a")] | .//a[contains(@class, "result__url")]')
+            s_el = res.xpath('.//a[contains(@class, "result__snippet")]')
+            if not t_el:
+                continue
+
+            raw_href = t_el[0].get("href", "")
+            m = re.search(r"uddg=([^&]+)", raw_href)
+            import urllib.parse
+            url = urllib.parse.unquote(m.group(1)) if m else raw_href
+            title = _clean_html(t_el[0].text_content().strip())
+            snippet = _clean_html(s_el[0].text_content().strip()) if s_el else ""
+
+            if not url or not title or url in seen_urls:
+                continue
+            seen_urls.add(url)
+
+            results.append({
+                "title": title,
+                "url": url,
+                "snippet": snippet,
+                "domain": _extract_domain(url),
+                "source": "duckduckgo",
+            })
+            if len(results) >= limit:
+                break
+
+        if results:
+            return results
+        return await _search_ddg_lite(query, limit)
+    except Exception as exc:
+        logger.warning("ddg html search failed for %s: %s; falling back to lite", query, exc)
+        return await _search_ddg_lite(query, limit)
 
 
 async def _search_ddg_lite(query: str, limit: int) -> list[dict[str, Any]]:
