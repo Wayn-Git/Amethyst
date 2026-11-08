@@ -72,6 +72,7 @@ export default function Devices() {
   // View state
   const [activeTab, setActiveTab] = useState('control') // 'control' | 'ssh'
   const [showAddModal, setShowAddModal] = useState(false)
+  const [isQrExpanded, setIsQrExpanded] = useState(false)
   const [modalTab, setModalTab] = useState('phone') // 'phone' | 'computer'
   const [showPortHelp, setShowPortHelp] = useState(false)
   const [pairMode, setPairMode] = useState('lan')
@@ -203,6 +204,7 @@ export default function Devices() {
       }
     }
     setBusy(true)
+    setIsQrExpanded(false)
     try {
       const v2 = await api.startPairingV2()
       setV2Pairing(v2)
@@ -218,6 +220,7 @@ export default function Devices() {
 
   const closePairingModal = async () => {
     setShowAddModal(false)
+    setIsQrExpanded(false)
     setV2Pairing(null)
     setV2Status(null)
     try {
@@ -226,6 +229,22 @@ export default function Devices() {
       // ignore
     }
   }
+
+  useEffect(() => {
+    if (!showAddModal) return
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (isQrExpanded) {
+          e.stopPropagation()
+          setIsQrExpanded(false)
+        } else {
+          closePairingModal()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showAddModal, isQrExpanded])
 
   const approveV2 = async (deviceLabel) => {
     try {
@@ -1203,19 +1222,100 @@ export default function Devices() {
             transition={{ duration: 0.18 }}
             onClick={(e) => {
               if (e.target === e.currentTarget) {
-                closePairingModal()
+                if (isQrExpanded) {
+                  setIsQrExpanded(false)
+                } else {
+                  closePairingModal()
+                }
               }
             }}
           >
-            <motion.div
-              className="conn-modal"
-              role="dialog"
-              aria-modal="true"
-              initial={{ scale: 0.94, opacity: 0, y: 14 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.94, opacity: 0, y: 14 }}
-              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-            >
+            <AnimatePresence mode="wait">
+              {isQrExpanded && v2Pairing ? (
+                <motion.div
+                  key="conn-qr-expanded"
+                  className="conn-qr-expanded-card"
+                  role="dialog"
+                  aria-modal="true"
+                  initial={{ scale: 0.92, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.92, opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 30 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="conn-qr-expanded-header">
+                    <div className="conn-qr-expanded-title">
+                      <Icon name="mobile" size={16} />
+                      <span>Scan Pairing Code</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <motion.button
+                        type="button"
+                        className="conn-tool-btn"
+                        title="Copy QR payload (base64url)"
+                        onClick={() => {
+                          if (v2Pairing.qr) {
+                            copyText(v2Pairing.qr)
+                            toast('QR payload copied to clipboard', 'ok')
+                          }
+                        }}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.92 }}
+                      >
+                        <Icon name="copy" size={13} />
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        className="conn-tool-btn"
+                        title="Minimize"
+                        onClick={() => setIsQrExpanded(false)}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.92 }}
+                      >
+                        <Icon name="collapse" size={14} />
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        className="conn-tool-btn"
+                        title="Close"
+                        onClick={closePairingModal}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.92 }}
+                      >
+                        <Icon name="x" size={13} />
+                      </motion.button>
+                    </div>
+                  </div>
+
+                  <div className="conn-qr-expanded-body">
+                    <div className="conn-qr-expanded-frame">
+                      <div
+                        dangerouslySetInnerHTML={{
+                          __html: v2Pairing.qr_svg,
+                        }}
+                        style={{ width: '100%', height: '100%' }}
+                      />
+                      <div className="conn-qr-center-badge is-large">
+                        <Icon name="mobile" size={24} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="conn-qr-expanded-footer">
+                    <span>Point your phone camera at this code to connect instantly over Wi-Fi</span>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="conn-modal-standard"
+                  className="conn-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  initial={{ scale: 0.94, opacity: 0, y: 14 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.94, opacity: 0, y: 14 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                >
               {/* Glossy Gradient Hero Banner with 3D Device Mockup */}
               <div className="conn-modal-banner">
                 <motion.button
@@ -1418,7 +1518,12 @@ export default function Devices() {
                           </div>
                         ) : v2Pairing ? (
                           <>
-                            <div className="conn-qr-wrapper">
+                            <div
+                              className="conn-qr-wrapper"
+                              onClick={() => setIsQrExpanded(true)}
+                              style={{ cursor: 'pointer' }}
+                              title="Click to expand QR code"
+                            >
                               <div
                                 dangerouslySetInnerHTML={{
                                   __html: v2Pairing.qr_svg,
@@ -1431,6 +1536,16 @@ export default function Devices() {
                             </div>
 
                             <div className="conn-box-corner-tools">
+                              <motion.button
+                                type="button"
+                                className="conn-tool-btn"
+                                title="Expand QR code"
+                                onClick={() => setIsQrExpanded(true)}
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.92 }}
+                              >
+                                <Icon name="expand" size={13} />
+                              </motion.button>
                               <motion.button
                                 type="button"
                                 className="conn-tool-btn"
@@ -1575,9 +1690,11 @@ export default function Devices() {
                 </div>
               </div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    )}
+  </AnimatePresence>
 
       {/* Pairing approval modal from SSE / daemon summon */}
       {activeModalRequest && (
