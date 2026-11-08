@@ -29,7 +29,18 @@ logging.getLogger("composio").setLevel(logging.WARNING)
 os.environ.setdefault("COMPOSIO_TELEMETRY", "false")
 
 SECRET_KEY_REF = "amethyst/composio"
-DEFAULT_TOOLKITS = ["slack", "github", "linear", "notion", "gmail"]
+DEFAULT_TOOLKITS = [
+    "slack",
+    "github",
+    "linear",
+    "notion",
+    "gmail",
+    "googlecalendar",
+    "googledrive",
+    "google_maps",
+    "spotify",
+    "discord",
+]
 
 
 def sanitize_composio_key(raw: str | None) -> str:
@@ -1578,17 +1589,28 @@ class ComposioService:
         self._key_mode = target_mode
 
         conn = get_connection()
+        row = conn.execute("SELECT enabled_toolkits FROM composio_state WHERE id = 1").fetchone()
+        existing_toolkits = None
+        if row and row["enabled_toolkits"]:
+            try:
+                parsed = json.loads(row["enabled_toolkits"])
+                if isinstance(parsed, list) and len(parsed) > 0:
+                    existing_toolkits = json.dumps(parsed)
+            except (ValueError, TypeError):
+                pass
+        initial_toolkits = existing_toolkits or json.dumps(DEFAULT_TOOLKITS)
+
         conn.execute(
             """
             INSERT INTO composio_state (id, session_id, user_id, enabled_toolkits, mcp_url, key_mode, updated_at)
-            VALUES (1, '', '', '[]', '', ?, datetime('now'))
+            VALUES (1, '', '', ?, '', ?, datetime('now'))
             ON CONFLICT(id) DO UPDATE SET
                 key_mode = excluded.key_mode,
                 session_id = '',
                 mcp_url = '',
                 updated_at = excluded.updated_at
             """,
-            (target_mode,),
+            (initial_toolkits, target_mode),
         )
         conn.commit()
         return True
@@ -1706,6 +1728,40 @@ class ComposioService:
                 "Composio package is not installed. Please install 'composio>=0.22.0'."
             ) from exc
 
+    async def execute_tool(self, slug: str, arguments: dict[str, Any] | None = None) -> Any:
+        """Execute a Composio tool directly via the Python SDK.
+
+        Bypasses MCP transport cold boots and unboxes responses.
+        """
+        if not self.is_configured():
+            raise RuntimeError("Composio is not configured.")
+
+        client = self._get_client()
+        uid = self._get_stable_user_id()
+        params = arguments or {}
+
+        def _run():
+            return client.tools.execute(
+                slug=slug,
+                arguments=params,
+                user_id=uid,
+                dangerously_skip_version_check=True,
+            )
+
+        res = await asyncio.to_thread(_run)
+        if isinstance(res, dict):
+            if res.get("error"):
+                raise RuntimeError(f"Composio action {slug} failed: {res['error']}")
+            data = res.get("data")
+            if isinstance(data, dict):
+                return data
+            if data is not None:
+                return data
+            if "data_preview" in res:
+                return res["data_preview"]
+            return res
+        return res
+
     def get_enabled_toolkits(self) -> list[str]:
         """Fetch list of enabled toolkit slugs from database or defaults."""
         now = time.monotonic()
@@ -1717,7 +1773,7 @@ class ComposioService:
         if row and row["enabled_toolkits"]:
             try:
                 parsed = json.loads(row["enabled_toolkits"])
-                if isinstance(parsed, list):
+                if isinstance(parsed, list) and len(parsed) > 0:
                     result = parsed
             except (ValueError, TypeError):
                 pass
