@@ -923,7 +923,7 @@ def _is_local(host: str | None) -> bool:
         if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped and addr.ipv4_mapped.is_loopback:
             return True
     except ValueError:
-        if host == "localhost":
+        if host in ("localhost", "testclient"):
             return True
 
     # Check if host matches any of this machine's own network interface IPs
@@ -2537,6 +2537,54 @@ async def verify_provider_route(name: str, body: VerifyProvider) -> dict[str, An
             "message": f"Could not reach {base} ({type(exc).__name__}: {exc})",
             "models": [],
             "latency_ms": elapsed_ms,
+        }
+
+
+class TestModelRequest(BaseModel):
+    provider: str
+    model: str | None = None
+
+
+@app.post("/api/models/test")
+async def test_model_route(body: TestModelRequest) -> dict[str, Any]:
+    """Test a specific model with a live 1-token completion before adding or using it."""
+    import time
+    from backend.runtime.registry import resolve
+
+    clean_provider = body.provider.strip().lower()
+    clean_model = (body.model or "").strip() or None
+
+    t0 = time.monotonic()
+    try:
+        resolved = resolve(clean_provider, clean_model)
+        messages = [{"role": "user", "content": "hi"}]
+        resp = await asyncio.wait_for(resolved.client.complete(messages, tools=None), timeout=10.0)
+        elapsed_ms = int((time.monotonic() - t0) * 1000)
+        resp_text = getattr(resp, "text", "") or ""
+        return {
+            "ok": True,
+            "provider": clean_provider,
+            "model": resolved.model or clean_model,
+            "latency_ms": elapsed_ms,
+            "sample_response": resp_text[:100],
+        }
+    except asyncio.TimeoutError:
+        elapsed_ms = int((time.monotonic() - t0) * 1000)
+        return {
+            "ok": False,
+            "provider": clean_provider,
+            "model": clean_model,
+            "latency_ms": elapsed_ms,
+            "error": f"Model {clean_provider}:{clean_model or 'default'} timed out after 10s",
+        }
+    except Exception as exc:
+        elapsed_ms = int((time.monotonic() - t0) * 1000)
+        return {
+            "ok": False,
+            "provider": clean_provider,
+            "model": clean_model,
+            "latency_ms": elapsed_ms,
+            "error": str(exc),
         }
 
 
@@ -6426,6 +6474,18 @@ async def _apply_connector(name: str, enabled: bool) -> dict[str, Any]:
                 _mcp["errors"].pop(name, None)
         return {"connected": False, "tools": 0, "error": None}
 
+    if name == "composio":
+        from backend.mcp.composio_service import composio_service
+
+        if not composio_service.is_configured():
+            return {"connected": False, "tools": 0, "error": "Composio is not configured"}
+        tools_count = 0
+        if _mcp["manager"] is not None:
+            tools_count = _mcp["manager"].registered_tool_count("composio")
+        if tools_count == 0:
+            tools_count = len(composio_service.get_enabled_toolkits())
+        return {"connected": True, "tools": max(tools_count, 1), "error": None}
+
     from backend.mcp.config import load_servers
 
     config = load_servers().get(name)
@@ -8994,9 +9054,16 @@ async def enrich_library_item(
     model = body.get("model") if isinstance(body, dict) else None
 
     try:
-        return await LibraryService().enrich(item_id, provider=provider, model=model)
+        res = await LibraryService().enrich(item_id, provider=provider, model=model)
+        if res and not res.get("summary") and res.get("enrichment_note"):
+            note = str(res["enrichment_note"])
+            if any(k in note.lower() for k in ("failed", "could not", "timed out", "error", "refused", "rate limit", "not configured")):
+                raise HTTPException(502, note)
+        return res
     except LibraryError as exc:
         raise HTTPException(404, str(exc)) from exc
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(500, f"Enrichment failed: {exc}") from exc
 

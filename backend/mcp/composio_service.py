@@ -2048,7 +2048,9 @@ class ComposioService:
         if not configured:
             return {
                 "configured": False,
+                "connected": False,
                 "active": False,
+                "has_key": False,
                 "key_mode": "project",
                 "session_id": None,
                 "enabled_toolkits": [],
@@ -2058,7 +2060,9 @@ class ComposioService:
         if mode == "consumer":
             return {
                 "configured": True,
+                "connected": True,
                 "active": True,
+                "has_key": True,
                 "key_mode": "consumer",
                 "session_id": "connect-gateway",
                 "enabled_toolkits": self.get_enabled_toolkits(),
@@ -2072,7 +2076,9 @@ class ComposioService:
 
         return {
             "configured": True,
-            "active": bool(mcp_url or session_id),
+            "connected": True,
+            "active": True,
+            "has_key": True,
             "key_mode": mode,
             "session_id": session_id,
             "enabled_toolkits": self.get_enabled_toolkits(),
