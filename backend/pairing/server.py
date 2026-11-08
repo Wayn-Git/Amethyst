@@ -142,9 +142,7 @@ class PairingRequestHandler(http.server.BaseHTTPRequestHandler):
         decision = self.server.approval_decision
         if decision == "approve":
             self._send_json(200, self.server.approval_bundle or {})
-            timer = threading.Timer(15.0, self.server.close_async)
-            timer.daemon = True
-            timer.start()
+            self.server.close_async()
         else:
             self._send_json(403, {"error": "pairing_denied"})
             self.server.close_async()
