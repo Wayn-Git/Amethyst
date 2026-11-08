@@ -427,7 +427,12 @@ export default function CommandPalette({ bare = false }) {
       // Fallback
       if (item.action_id && item.provider_id) {
         try {
-          await api.executeLauncherAction(item.provider_id, item.action_id, item.payload || {})
+          await api.executeLauncherAction(item.provider_id, item.action_id, {
+            ...(item.payload || {}),
+            action_id: item.action_id,
+            command: item.action_id,
+          })
+          toast?.(`Executed ${item.title || item.action_id}`, 'ok')
           closePalette()
         } catch (err) {
           toast?.(err.message, 'bad')
