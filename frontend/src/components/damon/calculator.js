@@ -9,9 +9,10 @@ const MATH_PATTERN = /^[\d\s+\-*/^%().,eE]+$/
 export function evaluateMath(query) {
   if (!query) return null
   let q = query.trim()
+  const hasExplicitEquals = q.startsWith('=')
 
   // Strip leading '=' if present
-  if (q.startsWith('=')) {
+  if (hasExplicitEquals) {
     q = q.slice(1).trim()
   }
 
@@ -19,9 +20,49 @@ export function evaluateMath(query) {
   const conversion = evaluateConversion(q)
   if (conversion) return conversion
 
-  // Check if expression looks like math and has at least one operator
-  if (!MATH_PATTERN.test(q)) return null
-  if (!/[+\-*/^%]/.test(q)) return null
+  // Check if expression looks like an attempted math query
+  const hasDigits = /\d/.test(q)
+  const hasOperators = /[+\-*/^%&|~]/.test(q)
+  const looksLikeMath = hasExplicitEquals || (hasDigits && hasOperators)
+
+  if (!looksLikeMath) return null
+
+  // Check for unsupported bitwise or logic operators that users might try
+  const unsupportedMatch = /[&|~]/.exec(q)
+  if (unsupportedMatch) {
+    return {
+      type: 'math-error',
+      expression: q,
+      error: `Syntax error: unexpected '${unsupportedMatch[0]}'`,
+    }
+  }
+
+  // Check if expression matches valid arithmetic characters
+  if (!MATH_PATTERN.test(q)) {
+    if (hasExplicitEquals) {
+      return {
+        type: 'math-error',
+        expression: q,
+        error: 'Syntax error in math expression',
+      }
+    }
+    return null
+  }
+
+  // Check parenthesis balance
+  let parenDepth = 0
+  for (const ch of q) {
+    if (ch === '(') parenDepth++
+    else if (ch === ')') parenDepth--
+    if (parenDepth < 0) break
+  }
+  if (parenDepth !== 0) {
+    return {
+      type: 'math-error',
+      expression: q,
+      error: 'Syntax error: unmatched parentheses',
+    }
+  }
 
   try {
     // Sanitize: replace '^' with '**'
@@ -32,7 +73,13 @@ export function evaluateMath(query) {
     // Safe evaluation using Function with strict mode
     // eslint-disable-next-line no-new-func
     const result = Function(`'use strict'; return (${sanitized})`)()
-    if (typeof result !== 'number' || !Number.isFinite(result)) return null
+    if (typeof result !== 'number' || !Number.isFinite(result)) {
+      return {
+        type: 'math-error',
+        expression: q,
+        error: 'Evaluation error: non-finite result',
+      }
+    }
 
     // Format number nicely
     const formatted = Number.isInteger(result)
@@ -45,8 +92,12 @@ export function evaluateMath(query) {
       result: formatted,
       raw: result,
     }
-  } catch {
-    return null
+  } catch (err) {
+    return {
+      type: 'math-error',
+      expression: q,
+      error: 'Syntax error in math expression',
+    }
   }
 }
 
