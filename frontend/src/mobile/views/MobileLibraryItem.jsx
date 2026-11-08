@@ -66,9 +66,9 @@ function MobileMarkdown({ text }) {
   const flushList = (key) => {
     if (inList && listItems.length > 0) {
       elements.push(
-        <ul key={`ul-${key}`} style={{ margin: '8px 0', paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <ul key={`ul-${key}`} style={{ margin: '8px 0', paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 6, maxWidth: '100%', boxSizing: 'border-box' }}>
           {listItems.map((it, idx) => (
-            <li key={idx} style={{ fontSize: 14.5, lineHeight: 1.6, color: '#1D1D1F' }}>
+            <li key={idx} style={{ fontSize: 14.5, lineHeight: 1.6, color: '#1D1D1F', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
               {renderInline(it)}
             </li>
           ))}
@@ -112,6 +112,8 @@ function MobileMarkdown({ text }) {
               borderRadius: 6,
               fontSize: '0.9em',
               fontFamily: 'monospace',
+              wordBreak: 'break-all',
+              overflowWrap: 'anywhere',
             }}
           >
             {codeMatch[1]}
@@ -130,7 +132,7 @@ function MobileMarkdown({ text }) {
             href={linkMatch[2]}
             target="_blank"
             rel="noopener noreferrer"
-            style={{ color: '#0071E3', textDecoration: 'none', fontWeight: 500 }}
+            style={{ color: '#0071E3', textDecoration: 'none', fontWeight: 500, wordBreak: 'break-all', overflowWrap: 'anywhere' }}
           >
             {linkMatch[1]}
           </a>
@@ -175,7 +177,7 @@ function MobileMarkdown({ text }) {
     // Heading
     if (trimmed.startsWith('### ')) {
       elements.push(
-        <h4 key={idx} style={{ fontSize: 16, fontWeight: 700, margin: '14px 0 6px', color: '#111113' }}>
+        <h4 key={idx} style={{ fontSize: 16, fontWeight: 700, margin: '14px 0 6px', color: '#111113', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
           {renderInline(trimmed.slice(4))}
         </h4>
       )
@@ -183,7 +185,7 @@ function MobileMarkdown({ text }) {
     }
     if (trimmed.startsWith('## ') || trimmed.startsWith('# ')) {
       elements.push(
-        <h3 key={idx} style={{ fontSize: 18, fontWeight: 700, margin: '16px 0 8px', color: '#111113' }}>
+        <h3 key={idx} style={{ fontSize: 18, fontWeight: 700, margin: '16px 0 8px', color: '#111113', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
           {renderInline(trimmed.replace(/^#+\s*/, ''))}
         </h3>
       )
@@ -204,6 +206,8 @@ function MobileMarkdown({ text }) {
             fontSize: 14,
             color: '#1D1D1F',
             fontStyle: 'italic',
+            wordBreak: 'break-word',
+            overflowWrap: 'anywhere',
           }}
         >
           {renderInline(trimmed.slice(2))}
@@ -214,18 +218,18 @@ function MobileMarkdown({ text }) {
 
     // Paragraph
     elements.push(
-      <p key={idx} style={{ margin: '6px 0', fontSize: 14.5, lineHeight: 1.6, color: '#1D1D1F' }}>
+      <p key={idx} style={{ margin: '6px 0', fontSize: 14.5, lineHeight: 1.6, color: '#1D1D1F', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
         {renderInline(trimmed)}
       </p>
     )
   })
 
   flushList(lines.length)
-  return <div>{elements}</div>
+  return <div style={{ width: '100%', maxWidth: '100%', wordBreak: 'break-word', overflowWrap: 'anywhere', boxSizing: 'border-box' }}>{elements}</div>
 }
 
 /**
- * Extracts clean structured TL;DR and labeled highlights from raw AI summary.
+ * Extracts clean structured TL;DR, section headers, and labeled highlights from raw AI summary.
  */
 function parseSummaryStructure(rawSummary) {
   if (!rawSummary) return { tldr: '', points: [] }
@@ -239,7 +243,14 @@ function parseSummaryStructure(rawSummary) {
   const points = []
 
   for (const line of lines) {
-    if (line.startsWith('#')) continue
+    // Check for section headers (e.g. ## Executive Overview, ### Practical Takeaways)
+    if (line.startsWith('#')) {
+      const headerTitle = line.replace(/^#+\s*/, '').trim()
+      if (headerTitle && !/^(overview|executive\s+overview|summary)$/i.test(headerTitle)) {
+        points.push({ isHeader: true, text: headerTitle })
+      }
+      continue
+    }
 
     // Matches labeled lines like "**Setup:** The video explains..." or "- **Key point:** ..."
     const match = line.match(/^[-*•]?\s*\*\*([^*:]+:?)\*\*\s*(.*)$/) ||
@@ -250,7 +261,7 @@ function parseSummaryStructure(rawSummary) {
       if (!label.endsWith(':')) label += ':'
       const content = match[2].replace(/\*\*/g, '').trim()
       if (content || label) {
-        points.push({ label, text: content })
+        points.push({ label, text: content, isBullet: true })
       }
     } else if (!tldr) {
       const lineText = line.replace(/^[#*-\s]+/, '').replace(/\*\*/g, '').trim()
@@ -258,19 +269,41 @@ function parseSummaryStructure(rawSummary) {
         tldr = lineText
       }
     } else {
-      const lineText = line.replace(/^[#*-\s]+/, '').replace(/\*\*/g, '').trim()
+      const isBullet = /^[-*•\d+.]\s+/.test(line)
+      const lineText = line.replace(/^[#*-\s\d+.]+\s*/, '').replace(/\*\*/g, '').trim()
       if (lineText) {
-        points.push({ label: null, text: lineText })
+        points.push({ label: null, text: lineText, isBullet })
       }
     }
   }
 
   if (!tldr && points.length > 0) {
-    const first = points.shift()
-    tldr = first.label ? `${first.label} ${first.text}` : first.text
+    const firstNonHeaderIndex = points.findIndex((p) => !p.isHeader)
+    if (firstNonHeaderIndex !== -1) {
+      const first = points.splice(firstNonHeaderIndex, 1)[0]
+      tldr = first.label ? `${first.label} ${first.text}` : first.text
+    }
   }
 
   return { tldr, points }
+}
+
+function isDuplicateSummary(postText, summaryText) {
+  if (!postText || !summaryText) return false
+  const cleanPost = String(postText).trim().replace(/\s+/g, ' ').toLowerCase()
+  const cleanSumm = String(summaryText).trim().replace(/\s+/g, ' ').toLowerCase()
+  if (cleanPost === cleanSumm) return true
+
+  // Strip non-alphanumeric for fuzzy check
+  const stripPost = cleanPost.replace(/[^a-z0-9]/g, '')
+  const stripSumm = cleanSumm.replace(/[^a-z0-9]/g, '')
+  if (stripPost && stripSumm) {
+    if (stripPost === stripSumm) return true
+    if (stripPost.length > 30 && stripSumm.length > 30) {
+      if (stripPost.startsWith(stripSumm) || stripSumm.startsWith(stripPost)) return true
+    }
+  }
+  return false
 }
 
 export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteItem }) {
@@ -283,6 +316,7 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
   const [isFavorited, setIsFavorited] = useState(Boolean(item?.favorited || item?.starred || item?.is_pinned))
   const [enriching, setEnriching] = useState(false)
   const [thumbFailed, setThumbFailed] = useState(false)
+  const [captionExpanded, setCaptionExpanded] = useState(false)
   const [actionSheetOpen, setActionSheetOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [toastNotice, setToastNotice] = useState('')
@@ -582,9 +616,18 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
       return activeItem.notes.trim()
     }
     if (activeItem?.content && activeItem.content.trim()) return activeItem.content.trim()
-    if (activeItem?.excerpt && activeItem.excerpt.trim()) return activeItem.excerpt.trim()
+    if (activeItem?.excerpt && activeItem.excerpt.trim()) {
+      const ex = activeItem.excerpt.trim()
+      if (activeItem?.summary && ex === activeItem.summary.trim()) return ''
+      if (activeItem?.title && ex === activeItem.title.trim()) return ''
+      return ex
+    }
     return ''
   }, [activeItem])
+
+  const hasDuplicateSummary = useMemo(() => {
+    return isDuplicateSummary(postBody, activeItem?.summary)
+  }, [postBody, activeItem?.summary])
 
   // Clean structured AI summary
   const summaryStructure = useMemo(() => {
@@ -592,18 +635,32 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
   }, [activeItem?.summary])
 
   // Extracted outbound resources & links (with clean domains, tracking queries stripped, media excluded)
-  const links = useMemo(() => {
+  const { primarySourceLink, referenceLinks, allLinks } = useMemo(() => {
     const rawList = Array.isArray(parsedResources) && parsedResources.length > 0
       ? parsedResources
       : Array.isArray(activeItem?.metadata?.links) && activeItem.metadata.links.length > 0
         ? activeItem.metadata.links
-        : activeItem?.url
-          ? [{ title: activeItem.title || 'Original Source', url: activeItem.url, type: 'source' }]
-          : []
+        : []
+
+    const primaryUrl = activeItem?.url && activeItem.url.startsWith('http') ? activeItem.url : null
+    let primaryLink = null
+    if (primaryUrl) {
+      const cleanPrimary = primaryUrl.replace(/([?&])(utm_[^&]+|fbclid=[^&]+|igsh=[^&]+|srtk=[^&]+)/gi, '').replace(/\?$/, '')
+      primaryLink = {
+        title: activeItem?.title || 'Original Source',
+        detail: activeItem?.author_name ? `By ${activeItem.author_name}` : '',
+        url: cleanPrimary,
+        domain: getItemDomain(cleanPrimary) || 'source',
+        type: 'source',
+      }
+    }
 
     const seen = new Set()
-    const cleanList = []
+    if (primaryLink) {
+      seen.add(primaryLink.url)
+    }
 
+    const cleanList = []
     for (const r of rawList) {
       if (!r) continue
       // Exclude video files, mp4 streams, and avatar images
@@ -611,6 +668,9 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
       const rawUrl = r.resolved_url || r.url || r.link || ''
       if (!rawUrl || !rawUrl.startsWith('http')) continue
       if (/\.(mp4|mov|webm)(\?|$)/i.test(rawUrl)) continue
+
+      // Filter login walls, auth redirects, or junk
+      if (rawUrl.includes('/accounts/login') || rawUrl.includes('/login') || rawUrl.includes('facebook.com/tr')) continue
 
       // Strip common tracking queries
       const cleanUrl = rawUrl.replace(/([?&])(utm_[^&]+|fbclid=[^&]+|igsh=[^&]+|srtk=[^&]+)/gi, '').replace(/\?$/, '')
@@ -627,8 +687,12 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
         type: r.type || (isTool ? 'tool' : 'link'),
       })
     }
-    return cleanList
+
+    const combined = primaryLink ? [primaryLink, ...cleanList] : cleanList
+    return { primarySourceLink: primaryLink, referenceLinks: cleanList, allLinks: combined }
   }, [parsedResources, activeItem])
+
+  const links = allLinks
 
   const handleEnrich = async () => {
     if (!activeItem?.id && !activeItem?.uuid) return
@@ -1207,8 +1271,8 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
             </div>
           )}
 
-          {/* Post Card: For social media posts, threads, tweets, and notes */}
-          {(Boolean(postBody) || !showHeroMedia) && (
+          {/* Post Card: For social media captions, threads, tweets, and notes */}
+          {((Boolean(postBody) && !hasDuplicateSummary) || !showHeroMedia) && (
             <div
               style={{
                 background: '#FFFFFF',
@@ -1218,6 +1282,9 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 12,
+                boxSizing: 'border-box',
+                maxWidth: '100%',
+                overflow: 'hidden',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1250,7 +1317,7 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
                 </div>
 
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14.5, lineHeight: 1.2, color: '#1D1D1F' }}>
+                  <div style={{ fontWeight: 700, fontSize: 14.5, lineHeight: 1.2, color: '#1D1D1F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {authorName}
                   </div>
                   <div style={{ fontSize: 12, color: '#8E8E93', marginTop: 2 }}>
@@ -1273,6 +1340,7 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
                       color: '#0071E3',
                       fontWeight: 600,
                       borderRadius: 999,
+                      flexShrink: 0,
                     }}
                   >
                     Open ↗
@@ -1280,9 +1348,58 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
                 )}
               </div>
 
-              {postBody && (
-                <div style={{ fontSize: 15, lineHeight: 1.6, color: '#1D1D1F' }}>
-                  <MobileMarkdown text={postBody} />
+              {postBody && !hasDuplicateSummary && (
+                <div style={{ fontSize: 14.5, lineHeight: 1.6, color: '#1D1D1F', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                  <div
+                    style={
+                      captionExpanded
+                        ? undefined
+                        : {
+                            display: '-webkit-box',
+                            WebkitLineClamp: 4,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                          }
+                    }
+                  >
+                    <MobileMarkdown text={postBody} />
+                  </div>
+                  {postBody.length > 180 && (
+                    <button
+                      type="button"
+                      onClick={() => setCaptionExpanded((prev) => !prev)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: '6px 0 0',
+                        color: '#0071E3',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                    >
+                      <span>{captionExpanded ? 'Show less' : 'See more'}</span>
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{
+                          transform: captionExpanded ? 'rotate(180deg)' : 'none',
+                          transition: 'transform 0.2s ease',
+                        }}
+                      >
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -1416,6 +1533,9 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 12,
+                  boxSizing: 'border-box',
+                  maxWidth: '100%',
+                  overflow: 'hidden',
                 }}
               >
                 {enriching || activeItem?.status === 'enriching' || activeItem?.status === 'processing' ? (
@@ -1474,39 +1594,92 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
                           border: '1px solid rgba(0, 113, 227, 0.12)',
                           borderRadius: 14,
                           padding: '12px 14px',
-                          fontSize: 14.5,
-                          fontWeight: 600,
+                          fontSize: 14,
                           lineHeight: 1.55,
                           color: '#111113',
+                          overflowWrap: 'anywhere',
+                          wordBreak: 'break-word',
+                          boxSizing: 'border-box',
                         }}
                       >
-                        {summaryStructure.tldr}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5, color: '#0071E3', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+                          </svg>
+                          <span>TL;DR Overview</span>
+                        </div>
+                        <div style={{ fontWeight: 600, color: '#1D1D1F' }}>
+                          {summaryStructure.tldr}
+                        </div>
                       </div>
                     )}
 
                     {/* Labeled Key Points / Highlights */}
                     {summaryStructure.points.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        {summaryStructure.points.map((pt, idx) => (
-                          <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                            {pt.label && (
-                              <span
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
+                        {summaryStructure.points.map((pt, idx) => {
+                          if (pt.isHeader) {
+                            return (
+                              <div
+                                key={idx}
                                 style={{
-                                  fontSize: 12.5,
+                                  fontSize: 12,
                                   fontWeight: 700,
-                                  color: '#0071E3',
+                                  color: '#8E8E93',
                                   textTransform: 'uppercase',
-                                  letterSpacing: '0.04em',
+                                  letterSpacing: '0.05em',
+                                  marginTop: idx > 0 ? 8 : 2,
+                                  paddingBottom: 4,
+                                  borderBottom: '1px solid rgba(0,0,0,0.06)',
                                 }}
                               >
-                                {pt.label}
-                              </span>
-                            )}
-                            <div style={{ fontSize: 14, lineHeight: 1.55, color: '#1D1D1F' }}>
-                              <MobileMarkdown text={pt.text} />
+                                {pt.text}
+                              </div>
+                            )
+                          }
+
+                          return (
+                            <div
+                              key={idx}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: 10,
+                                padding: '3px 0',
+                                overflowWrap: 'anywhere',
+                                wordBreak: 'break-word',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: 6,
+                                  height: 6,
+                                  borderRadius: '50%',
+                                  background: pt.label ? '#0071E3' : '#8E8E93',
+                                  marginTop: 7,
+                                  flexShrink: 0,
+                                }}
+                              />
+                              <div style={{ minWidth: 0, flex: 1, fontSize: 14, lineHeight: 1.55, color: '#1D1D1F', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                                {pt.label && (
+                                  <strong
+                                    style={{
+                                      fontWeight: 650,
+                                      color: '#111113',
+                                      marginRight: 6,
+                                      display: 'inline',
+                                    }}
+                                  >
+                                    {pt.label}
+                                  </strong>
+                                )}
+                                <span style={{ display: 'inline' }}>
+                                  <MobileMarkdown text={pt.text} />
+                                </span>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     )}
                   </>
@@ -1549,16 +1722,14 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
 
       {/* Tab 2: Outbound Links & Resources */}
       {tab === 'links' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#111113' }}>
-            Referenced Resources ({links.length})
-          </div>
-
-          {links.length > 0 ? (
-            links.map((link, idx) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {primarySourceLink && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#8E8E93', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Source Link
+              </div>
               <a
-                key={idx}
-                href={link.url}
+                href={primarySourceLink.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -1566,62 +1737,124 @@ export default function MobileLibraryItem({ item, onBack, onAskAgent, onDeleteIt
                   alignItems: 'center',
                   textDecoration: 'none',
                   color: 'inherit',
-                  padding: '12px 14px',
+                  padding: '14px 16px',
                   gap: 12,
                   background: '#FFFFFF',
-                  borderRadius: 18,
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  borderRadius: 20,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                  border: '1px solid rgba(0, 113, 227, 0.15)',
                 }}
               >
-                {/* Authentic Platform Favicon */}
                 <div
                   style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 10,
-                    background: '#F2F1F6',
+                    width: 40,
+                    height: 40,
+                    borderRadius: 12,
+                    background: 'rgba(0, 113, 227, 0.08)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
-                    overflow: 'hidden',
                   }}
                 >
                   <img
-                    src={`https://www.google.com/s2/favicons?domain=${link.domain}&sz=64`}
+                    src={`https://www.google.com/s2/favicons?domain=${primarySourceLink.domain}&sz=64`}
                     alt=""
-                    style={{ width: 20, height: 20, borderRadius: 4 }}
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none'
-                    }}
+                    style={{ width: 22, height: 22, borderRadius: 5 }}
+                    onError={(e) => { e.currentTarget.style.display = 'none' }}
                   />
                 </div>
 
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#1D1D1F' }}>
-                    {link.title}
+                  <div style={{ fontWeight: 650, fontSize: 14.5, color: '#1D1D1F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {primarySourceLink.title}
                   </div>
-                  {link.detail ? (
-                    <div style={{ marginTop: 2, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#8E8E93' }}>
-                      {link.detail}
-                    </div>
-                  ) : null}
-                  <div style={{ marginTop: 2, fontSize: 11.5, color: '#0071E3', fontWeight: 500 }}>
-                    {link.domain} {link.type ? `· ${link.type}` : ''}
+                  <div style={{ marginTop: 2, fontSize: 12, color: '#0071E3', fontWeight: 600 }}>
+                    {primarySourceLink.domain} · Original Source
                   </div>
                 </div>
 
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#8E8E93" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#0071E3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M7 7h10v10" />
                   <path d="M7 17 17 7" />
                 </svg>
               </a>
-            ))
-          ) : (
-            <div style={{ textAlign: 'center', padding: 24, background: '#FFFFFF', borderRadius: 18, color: '#8E8E93' }}>
-              No referenced links extracted from this item.
             </div>
           )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#8E8E93', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Referenced Resources ({referenceLinks.length})
+            </div>
+
+            {referenceLinks.length > 0 ? (
+              referenceLinks.map((link, idx) => (
+                <a
+                  key={idx}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    textDecoration: 'none',
+                    color: 'inherit',
+                    padding: '12px 14px',
+                    gap: 12,
+                    background: '#FFFFFF',
+                    borderRadius: 18,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
+                      background: '#F2F1F6',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <img
+                      src={`https://www.google.com/s2/favicons?domain=${link.domain}&sz=64`}
+                      alt=""
+                      style={{ width: 20, height: 20, borderRadius: 4 }}
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none'
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#1D1D1F' }}>
+                      {link.title}
+                    </div>
+                    {link.detail ? (
+                      <div style={{ marginTop: 2, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#8E8E93' }}>
+                        {link.detail}
+                      </div>
+                    ) : null}
+                    <div style={{ marginTop: 2, fontSize: 11.5, color: '#0071E3', fontWeight: 500 }}>
+                      {link.domain} {link.type ? `· ${link.type}` : ''}
+                    </div>
+                  </div>
+
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#8E8E93" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M7 7h10v10" />
+                    <path d="M7 17 17 7" />
+                  </svg>
+                </a>
+              ))
+            ) : (
+              <div style={{ textAlign: 'center', padding: 24, background: '#FFFFFF', borderRadius: 18, color: '#8E8E93', fontSize: 13.5 }}>
+                No referenced links extracted from this item.
+              </div>
+            )}
+          </div>
         </div>
       )}
 
