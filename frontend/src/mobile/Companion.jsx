@@ -12,7 +12,8 @@ import { safeStorage } from '../lib/storage.js'
 import { storedIdentity } from '../lib/credentials.js'
 import ConnectionDiagnosticsModal from './ConnectionDiagnosticsModal.jsx'
 import { captures, saveCapture, flushCaptures } from './captures.js'
-import { putRecord, records } from './storage.js'
+import { putRecord, records, getLocalOwner } from './storage.js'
+import { syncCollections, getStoredCollections } from './collectionsSync.js'
 import { newerUpdate } from './updates.js'
 import MobileToday from './views/MobileToday.jsx'
 import AddWidgetsModal from './views/AddWidgetsModal.jsx'
@@ -174,61 +175,99 @@ export default function Companion({ onUnpair }) {
   }, [])
 
   const refresh = useCallback(async () => {
-    const owner = identity()?.deviceId
-    if (!owner) return
+    const isPaired = Boolean(identity()?.deviceId)
+    const owner = identity()?.deviceId || getLocalOwner()
 
-    // 1. Run durable sync and captures flush unconditionally
+    // 1. Run durable sync and captures flush
     try {
-      await Promise.allSettled([flushCaptures(), sync()])
+      const syncTasks = [flushCaptures()]
+      if (isPaired) syncTasks.push(sync())
+      await Promise.allSettled(syncTasks)
     } catch {}
 
     // 2. Probe direct LAN capabilities without blocking if away
     let current = null
-    try {
-      current = await request('/remote/capabilities', 'GET', undefined, 2500)
-      if (active.current && identity()?.deviceId === owner) {
-        setConnection(current)
-        setNotice('Direct Wi-Fi connected')
+    if (isPaired) {
+      try {
+        current = await request('/remote/capabilities', 'GET', undefined, 2500)
+        if (active.current) {
+          setConnection(current)
+          setNotice('Direct Wi-Fi connected')
+        }
+      } catch {
+        if (active.current) {
+          setConnection(null)
+          setNotice('Connected via Cloud Relay')
+        }
       }
-    } catch {
-      if (active.current && identity()?.deviceId === owner) {
+
+      // 3. Fetch live system telemetry if connected
+      try {
+        const statusRes = await api.remoteStatus().catch(() => null)
+        if (statusRes) {
+          setTelemetry(statusRes)
+        }
+      } catch {}
+    } else {
+      if (active.current) {
         setConnection(null)
-        setNotice('Connected via Cloud Relay')
+        setNotice('Cloud Standalone')
       }
     }
 
-    // 3. Fetch live system telemetry if connected
-    try {
-      const statusRes = await api.remoteStatus().catch(() => null)
-      if (statusRes) {
-        setTelemetry(statusRes)
-      }
-    } catch {}
+    if (!active.current) return
 
-    if (!active.current || identity()?.deviceId !== owner) return
-
-    // 4. Update library and jobs from direct API if connected, or from replica
+    // 4. Update library and collections directly from Drive/Composio or API
     try {
       const next = (await records('snapshot'))[0]?.value || {}
-      if (current?.permissions?.library) {
+
+      // Requirement 1: Remove PC-capability gating for library; load from Drive/Composio/API directly
+      let loadedItems = null
+      try {
         const libRes = await api.library({ limit: 100 }).catch(() => null)
-        if (libRes?.items) {
-          next.library = libRes.items.map(({ id, uuid, title, summary, notes, url }) => ({ id, uuid, title, summary, notes, url }))
-          setLibrary(next.library)
+        if (libRes?.items && libRes.items.length > 0) {
+          loadedItems = libRes.items.map(({ id, uuid, title, summary, notes, url }) => ({ id, uuid, title, summary, notes, url }))
         }
-      } else {
-        const replicaLib = Object.values(replica.readAll(replica.load(), 'library') || {})
-        if (replicaLib.length > 0) {
-          setLibrary(replicaLib)
+      } catch {}
+
+      if (!loadedItems || loadedItems.length === 0) {
+        try {
+          const syncRes = await syncCollections({ apiClient: api })
+          if (syncRes?.store?.items?.length) {
+            loadedItems = syncRes.store.items.map(({ id, uuid, title, summary, notes, url }) => ({ id, uuid, title, summary, notes, url }))
+          }
+        } catch {}
+      }
+
+      if (!loadedItems || loadedItems.length === 0) {
+        const stored = getStoredCollections()
+        if (stored.items?.length) {
+          loadedItems = stored.items
+        } else {
+          const replicaLib = Object.values(replica.readAll(replica.load(), 'library') || {})
+          if (replicaLib.length > 0) {
+            loadedItems = replicaLib
+          }
         }
       }
 
+      if (loadedItems && loadedItems.length > 0) {
+        next.library = loadedItems
+        setLibrary(loadedItems)
+      }
+
+      // Requirement 1: Leave a clearly marked hook for PC agent's pairing prompt on PC/agent-job features only
       if (current?.permissions?.agent) {
         const jobsRes = await api.jobs().catch(() => null)
         if (jobsRes?.jobs) {
           next.jobs = jobsRes.jobs.map(({ id, kind, state, error }) => ({ id, kind, state, error }))
           setJobs(next.jobs)
         }
+      } else if (!isPaired) {
+        // [PC Agent Feature Hook]: PC agent and background jobs require pairing with a desktop host.
+        // Unpaired devices hook here to trigger PC pairing prompt when accessing PC or agent jobs.
+        next.jobs = []
+        setJobs([])
       }
 
       if (Object.keys(next).length) {
@@ -257,10 +296,12 @@ export default function Companion({ onUnpair }) {
     ;(async () => {
       try {
         const snapshot = (await records('snapshot'))[0]?.value
+        const stored = getStoredCollections()
         if (stopped) return
-        setLibrary(snapshot?.library || Object.values(replica.readAll(replica.load(), 'library') || {}))
+        const initialLib = snapshot?.library || (stored.items?.length ? stored.items : Object.values(replica.readAll(replica.load(), 'library') || {}))
+        setLibrary(initialLib)
         setJobs(snapshot?.jobs || [])
-        setLastSync(snapshot?.syncedAt || null)
+        setLastSync(snapshot?.syncedAt || stored.lastSyncedAt || null)
         setQueue(await captures())
       } catch (error) {
         if (!stopped) setNotice(error.message)
