@@ -1,6 +1,6 @@
 [project]
 name = "amethyst"
-version = "0.1.6-beta"
+version = "0.1.7-beta"
 description = "Personal operating system: one AI interface to your apps, information, tasks and tools"
 requires-python = ">=3.11"
 dependencies = [
