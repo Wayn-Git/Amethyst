@@ -33,11 +33,19 @@ export function calculateGeminiBackoff(attempt) {
  * Download media file straight to device disk via Filesystem.downloadFile.
  * Zero byte transfer across JavaScript bridge.
  */
-export async function downloadMediaToDisk(url, filename, { directory = Directory.Cache } = {}) {
+export async function downloadMediaToDisk(url, filename, { directory = Directory.Cache, headers = {} } = {}) {
   const downloadResult = await Filesystem.downloadFile({
     url,
     path: filename,
     directory,
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Linux; Android 15; V2246) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36',
+      'Referer': 'https://www.instagram.com/',
+      'Accept': '*/*',
+      'Accept-Encoding': 'identity',
+      ...headers,
+    },
   })
 
   const uriResult = await Filesystem.getUri({
@@ -182,8 +190,9 @@ export async function executeGeminiWithRetry(url, payload, { maxRetries = 5 } = 
 
 /**
  * Analyze Video Reel with Gemini 3.5 Flash Lite in one call.
+ * Supports inlineData (base64) or fileUri (Files API).
  */
-export async function analyzeVideoReel({ fileUri, mimeType = 'video/mp4', caption = '', music = null, apiKey }) {
+export async function analyzeVideoReel({ fileUri, inlineData, mimeType = 'video/mp4', caption = '', music = null, apiKey }) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`
 
   const musicContext = music?.songName
@@ -202,16 +211,15 @@ Return a valid JSON object matching this schema exactly:
   "resources": ["string: URLs, books, tools, or references mentioned in the video or caption"]
 }`
 
+  const mediaPart = inlineData
+    ? { inline_data: { mime_type: mimeType, data: inlineData } }
+    : { file_data: { mime_type: mimeType, file_uri: fileUri } }
+
   const payload = {
     contents: [
       {
         parts: [
-          {
-            file_data: {
-              mime_type: mimeType,
-              file_uri: fileUri,
-            },
-          },
+          mediaPart,
           { text: prompt },
         ],
       },

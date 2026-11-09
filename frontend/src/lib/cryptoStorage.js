@@ -179,3 +179,4 @@ export async function secureGetItem(key, storage = safeStorage) {
 export function secureRemoveItem(key, storage = safeStorage) {
   storage.removeItem(key)
 }
+

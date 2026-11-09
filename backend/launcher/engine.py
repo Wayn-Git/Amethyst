@@ -92,8 +92,8 @@ class LauncherEngine:
                         batch = []
                 else:
                     batch.append(item)
-                    # Yield incremental batches of 4 or more for immediate UI response
-                    if len(batch) >= 4:
+                    # Yield single first result immediately for sub-millisecond perceived latency, then batches of 4
+                    if len(batch) >= 4 or (len(batch) >= 1 and active_producers == len(selected)):
                         yield sorted(batch, key=lambda r: r.score, reverse=True)
                         batch = []
 

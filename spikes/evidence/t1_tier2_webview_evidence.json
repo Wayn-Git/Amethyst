@@ -70,3 +70,4 @@
   "verdict": "INCONCLUSIVE",
   "decision": "Tier 2 DOM scraper yields 0% downloadable bytes. Keep Tier 2 DISABLED. Ship ready_partial fallback (preserving URL, caption, music attribution, and official embed iframe playback)."
 }
+

@@ -83,7 +83,7 @@ const SYNCED_PREFS = new Set([
   'archiveChats', 'confirmDestructive', 'shellConfirm', 'fileConfirm',
   'netConfirm', 'showUsage', 'notifyOnDone', 'draftProvider', 'draftModel',
   'thinkingStyle',
-  'editorDestination', 'confirmClose', 'fullViewDefault', 'restoreTabs',
+  'editorDestination', 'confirmClose', 'closeToTray', 'fullViewDefault', 'restoreTabs',
   'preventSleep', 'autoArchiveDays', 'compressHistory', 'speedProfile',
   'followUpBehavior', 'plainTextComposer', 'showContextUsage',
   'confettiEnabled', 'defaultStandaloneChat',
@@ -706,6 +706,13 @@ export function AppProvider({ children }) {
 
   const [confirmClose, setConfirmCloseRaw] = useState(prefs.confirmClose || 'shortcut-only')
   const setConfirmClose = useCallback((value) => { setConfirmCloseRaw(value); savePrefs({ confirmClose: value }) }, [])
+
+  const [closeToTray, setCloseToTrayRaw] = useState(prefs.closeToTray !== false)
+  const setCloseToTray = useCallback((value) => {
+    setCloseToTrayRaw(value)
+    savePrefs({ closeToTray: value })
+    api.updateSettings({ close_to_tray: value }).catch(() => {})
+  }, [])
 
   const [fullViewDefault, setFullViewDefaultRaw] = useState(Boolean(prefs.fullViewDefault))
   const setFullViewDefault = useCallback((value) => { setFullViewDefaultRaw(value); savePrefs({ fullViewDefault: value }) }, [])
@@ -1378,7 +1385,7 @@ export function AppProvider({ children }) {
     defaultEffort, setDefaultEffort,
     sendWith, setSendWith,
     archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial, spotlightAnimation, setSpotlightAnimation,
-    editorDestination, setEditorDestination, confirmClose, setConfirmClose, fullViewDefault, setFullViewDefault, preventSleep, setPreventSleep, autoArchiveDays, setAutoArchiveDays, compressHistory, setCompressHistory, speedProfile, setSpeedProfile, followUpBehavior, setFollowUpBehavior, plainTextComposer, setPlainTextComposer, showContextUsage, setShowContextUsage, confettiEnabled, setConfettiEnabled, defaultStandaloneChat, setDefaultStandaloneChat,
+    editorDestination, setEditorDestination, confirmClose, setConfirmClose, closeToTray, setCloseToTray, fullViewDefault, setFullViewDefault, preventSleep, setPreventSleep, autoArchiveDays, setAutoArchiveDays, compressHistory, setCompressHistory, speedProfile, setSpeedProfile, followUpBehavior, setFollowUpBehavior, plainTextComposer, setPlainTextComposer, showContextUsage, setShowContextUsage, confettiEnabled, setConfettiEnabled, defaultStandaloneChat, setDefaultStandaloneChat,
     shellConfirm, setShellConfirm, fileConfirm, setFileConfirm, netConfirm, setNetConfirm, resetAllPreferences,
     onboardingDone, setOnboardingDone, openOnboarding, openSetupWizard,
     betaPages, setBetaPages,
@@ -1427,7 +1434,7 @@ export function AppProvider({ children }) {
     defaultEffort, setDefaultEffort,
     sendWith, setSendWith,
     archiveChats, setArchiveChats, confirmDestructive, setConfirmDestructive, restoreTabs, setRestoreTabs, showUsage, setShowUsage, draftProvider, setDraftProvider, draftModel, setDraftModel, glassMaterial, setGlassMaterial, spotlightAnimation, setSpotlightAnimation,
-    editorDestination, setEditorDestination, confirmClose, setConfirmClose, fullViewDefault, setFullViewDefault, preventSleep, setPreventSleep, autoArchiveDays, setAutoArchiveDays, compressHistory, setCompressHistory, speedProfile, setSpeedProfile, followUpBehavior, setFollowUpBehavior, plainTextComposer, setPlainTextComposer, showContextUsage, setShowContextUsage, confettiEnabled, setConfettiEnabled, defaultStandaloneChat, setDefaultStandaloneChat,
+    editorDestination, setEditorDestination, confirmClose, setConfirmClose, closeToTray, setCloseToTray, fullViewDefault, setFullViewDefault, preventSleep, setPreventSleep, autoArchiveDays, setAutoArchiveDays, compressHistory, setCompressHistory, speedProfile, setSpeedProfile, followUpBehavior, setFollowUpBehavior, plainTextComposer, setPlainTextComposer, showContextUsage, setShowContextUsage, confettiEnabled, setConfettiEnabled, defaultStandaloneChat, setDefaultStandaloneChat,
     shellConfirm, fileConfirm, netConfirm, resetAllPreferences,
     onboardingDone, setOnboardingDone, openOnboarding, openSetupWizard,
     betaPages, setBetaPages,

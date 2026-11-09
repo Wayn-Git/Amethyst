@@ -945,6 +945,9 @@ async def enrich_text(
     known_urls: list[str] | None = None,
 ) -> Enrichment:
     """Summary, tags and resources for some text -- or a stated reason there are none."""
+    if kind == "note" or text_source in ("note", "notes", "manual"):
+        return Enrichment(note="personal notes are preserved verbatim and not summarized")
+
     refusal = _refusal(text, text_source)
     if refusal:
         # Returns before any client is resolved. This is the guard, and it is

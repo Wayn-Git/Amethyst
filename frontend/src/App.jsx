@@ -595,14 +595,17 @@ export default function App() {
   const prevSidebarExpandedRef = useRef(null)
 
   useEffect(() => {
-    if (view === 'settings') {
-      if (prevViewRef.current !== 'settings') {
+    const isIsolatedView = view === 'settings' || view === 'library'
+    const wasIsolatedView = prevViewRef.current === 'settings' || prevViewRef.current === 'library'
+
+    if (isIsolatedView) {
+      if (!wasIsolatedView) {
         prevSidebarExpandedRef.current = sidebar
         if (sidebar) {
           setSidebar(false)
         }
       }
-    } else if (prevViewRef.current === 'settings') {
+    } else if (wasIsolatedView) {
       if (prevSidebarExpandedRef.current) {
         setSidebar(true)
       }

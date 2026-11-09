@@ -1,4 +1,6 @@
 import { safeStorage } from '../lib/storage.js'
+import { Filesystem, Directory } from '@capacitor/filesystem'
+import { getSecureKey } from './secureStorage.js'
 import { computeItemHash, syncItemsBatchToDrive } from './driveSync.js'
 import { extractInstagramTier1 } from './instagramExtractor.js'
 import { attemptTier2Extraction } from './tier2Extractor.js'
@@ -10,6 +12,7 @@ import {
 } from './geminiPipeline.js'
 
 export const SAVED_ITEMS_STORAGE_KEY = 'amethyst_saved_items'
+export const MAX_INLINE_VIDEO_BYTES = 15 * 1024 * 1024 // 15MB inline limit
 
 let pipelineSubscribers = new Set()
 
@@ -62,6 +65,7 @@ export function resumePendingPipelineItems(config = {}) {
   const updated = items.map((item) => {
     if (item.status === 'processing') {
       modified = true
+      console.log(`[Pipeline] Auto-resuming item ${item.id} from status 'processing' -> 'queued'`)
       return {
         ...item,
         status: 'queued',
@@ -76,6 +80,7 @@ export function resumePendingPipelineItems(config = {}) {
     // Kick off processing for resumed items
     for (const item of updated) {
       if (item.status === 'queued') {
+        console.log(`[Pipeline] Triggering processSavedItem for resumed item ${item.id}`)
         processSavedItem(item.id, config).catch((err) =>
           console.warn('[Pipeline] Auto-resume failed for item:', item.id, err)
         )
@@ -150,15 +155,15 @@ export async function processSavedItem(id, config = {}) {
   items[itemIndex] = item
   persistSavedItems(items)
 
-  const geminiKey = config.geminiKey || safeStorage.getItem('GEMINI_API_KEY')
-  const composioKey = config.composioKey || safeStorage.getItem('COMPOSIO_API_KEY')
-  const spikeFolder = config.spikeFolder || safeStorage.getItem('SPIKE_DRIVE_FOLDER') || 'amethyst-spike'
+  const geminiKey = config.geminiKey || await getSecureKey('GEMINI_API_KEY')
+  const composioKey = config.composioKey || await getSecureKey('COMPOSIO_API_KEY')
+  const spikeFolder = config.spikeFolder || await getSecureKey('SPIKE_DRIVE_FOLDER') || 'amethyst-spike'
 
   try {
     const isInstagram = /(?:instagram\.com|instagr\.am)\/(?:p|reel|tv|reels)\//i.test(item.url)
 
     if (isInstagram) {
-      // Step 1: Tier 1 Native HTTP fetch to embed
+      // Step 1: Tier 1 Native HTTP fetch to embed (re-resolve fresh at processing time)
       const tier1 = await extractInstagramTier1(item.url)
 
       if (tier1.status === 'unavailable' || tier1.status === 'error') {
@@ -175,61 +180,83 @@ export async function processSavedItem(id, config = {}) {
       item.mediaType = tier1.mediaType
       item.embedUrl = tier1.embedUrl
 
+      // Ensure no CDN URLs are ever persisted on item or owner
+      delete item.videoUrl
+      delete item.mediaUrl
+      delete item.thumbnailUrl
+      if (item.owner) {
+        delete item.owner.profilePic
+      }
+
       // Step 2: Handle Video Reels
       if (tier1.mediaType === 'video') {
-        let finalVideoUrl = tier1.videoUrl
+        const finalVideoUrl = tier1.videoUrl
 
-        // If video_url is null (licensed music gating), attempt Tier 2
+        // If video_url is null (licensed music gating), Tier 2 is disabled
         if (!finalVideoUrl) {
-          item.progress = 'Running Tier 2 DOM extraction…'
+          console.log(`[Pipeline] No public videoUrl for ${item.id} (licensed audio). Ending as ready_partial.`)
+          item.status = 'ready_partial'
+          item.progress = 'Saved with embed playback & music metadata (licensed audio)'
           items[itemIndex] = item
           persistSavedItems(items)
 
-          const tier2 = await attemptTier2Extraction(tier1.shortcode)
-          if (tier2.success && tier2.videoUrl && !tier2.isBlob) {
-            finalVideoUrl = tier2.videoUrl
-          } else {
-            // Tier 2 could not recover downloadable MP4
-            // Decision rule: Fallback to ready_partial with caption, song info, and official embed
-            item.status = 'ready_partial'
-            item.progress = 'Saved with embed playback & music metadata (licensed audio)'
-            items[itemIndex] = item
-            persistSavedItems(items)
-
-            // Sync partial item to Drive
-            if (composioKey) {
-              await syncItemsBatchToDrive({ items: [item], folderName: spikeFolder, apiKey: composioKey }).catch(() => {})
-            }
-            return item
+          // Sync partial item to Drive
+          if (composioKey) {
+            await syncItemsBatchToDrive({ items: [item], folderName: spikeFolder, apiKey: composioKey }).catch(() => {})
           }
+          return item
         }
 
-        // Direct video available: download and run Gemini
+        // Direct video available: download and run Gemini inline
         if (finalVideoUrl && geminiKey) {
+          console.log(`[Pipeline] Downloading video for ${item.id} from embed…`)
           item.progress = 'Downloading video…'
           items[itemIndex] = item
           persistSavedItems(items)
 
           const dl = await downloadMediaToDisk(finalVideoUrl, `${item.id}.mp4`)
+          console.log(`[Pipeline] Video downloaded to disk: ${dl.path}`)
 
-          item.progress = 'Uploading to Gemini Files API…'
+          // Enforce 15MB inline limit
+          const stat = await Filesystem.stat({
+            path: `${item.id}.mp4`,
+            directory: Directory.Cache,
+          })
+          item.mediaSizeBytes = stat.size
+
+          if (stat.size > MAX_INLINE_VIDEO_BYTES) {
+            const sizeMB = (stat.size / (1024 * 1024)).toFixed(1)
+            console.warn(`[Pipeline] Video size ${sizeMB}MB exceeds 15MB inline limit. Ending as ready_partial.`)
+            item.status = 'ready_partial'
+            item.progress = `Saved with embed playback (video size ${sizeMB}MB exceeds 15MB limit)`
+            item.error = `Video size ${sizeMB}MB exceeds 15MB limit`
+            await Filesystem.deleteFile({ path: `${item.id}.mp4`, directory: Directory.Cache }).catch(() => {})
+            items[itemIndex] = item
+            persistSavedItems(items)
+
+            if (composioKey) {
+              await syncItemsBatchToDrive({ items: [item], folderName: spikeFolder, apiKey: composioKey }).catch(() => {})
+            }
+            return item
+          }
+
+          item.progress = 'Reading video from cache…'
           items[itemIndex] = item
           persistSavedItems(items)
 
-          const upload = await uploadToGeminiFilesApi({
-            fileUri: dl.uri,
-            mimeType: 'video/mp4',
-            displayName: `amethyst_${item.id}`,
-            apiKey: geminiKey,
+          const fileRes = await Filesystem.readFile({
+            path: `${item.id}.mp4`,
+            directory: Directory.Cache,
           })
 
           item.progress = 'Analyzing video with Gemini 3.5 Flash Lite…'
           items[itemIndex] = item
           persistSavedItems(items)
 
+          console.log(`[Pipeline] Calling analyzeVideoReel with Gemini 3.5 Flash Lite (inline base64 ${fileRes.data.length} chars)…`)
           const analysis = await analyzeVideoReel({
-            fileUri: upload.fileUri,
-            mimeType: upload.mimeType,
+            inlineData: fileRes.data,
+            mimeType: 'video/mp4',
             caption: item.caption,
             music: item.music,
             apiKey: geminiKey,
@@ -241,12 +268,13 @@ export async function processSavedItem(id, config = {}) {
           item.resources = analysis.resources || []
           item.status = 'ready'
           item.progress = 'Extraction complete'
+          console.log(`[Pipeline] Extraction COMPLETE for ${item.id}. REACHED READY! Summary: "${item.summary}"`)
         } else {
           item.status = 'ready_partial'
           item.progress = 'Saved with metadata & embed playback'
         }
       } else if (tier1.mediaType === 'sidecar') {
-        // Step 3: Handle Carousels
+        // Step 3: Handle Carousels (base64 inline images)
         const slideChildren = tier1.sidecarChildren || []
         if (slideChildren.length > 0 && geminiKey) {
           item.progress = `Downloading ${slideChildren.length} carousel slides…`
@@ -254,17 +282,26 @@ export async function processSavedItem(id, config = {}) {
           persistSavedItems(items)
 
           const downloadedSlides = []
+          let totalSlideBytes = 0
           for (let i = 0; i < slideChildren.length; i++) {
             const child = slideChildren[i]
             if (child.displayUrl) {
-              const dl = await downloadMediaToDisk(child.displayUrl, `${item.id}_slide_${i + 1}.jpg`)
+              const slideName = `${item.id}_slide_${i + 1}.jpg`
+              await downloadMediaToDisk(child.displayUrl.replace(/&amp;/g, '&'), slideName)
+              const stat = await Filesystem.stat({ path: slideName, directory: Directory.Cache }).catch(() => ({}))
+              if (stat.size) totalSlideBytes += stat.size
+              const fileRes = await Filesystem.readFile({
+                path: slideName,
+                directory: Directory.Cache,
+              })
               downloadedSlides.push({
-                fileUri: dl.uri,
+                inlineData: fileRes.data,
                 mimeType: 'image/jpeg',
                 slideIndex: i + 1,
               })
             }
           }
+          item.mediaSizeBytes = totalSlideBytes
 
           item.progress = 'Analyzing carousel slides in one Gemini call…'
           items[itemIndex] = item
@@ -287,9 +324,43 @@ export async function processSavedItem(id, config = {}) {
           item.progress = 'Carousel saved with embed playback'
         }
       } else {
-        // Single image
-        item.status = 'ready_partial'
-        item.progress = 'Saved with embed playback'
+        // Single image: treat as a 1-slide carousel
+        const singleImageUrl = (tier1.displayUrl || tier1.thumbnailUrl || '').replace(/&amp;/g, '&')
+        if (singleImageUrl && geminiKey) {
+          const slideName = `${item.id}_slide_1.jpg`
+          await downloadMediaToDisk(singleImageUrl, slideName)
+          const stat = await Filesystem.stat({ path: slideName, directory: Directory.Cache }).catch(() => ({}))
+          if (stat.size) item.mediaSizeBytes = stat.size
+          const fileRes = await Filesystem.readFile({
+            path: slideName,
+            directory: Directory.Cache,
+          })
+          item.progress = 'Analyzing image with Gemini 3.5 Flash Lite…'
+          items[itemIndex] = item
+          persistSavedItems(items)
+
+          const analysis = await analyzeCarousel({
+            slideImages: [
+              {
+                inlineData: fileRes.data,
+                mimeType: 'image/jpeg',
+                slideIndex: 1,
+              },
+            ],
+            caption: item.caption,
+            apiKey: geminiKey,
+          })
+
+          item.slides = analysis.slides || []
+          item.summary = analysis.summary || ''
+          item.tags = analysis.tags || []
+          item.resources = analysis.resources || []
+          item.status = 'ready'
+          item.progress = 'Image analysis complete'
+        } else {
+          item.status = 'ready_partial'
+          item.progress = 'Saved with embed playback'
+        }
       }
     } else {
       // Non-Instagram (YouTube Shorts, X, Reddit, etc.):

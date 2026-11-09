@@ -79,12 +79,12 @@ export function parseInstagramEmbedHtml(html, shortcode) {
       }
     }
 
-    // Owner metadata
+    // Owner metadata (Zero CDN URL persistence for profilePic)
     const owner = {
       id: media.owner?.id || null,
       username: media.owner?.username || null,
       fullName: media.owner?.full_name || null,
-      profilePic: media.owner?.profile_pic_url || null,
+      profilePic: null,
     }
 
     // Carousel children
@@ -149,7 +149,7 @@ export function parseInstagramEmbedHtml(html, shortcode) {
       },
       music: null,
       videoUrl: null,
-      thumbnailUrl: imgMatch ? imgMatch[1] : null,
+      thumbnailUrl: imgMatch ? imgMatch[1].replace(/&amp;/g, '&') : null,
       sidecarChildren: [],
     }
   }

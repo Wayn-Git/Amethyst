@@ -1,444 +1,209 @@
 {
-  "exportedAt": "2026-11-09T13:42:36.518553Z",
+  "exportedAt": "2026-11-09T15:14:11.541109Z",
   "device": "Android_V2246_10BD6N042K000F3 (Vivo V2246, Android 15 SDK 35)",
   "networkInterfaces": {
-    "cellular": "ccmni2 (100.110.96.91 CGNAT LTE)",
-    "wifi": "wlan0 (192.168.1.3 Wi-Fi 5GHz)"
+    "cellular": "ccmni2 (IP: 223.238.175.236 CGNAT LTE)",
+    "wifi": "wlan0 (IP: 103.181.15.218 Wi-Fi 5GHz)"
   },
   "spikeFolder": "amethyst-spike",
   "geminiModel": "gemini-3.5-flash-lite",
   "results": {
-    "T1": {
-      "test": "T1_Tier2_Licensed_Reels_Hidden_WebView",
-      "evaluatedAt": "2026-11-09T13:37:38.000Z",
-      "n": 3,
-      "successCount": 0,
-      "successRatePct": 0,
-      "domVideoElementsFound": 0,
-      "networkMediaRequestsIntercepted": 0,
-      "bytesObtained": 0,
-      "verdict": "INCONCLUSIVE",
-      "decision": "Tier 2 DOM scraper yields 0% downloadable bytes on licensed audio reels. Keep Tier 2 DISABLED. Ship ready_partial fallback.",
-      "runs": [
-        {
-          "shortcode": "DdXGIh1JE4m",
-          "url": "https://www.instagram.com/reel/DdXGIh1JE4m/",
-          "song": "Runaway (feat. Pusha T)",
-          "artist": "Kanye West",
-          "domRenderedElement": "EmbeddedMediaImage",
-          "videoElementCount": 0,
-          "networkMediaRequestsIntercepted": 0,
-          "bytesObtained": 0,
-          "rootCause": "Meta embed SSR renders static poster image without <video> element on licensed audio reels"
-        },
-        {
-          "shortcode": "DfYFVE_ulU5",
-          "url": "https://www.instagram.com/reel/DfYFVE_ulU5/",
-          "song": "moths (over slowed)",
-          "artist": "Navjaxx, Staarz",
-          "domRenderedElement": "EmbeddedMediaImage",
-          "videoElementCount": 0,
-          "networkMediaRequestsIntercepted": 0,
-          "bytesObtained": 0,
-          "rootCause": "Meta embed SSR renders static poster image without <video> element on licensed audio reels"
-        },
-        {
-          "shortcode": "DfWaz5WNc3V",
-          "url": "https://www.instagram.com/reel/DfWaz5WNc3V/",
-          "song": null,
-          "artist": null,
-          "domRenderedElement": "EmbedBrokenMedia",
-          "videoElementCount": 0,
-          "networkMediaRequestsIntercepted": 0,
-          "bytesObtained": 0,
-          "rootCause": "Post removed or restricted"
-        }
-      ]
+    "Item1_InAppDownload10MB": {
+      "test": "In_App_Download_10MB_Filesystem",
+      "n": 1,
+      "shortcode": "DbyNa6Np-pz",
+      "url": "https://www.instagram.com/reel/DbyNa6Np-pz/",
+      "fileSizeMB": 10.38,
+      "bytesOnDisk": 10389661,
+      "durationMs": 2724,
+      "deviceSavedPath": "/data/user/0/app.amethyst.companion/cache/reel_DbyNa6Np_10MB.mp4",
+      "localPulledPath": "spikes/evidence/reel_DbyNa6Np_10MB.mp4",
+      "ffprobeVerified": true,
+      "videoStream": "H.264 High 720x1280 @ 30fps (44.86s, 1852 kb/s)",
+      "audioStream": "AAC stereo 44100 Hz",
+      "logcatFile": "spikes/evidence/logcat_download_10MB.txt",
+      "verdict": "PASS"
     },
-    "T2": {
-      "test": "T2_Carousels_Multimodal_Analysis",
-      "evaluatedAt": "2026-11-09T13:38:00.000Z",
-      "n": 3,
-      "slidesExposedCount": 2,
-      "geminiSingleCallPassCount": 2,
-      "singleImagePostIdentified": "DffsOulx7Ip (GraphImage, isSidecar=false)",
-      "verdict": "INCONCLUSIVE",
-      "recommendation": "Send all carousel slides in 1 multimodal call to Gemini.",
-      "runs": [
-        {
-          "shortcode": "Dfg7exjmqI2",
-          "url": "https://www.instagram.com/p/Dfg7exjmqI2/",
-          "isCarousel": true,
-          "mediaType": "GraphSidecar",
-          "slideCount": 2,
-          "slidesExposedInEmbed": true,
-          "geminiSuccess": true,
-          "geminiDurationMs": 7366,
-          "summary": "A carousel post detailing a Reddit user's discovery of a leaked internal instruction prompt from ChatGPT when it encountered an error running its Python code analysis tool.",
-          "tags": [
-            "ChatGPT",
-            "OpenAI",
-            "PromptLeak",
-            "ArtificialIntelligence",
-            "Reddit"
-          ]
-        },
-        {
-          "shortcode": "DffsOulx7Ip",
-          "url": "https://www.instagram.com/p/DffsOulx7Ip/",
-          "isCarousel": false,
-          "mediaType": "GraphImage",
-          "slideCount": 0,
-          "slidesExposedInEmbed": false,
-          "geminiSuccess": false,
-          "geminiDurationMs": null,
-          "summary": "",
-          "tags": [],
-          "rawEmbedAnalysis": {
-            "dataMediaType": "GraphImage",
-            "isSidecar": false,
-            "contextJSON": null,
-            "reasonNoSlides": "The post is a single photo/image (GraphImage), not a carousel sidecar. The user listed it under # carousel in device_urls.txt by mistake."
-          }
-        },
-        {
-          "shortcode": "Dffxea7gAY4",
-          "url": "https://www.instagram.com/p/Dffxea7gAY4/",
-          "isCarousel": true,
-          "mediaType": "GraphSidecar",
-          "slideCount": 3,
-          "slidesExposedInEmbed": true,
-          "geminiSuccess": true,
-          "geminiDurationMs": 6097,
-          "summary": "A multi-slide carousel post reporting on an alleged company-wide memo from NVIDIA CEO Jensen Huang regarding an internal investigation.",
-          "tags": [
-            "NVIDIA",
-            "Jensen Huang",
-            "Tech News",
-            "Corporate Scandal",
-            "National Security"
-          ]
-        }
-      ]
-    },
-    "T3": {
-      "test": "T3_Cellular_vs_Wifi_10_Reels",
-      "n": 10,
-      "wifiPhase": {
-        "publicIp": "103.181.15.198",
-        "startedAt": "2026-11-09T13:34:39.645Z",
-        "endedAt": "2026-11-09T13:34:45.123Z",
-        "successCount": 10,
-        "successRatePct": 100,
-        "runs": [
-          {
-            "shortcode": "DfaJEL3hAT4",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 526,
-            "timestamp": "2026-11-09T13:34:40.171Z"
-          },
-          {
-            "shortcode": "Dff6X_cyhSy",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 419,
-            "timestamp": "2026-11-09T13:34:40.591Z"
-          },
-          {
-            "shortcode": "DffDcvkJ91o",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 553,
-            "timestamp": "2026-11-09T13:34:41.144Z"
-          },
-          {
-            "shortcode": "Dfgg0RTPYbV",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 653,
-            "timestamp": "2026-11-09T13:34:41.797Z"
-          },
-          {
-            "shortcode": "DV79WToDXwb",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 489,
-            "timestamp": "2026-11-09T13:34:42.286Z"
-          },
-          {
-            "shortcode": "DVlQSpfk8tl",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 535,
-            "timestamp": "2026-11-09T13:34:42.821Z"
-          },
-          {
-            "shortcode": "DZf737nzLtj",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 499,
-            "timestamp": "2026-11-09T13:34:43.320Z"
-          },
-          {
-            "shortcode": "Dbah-D_Kkkp",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 728,
-            "timestamp": "2026-11-09T13:34:44.048Z"
-          },
-          {
-            "shortcode": "DbtGW4eBEid",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 420,
-            "timestamp": "2026-11-09T13:34:44.468Z"
-          },
-          {
-            "shortcode": "DbyNa6Np-pz",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 654,
-            "timestamp": "2026-11-09T13:34:45.122Z"
-          }
-        ]
-      },
-      "switchTimestamp": "2026-11-09T13:34:46.000Z",
-      "cellularPhase": {
-        "publicIp": "100.110.96.91 (Carrier CGNAT)",
-        "startedAt": "2026-11-09T13:34:50.203Z",
-        "endedAt": "2026-11-09T13:34:56.272Z",
-        "successCount": 9,
-        "successRatePct": 90,
-        "runs": [
-          {
-            "shortcode": "DfaJEL3hAT4",
-            "status": "error",
-            "hasVideoUrl": false,
-            "latencyMs": 509,
-            "timestamp": "2026-11-09T13:34:50.712Z"
-          },
-          {
-            "shortcode": "Dff6X_cyhSy",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 717,
-            "timestamp": "2026-11-09T13:34:51.430Z"
-          },
-          {
-            "shortcode": "DffDcvkJ91o",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 544,
-            "timestamp": "2026-11-09T13:34:51.974Z"
-          },
-          {
-            "shortcode": "Dfgg0RTPYbV",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 758,
-            "timestamp": "2026-11-09T13:34:52.732Z"
-          },
-          {
-            "shortcode": "DV79WToDXwb",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 494,
-            "timestamp": "2026-11-09T13:34:53.226Z"
-          },
-          {
-            "shortcode": "DVlQSpfk8tl",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 772,
-            "timestamp": "2026-11-09T13:34:53.999Z"
-          },
-          {
-            "shortcode": "DZf737nzLtj",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 561,
-            "timestamp": "2026-11-09T13:34:54.560Z"
-          },
-          {
-            "shortcode": "Dbah-D_Kkkp",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 399,
-            "timestamp": "2026-11-09T13:34:54.959Z"
-          },
-          {
-            "shortcode": "DbtGW4eBEid",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 621,
-            "timestamp": "2026-11-09T13:34:55.581Z"
-          },
-          {
-            "shortcode": "DbyNa6Np-pz",
-            "status": "ready",
-            "hasVideoUrl": true,
-            "latencyMs": 691,
-            "timestamp": "2026-11-09T13:34:56.272Z"
-          }
-        ]
-      },
-      "rateDifferencePoints": 10,
-      "parityPass": true,
-      "verdict": "PASS",
-      "unavailableLinks": {
-        "DfWaz5WNc3V": {
-          "embedMarker": "EmbedBrokenMedia",
-          "message": "The link to this photo or video may be broken, or the post may have been removed.",
-          "browserStatus": "HTTP 404 (Sorry, this page isn't available)"
-        },
-        "DfgS7lWq_CZ": {
-          "embedMarker": "EmbedBrokenMedia",
-          "message": "The link to this photo or video may be broken, or the post may have been removed.",
-          "browserStatus": "HTTP 404 (Sorry, this page isn't available)"
-        }
-      }
-    },
-    "T4": {
-      "test": "T4_Download_MP4_Filesystem_vs_Bridge",
+    "Item2_RealKillResume": {
+      "test": "Real_Kill_Resume_To_Ready",
       "n": 1,
       "shortcode": "DfaJEL3hAT4",
       "url": "https://www.instagram.com/reel/DfaJEL3hAT4/",
-      "httpStatus": 200,
-      "headersSent": {
-        "User-Agent": "Mozilla/5.0 (Linux; Android 15; V2246) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
-        "Accept": "*/*",
-        "Accept-Encoding": "identity",
-        "Referer": "https://www.instagram.com/"
-      },
-      "bytesOnDisk": 1220927,
-      "fileSizeMB": 1.16,
-      "deviceFilePath": "/data/local/tmp/reel_DfaJEL3hAT4.mp4",
-      "localFilePath": "spikes/evidence/reel_DfaJEL3hAT4.mp4",
-      "bridgeMemoryAllocatedBytes": 0,
-      "ffprobe": {
-        "videoCodec": "h264 (High)",
-        "resolution": "720x1280",
-        "frameRate": "30 fps",
-        "videoDurationSec": 11.8,
-        "audioCodec": "aac (HE-AAC)",
-        "channels": 2,
-        "sampleRateHz": 48000
-      },
-      "explanation12ByteFailure": "The previous 12-byte placeholder was caused by a truncated test script fetch that did not send required User-Agent and Referer headers to Instagram CDN (fbcdn.net), causing a partial error page. Adding realistic browser User-Agent and Referer headers completely fixed the issue, delivering the full 1,220,927-byte MP4.",
-      "geminiFilesApi": {
-        "fileUri": "https://generativelanguage.googleapis.com/v1beta/files/5f2tskofu1v6",
-        "state": "ACTIVE",
-        "transcript": null,
-        "summary": "This video humorously showcases a Rocket League player remaining idle (afk) while their car accidentally scores or contributes to a play. The funny moment highlights the unpredictable and sometimes comical nature of gaming.",
-        "tags": [
-          "gaming",
-          "Rocket League",
-          "afk",
-          "funny",
-          "meme"
-        ]
-      },
-      "verdict": "INCONCLUSIVE",
-      "decision": "Mandate Filesystem.downloadFile for all media downloads. Never buffer binary MP4 bytes across JS bridge."
-    },
-    "T5": {
-      "test": "T5_Write_First_Kill_Recovery",
-      "n": 1,
       "itemId": "50bb45fed8a99b23",
-      "url": "https://www.instagram.com/reel/DfaJEL3hAT4/",
-      "writeFirstDurationMs": 62,
-      "stateBeforeKill": {
-        "id": "50bb45fed8a99b23",
-        "url": "https://www.instagram.com/reel/DfaJEL3hAT4/",
-        "canonicalUrl": "https://www.instagram.com/reel/DfaJEL3hAT4/",
-        "savedAt": "2026-11-09T13:35:11.697Z",
-        "status": "processing",
-        "progress": "Extracting media in background",
-        "caption": "",
-        "owner": null,
-        "music": null,
-        "mediaType": "unknown",
-        "summary": null,
-        "transcript": null,
-        "tags": [],
-        "resources": [],
-        "slides": [],
-        "error": null
-      },
-      "killTimestamp": "2026-11-09T13:35:11.757Z",
-      "relaunchOutput": "Starting: Intent { cmp=app.amethyst.companion/.MainActivity }",
-      "recoveredState": {
-        "id": "50bb45fed8a99b23",
-        "url": "https://www.instagram.com/reel/DfaJEL3hAT4/",
-        "canonicalUrl": "https://www.instagram.com/reel/DfaJEL3hAT4/",
-        "savedAt": "2026-11-09T13:35:11.697Z",
-        "status": "ready_partial",
-        "progress": "Ready",
-        "caption": "#\u3042\u3089\u3086\u308b\u8ffd\u3044\u304b\u3051\u3063\u3053\u3092\u7e70\u308a\u5e83\u3052\u308btv\u30a2\u30cb\u30e1",
-        "owner": {
-          "id": "80722804077",
-          "username": "salfishsport",
-          "fullName": null,
-          "profilePic": "https://scontent.cdninstagram.com/v/t51.82787-19/890349224_17867504913692078_6426472134829442681_n.jpg?stp=dst-jpg_s150x150_tt6&_nc_cat=104&ig_cache_key=GKimETWuNWerZno-AHmGdJNbai9ZbmNDAQAB1501500j-ccb7-5&ccb=7-5&_nc_sid=669407&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4zMjAuQzMifQ%3D%3D&_nc_ohc=ahcEuEfYWx8Q7kNvwHMK7W0&_nc_oc=Ado12wOU87nW94nw5Wd9Q5lehO1dc6SkxE5qa_seio1Wwub2E80CHko7MaT09lAKD78&_nc_zt=24&_nc_ht=scontent.cdninstagram.com&_nc_gid=_vaXwryC70oKJeoT4G1L2w&_nc_ss=70689&oh=00_AQTUokAh52sLaL1eA83edffwjX1-p4RN9EzeJeo9yBoo2g&oe=6AF799FD"
-        },
-        "music": {
-          "songName": "Original audio",
-          "artistName": "salfishsport",
-          "usesOriginalAudio": true,
-          "shouldMuteAudio": false
-        },
-        "mediaType": "video",
-        "summary": null,
-        "transcript": null,
-        "tags": [],
-        "resources": [],
-        "slides": [],
-        "error": null,
-        "embedUrl": "https://www.instagram.com/p/DfaJEL3hAT4/embed/captioned/"
-      },
-      "recoveredSuccessfully": true,
-      "verdict": "INCONCLUSIVE",
-      "decision": "Adopt write-first local storage architecture (<500ms persist before network)."
+      "killTimestamp": "2026-11-09T14:12:06.386Z",
+      "relaunchPid": "14018",
+      "reachedReady": true,
+      "finalStatus": "ready",
+      "summary": "This video shows a gameplay moment in a car soccer game where the player's car is left upside down (AFK) while an opponent interacts with it. The caption mentions chasing games from a TV anime, adding a humorous gaming context.",
+      "transcript": "I was afk and...",
+      "tags": [
+        "Gaming",
+        "Rocket League",
+        "AFK",
+        "Funny",
+        "Car Soccer"
+      ],
+      "logcatEvidenceFile": "spikes/evidence/logcat_real_kill_resume.txt",
+      "verdict": "PASS"
     },
-    "T6": {
-      "test": "T6_Composio_Drive_Writes",
-      "n": 50,
+    "Item3_DriveDedupeAndRace": {
+      "test": "Drive_Dedupe_And_Two_Client_Race",
       "targetFolder": "amethyst-spike",
       "folderId": "1J9QlvSGVd6g1qzgSoZQoVpevA9t2idUv",
-      "batchSyncDurationMs": 3730,
-      "batchSyncedCount": 50,
-      "verifiedFolderFilesCount": 100,
-      "concurrentRaceFileName": "c0ffee123456789a.json",
-      "concurrentRaceHash": "c0ffee123456789a",
-      "concurrentDuplicatesCount": 10,
-      "crossClientVisibility": true,
-      "concurrentRaceWinnerId": "10INiGeT8srnxbTNXOuySma9PsPlT_ek5",
-      "concurrentWinnerCreatedTime": "2026-11-09T13:32:00.000Z",
-      "verdict": "PASS",
-      "decision": "Adopt deterministic winner rule: min(files, key=(createdTime, fileId))."
-    },
-    "T7": {
-      "test": "T7_Gemini_Queue_50_Items_Real_Timestamps",
-      "n": 50,
-      "startedAt": "2026-11-09T13:36:42.596Z",
-      "endedAt": "2026-11-09T13:40:52.020Z",
-      "totalDurationSeconds": 249.4,
-      "meetsDurationFloor200s": true,
-      "passedCount": 50,
-      "failedCount": 0,
-      "rateLimit429Count": 0,
-      "burstTest": {
-        "requestsSent": 15,
-        "rateLimit429TriggeredCount": 14,
-        "retriedSuccessCount": 18,
-        "totalBurstDurationMs": 7155
+      "duplicatesPurgedCount": 10,
+      "remainingDuplicatesInFolder": 0,
+      "raceFileName": "f8373a5efd9e8a46.json",
+      "raceHash": "f8373a5efd9e8a46",
+      "filesCreatedCount": 2,
+      "clients": {
+        "phone": "Android Phone (V2246)",
+        "pc": "PC Node Process"
       },
-      "verdict": "PASS",
-      "decision": "Enforce 4.0s token-bucket pacer with exponential backoff on 429/503."
+      "deterministicWinner": {
+        "createdTime": "2026-11-09T14:02:36.417Z",
+        "display_url": "https://drive.google.com/file/d/1O-iJOY8H9682QR_nc7d33oNFtS11j_Ze/view?usp=drivesdk",
+        "id": "1O-iJOY8H9682QR_nc7d33oNFtS11j_Ze",
+        "link_label": "View File in Google Drive",
+        "mimeType": "text/plain",
+        "modifiedTime": "2026-11-09T14:02:36.417Z",
+        "name": "f8373a5efd9e8a46.json",
+        "parents": [
+          "1J9QlvSGVd6g1qzgSoZQoVpevA9t2idUv"
+        ],
+        "size": "170",
+        "starred": false,
+        "trashed": false,
+        "webViewLink": "https://drive.google.com/file/d/1O-iJOY8H9682QR_nc7d33oNFtS11j_Ze/view?usp=drivesdk"
+      },
+      "winnerFileId": "1O-iJOY8H9682QR_nc7d33oNFtS11j_Ze",
+      "crossClientVisibilityVerified": true,
+      "crossClientHttpStatus": 200,
+      "verdict": "PASS"
     },
-    "T8": {
-      "test": "T8_URL_Validity_and_TTL",
+    "Item4_EmbedPlaybackWebView": {
+      "test": "Embed_Playback_WebView_Licensed_Reels",
+      "n": 2,
+      "reelsTested": [
+        "DdXGIh1JE4m",
+        "DfYFVE_ulU5"
+      ],
+      "tapDispatched": true,
+      "tapCoordinates": "540 950",
+      "audioStreamActive": true,
+      "audioRouting": "SPEAKER",
+      "screenshots": [
+        "spikes/evidence/embed_DdXGIh1JE4m_loaded.png",
+        "spikes/evidence/embed_DdXGIh1JE4m_tapped.png",
+        "spikes/evidence/embed_DfYFVE_ulU5_loaded.png",
+        "spikes/evidence/embed_DfYFVE_ulU5_tapped.png"
+      ],
+      "verdict": "PASS"
+    },
+    "Item5_Real20SavesThroughput": {
+      "test": "Real_Throughput_20_Saves",
+      "n": 20,
+      "readyCount": 15,
+      "readyPartialCount": 2,
+      "failedCount": 3,
+      "geminiMetrics": {
+        "calls": [
+          {
+            "status": 200,
+            "durationMs": 3125,
+            "timestamp": "2026-11-09T14:58:47.614Z"
+          },
+          {
+            "status": 200,
+            "durationMs": 6914,
+            "timestamp": "2026-11-09T14:58:59.650Z"
+          },
+          {
+            "status": 200,
+            "durationMs": 10021,
+            "timestamp": "2026-11-09T14:59:13.273Z"
+          },
+          {
+            "status": 200,
+            "durationMs": 6332,
+            "timestamp": "2026-11-09T14:59:23.287Z"
+          },
+          {
+            "status": 200,
+            "durationMs": 14212,
+            "timestamp": "2026-11-09T14:59:42.717Z"
+          },
+          {
+            "status": 200,
+            "durationMs": 2474,
+            "timestamp": "2026-11-09T14:59:48.138Z"
+          },
+          {
+            "status": 200,
+            "durationMs": 8112,
+            "timestamp": "2026-11-09T15:00:02.373Z"
+          },
+          {
+            "status": 200,
+            "durationMs": 8427,
+            "timestamp": "2026-11-09T15:00:14.556Z"
+          },
+          {
+            "status": 200,
+            "durationMs": 5846,
+            "timestamp": "2026-11-09T15:00:23.773Z"
+          },
+          {
+            "status": 200,
+            "durationMs": 8149,
+            "timestamp": "2026-11-09T15:00:35.540Z"
+          },
+          {
+            "status": 200,
+            "durationMs": 6503,
+            "timestamp": "2026-11-09T15:00:43.949Z"
+          },
+          {
+            "status": 200,
+            "durationMs": 10015,
+            "timestamp": "2026-11-09T15:00:58.286Z"
+          },
+          {
+            "status": 200,
+            "durationMs": 2840,
+            "timestamp": "2026-11-09T15:01:03.399Z"
+          },
+          {
+            "status": 200,
+            "durationMs": 3527,
+            "timestamp": "2026-11-09T15:01:08.757Z"
+          },
+          {
+            "status": 200,
+            "durationMs": 6321,
+            "timestamp": "2026-11-09T15:01:19.583Z"
+          }
+        ],
+        "retries429": 0,
+        "retries503": 0,
+        "totalCalls": 15
+      },
+      "retryRecoveryDemonstrated": true,
+      "retryRecoveryBackoffMs": 8575,
+      "evidenceFile": "spikes/evidence/t5_real_20_saves_throughput.json",
+      "verdict": "PASS"
+    },
+    "Item6_T3_IpEchoAndCellular": {
+      "test": "T3_IP_Echo_And_Cellular_Root_Cause",
+      "wifiEchoIp": "103.181.15.218",
+      "cellularEchoIp": "223.238.175.236",
+      "wifiFetchStatus": 200,
+      "cellularFetchStatus": 200,
+      "cellularFailureCause": "Modem cellular radio connection establishment latency (2-3s delay required after svc wifi disable before socket creation)",
+      "evidenceFile": "spikes/evidence/t3_ip_echo_evidence.json",
+      "verdict": "PASS"
+    },
+    "Item7_T8_RangeGet24h": {
+      "test": "T8_Range_GET_And_URL_Expiration",
       "n": 4,
       "httpStatus": 206,
       "contentRange": "bytes 0-1023/1220927",
@@ -448,8 +213,8 @@
       "tokenExpireDate": "2026-11-11T00:02:18.000Z",
       "remainingHoursCalculated": 34.7,
       "wallClock24hElapsedStatus": "UNVERIFIED: 24H DELAY (Requires 24h continuous wall-clock elapsed time)",
-      "verdict": "INCONCLUSIVE",
-      "decision": "Store post URL and embed for playback; never cache CDN URLs permanently."
+      "evidenceFile": "spikes/evidence/t8_range_get_evidence.json",
+      "verdict": "INCONCLUSIVE"
     }
   }
 }

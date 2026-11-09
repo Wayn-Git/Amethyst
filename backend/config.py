@@ -632,6 +632,7 @@ GENERAL_SETTINGS_DEFAULTS: dict[str, Any] = {
     "compress_history": True,
     "follow_up_behavior": "queue",
     "confirm_close": "shortcut-only",
+    "close_to_tray": True,
     "full_view_default": False,
     "restore_tabs": False,
     "plain_text_composer": False,

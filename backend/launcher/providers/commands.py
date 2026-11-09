@@ -107,6 +107,80 @@ BUILTIN_COMMANDS = [
         "target": "sand",
         "keywords": ["theme", "light", "sand", "warm"],
     },
+    # Media Forwarding & Playback Controls
+    {
+        "id": "media:play_pause",
+        "title": "Play / Pause Media",
+        "subtitle": "Toggle playback on Spotify or active media player",
+        "icon": "play",
+        "action_type": "media",
+        "target": "play-pause",
+        "keywords": ["media", "music", "spotify", "play", "pause", "track", "song"],
+    },
+    {
+        "id": "media:next",
+        "title": "Next Track",
+        "subtitle": "Skip to the next song",
+        "icon": "play",
+        "action_type": "media",
+        "target": "next",
+        "keywords": ["media", "next", "skip", "track", "music", "spotify"],
+    },
+    {
+        "id": "media:prev",
+        "title": "Previous Track",
+        "subtitle": "Return to the previous song",
+        "icon": "play",
+        "action_type": "media",
+        "target": "previous",
+        "keywords": ["media", "previous", "prev", "track", "music", "spotify"],
+    },
+    {
+        "id": "media:mute",
+        "title": "Mute / Unmute Volume",
+        "subtitle": "Toggle master audio mute",
+        "icon": "bell",
+        "action_type": "media",
+        "target": "mute",
+        "keywords": ["volume", "mute", "sound", "audio", "quiet", "silence"],
+    },
+    {
+        "id": "media:vol_up",
+        "title": "Increase Volume (+5%)",
+        "subtitle": "Raise system output volume",
+        "icon": "bell",
+        "action_type": "media",
+        "target": "vol_up",
+        "keywords": ["volume", "louder", "up", "sound", "audio"],
+    },
+    {
+        "id": "media:vol_down",
+        "title": "Decrease Volume (-5%)",
+        "subtitle": "Lower system output volume",
+        "icon": "bell",
+        "action_type": "media",
+        "target": "vol_down",
+        "keywords": ["volume", "quieter", "down", "sound", "audio"],
+    },
+    # Developer Commands
+    {
+        "id": "dev:clean_cache",
+        "title": "Clean Caches & Temporary Data",
+        "subtitle": "Purge local caches, temporary build artifacts, and logs",
+        "icon": "terminal",
+        "action_type": "dev",
+        "target": "clean_cache",
+        "keywords": ["dev", "clean", "cache", "purge", "derived", "temp"],
+    },
+    {
+        "id": "dev:diagnostics",
+        "title": "System Diagnostics & Performance",
+        "subtitle": "Inspect system load, uptime, and Amethyst status",
+        "icon": "terminal",
+        "action_type": "navigate",
+        "target": "dash",
+        "keywords": ["dev", "diagnostics", "stats", "status", "system", "performance"],
+    },
 ]
 
 
@@ -156,42 +230,53 @@ class CommandProvider(BaseLauncherProvider):
         if q.startswith("kill "):
             proc_target = q[5:].strip()
             if proc_target:
-                try:
-                    res = subprocess.run(
-                        ["ps", "-eo", "pid,comm,%mem,%cpu", "--sort=-%cpu"],
-                        capture_output=True,
-                        text=True,
-                        timeout=0.6,
-                    )
-                    count = 0
-                    for line in res.stdout.strip().splitlines()[1:]:
-                        parts = line.strip().split(None, 3)
-                        if len(parts) >= 4:
-                            pid_str, comm, mem, cpu = parts[0], parts[1], parts[2], parts[3]
-                            if proc_target in comm.lower() or proc_target in pid_str:
-                                yield LauncherResult(
-                                    id=f"kill:{pid_str}",
-                                    provider_id=self.id,
-                                    title=f"Kill {comm} (PID {pid_str})",
-                                    subtitle=f"Memory: {mem}% · CPU: {cpu}%",
-                                    icon="x-circle",
-                                    badge="PROCESS",
-                                    score=110.0 - count,
-                                    preview_type="none",
-                                    actions=[
-                                        LauncherAction(
-                                            id="kill_process",
-                                            title="Terminate Process",
-                                            is_primary=True,
-                                            handler_payload={"pid": int(pid_str), "name": comm},
-                                        )
-                                    ],
-                                )
-                                count += 1
-                                if count >= 8:
-                                    break
-                except Exception as e:
-                    log.debug("Process listing error: %s", e)
+                import asyncio
+                import time
+
+                now = time.time()
+                # Cache process snapshot for 2 seconds to avoid running ps on every keystroke
+                if not hasattr(self, "_proc_cache") or (now - getattr(self, "_proc_cache_time", 0) > 2.0):
+                    def _fetch_processes():
+                        try:
+                            return subprocess.run(
+                                ["ps", "-eo", "pid,comm,%mem,%cpu", "--sort=-%cpu"],
+                                capture_output=True,
+                                text=True,
+                                timeout=0.6,
+                            ).stdout.strip().splitlines()[1:]
+                        except Exception:
+                            return []
+
+                    self._proc_cache = await asyncio.to_thread(_fetch_processes)
+                    self._proc_cache_time = now
+
+                count = 0
+                for line in self._proc_cache:
+                    parts = line.strip().split(None, 3)
+                    if len(parts) >= 4:
+                        pid_str, comm, mem, cpu = parts[0], parts[1], parts[2], parts[3]
+                        if proc_target in comm.lower() or proc_target in pid_str:
+                            yield LauncherResult(
+                                id=f"kill:{pid_str}",
+                                provider_id=self.id,
+                                title=f"Kill {comm} (PID {pid_str})",
+                                subtitle=f"Memory: {mem}% · CPU: {cpu}%",
+                                icon="x-circle",
+                                badge="PROCESS",
+                                score=110.0 - count,
+                                preview_type="none",
+                                actions=[
+                                    LauncherAction(
+                                        id="kill_process",
+                                        title="Terminate Process",
+                                        is_primary=True,
+                                        handler_payload={"pid": int(pid_str), "name": comm},
+                                    )
+                                ],
+                            )
+                            count += 1
+                            if count >= 8:
+                                break
 
         # 3. Flow Launcher Web Search Prefix Plugins (g, ddg, gh, yt, wiki)
         web_engines = {
@@ -265,7 +350,53 @@ class CommandProvider(BaseLauncherProvider):
             except Exception:
                 pass
 
-        # 5. Built-in Commands matching
+        # 5. Calendar Events query ("cal", "calendar", "meeting", "events", "agenda")
+        if any(term == q or q.startswith(term + " ") for term in ("cal", "calendar", "meeting", "events", "agenda", "schedule")):
+            try:
+                import asyncio
+                from datetime import datetime, timedelta
+                from backend.db.repositories import CalendarRepository
+
+                now = datetime.now()
+                start_iso = now.isoformat(timespec="seconds")
+                end_iso = (now + timedelta(days=7)).isoformat(timespec="seconds")
+
+                def _fetch_calendar():
+                    return CalendarRepository().in_window(start_iso, end_iso)
+
+                events = await asyncio.to_thread(_fetch_calendar)
+                for ev in events[:6]:
+                    ev_dict = dict(ev)
+                    ev_title = ev_dict.get("title", "Event")
+                    ev_start = ev_dict.get("start_at", "")
+                    ev_loc = ev_dict.get("location") or ""
+                    time_display = ev_start.replace("T", " ")[:16] if ev_start else "Upcoming"
+
+                    yield LauncherResult(
+                        id=f"cal:{ev_dict.get('id', ev_title)}",
+                        provider_id=self.id,
+                        title=ev_title,
+                        subtitle=f"{time_display}{' · ' + ev_loc if ev_loc else ''}",
+                        icon="calendar",
+                        badge="CALENDAR",
+                        score=95.0,
+                        preview_type="markdown",
+                        preview_data={
+                            "markdown": f"### {ev_title}\n\n- **Time:** {time_display}\n- **Location:** {ev_loc or 'None'}\n\nPress **Enter** to open in Calendar."
+                        },
+                        actions=[
+                            LauncherAction(
+                                id="run",
+                                title="Open in Calendar",
+                                is_primary=True,
+                                handler_payload={"command_id": "nav:today", "action_type": "navigate", "target": "today"},
+                            )
+                        ],
+                    )
+            except Exception as e:
+                log.debug("Calendar query error: %s", e)
+
+        # 6. Built-in Commands matching
         for cmd in self._commands:
             score = self._score_cmd(cmd, q)
             if score > 0:
@@ -291,6 +422,13 @@ class CommandProvider(BaseLauncherProvider):
 
         if q in subtitle:
             return 45.0
+
+        # Multi-word query matching (e.g. "volume up")
+        q_words = [w for w in q.split() if w]
+        if len(q_words) > 1:
+            haystack = f"{title} {subtitle} {' '.join(keywords)}"
+            if all(w in haystack for w in q_words):
+                return 70.0
 
         return 0.0
 
@@ -326,6 +464,40 @@ class CommandProvider(BaseLauncherProvider):
             cmd = next((c for c in self._commands if c["id"] == cmd_id), None)
             action_type = payload.get("action_type") or (cmd.get("action_type") if cmd else None)
             target = payload.get("target") or (cmd.get("target") if cmd else None)
+
+            # Handle media controls
+            if action_type == "media":
+                import shutil
+                if shutil.which("playerctl"):
+                    try:
+                        if target in ("play-pause", "next", "previous"):
+                            subprocess.run(["playerctl", target], timeout=2)
+                        elif target == "mute":
+                            subprocess.run(["pactl", "set-sink-mute", "@DEFAULT_SINK@", "toggle"], timeout=2)
+                        elif target == "vol_up":
+                            subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", "+5%"], timeout=2)
+                        elif target == "vol_down":
+                            subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", "-5%"], timeout=2)
+                        return {"status": "ok", "action": "media", "target": target}
+                    except Exception as e:
+                        return {"status": "error", "message": str(e)}
+
+            # Handle dev clean cache
+            if action_type == "dev" and target == "clean_cache":
+                try:
+                    import tempfile
+                    from pathlib import Path
+                    cleaned_count = 0
+                    for d in [Path.home() / ".amethyst/cache", Path(tempfile.gettempdir()) / "amethyst"]:
+                        if d.exists() and d.is_dir():
+                            for f in d.iterdir():
+                                if f.is_file():
+                                    f.unlink(missing_ok=True)
+                                    cleaned_count += 1
+                    return {"status": "ok", "message": f"Cleaned {cleaned_count} temporary cache files"}
+                except Exception as e:
+                    return {"status": "error", "message": str(e)}
+
             return {
                 "status": "ok",
                 "action": action_type,

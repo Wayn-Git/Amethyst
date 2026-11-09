@@ -308,8 +308,10 @@ export default function CommandPalette({ bare = false }) {
 
     let es = null
     const sessionId = 'spotlight_' + Math.random().toString(36).slice(2)
-    const delay = query.trim() ? 100 : 0
+    // 20ms debounce: virtually instant response on each keystroke without server queue thrash
+    const delay = query.trim() ? 20 : 0
     const timer = setTimeout(() => {
+      setLauncherItems([])
       const modeParam = activeTab === 'all' ? '' : `&mode=${encodeURIComponent(activeTab)}`
       es = new EventSource(
         `/api/launcher/stream?q=${encodeURIComponent(query)}&session_id=${sessionId}${modeParam}`
@@ -329,6 +331,11 @@ export default function CommandPalette({ bare = false }) {
           }
         } catch {}
       }
+
+      // Close immediately on stream completion to free browser connection pool
+      es.addEventListener('done', () => {
+        es?.close()
+      })
 
       es.onerror = () => {
         es?.close()
@@ -498,15 +505,31 @@ export default function CommandPalette({ bare = false }) {
         return
       }
 
-      // Fallback
-      if (item.action_id && item.provider_id) {
+      // Fallback provider actions
+      const primaryAction = item.actions?.[0]
+      const actionId = item.action_id || primaryAction?.id
+      const actionPayload = item.payload || primaryAction?.handler_payload || {}
+
+      if (actionId && item.provider_id) {
         try {
-          await api.executeLauncherAction(item.provider_id, item.action_id, {
-            ...(item.payload || {}),
-            action_id: item.action_id,
-            command: item.action_id,
+          if (actionId === 'copy_emoji' && actionPayload.char) {
+            copyText(actionPayload.char)
+            toast?.(`Copied ${actionPayload.char} to clipboard`, 'ok')
+          } else if (actionId === 'copy_note' && actionPayload.text) {
+            copyText(actionPayload.text)
+            toast?.('Copied note to clipboard', 'ok')
+          } else if (actionId === 'copy_url' && actionPayload.url) {
+            copyText(actionPayload.url)
+            toast?.('Copied URL to clipboard', 'ok')
+          }
+          await api.executeLauncherAction(item.provider_id, actionId, {
+            ...actionPayload,
+            action_id: actionId,
+            command: actionId,
           })
-          toast?.(`Executed ${item.title || item.action_id}`, 'ok')
+          if (actionId === 'save_note') {
+            toast?.('Saved quick note!', 'ok')
+          }
           closePalette()
         } catch (err) {
           toast?.(err.message, 'bad')
@@ -961,10 +984,10 @@ export default function CommandPalette({ bare = false }) {
           activePrefix={activePrefix}
           onClearPrefix={() => setActivePrefix(null)}
           onChange={(val) => {
-            const prefixMatch = val.match(/^>?(yt|youtube|gh|github|g|web|wiki|sys)\s+(.*)/i)
+            const prefixMatch = val.match(/^>?(yt|youtube|gh|github|g|web|wiki|sys|emoji|bm|bookmark|note|kill)\s+(.*)/i)
             if (prefixMatch) {
               const p = prefixMatch[1].toLowerCase()
-              const normalized = p === 'youtube' ? 'yt' : p === 'github' ? 'gh' : p === 'web' ? 'g' : p
+              const normalized = p === 'youtube' ? 'yt' : p === 'github' ? 'gh' : p === 'web' ? 'g' : p === 'bookmark' ? 'bm' : p
               setActivePrefix(normalized)
               setQuery(prefixMatch[2])
               setSelectedIndex(0)

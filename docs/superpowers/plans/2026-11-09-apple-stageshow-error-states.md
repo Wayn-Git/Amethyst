@@ -126,3 +126,4 @@
 - [ ] **Step 3: Wire event listener in `App.jsx`, error handler in `Chat.jsx`, and transport listener in `Companion.jsx`**
 - [ ] **Step 4: Run tests and execute full frontend build verification (`npm run build`)**
 - [ ] **Step 5: Commit**
+

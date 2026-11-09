@@ -28,11 +28,15 @@ export default function LibraryTagRail({
   selectedCategory = '',
   selectedTag = '',
   selectedRating = '',
+  selectedProgress = 'all',
   onSelectKind,
   onSelectCategory,
   onSelectTag,
   onSelectRating,
+  onSelectProgress,
   onClearFilters,
+  onOpenCreateList,
+  onOpenSettings,
   isOpen = true,
   onClose,
 }) {
@@ -65,82 +69,76 @@ export default function LibraryTagRail({
     return allTagEntries.filter(([tag]) => tag.toLowerCase().includes(q))
   }, [allTagEntries, tagQuery, showAllTags])
 
-  const hasFilter = Boolean(selectedKind || selectedCategory || selectedTag || selectedRating)
+  const hasFilter = Boolean(selectedKind || selectedCategory || selectedTag || selectedRating || (selectedProgress && selectedProgress !== 'all'))
   const activeKinds = useMemo(() => {
     return Object.entries(counts).filter(([, count]) => count > 0)
   }, [counts])
 
   return (
-    <aside className="lib-rail" aria-label="Knowledge Taxonomy">
-      {/* Rail Top Header */}
-      <div className="lib-rail-header">
-        <span className="lib-rail-heading">Taxonomy</span>
+    <aside className="lib-rail" aria-label="Knowledge Sidebar">
+      {/* Knowledge Brand Header */}
+      <div className="lib-rail-header" style={{ padding: '8px 12px 14px' }}>
+        <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text)' }}>
+          Knowledge
+        </span>
         {hasFilter && (
-          <HouseButton
+          <button
             type="button"
             className="lib-active-filter-clear-all"
             onClick={onClearFilters}
-            title="Reset all taxonomy filters"
+            title="Reset filters"
+            style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, cursor: 'pointer' }}
           >
             Reset
-          </HouseButton>
+          </button>
         )}
       </div>
 
-      {/* Primary Section: All Items */}
-      <div className="lib-rail-group">
-        <HouseButton
+      {/* Primary Navigation: Library, Favorites, Reminders */}
+      <div className="lib-rail-group" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <button
           type="button"
-          className={`lib-rail-item ${!hasFilter ? 'lib-rail-item--active' : ''}`}
+          className={`lib-rail-nav-btn ${!hasFilter ? 'lib-rail-nav-btn--active' : ''}`}
           onClick={onClearFilters}
         >
-          <div className="lib-rail-item-left">
-            <span className="lib-rail-item-icon">
-              <Icon name="grid" size={15} />
-            </span>
-            <span>All Knowledge</span>
-          </div>
-          <span className="lib-rail-item-badge">{total}</span>
-        </HouseButton>
+          <Icon name="grid" size={16} />
+          <span>Library</span>
+          <em className="lib-rail-nav-count">{total}</em>
+        </button>
+
+        <button
+          type="button"
+          className={`lib-rail-nav-btn ${selectedRating === '5' ? 'lib-rail-nav-btn--active' : ''}`}
+          onClick={() => onSelectRating?.(selectedRating === '5' ? '' : '5')}
+        >
+          <Icon name="star" size={16} filled={selectedRating === '5'} />
+          <span>Favorites</span>
+          {ratingCounts['5'] > 0 && <em className="lib-rail-nav-count">{ratingCounts['5']}</em>}
+        </button>
+
+        <button
+          type="button"
+          className={`lib-rail-nav-btn ${selectedProgress === 'todo' ? 'lib-rail-nav-btn--active' : ''}`}
+          onClick={() => onSelectProgress?.(selectedProgress === 'todo' ? 'all' : 'todo')}
+        >
+          <Icon name="bell" size={16} />
+          <span>Reminders</span>
+        </button>
       </div>
 
-      {/* Curated Significance (Rating) */}
-      {(ratingCounts['5'] > 0 || ratingCounts['4+'] > 0) && (
-        <div className="lib-rail-group">
-          <div className="lib-rail-heading" style={{ padding: '6px 4px 4px' }}>Significance</div>
-          {ratingCounts['5'] > 0 && (
-            <HouseButton
-              type="button"
-              className={`lib-rail-item ${selectedRating === '5' ? 'lib-rail-item--active' : ''}`}
-              onClick={() => onSelectRating?.(selectedRating === '5' ? '' : '5')}
-            >
-              <div className="lib-rail-item-left">
-                <span className="lib-rail-item-icon" style={{ color: '#f59e0b' }}>
-                  <Icon name="star" size={13} filled />
-                </span>
-                <span>Essential (5★)</span>
-              </div>
-              <span className="lib-rail-item-badge">{ratingCounts['5']}</span>
-            </HouseButton>
-          )}
-
-          {ratingCounts['4+'] > 0 && (
-            <HouseButton
-              type="button"
-              className={`lib-rail-item ${selectedRating === '4+' ? 'lib-rail-item--active' : ''}`}
-              onClick={() => onSelectRating?.(selectedRating === '4+' ? '' : '4+')}
-            >
-              <div className="lib-rail-item-left">
-                <span className="lib-rail-item-icon" style={{ color: '#fbbf24' }}>
-                  <Icon name="star" size={13} filled />
-                </span>
-                <span>High Impact (4★+)</span>
-              </div>
-              <span className="lib-rail-item-badge">{ratingCounts['4+']}</span>
-            </HouseButton>
-          )}
-        </div>
-      )}
+      {/* Collections section */}
+      <div className="lib-rail-group" style={{ marginTop: 12 }}>
+        <div className="lib-rail-section-label">Collections</div>
+        <button
+          type="button"
+          className="lib-rail-nav-btn"
+          onClick={onOpenCreateList}
+          style={{ color: 'var(--text-muted)' }}
+        >
+          <Icon name="plus" size={15} />
+          <span>New collection</span>
+        </button>
+      </div>
 
       {/* Formats / Kinds */}
       {activeKinds.length > 0 && (
@@ -249,6 +247,22 @@ export default function LibraryTagRail({
           )}
         </div>
       )}
+
+      {/* Bottom Settings Link */}
+      <div style={{ marginTop: 'auto', paddingTop: 16 }}>
+        <button
+          type="button"
+          className="lib-rail-nav-btn"
+          onClick={() => {
+            if (onOpenSettings) onOpenSettings()
+            else window.location.hash = '#/settings'
+          }}
+          style={{ color: 'var(--text-muted)' }}
+        >
+          <Icon name="settings" size={16} />
+          <span>Settings</span>
+        </button>
+      </div>
     </aside>
   )
 }

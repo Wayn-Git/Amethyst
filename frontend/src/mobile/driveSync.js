@@ -229,7 +229,44 @@ ${item.caption || 'No caption'}
 }
 
 /**
+ * Search Drive for an exact filename in parent folder.
+ */
+export async function findDriveFileByName({ fileName, folderId, apiKey }) {
+  if (!apiKey || !fileName) return []
+  try {
+    const query = folderId
+      ? `name = '${fileName}' and '${folderId}' in parents and trashed = false`
+      : `name = '${fileName}' and trashed = false`
+
+    const res = await callComposioMcp({
+      method: 'tools/call',
+      params: {
+        name: 'COMPOSIO_MULTI_EXECUTE_TOOL',
+        arguments: {
+          tools: [
+            {
+              tool_slug: 'GOOGLEDRIVE_FIND_FILE',
+              arguments: { q: query },
+            },
+          ],
+          sync_response_to_workbench: false,
+        },
+      },
+      apiKey,
+    })
+
+    const content = res?.result?.content?.[0]?.text
+    if (content) {
+      const inner = JSON.parse(content)
+      return inner?.data?.results?.[0]?.response?.data?.files || []
+    }
+  } catch {}
+  return []
+}
+
+/**
  * Sync batch of items to Google Drive in ONE multi-execute call.
+ * Deduplication guardrail: checks local index first, then queries remote Drive by exact filename before create.
  */
 export async function syncItemsBatchToDrive({ items, folderName = 'amethyst-spike', apiKey }) {
   if (!items || items.length === 0) return { syncedCount: 0, skippedCount: 0, results: [] }
@@ -238,20 +275,33 @@ export async function syncItemsBatchToDrive({ items, folderName = 'amethyst-spik
   const pendingItems = []
   let skippedCount = 0
 
+  const folderId = await resolveDriveFolderId({ folderName, apiKey })
+
   for (const item of items) {
     const hash = computeItemHash(item.canonicalUrl || item.url)
+    const { fileName } = formatDriveItemPayload(item)
+
+    // 1. Local index check (<1ms)
     if (index[hash]) {
       skippedCount += 1
-    } else {
-      pendingItems.push(item)
+      continue
     }
+
+    // 2. Exact remote filename check to prevent duplicate file creation
+    const existingRemote = await findDriveFileByName({ fileName, folderId, apiKey })
+    if (existingRemote.length > 0) {
+      const winner = pickDeterministicWinner(existingRemote)
+      recordSyncedHash(hash, winner?.id || existingRemote[0].id)
+      skippedCount += 1
+      continue
+    }
+
+    pendingItems.push(item)
   }
 
   if (pendingItems.length === 0) {
     return { syncedCount: 0, skippedCount, results: [] }
   }
-
-  const folderId = await resolveDriveFolderId({ folderName, apiKey })
 
   const tools = pendingItems.slice(0, 50).map((item) => {
     const { fileName, textContent } = formatDriveItemPayload(item)
@@ -320,4 +370,101 @@ export async function syncItemsBatchToDrive({ items, folderName = 'amethyst-spik
     results,
   }
 }
+
+/**
+ * Drive Reconciler:
+ * Scans folder for duplicate files (same exact name).
+ * Evaluates deterministic winner using `pickDeterministicWinner`.
+ * After grace period, purges losing duplicate files via delete action so exactly ONE file remains.
+ */
+export async function reconcileDriveDuplicates({
+  folderName = 'amethyst-spike',
+  gracePeriodMs = 3000,
+  apiKey,
+}) {
+  const folderId = await resolveDriveFolderId({ folderName, apiKey })
+  if (!folderId || !apiKey) return { totalDuplicatesFound: 0, purgedCount: 0, winners: [] }
+
+  const listRes = await callComposioMcp({
+    method: 'tools/call',
+    params: {
+      name: 'COMPOSIO_MULTI_EXECUTE_TOOL',
+      arguments: {
+        tools: [
+          {
+            tool_slug: 'GOOGLEDRIVE_LIST_FILES',
+            arguments: {
+              q: `'${folderId}' in parents and trashed = false`,
+            },
+          },
+        ],
+        sync_response_to_workbench: false,
+      },
+    },
+    apiKey,
+  })
+
+  let allFiles = []
+  try {
+    const text = listRes?.result?.content?.[0]?.text
+    if (text) {
+      const parsed = JSON.parse(text)
+      allFiles = parsed?.data?.results?.[0]?.response?.data?.files || []
+    }
+  } catch {}
+
+  const groups = {}
+  for (const f of allFiles) {
+    if (!groups[f.name]) groups[f.name] = []
+    groups[f.name].push(f)
+  }
+
+  const deleteTools = []
+  const now = Date.now()
+  let totalDuplicates = 0
+  const winners = []
+
+  for (const [name, files] of Object.entries(groups)) {
+    if (files.length > 1) {
+      totalDuplicates += files.length - 1
+      const winner = pickDeterministicWinner(files)
+      winners.push(winner)
+
+      const losers = files.filter((f) => f.id !== winner.id)
+      for (const loser of losers) {
+        const createdMs = loser.createdTime ? Date.parse(loser.createdTime) : 0
+        if (now - createdMs >= gracePeriodMs) {
+          deleteTools.push({
+            tool_slug: 'GOOGLEDRIVE_GOOGLE_DRIVE_DELETE_FOLDER_OR_FILE_ACTION',
+            arguments: { fileId: loser.id },
+          })
+        }
+      }
+    }
+  }
+
+  if (deleteTools.length > 0) {
+    await callComposioMcp({
+      method: 'tools/call',
+      params: {
+        name: 'COMPOSIO_MULTI_EXECUTE_TOOL',
+        arguments: {
+          tools: deleteTools,
+          sync_response_to_workbench: false,
+        },
+      },
+      apiKey,
+    })
+  }
+
+  return {
+    totalDuplicatesFound: totalDuplicates,
+    purgedCount: deleteTools.length,
+    remainingDuplicates: totalDuplicates - deleteTools.length,
+    winners,
+    allFilesBeforeCount: allFiles.length,
+    finalFileCount: allFiles.length - deleteTools.length,
+  }
+}
+
 

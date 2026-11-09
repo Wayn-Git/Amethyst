@@ -617,6 +617,9 @@ async function bootSupervisor() {
       clearInterval(pingInterval);
       pingInterval = null;
       createMainWindow();
+      createSpotlightWindow().catch(() => {});
+      listenToControlStream(activePort);
+      syncSavedShortcutOnBoot(activePort);
     } else if (attempts >= maxAttempts) {
       clearInterval(pingInterval);
       pingInterval = null;
@@ -698,16 +701,249 @@ ipcMain.handle('desktop:open-main', (_e, viewId, prompt) => {
     mainWindow.webContents.send('desktop:navigate', { viewId, prompt });
   }
 });
-ipcMain.handle('desktop:get-shortcut', () => currentRegisteredShortcut || 'Alt+Shift+Space');
-ipcMain.handle('desktop:set-shortcut', (_e, chord) => registerGlobalShortcut(chord));
-ipcMain.handle('desktop:check-shortcut-conflict', (_e, chord) => {
-  if (!chord) return { conflict: true, reason: 'Empty shortcut' };
+let controlStreamReq = null;
+
+function listenToControlStream(port = activePort) {
+  if (controlStreamReq) {
+    try {
+      controlStreamReq.destroy();
+    } catch {}
+    controlStreamReq = null;
+  }
+
+  const req = http.get(
+    {
+      host: '127.0.0.1',
+      port: port,
+      path: '/api/control/stream',
+      headers: { Accept: 'text/event-stream' },
+    },
+    (res) => {
+      let buffer = '';
+      res.on('data', (chunk) => {
+        buffer += chunk.toString();
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() || '';
+        for (const block of blocks) {
+          for (const line of block.split('\n')) {
+            if (line.startsWith('data: ')) {
+              try {
+                const payload = JSON.parse(line.slice(6));
+                if (payload.type === 'palette') {
+                  toggleSpotlight();
+                } else if (payload.type === 'show') {
+                  if (mainWindow && !mainWindow.isDestroyed()) {
+                    if (mainWindow.isMinimized()) mainWindow.restore();
+                    if (!mainWindow.isVisible()) mainWindow.show();
+                    mainWindow.focus();
+                  }
+                }
+              } catch {}
+            }
+          }
+        }
+      });
+      res.on('end', () => {
+        controlStreamReq = null;
+        if (!isQuitting) {
+          setTimeout(() => listenToControlStream(port), 2000);
+        }
+      });
+    }
+  );
+
+  req.on('error', () => {
+    controlStreamReq = null;
+    if (!isQuitting) {
+      setTimeout(() => listenToControlStream(port), 3000);
+    }
+  });
+
+  controlStreamReq = req;
+}
+
+function getShortcutConfigPath() {
+  const fs = require('fs');
+  const userData = app.getPath('userData');
+  if (!fs.existsSync(userData)) {
+    try {
+      fs.mkdirSync(userData, { recursive: true });
+    } catch {}
+  }
+  return path.join(userData, 'shortcut.json');
+}
+
+function loadSavedShortcut() {
+  const fs = require('fs');
+  const file = getShortcutConfigPath();
+  if (fs.existsSync(file)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (data && typeof data.shortcut === 'string' && data.shortcut.trim()) {
+        return data.shortcut.trim();
+      }
+    } catch {}
+  }
+  return null;
+}
+
+function saveRegisteredShortcut(chord) {
+  const fs = require('fs');
   try {
-    const isRegistered = globalShortcut.isRegistered(chord);
-    return { conflict: isRegistered && chord !== currentRegisteredShortcut };
+    fs.writeFileSync(getShortcutConfigPath(), JSON.stringify({ shortcut: chord }, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('[Amethyst Supervisor] Could not save shortcut to disk:', err.message);
+  }
+}
+
+function normalizeElectronChord(raw) {
+  if (!raw) return 'Alt+Shift+Space';
+  let s = raw.trim();
+  // Strip < > if present
+  s = s.replace(/<ctrl>/gi, 'Ctrl+')
+    .replace(/<control>/gi, 'Ctrl+')
+    .replace(/<alt>/gi, 'Alt+')
+    .replace(/<shift>/gi, 'Shift+')
+    .replace(/<super>/gi, 'Super+')
+    .replace(/<meta>/gi, 'Super+')
+    .replace(/<cmd>/gi, 'Command+')
+    .replace(/<space>/gi, 'Space');
+  // Clean double pluses
+  s = s.replace(/\++/g, '+');
+  if (s.endsWith('+')) s = s.slice(0, -1);
+  return s;
+}
+
+function syncGnomeShortcut(chord) {
+  if (process.platform !== 'linux') return;
+  const postData = JSON.stringify({ hotkey: chord });
+  const req = http.request(
+    {
+      host: '127.0.0.1',
+      port: activePort,
+      path: '/api/desktop/shortcut',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+      },
+      timeout: 3000,
+    },
+    (res) => {
+      res.resume();
+    }
+  );
+  req.on('error', (err) => {
+    console.debug('[Amethyst Supervisor] Could not sync shortcut to backend:', err.message);
+  });
+  req.write(postData);
+  req.end();
+}
+
+function syncSavedShortcutOnBoot(port = activePort) {
+  const saved = loadSavedShortcut();
+  if (saved) {
+    registerGlobalShortcut(saved, false);
+    syncGnomeShortcut(saved);
+    return;
+  }
+
+  // Probe backend settings
+  const req = http.get(
+    {
+      host: '127.0.0.1',
+      port: port,
+      path: '/api/desktop/shortcut',
+      timeout: 2000,
+    },
+    (res) => {
+      let raw = '';
+      res.on('data', (c) => { raw += c; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed.ok && parsed.hotkey) {
+            registerGlobalShortcut(parsed.hotkey, true);
+          }
+        } catch {}
+      });
+    }
+  );
+  req.on('error', () => {});
+}
+
+ipcMain.handle('desktop:get-shortcut', () => {
+  return currentRegisteredShortcut || loadSavedShortcut() || 'Alt+Shift+Space';
+});
+
+ipcMain.handle('desktop:set-shortcut', async (_e, chord) => {
+  const res = registerGlobalShortcut(chord, true);
+  if (res.ok) {
+    syncGnomeShortcut(res.shortcut);
+  }
+  return res;
+});
+
+ipcMain.handle('desktop:check-shortcut-conflict', async (_e, chord) => {
+  if (!chord) return { conflict: true, reason: 'Empty shortcut' };
+  const normalized = normalizeElectronChord(chord);
+
+  // Check critical system edit keys
+  const forbidden = ['Ctrl+C', 'Ctrl+V', 'Ctrl+X', 'Ctrl+Z', 'Ctrl+A', 'Alt+F4', 'Alt+Tab'];
+  if (forbidden.includes(normalized)) {
+    return { conflict: true, reason: `Shortcut '${normalized}' conflicts with standard system edit actions.` };
+  }
+
+  // Check if electron already registered it on another handler
+  try {
+    const isRegistered = globalShortcut.isRegistered(normalized);
+    if (isRegistered && normalized !== currentRegisteredShortcut) {
+      return { conflict: true, reason: `Shortcut '${normalized}' is already in use.` };
+    }
   } catch (err) {
     return { conflict: true, reason: err.message };
   }
+
+  // On Linux, query backend conflict checker for GNOME & IBus
+  if (process.platform === 'linux') {
+    try {
+      const conflictRes = await new Promise((resolve) => {
+        const postData = JSON.stringify({ hotkey: chord });
+        const req = http.request(
+          {
+            host: '127.0.0.1',
+            port: activePort,
+            path: '/api/desktop/shortcut/check',
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(postData),
+            },
+            timeout: 2500,
+          },
+          (res) => {
+            let body = '';
+            res.on('data', (c) => { body += c; });
+            res.on('end', () => {
+              try {
+                resolve(JSON.parse(body));
+              } catch {
+                resolve({ conflict: false });
+              }
+            });
+          }
+        );
+        req.on('error', () => resolve({ conflict: false }));
+        req.write(postData);
+        req.end();
+      });
+      if (conflictRes && conflictRes.conflict) {
+        return conflictRes;
+      }
+    } catch {}
+  }
+
+  return { conflict: false };
 });
 
 function toggleSpotlight() {
@@ -723,6 +959,9 @@ function toggleSpotlight() {
         lastSpotlightShowTime = Date.now();
         spotlightWindow.show();
         spotlightWindow.focus();
+        if (typeof spotlightWindow.moveTop === 'function') {
+          spotlightWindow.moveTop();
+        }
         spotlightWindow.webContents.send('palette:toggle', true);
       }
     });
@@ -741,11 +980,14 @@ function toggleSpotlight() {
     lastSpotlightShowTime = Date.now();
     spotlightWindow.show();
     spotlightWindow.focus();
+    if (typeof spotlightWindow.moveTop === 'function') {
+      spotlightWindow.moveTop();
+    }
     spotlightWindow.webContents.send('palette:toggle', true);
   }
 }
 
-function registerGlobalShortcut(preferred) {
+function registerGlobalShortcut(preferred, persist = true) {
   if (currentRegisteredShortcut) {
     try {
       globalShortcut.unregister(currentRegisteredShortcut);
@@ -753,32 +995,37 @@ function registerGlobalShortcut(preferred) {
     currentRegisteredShortcut = null;
   }
 
-  const candidates = [
-    preferred,
-    'Alt+Shift+Space',
-    'Ctrl+Shift+Space',
-    'CommandOrControl+Shift+Space',
-    'Ctrl+Alt+Space',
-    'Alt+Space',
-  ].filter(Boolean);
+  const normalized = normalizeElectronChord(preferred);
 
-  for (const combo of candidates) {
-    try {
-      if (globalShortcut.isRegistered(combo)) {
-        continue;
+  try {
+    const success = globalShortcut.register(normalized, toggleSpotlight);
+    if (success) {
+      currentRegisteredShortcut = normalized;
+      if (persist) {
+        saveRegisteredShortcut(normalized);
       }
-      const success = globalShortcut.register(combo, toggleSpotlight);
-      if (success) {
-        currentRegisteredShortcut = combo;
-        console.log(`[Amethyst Supervisor] Registered global shortcut: ${combo}`);
-        return { ok: true, shortcut: combo };
-      }
-    } catch (e) {
-      console.warn(`[Amethyst Supervisor] Could not register ${combo}:`, e.message);
+      console.log(`[Amethyst Supervisor] Registered global shortcut: ${normalized}`);
+      return { ok: true, shortcut: normalized };
     }
+  } catch (e) {
+    console.warn(`[Amethyst Supervisor] Could not register ${normalized}:`, e.message);
   }
 
-  return { ok: false, error: 'Could not register global shortcut without conflict' };
+  // If registering failed and preferred was not default, try Alt+Shift+Space as fallback
+  if (normalized !== 'Alt+Shift+Space') {
+    try {
+      if (globalShortcut.register('Alt+Shift+Space', toggleSpotlight)) {
+        currentRegisteredShortcut = 'Alt+Shift+Space';
+        return {
+          ok: false,
+          error: `Could not register '${normalized}'. System may require a different modifier combination.`,
+          fallback: 'Alt+Shift+Space',
+        };
+      }
+    } catch {}
+  }
+
+  return { ok: false, error: `Could not register shortcut '${normalized}' with operating system` };
 }
 
 app.whenReady().then(() => {
@@ -792,7 +1039,8 @@ app.whenReady().then(() => {
   initTray();
   setupAutoUpdater();
 
-  registerGlobalShortcut('Alt+Shift+Space');
+  const saved = loadSavedShortcut();
+  registerGlobalShortcut(saved || 'Alt+Shift+Space', false);
 
   bootSupervisor();
 });
