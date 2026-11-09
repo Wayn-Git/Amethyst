@@ -1,7 +1,7 @@
 import os
 import requests
 
-api_key = "cpk_2fa4875787ea4e0cbf6b6b307fdcc57a.c5872b8310bc5012bf720e547404f6bb.B7gM5mZTNTRQWpwW0reGPVbvg6GKGrBq"
+api_key = os.environ.get("CHUTES_API_KEY", "")
 url = "https://llm.chutes.ai/v1/chat/completions"
 headers = {
     "Authorization": f"Bearer {api_key}",
