@@ -33,5 +33,39 @@
       "t3_screenshot": "spikes/evidence/embed_DfYFVE_ulU5_t3.png",
       "audioDump": "spikes/evidence/audio_dumpsys_DfYFVE_ulU5.txt"
     }
+  ],
+  "reelsTested": [
+    {
+      "shortcode": "DdXGIh1JE4m",
+      "elementFound": "Instagram post shared by @artificialntellligence Play Watch on Instagram",
+      "rawBounds": "[0,233][1080,1589]",
+      "tapCoordinates": {
+        "x": 540,
+        "y": 911
+      },
+      "hasAudioFocus": false,
+      "videoElementPresent": false,
+      "frameAdvancing": false,
+      "behavior": "External anchor link navigation to Instagram reel URL (mobile embed limitation: no inline HTML5 video element)",
+      "t0_screenshot": "spikes/evidence/embed_DdXGIh1JE4m_t0.png",
+      "t3_screenshot": "spikes/evidence/embed_DdXGIh1JE4m_t3.png",
+      "audioDump": "spikes/evidence/audio_dumpsys_DdXGIh1JE4m.txt"
+    },
+    {
+      "shortcode": "DfYFVE_ulU5",
+      "elementFound": "Instagram post shared by @vivekonpoint Play Watch on Instagram",
+      "rawBounds": "[0,233][1080,1589]",
+      "tapCoordinates": {
+        "x": 540,
+        "y": 911
+      },
+      "hasAudioFocus": false,
+      "videoElementPresent": false,
+      "frameAdvancing": false,
+      "behavior": "External anchor link navigation to Instagram reel URL (mobile embed limitation: no inline HTML5 video element)",
+      "t0_screenshot": "spikes/evidence/embed_DfYFVE_ulU5_t0.png",
+      "t3_screenshot": "spikes/evidence/embed_DfYFVE_ulU5_t3.png",
+      "audioDump": "spikes/evidence/audio_dumpsys_DfYFVE_ulU5.txt"
+    }
   ]
 }

@@ -1,0 +1,75 @@
+{
+  "testedAt": "2026-11-09T19:18:03.037Z",
+  "folderName": "amethyst-spike",
+  "folderId": "1J9QlvSGVd6g1qzgSoZQoVpevA9t2idUv",
+  "raceFileName": "item_race_mw9n8hs3.json",
+  "raceDurationMs": 2211,
+  "clientAWrote": {
+    "client": "Phone-Android",
+    "durationMs": 2211
+  },
+  "clientBWrote": {
+    "client": "PC-Linux",
+    "durationMs": 1938
+  },
+  "filesCreatedInRace": [
+    {
+      "id": "1GpiLiGT1YRtr9c9x6xVyHBHhxofQMn5c",
+      "name": "item_race_mw9n8hs3.json",
+      "mimeType": "text/plain"
+    },
+    {
+      "id": "12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN",
+      "name": "item_race_mw9n8hs3.json",
+      "mimeType": "text/plain"
+    }
+  ],
+  "winnerRule": "Earliest createdTime wins; on timestamp tie, lexicographically lowest file id wins",
+  "winnerPicked": {
+    "id": "12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN",
+    "name": "item_race_mw9n8hs3.json"
+  },
+  "losersPruned": [
+    {
+      "id": "1GpiLiGT1YRtr9c9x6xVyHBHhxofQMn5c",
+      "name": "item_race_mw9n8hs3.json",
+      "action": "DELETED via GOOGLEDRIVE_GOOGLE_DRIVE_DELETE_FOLDER_OR_FILE_ACTION"
+    }
+  ],
+  "reconcileSummary": {
+    "totalDuplicatesFound": 1,
+    "purgedCount": 1,
+    "remainingDuplicates": 0,
+    "winners": [
+      {
+        "display_url": "https://drive.google.com/file/d/12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN/view",
+        "id": "12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN",
+        "kind": "drive#file",
+        "link_label": "View File in Google Drive",
+        "mimeType": "text/plain",
+        "name": "item_race_mw9n8hs3.json"
+      }
+    ],
+    "allFilesBeforeCount": 42,
+    "finalFileCount": 41
+  },
+  "folderFilesCountBefore": 40,
+  "folderFilesCountAfter": 41,
+  "finalRaceFileCount": 1,
+  "deterministicResolutionSuccess": true,
+  "allPreExistingFilesPreserved": true,
+  "fileName": "item_race_mw9n8hs3.json",
+  "itemHash": "race_mw9n8hs3",
+  "totalFilesCreated": 2,
+  "clientA": {
+    "name": "Phone-Android-10BD6N042K000F3"
+  },
+  "clientB": {
+    "name": "PC-Linux-Workspace"
+  },
+  "deterministicWinner": {
+    "id": "12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN",
+    "name": "item_race_mw9n8hs3.json"
+  },
+  "crossClientVisibilityVerified": true
+}

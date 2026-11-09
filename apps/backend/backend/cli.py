@@ -960,12 +960,16 @@ def cmd_serve(args: argparse.Namespace) -> int:
         "log_level": args.log_level,
     }
     if args.reload:
-        from pathlib import Path
-
-        root = Path(__file__).resolve().parents[1]
-        uvicorn_kwargs["reload_dirs"] = [str(root / "backend"), str(root / "notifier")]
+        here = Path(__file__).resolve()
+        repo = here.parents[2]
+        for parent in here.parents:
+            if (parent / "pyproject.toml").is_file():
+                repo = parent
+                break
+        backend_dir = here.parent
+        uvicorn_kwargs["reload_dirs"] = [str(backend_dir)]
         uvicorn_kwargs["reload_excludes"] = [
-            ".venv", "frontend", "storage", "*.db", "*.sqlite", "logs", "*.log", "tests", "*.tmp"
+            ".venv", "frontend", "web", "storage", "*.db", "*.sqlite", "logs", "*.log", "tests", "*.tmp"
         ]
     if getattr(sys, "frozen", False):
         from backend.api.main import app as fastapi_app
@@ -1001,8 +1005,13 @@ def _ensure_frontend(args: argparse.Namespace) -> bool:
     # Deliberately not `from backend.api.main import _DIST`: importing that
     # module is what mounts the interface, and this runs in order to decide
     # whether there is one to mount. Same path, computed without the import.
-    root = Path(__file__).resolve().parents[1]
-    frontend = root / "frontend"
+    here = Path(__file__).resolve()
+    repo = here.parents[2]
+    for parent in here.parents:
+        if (parent / "apps" / "web").is_dir() or (parent / "frontend").is_dir():
+            repo = parent
+            break
+    frontend = repo / "apps" / "web" if (repo / "apps" / "web").is_dir() else repo / "frontend"
     dist = frontend / "dist"
     built = (dist / "index.html").is_file()
     rebuild = getattr(args, "rebuild", False)

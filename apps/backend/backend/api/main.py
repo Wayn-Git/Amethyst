@@ -11263,8 +11263,21 @@ def get_analytics_usage_windows() -> dict[str, Any]:
 # frontend/dist, and if that exists it is served from here, so one `uvicorn`
 # process is the whole product and there is no second server to run, no second
 # port to remember, and no cross-origin request to configure.
-_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+def _find_dist_and_root() -> tuple[Path, Path]:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        cand_web = parent / "apps" / "web" / "dist"
+        if cand_web.is_dir():
+            return cand_web, parent
+        cand_front = parent / "frontend" / "dist"
+        if cand_front.is_dir():
+            return cand_front, parent
+    # Default fallback to repo root
+    repo = here.parents[3] if len(here.parents) > 3 and (here.parents[3] / "pyproject.toml").is_file() else here.parents[2]
+    dist = repo / "apps" / "web" / "dist" if (repo / "apps" / "web").is_dir() else repo / "frontend" / "dist"
+    return dist, repo
+
+_DIST, _REPO_ROOT = _find_dist_and_root()
 
 
 @app.api_route("/amethyst-companion.apk", methods=["GET", "HEAD"], include_in_schema=False)

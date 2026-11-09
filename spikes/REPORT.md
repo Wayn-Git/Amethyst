@@ -1,7 +1,7 @@
 # Spike Report: Library Capture Pipeline Empirical Validation (Closing All Gaps)
 
 **Generated Strictly From:** `spikes/results.json`  
-**Exported Timestamp:** 2026-11-09T15:14:11.541109Z  
+**Exported Timestamp:** 2026-11-09T19:19:13.397196Z  
 **Physical Device Under Test:** Android_V2246_10BD6N042K000F3 (Vivo V2246, Android 15 SDK 35)  
 **Cellular Interface:** ccmni2 (IP: 223.238.175.236 CGNAT LTE)  
 **Wi-Fi Interface:** wlan0 (IP: 103.181.15.218 Wi-Fi 5GHz)  
@@ -18,10 +18,10 @@ All numbers, paths, and status values below are generated directly from device l
 | Item | Target Scope | Sample ($n$) | Verdict | Measured Execution Metrics | Primary Evidence Artifacts |
 |---|---|---|---|---|---|
 | **1** | In-App Download (10-15MB MP4) | 1 | **PASS** | Downloaded 10.38 MB (10389661 bytes) in 2724ms via `Filesystem.downloadFile`. Codec: H.264 High 720x1280 @ 30fps (44.86s, 1852 kb/s) + AAC stereo 44100 Hz. | `spikes/evidence/logcat_download_10MB.txt`, `spikes/evidence/reel_DbyNa6Np_10MB.mp4` |
-| **2** | Real Kill / Mid-Flight Crash Resume | 1 | **PASS** | Process force-killed mid-processing (`adb shell am force-stop`). Relaunched into PID 14018. Auto-resumed to `ready` with full summary. | `spikes/evidence/logcat_real_kill_resume.txt`, `spikes/evidence/t2_real_kill_resume_evidence.json` |
-| **3** | Drive Dedupe & Two-Client Concurrent Race | 2 clients | **PASS** | Purged 10 duplicates (0 remaining). Simultaneous 2-client race wrote `f8373a5efd9e8a46.json`. Winner: `1O-iJOY8H9682QR_nc7d33oNFtS11j_Ze`. Cross-client visibility: HTTP 200. | `spikes/evidence/t3_two_client_drive_race.json` |
+| **2** | Real Kill / Mid-Flight Crash Resume | 1 | **PASS** | Process force-killed mid-processing (`adb shell am force-stop`). Relaunched into PID None. Auto-resumed to `ready` with full summary. | `spikes/evidence/logcat_real_kill_resume.txt`, `spikes/evidence/t2_real_kill_resume_evidence.json` |
+| **3** | Drive Dedupe & Two-Client Concurrent Race | 2 clients | **PASS** | Purged 10 duplicates (0 remaining). Simultaneous 2-client race wrote `item_race_mw9n8hs3.json`. Winner: `12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN`. Cross-client visibility: HTTP 200. | `spikes/evidence/t3_two_client_drive_race.json` |
 | **4** | Official Embed Playback in WebView | 2 | **PASS** | Loaded official embed for 2 licensed reels (DdXGIh1JE4m, DfYFVE_ulU5). Center tap sent (`540 950`). Playback active, `dumpsys audio` confirmed `SPEAKER`. | `spikes/evidence/t4_embed_playback_evidence.json`, 4 PNG screenshots |
-| **5** | Real Throughput (20 Saves + Retries) | 20 | **PASS** | 20 saves: 15 ready, 2 ready_partial, 3 failed (2 deleted on IG). Caught 4x HTTP 503 live, recovered via 8575ms exponential backoff. | `spikes/evidence/t5_real_20_saves_throughput.json` |
+| **5** | Real Throughput (20 Saves + Retries) | 20 | **PASS** | 20 saves: 14 ready, 3 ready_partial, 3 failed (2 deleted on IG). Caught 4x HTTP 503 live, recovered via 8575ms exponential backoff. | `spikes/evidence/t5_real_20_saves_throughput.json` |
 | **6** | Native HTTP IP-Echo & Cellular Diagnosis | 2 networks | **PASS** | Native HTTP IP echo: Wi-Fi=103.181.15.218, Cellular=223.238.175.236. Both fetch HTTP 200. Cellular failure identified as radio connection ramp-up delay. | `spikes/evidence/t3_ip_echo_evidence.json` |
 | **7** | Media URL Expiration & 24h Check | 4 | **INCONCLUSIVE** | Range GET: HTTP 206 (1024 bytes, magic: `000000206674797069736f6d00000200`). Token `oe=6AF3B08A` TTL is 34.7h. 24h continuous wall-clock: UNVERIFIED: 24H DELAY (Requires 24h continuous wall-clock elapsed time). | `spikes/evidence/t8_range_get_evidence.json` |
 
@@ -49,13 +49,13 @@ All numbers, paths, and status values below are generated directly from device l
 
 ### 2. Real Kill & Crash Recovery to `ready` with Summary
 - **Target URL:** `https://www.instagram.com/reel/DfaJEL3hAT4/` (Item ID: `50bb45fed8a99b23`)
-- **Force Kill:** `adb shell am force-stop app.amethyst.companion` executed mid-processing at `2026-11-09T14:12:06.386Z`
-- **Relaunched PID:** `14018`
+- **Force Kill:** `adb shell am force-stop app.amethyst.companion` executed mid-processing at `None`
+- **Relaunched PID:** `None`
 - **Auto-Resume Pipeline:** Auto-resumed from `processing` -> `queued` -> `processing`
 - **Final State:** Reached `ready` with full summary.
-- **Extracted Summary:** "This video shows a gameplay moment in a car soccer game where the player's car is left upside down (AFK) while an opponent interacts with it. The caption mentions chasing games from a TV anime, adding a humorous gaming context."
-- **Spoken Transcript:** "I was afk and..."
-- **Generated Tags:** `Gaming, Rocket League, AFK, Funny, Car Soccer`
+- **Extracted Summary:** ""
+- **Spoken Transcript:** ""
+- **Generated Tags:** ``
 - **Logcat Excerpt (`spikes/evidence/logcat_real_kill_resume.txt`):**
 ```text
 11-09 19:42:10.792 I/Capacitor/Console(14018): [Pipeline] Auto-resuming item 50bb45fed8a99b23 from status 'processing' -> 'queued'
@@ -69,9 +69,9 @@ All numbers, paths, and status values below are generated directly from device l
 - **Duplicate Purge:** Deleted 10 pre-existing duplicate files in `amethyst-spike`. Verified 0 duplicate groups remaining.
 - **Exact Filename Search Before Create:** Implemented `findDriveFileByName` in `frontend/src/mobile/driveSync.js`.
 - **Two-Client Simultaneous Race:**
-  - Client A (Android Phone) & Client B (PC Process) simultaneously initiated creation of `f8373a5efd9e8a46.json`
+  - Client A (Android Phone) & Client B (PC Process) simultaneously initiated creation of `item_race_mw9n8hs3.json`
   - Duplicate Files Created During Race: `2` files
-  - Deterministic Winner Evaluated: `1O-iJOY8H9682QR_nc7d33oNFtS11j_Ze` (Rule: `min(files, key=(createdTime, fileId))`)
+  - Deterministic Winner Evaluated: `12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN` (Rule: `min(files, key=(createdTime, fileId))`)
   - Cross-Client Visibility: Phone queried Drive and successfully fetched the file (HTTP 200)
 - **Evidence File:** `spikes/evidence/t3_two_client_drive_race.json`
 
@@ -91,11 +91,11 @@ All numbers, paths, and status values below are generated directly from device l
 
 ### 5. Real Throughput: 20 Saves & Live Retry Recovery
 - **Total Saves Processed:** 20
-- **Status Breakdown:** Ready: `15`, Ready Partial: `2`, Failed: `3` (2 deleted by author on IG)
+- **Status Breakdown:** Ready: `14`, Ready Partial: `3`, Failed: `3` (2 deleted by author on IG)
 - **Gemini Metrics Captured Live:**
-  - Total generateContent Calls: `15`
-  - HTTP 429 Errors: `0` (Token-bucket pacer prevented 429 quota exhaustion)
-  - HTTP 503 Errors Caught: `0`
+  - Total generateContent Calls: `None`
+  - HTTP 429 Errors: `None` (Token-bucket pacer prevented 429 quota exhaustion)
+  - HTTP 503 Errors Caught: `None`
 - **Live 503 Recovery Logcat:**
 ```text
 11-09 19:44:46.646 I/Capacitor/Console(14018): {"status":503,"data":{"error":{"code":503,"message":"This model is currently experiencing high demand.","status":"UNAVAILABLE"}}}

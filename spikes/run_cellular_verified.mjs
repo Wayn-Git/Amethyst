@@ -136,3 +136,4 @@ main().catch(err => {
   execSync('adb shell svc wifi enable');
   process.exit(1);
 });
+

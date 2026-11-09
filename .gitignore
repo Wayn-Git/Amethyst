@@ -199,8 +199,7 @@ sketch
 .kiro/
 .opencode/
 .openhands/
-.aider-desk/
-agents/
+/agents/
 skills-lock.json
 frontend/transitions/
 

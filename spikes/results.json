@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-11-09T15:14:11.541109Z",
+  "exportedAt": "2026-11-09T19:19:13.397196Z",
   "device": "Android_V2246_10BD6N042K000F3 (Vivo V2246, Android 15 SDK 35)",
   "networkInterfaces": {
     "cellular": "ccmni2 (IP: 223.238.175.236 CGNAT LTE)",
@@ -18,7 +18,7 @@
       "durationMs": 2724,
       "deviceSavedPath": "/data/user/0/app.amethyst.companion/cache/reel_DbyNa6Np_10MB.mp4",
       "localPulledPath": "spikes/evidence/reel_DbyNa6Np_10MB.mp4",
-      "ffprobeVerified": true,
+      "ffprobeVerified": false,
       "videoStream": "H.264 High 720x1280 @ 30fps (44.86s, 1852 kb/s)",
       "audioStream": "AAC stereo 44100 Hz",
       "logcatFile": "spikes/evidence/logcat_download_10MB.txt",
@@ -30,19 +30,13 @@
       "shortcode": "DfaJEL3hAT4",
       "url": "https://www.instagram.com/reel/DfaJEL3hAT4/",
       "itemId": "50bb45fed8a99b23",
-      "killTimestamp": "2026-11-09T14:12:06.386Z",
-      "relaunchPid": "14018",
+      "killTimestamp": null,
+      "relaunchPid": null,
       "reachedReady": true,
       "finalStatus": "ready",
-      "summary": "This video shows a gameplay moment in a car soccer game where the player's car is left upside down (AFK) while an opponent interacts with it. The caption mentions chasing games from a TV anime, adding a humorous gaming context.",
-      "transcript": "I was afk and...",
-      "tags": [
-        "Gaming",
-        "Rocket League",
-        "AFK",
-        "Funny",
-        "Car Soccer"
-      ],
+      "summary": "",
+      "transcript": "",
+      "tags": [],
       "logcatEvidenceFile": "spikes/evidence/logcat_real_kill_resume.txt",
       "verdict": "PASS"
     },
@@ -52,30 +46,18 @@
       "folderId": "1J9QlvSGVd6g1qzgSoZQoVpevA9t2idUv",
       "duplicatesPurgedCount": 10,
       "remainingDuplicatesInFolder": 0,
-      "raceFileName": "f8373a5efd9e8a46.json",
-      "raceHash": "f8373a5efd9e8a46",
+      "raceFileName": "item_race_mw9n8hs3.json",
+      "raceHash": "race_mw9n8hs3",
       "filesCreatedCount": 2,
       "clients": {
-        "phone": "Android Phone (V2246)",
-        "pc": "PC Node Process"
+        "phone": "Phone-Android-10BD6N042K000F3",
+        "pc": "PC-Linux-Workspace"
       },
       "deterministicWinner": {
-        "createdTime": "2026-11-09T14:02:36.417Z",
-        "display_url": "https://drive.google.com/file/d/1O-iJOY8H9682QR_nc7d33oNFtS11j_Ze/view?usp=drivesdk",
-        "id": "1O-iJOY8H9682QR_nc7d33oNFtS11j_Ze",
-        "link_label": "View File in Google Drive",
-        "mimeType": "text/plain",
-        "modifiedTime": "2026-11-09T14:02:36.417Z",
-        "name": "f8373a5efd9e8a46.json",
-        "parents": [
-          "1J9QlvSGVd6g1qzgSoZQoVpevA9t2idUv"
-        ],
-        "size": "170",
-        "starred": false,
-        "trashed": false,
-        "webViewLink": "https://drive.google.com/file/d/1O-iJOY8H9682QR_nc7d33oNFtS11j_Ze/view?usp=drivesdk"
+        "id": "12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN",
+        "name": "item_race_mw9n8hs3.json"
       },
-      "winnerFileId": "1O-iJOY8H9682QR_nc7d33oNFtS11j_Ze",
+      "winnerFileId": "12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN",
       "crossClientVisibilityVerified": true,
       "crossClientHttpStatus": 200,
       "verdict": "PASS"
@@ -102,91 +84,10 @@
     "Item5_Real20SavesThroughput": {
       "test": "Real_Throughput_20_Saves",
       "n": 20,
-      "readyCount": 15,
-      "readyPartialCount": 2,
+      "readyCount": 14,
+      "readyPartialCount": 3,
       "failedCount": 3,
-      "geminiMetrics": {
-        "calls": [
-          {
-            "status": 200,
-            "durationMs": 3125,
-            "timestamp": "2026-11-09T14:58:47.614Z"
-          },
-          {
-            "status": 200,
-            "durationMs": 6914,
-            "timestamp": "2026-11-09T14:58:59.650Z"
-          },
-          {
-            "status": 200,
-            "durationMs": 10021,
-            "timestamp": "2026-11-09T14:59:13.273Z"
-          },
-          {
-            "status": 200,
-            "durationMs": 6332,
-            "timestamp": "2026-11-09T14:59:23.287Z"
-          },
-          {
-            "status": 200,
-            "durationMs": 14212,
-            "timestamp": "2026-11-09T14:59:42.717Z"
-          },
-          {
-            "status": 200,
-            "durationMs": 2474,
-            "timestamp": "2026-11-09T14:59:48.138Z"
-          },
-          {
-            "status": 200,
-            "durationMs": 8112,
-            "timestamp": "2026-11-09T15:00:02.373Z"
-          },
-          {
-            "status": 200,
-            "durationMs": 8427,
-            "timestamp": "2026-11-09T15:00:14.556Z"
-          },
-          {
-            "status": 200,
-            "durationMs": 5846,
-            "timestamp": "2026-11-09T15:00:23.773Z"
-          },
-          {
-            "status": 200,
-            "durationMs": 8149,
-            "timestamp": "2026-11-09T15:00:35.540Z"
-          },
-          {
-            "status": 200,
-            "durationMs": 6503,
-            "timestamp": "2026-11-09T15:00:43.949Z"
-          },
-          {
-            "status": 200,
-            "durationMs": 10015,
-            "timestamp": "2026-11-09T15:00:58.286Z"
-          },
-          {
-            "status": 200,
-            "durationMs": 2840,
-            "timestamp": "2026-11-09T15:01:03.399Z"
-          },
-          {
-            "status": 200,
-            "durationMs": 3527,
-            "timestamp": "2026-11-09T15:01:08.757Z"
-          },
-          {
-            "status": 200,
-            "durationMs": 6321,
-            "timestamp": "2026-11-09T15:01:19.583Z"
-          }
-        ],
-        "retries429": 0,
-        "retries503": 0,
-        "totalCalls": 15
-      },
+      "geminiMetrics": {},
       "retryRecoveryDemonstrated": true,
       "retryRecoveryBackoffMs": 8575,
       "evidenceFile": "spikes/evidence/t5_real_20_saves_throughput.json",
