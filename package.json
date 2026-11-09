@@ -6,11 +6,15 @@
     "name": "Amethyst Authors",
     "email": "dev@amethyst.ai"
   },
-  "main": "electron/main.cjs",
+  "main": "apps/desktop/main.cjs",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev:desktop": "cross-env ELECTRON_DEV=1 electron .",
-    "package:desktop": "electron-builder",
-    "build:frontend": "npm run build --prefix frontend",
+    "package:desktop": "electron-builder --config apps/desktop/electron-builder.yml",
+    "build:frontend": "npm run build --prefix apps/web",
     "build:backend": "python scripts/build_backend_binary.py",
     "build:all": "npm run build:frontend && npm run build:backend"
   },

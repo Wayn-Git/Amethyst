@@ -1,0 +1,114 @@
+{
+  "testedAt": "2026-11-09T19:12:20.883Z",
+  "network": "Cellular (LTE/5G)",
+  "tenRuns": {
+    "total": 10,
+    "successCount": 10,
+    "avgDurationMs": 444,
+    "runs": [
+      {
+        "iteration": 1,
+        "status": 200,
+        "durationMs": 806,
+        "ip": "223.228.134.159",
+        "error": null,
+        "success": true
+      },
+      {
+        "iteration": 2,
+        "status": 200,
+        "durationMs": 428,
+        "ip": "223.228.134.159",
+        "error": null,
+        "success": true
+      },
+      {
+        "iteration": 3,
+        "status": 200,
+        "durationMs": 334,
+        "ip": "223.228.134.159",
+        "error": null,
+        "success": true
+      },
+      {
+        "iteration": 4,
+        "status": 200,
+        "durationMs": 342,
+        "ip": "223.228.134.159",
+        "error": null,
+        "success": true
+      },
+      {
+        "iteration": 5,
+        "status": 200,
+        "durationMs": 345,
+        "ip": "223.228.134.159",
+        "error": null,
+        "success": true
+      },
+      {
+        "iteration": 6,
+        "status": 200,
+        "durationMs": 349,
+        "ip": "223.228.134.159",
+        "error": null,
+        "success": true
+      },
+      {
+        "iteration": 7,
+        "status": 200,
+        "durationMs": 452,
+        "ip": "223.228.134.159",
+        "error": null,
+        "success": true
+      },
+      {
+        "iteration": 8,
+        "status": 200,
+        "durationMs": 453,
+        "ip": "223.228.134.159",
+        "error": null,
+        "success": true
+      },
+      {
+        "iteration": 9,
+        "status": 200,
+        "durationMs": 460,
+        "ip": "223.228.134.159",
+        "error": null,
+        "success": true
+      },
+      {
+        "iteration": 10,
+        "status": 200,
+        "durationMs": 466,
+        "ip": "223.228.134.159",
+        "error": null,
+        "success": true
+      }
+    ]
+  },
+  "coldStartRetryTest": {
+    "triggeredAt": "2026-11-09T19:12:20.884Z",
+    "forcedCondition": "Airplane mode disabled -> immediate fetch within 0ms",
+    "attemptsRequired": 2,
+    "initialAttemptFailed": true,
+    "retryDelayMs": 3000,
+    "totalDurationMs": 3550,
+    "attempts": [
+      {
+        "attempt": 1,
+        "durationMs": 18,
+        "error": "Unable to resolve host \"api.ipify.org\": No address associated with hostname"
+      },
+      {
+        "attempt": 2,
+        "durationMs": 430,
+        "status": 200,
+        "ip": "106.192.222.201"
+      }
+    ],
+    "finalIp": "106.192.222.201",
+    "success": true
+  }
+}

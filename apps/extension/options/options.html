@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amethyst Extension Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="options-container">
+    <header class="options-header">
+      <div class="brand">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none">
+          <polygon points="12,2 21,12 12,22 3,12" fill="#8B5CF6"/>
+          <polygon points="12,2 3,12 12,12" fill="#A78BFA"/>
+          <polygon points="3,12 12,22 12,12" fill="#6D28D9"/>
+          <polygon points="21,12 12,22 12,12" fill="#5B21B6"/>
+          <polygon points="12,2 8,7 6,12 12,12" fill="#C4B5FD" fill-opacity="0.8"/>
+        </svg>
+        <div>
+          <h1>Amethyst Extension Settings</h1>
+          <p class="subtitle">Connect your browser directly to your Amethyst Library</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="options-body">
+      <!-- Connection Card -->
+      <section class="card">
+        <h2>Connection</h2>
+        <div class="field-group">
+          <label for="server-url">Amethyst Server URL</label>
+          <input type="text" id="server-url" class="text-input" placeholder="http://127.0.0.1:8000" />
+          <span class="field-hint">The local address where your Amethyst desktop app is running.</span>
+        </div>
+
+        <div class="field-group">
+          <label for="device-token">Device Token (optional)</label>
+          <input type="password" id="device-token" class="text-input" placeholder="Leave empty for local loopback" />
+          <span class="field-hint">Required only if connecting to a remote or protected Amethyst instance.</span>
+        </div>
+
+        <div class="button-row">
+          <button id="test-btn" class="secondary-btn">Test Connection</button>
+          <span id="test-result" class="test-result hidden"></span>
+        </div>
+      </section>
+
+      <!-- Preferences Card -->
+      <section class="card">
+        <h2>Capture Preferences</h2>
+        <div class="toggle-group">
+          <label class="toggle-label">
+            <input type="checkbox" id="floating-btn-toggle" checked />
+            <span class="toggle-slider"></span>
+            <span class="toggle-text">Show floating "Save to Amethyst" button on text selection</span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Offline Queue Card -->
+      <section class="card">
+        <h2>Offline Queue</h2>
+        <p class="queue-description">
+          Items saved while Amethyst is closed are queued locally and automatically synced when the app starts.
+        </p>
+        <div class="queue-row">
+          <div>Queued items: <strong id="queue-count">0</strong></div>
+          <button id="sync-now-btn" class="secondary-btn">Sync Now</button>
+        </div>
+        <div id="sync-result" class="test-result hidden"></div>
+      </section>
+
+      <div class="save-bar">
+        <button id="save-settings-btn" class="primary-btn">Save Settings</button>
+        <span id="save-status" class="save-status hidden">Settings saved!</span>
+      </div>
+    </main>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

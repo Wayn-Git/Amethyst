@@ -1,0 +1,22 @@
+--------- beginning of main
+11-10 00:42:12.492 26010 26010 W Capacitor/Console: File: https://localhost/today - Line 0 - Msg: Mixed Content: The page at 'https://localhost/today' was loaded over HTTPS, but requested an insecure EventSource endpoint 'http://192.168.1.2:8000/api/control/stream'. This content should also be served over HTTPS.
+11-10 00:42:14.649 26010 26010 W Capacitor/Console: File: https://localhost/assets/main-D0h72Zpf.js - Line 451 - Msg: Mixed Content: The page at 'https://localhost/today' was loaded over HTTPS, but attempted to connect to the insecure WebSocket endpoint 'ws://192.168.1.2:8000/api/remote/ws?token=c88a08e073e64d803936575b14af67af'. This endpoint should be available via WSS. Insecure access is deprecated.
+11-10 00:42:14.651 26010 26010 W Capacitor/Console: File: https://localhost/assets/main-D0h72Zpf.js - Line 451 - Msg: Connecting to a non-secure WebSocket server from a secure origin is deprecated.
+11-10 00:42:15.017 26010 26010 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+11-10 00:42:15.032 26010 26010 E Capacitor/Console: File:  - Line 330 - Msg: [object Object]
+11-10 00:42:15.037 26010 26010 W Capacitor/Console: File:  - Line 24 - Msg: [nativeHttp] Network error on GET https://api.ipify.org?format=json: Unable to resolve host "api.ipify.org": No address associated with hostname. Retrying after 3s delay…
+11-10 00:42:15.542 26010 26010 W Capacitor/Console: File: https://localhost/today - Line 0 - Msg: Mixed Content: The page at 'https://localhost/today' was loaded over HTTPS, but requested an insecure EventSource endpoint 'http://192.168.1.2:8000/api/control/stream'. This content should also be served over HTTPS.
+11-10 00:42:17.779 26010 26010 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+11-10 00:42:17.781 26010 26010 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+11-10 00:42:17.797 26010 26010 I Capacitor/Console: File:  - Line 333 - Msg: {"data":null}
+11-10 00:42:17.799 26010 26010 I Capacitor/Console: File:  - Line 333 - Msg: {"data":null}
+11-10 00:42:17.799 26010 26010 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+11-10 00:42:17.803 26010 26010 I Capacitor/Console: File:  - Line 333 - Msg: {"data":null}
+11-10 00:42:17.803 26010 26010 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+11-10 00:42:17.830 26010 26010 I Capacitor/Console: File:  - Line 333 - Msg: {"data":"{\"deviceId\":\"phone_78bcaf78133b85a7\",\"token\":\"c88a08e073e64d803936575b14af67af\",\"hostUrl\":\"http://192.168.1.2:8000\",\"name\":\"Android Phone\",\"permissions\":{\"library\":true,\"agent\":true,\"terminal\":true,\"pc\":true}}"}
+11-10 00:42:17.830 26010 26010 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+11-10 00:42:17.832 26010 26010 I Capacitor/Console: File:  - Line 333 - Msg: {"data":null}
+11-10 00:42:17.834 26010 26010 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+11-10 00:42:17.837 26010 26010 I Capacitor/Console: File:  - Line 333 - Msg: {"data":null}
+11-10 00:42:18.039 26010 26010 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+11-10 00:42:18.468 26010 26010 I Capacitor/Console: File:  - Line 333 - Msg: {"status":200,"headers":{"cf-cache-status":"DYNAMIC","CF-RAY":"a57f20d36e9e9a5e-BOM","Connection":"keep-alive","Content-Length":"24","Content-Type":"application/json","Date":"Mon, 09 Nov 2026 19:12:18 GMT","Server":"cloudflare","Vary":"Origin","X-Android-Received-Millis":"1794251538464","X-Android-Response-Source":"NETWORK 200","X-Android-Selected-Protocol":"http/1.1","X-Android-Sent-Millis":"1794251538138"},"url":"https://api.ipify.org?format=json","data":{"ip":"106.192.222.201"}}

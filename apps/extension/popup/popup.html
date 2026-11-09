@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amethyst Library</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="popup-header">
+      <div class="brand">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none">
+          <polygon points="12,2 21,12 12,22 3,12" fill="#8B5CF6"/>
+          <polygon points="12,2 3,12 12,12" fill="#A78BFA"/>
+          <polygon points="3,12 12,22 12,12" fill="#6D28D9"/>
+          <polygon points="21,12 12,22 12,12" fill="#5B21B6"/>
+          <polygon points="12,2 8,7 6,12 12,12" fill="#C4B5FD" fill-opacity="0.8"/>
+        </svg>
+        <span class="brand-title">Amethyst</span>
+      </div>
+      <div id="connection-status" class="status-indicator status-checking" title="Checking connection to Amethyst">
+        <span class="status-dot"></span>
+        <span id="status-text">Checking...</span>
+      </div>
+    </header>
+
+    <!-- Main Content Card -->
+    <main class="popup-body">
+      <div class="page-meta">
+        <div id="page-title" class="page-title">Loading tab...</div>
+        <div id="page-url" class="page-url">--</div>
+      </div>
+
+      <div class="input-group">
+        <label for="capture-kind">Kind</label>
+        <select id="capture-kind" class="select-field">
+          <option value="">Auto-detect</option>
+          <option value="article">Article / Page</option>
+          <option value="paper">Paper / Research</option>
+          <option value="video">Video</option>
+          <option value="note">Note</option>
+          <option value="idea">Idea</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label for="capture-note">Quick Note (optional)</label>
+        <input type="text" id="capture-note" class="text-field" placeholder="Add context or tag..." />
+      </div>
+
+      <button id="save-btn" class="save-btn">
+        <span id="save-btn-text">Save to Library</span>
+      </button>
+
+      <div id="feedback-msg" class="feedback-msg hidden"></div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="popup-footer">
+      <a href="#" id="open-library-link" class="footer-link">Open Library</a>
+      <a href="#" id="open-options-link" class="footer-link">Settings</a>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

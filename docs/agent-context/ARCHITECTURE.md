@@ -59,29 +59,26 @@ filesystem tools; MCP tools register into the same flat registry as builtins.
 
 ## Repository map
 
+The repository follows a clean, scalable monorepo architecture (`apps/`, `packages/`, `infrastructure/`, `docs/`, `scripts/`, `tests/`):
+
 | Path | Responsibility |
 |---|---|
-| `backend/api/main.py` | Main FastAPI app, most route handlers, lifespan, middleware |
-| `backend/api/today.py` | Legacy `/api/today` router |
-| `backend/terminal.py` | PTY sessions and terminal WebSocket |
-| `backend/remote/` | Remote-control API, captures, updates, screen, input, files |
-| `backend/converter/` | Local conversion service and router |
-| `backend/dashboard/` | Widget manifests, providers, cache, layout, actions |
-| `backend/agent/` | Director, prompt, state, planning, subagents, traces |
-| `backend/runtime/` | Provider adapters, routing, fallback, availability |
-| `backend/tools/` | Tool base types, registry, builtin tools |
-| `backend/security/` | Confirmation gate, sandbox, remote-access permissions |
-| `backend/db/` | Connection, schema bootstrap, repositories |
-| `backend/mcp/` | MCP config, lifecycle, OAuth, Composio, risk, SSRF |
-| `backend/library/`, `backend/retrieval/` | Capture, storage, indexing, hybrid search |
-| `backend/sync/` | Devices, HLC ops, sync registry, Microsoft To Do projection |
-| `backend/jobs/` | Durable job state, store, lanes |
-| `frontend/src/` | React shell, views, dashboard, components, API client |
-| `frontend/src/mobile/`, `frontend/src/lib/sync/` | Capacitor companion and sync client |
-| `electron/`, `backend/desktop.py` | Desktop shells |
-| `relay/` | Cloudflare Worker for always-on capture and sync relay |
-| `notifier/` | Separate morning-brief/digest package used by CI |
-| `tests/`, `frontend/tests/` | Python and frontend verification |
+| `apps/backend/backend/` | FastAPI core app, routers, agent director, runtime, DB, tools (symlinked to `backend/`) |
+| `apps/desktop/` | Electron desktop shell and build config (symlinked to `electron/`) |
+| `apps/extension/` | Browser extension companion for instant capture (symlinked to `extension/`) |
+| `apps/web/` | React single-page application & mobile companion (symlinked to `frontend/`) |
+| `packages/widgets/catalog/` | Widget catalog designs, fixtures, and templates (symlinked to `widgets/`) |
+| `packages/widgets/prompts/` | Widget prompt definitions (symlinked to `widget-prompts/`) |
+| `packages/widget-factory/src/` | Automated widget generation factory (symlinked to `widget-factory/`) |
+| `packages/automations/definitions/` | Automated workflow scripts and definitions (symlinked to `automations/`) |
+| `packages/agents/skills/` | Agent skills library (symlinked to `agents/`) |
+| `packages/relay/relay/` | Cloudflare Worker relay for capture & sync (symlinked to `relay/`) |
+| `infrastructure/docker/` | Dockerfile and compose configurations (symlinked at root) |
+| `infrastructure/deployment/` | Render and Vercel deployment manifests (symlinked at root) |
+| `infrastructure/packaging/src/` | PyInstaller standalone packaging specs (symlinked to `packaging/`) |
+| `infrastructure/notifier/notifier/` | Notifier briefing/digest jobs for CI (symlinked to `notifier/`) |
+| `tests/`, `apps/web/tests/` | Python backend and frontend verification test suites |
+
 
 ## Request path
 
