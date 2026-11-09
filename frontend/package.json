@@ -34,6 +34,7 @@
     "@capacitor/browser": "^8.0.5",
     "@capacitor/clipboard": "^8.0.1",
     "@capacitor/core": "8.6.0",
+    "@capacitor/filesystem": "^8.1.5",
     "@capacitor/ios": "8.6.0",
     "@gsap/react": "^2.1.2",
     "@hugeicons/core-free-icons": "^4.3.5",

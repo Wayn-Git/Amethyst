@@ -1,0 +1,223 @@
+{
+  "total_tested": 12,
+  "schema_compliance_rate": "12/12 (100.0%)",
+  "song_id_accuracy": "9/12 (75.0%)",
+  "items": [
+    {
+      "code": "DVlQSpfk8tl",
+      "ground_truth": {
+        "song": "Original audio",
+        "artist": "rebornspacestv",
+        "is_original": true
+      },
+      "gemini_prediction": {
+        "title": "unknown",
+        "artist": "unknown",
+        "is_original_audio": true
+      },
+      "detected_language": "unknown",
+      "transcript_snippet": "",
+      "schema_compliant": true,
+      "song_match": true,
+      "elapsed_s": 3.74
+    },
+    {
+      "code": "DV79WToDXwb",
+      "ground_truth": {
+        "song": "Original audio",
+        "artist": "good.ball21",
+        "is_original": true
+      },
+      "gemini_prediction": {
+        "title": "Unknown",
+        "artist": "Unknown",
+        "is_original_audio": true
+      },
+      "detected_language": "en",
+      "transcript_snippet": "Dear basketball, from the moment I started rolling my dad's tube socks and shoot",
+      "schema_compliant": true,
+      "song_match": true,
+      "elapsed_s": 3.37
+    },
+    {
+      "code": "Dc5KLk2R6pD",
+      "ground_truth": {
+        "song": "Original audio",
+        "artist": "piyush.glitch",
+        "is_original": true
+      },
+      "gemini_prediction": {
+        "title": "",
+        "artist": "",
+        "is_original_audio": true
+      },
+      "detected_language": "en",
+      "transcript_snippet": "Someone just dropped a full LinkedIn skill for Claude, that runs your entire Lin",
+      "schema_compliant": true,
+      "song_match": true,
+      "elapsed_s": 6.62
+    },
+    {
+      "code": "Dc6gen6tcs6",
+      "ground_truth": {
+        "song": "Original audio",
+        "artist": "itsthemcfarlands",
+        "is_original": true
+      },
+      "gemini_prediction": {
+        "title": "",
+        "artist": "",
+        "is_original_audio": true
+      },
+      "detected_language": "en",
+      "transcript_snippet": "Do you want to watch it? Mayday. Ooh. You can sit down if you want. No, I'm too ",
+      "schema_compliant": true,
+      "song_match": true,
+      "elapsed_s": 6.26
+    },
+    {
+      "code": "DcPxbAlxT3x",
+      "ground_truth": {
+        "song": "Original audio",
+        "artist": "the_greatfilmss",
+        "is_original": true
+      },
+      "gemini_prediction": {
+        "title": "",
+        "artist": "",
+        "is_original_audio": true
+      },
+      "detected_language": "en",
+      "transcript_snippet": "A red uh yeah. Honey. It's okay, baby. Yeah. The red uh blood. Oh my god. Just p",
+      "schema_compliant": true,
+      "song_match": true,
+      "elapsed_s": 5.74
+    },
+    {
+      "code": "DZf737nzLtj",
+      "ground_truth": {
+        "song": "Original audio",
+        "artist": "movieguycam",
+        "is_original": true
+      },
+      "gemini_prediction": {
+        "title": "",
+        "artist": "",
+        "is_original_audio": true
+      },
+      "detected_language": "en",
+      "transcript_snippet": "These are the three movies that physically altered my brain chemistry that you s",
+      "schema_compliant": true,
+      "song_match": true,
+      "elapsed_s": 5.76
+    },
+    {
+      "code": "Dc7tLcqRZ7i",
+      "ground_truth": {
+        "song": "Unfold",
+        "artist": "Nerfd",
+        "is_original": false
+      },
+      "gemini_prediction": {
+        "title": "Unknown",
+        "artist": "Unknown",
+        "is_original_audio": true
+      },
+      "detected_language": "unknown",
+      "transcript_snippet": "",
+      "schema_compliant": true,
+      "song_match": false,
+      "elapsed_s": 6.51
+    },
+    {
+      "code": "DcY-GkbgA6Z",
+      "ground_truth": {
+        "song": "Original audio",
+        "artist": "hbomaxuk",
+        "is_original": true
+      },
+      "gemini_prediction": {
+        "title": "",
+        "artist": "",
+        "is_original_audio": true
+      },
+      "detected_language": "en",
+      "transcript_snippet": "Holy crap. Sorry. Uh I'm Mr. Fitz, your new English teacher. Alison?",
+      "schema_compliant": true,
+      "song_match": true,
+      "elapsed_s": 5.86
+    },
+    {
+      "code": "Dbah-D_Kkkp",
+      "ground_truth": {
+        "song": "Original audio",
+        "artist": "_edits_movies_series_",
+        "is_original": true
+      },
+      "gemini_prediction": {
+        "title": "Titanium",
+        "artist": "David Guetta feat. Sia",
+        "is_original_audio": false
+      },
+      "detected_language": "en",
+      "transcript_snippet": "Calm me down, but it's too loud for the two for all ghosts town and haunted love",
+      "schema_compliant": true,
+      "song_match": false,
+      "elapsed_s": 9.01
+    },
+    {
+      "code": "DcMquo_CTHD",
+      "ground_truth": {
+        "song": "Original audio",
+        "artist": "krmfx_",
+        "is_original": true
+      },
+      "gemini_prediction": {
+        "title": "unknown",
+        "artist": "unknown",
+        "is_original_audio": true
+      },
+      "detected_language": "unknown",
+      "transcript_snippet": "",
+      "schema_compliant": true,
+      "song_match": true,
+      "elapsed_s": 7.74
+    },
+    {
+      "code": "DbtGW4eBEid",
+      "ground_truth": {
+        "song": "Original audio",
+        "artist": "zeyaarchivess",
+        "is_original": true
+      },
+      "gemini_prediction": {
+        "title": "That Should Be Me",
+        "artist": "Justin Bieber",
+        "is_original_audio": false
+      },
+      "detected_language": "en",
+      "transcript_snippet": "Now baby, you're trying to break my heart. It's working, cause you know. That sh",
+      "schema_compliant": true,
+      "song_match": false,
+      "elapsed_s": 11.4
+    },
+    {
+      "code": "DcK4rj3OQqp",
+      "ground_truth": {
+        "song": "Original audio",
+        "artist": "_velouradavid",
+        "is_original": true
+      },
+      "gemini_prediction": {
+        "title": "Unknown",
+        "artist": "Unknown",
+        "is_original_audio": true
+      },
+      "detected_language": "en",
+      "transcript_snippet": "Girl, you know it's been a long time coming. Don't you let me fall. Open your li",
+      "schema_compliant": true,
+      "song_match": true,
+      "elapsed_s": 10.72
+    }
+  ]
+}

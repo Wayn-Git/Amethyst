@@ -1,0 +1,46 @@
+{
+  "video_mp4": {
+    "size_bytes": 1353976,
+    "duration_s": 4.29,
+    "status_code": 200,
+    "usage": {
+      "promptTokenCount": 838,
+      "candidatesTokenCount": 151,
+      "totalTokenCount": 989,
+      "promptTokensDetails": [
+        {
+          "modality": "VIDEO",
+          "tokenCount": 815
+        },
+        {
+          "modality": "TEXT",
+          "tokenCount": 23
+        }
+      ],
+      "serviceTier": "standard"
+    },
+    "content": "{\n  \"transcript\": \"Dear basketball, from the moment I started rolling my dad's tube socks and shooting imaginary game-winning shots\",\n  \"summary\": \"A creative edit shows a basketball player launching himself through the air after a shot, shattering like glass, accompanied by a nostalgic message about loving basketball.\",\n  \"tags\": [\n    \"basketball\",\n    \"sports\",\n    \"edit\",\n    \"comedy\",\n    \"kobe bryant\"\n  ],\n  \"detected_language\": \"en\",\n  \"song_identification\": {\n    \"title\": \"Unknown\",\n    \"artist\": \"Unknown\",\n    \"is_original_audio\": true\n  }\n}"
+  },
+  "audio_m4a": {
+    "size_bytes": 67236,
+    "duration_s": 4.83,
+    "status_code": 200,
+    "usage": {
+      "promptTokenCount": 245,
+      "candidatesTokenCount": 146,
+      "totalTokenCount": 391,
+      "promptTokensDetails": [
+        {
+          "modality": "AUDIO",
+          "tokenCount": 222
+        },
+        {
+          "modality": "TEXT",
+          "tokenCount": 23
+        }
+      ],
+      "serviceTier": "standard"
+    },
+    "content": "{\n  \"transcript\": \"Dear basketball, from the moment I started rolling my dad's tube socks and shooting imaginary game-winning shots,\",\n  \"summary\": \"A heartfelt tribute to the game of basketball, recounting childhood memories of shooting imaginary shots with rolled-up socks.\",\n  \"tags\": [\n    \"basketball\",\n    \"kobe bryant\",\n    \"dear basketball\",\n    \"sports\",\n    \"nostalgia\"\n  ],\n  \"detected_language\": \"en\",\n  \"song_identification\": {\n    \"title\": \"Unknown\",\n    \"artist\": \"Unknown\",\n    \"is_original_audio\": true\n  }\n}"
+  }
+}

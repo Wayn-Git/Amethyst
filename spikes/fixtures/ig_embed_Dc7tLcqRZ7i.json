@@ -1,0 +1,15 @@
+{
+  "shortcode": "Dc7tLcqRZ7i",
+  "id": "3979973394493185762",
+  "caption": "9 Vector Search Techniques Every AI Engineer Should Know \ud83d\udd0e\ud83e\udde0\n\nVector search is much more than simply \u201cfind the nearest vector.\u201d\n\nAt scale, different indexing, compression, and retrieval techniques help balance speed, memory, recall, and relevance.\n\nHere\u2019s the cheat sheet:\n\n1\ufe0f\u20e3 Exact / Brute-Force \u2014 highest accuracy, expensive at scale\n2\ufe0f\u20e3 ANN \u2014 approximate search for large datasets\n3\ufe0f\u20e3 HNSW \u2014 graph-based ANN\n4\ufe0f\u20e3 IVF \u2014 search selected clusters\n5\ufe0f\u20e3 IVF-PQ \u2014 clustering + compression\n6\ufe0f\u20e3 PQ \u2014 reduce vector storage\n7\ufe0f\u20e3 Binary Search \u2014 compact representations + fast distance calculations\n8\ufe0f\u20e3 Hybrid Search \u2014 semantic + keyword retrieval\n9\ufe0f\u20e3 Filtered Search \u2014 similarity + metadata constraints\n\n\ud83d\udca1 Key takeaway:\nThere isn't one \u201cbest\u201d vector search technique.\n\nThe right choice depends on your dataset size, latency target, memory budget, recall requirements, and filtering needs.\n\n\ud83d\udccc Save this as your Vector Search cheat sheet.\n\ud83d\udd01 Share it with an AI engineer who needs it.\n\nFollow @gauravgoyalai for practical AI engineering explained visually.\n\n#AI #AIEngineering #VectorSearch #RAG #GenerativeAI LLM MachineLearning Embeddings VectorDatabase InformationRetrieval GenAI ArtificialIntelligence",
+  "video_url": "https://instagram.fbom57-1.fna.fbcdn.net/o1/v/t2/f2/m86/AQM4_YBHyaKJwQ1nVo0bkh2nGovaMsTqQ3nS7ZGmJIY46fd3UieudlWmQDajAwqAS5spGdS_pYSUl4v8YSfB6eb0gvGP9ZZLPaXT6Gc.mp4?_nc_cat=104&_nc_oc=AdrcQS-tuJgjUlvkW0tiyAwOTg0QnubguKit6vlETKp5nZkbNOFNC91F-Z3205MO7LU&_nc_sid=5e9851&_nc_ht=instagram.fbom57-1.fna.fbcdn.net&_nc_ohc=0n3ZOvxeI5cQ7kNvwFe98U4&efg=eyJ2ZW5jb2RlX3RhZyI6Inhwdl9wcm9ncmVzc2l2ZS5JTlNUQUdSQU0uQ0xJUFMuQzMuNzIwLmRhc2hfYmFzZWxpbmVfMV92MSIsInhwdl9hc3NldF9pZCI6MTYzMDg4MTU4MTg4ODYyMiwiYXNzZXRfYWdlX2RheXMiOjY0LCJ2aV91c2VjYXNlX2lkIjoxMDA5OSwiZHVyYXRpb25fcyI6MTAsInVybGdlbl9zb3VyY2UiOiJ3d3cifQ%3D%3D&ccb=17-1&vs=88a349f8e411b11c&_nc_vs=HBksFQIYUmlnX3hwdl9yZWVsc19wZXJtYW5lbnRfc3JfcHJvZC9GQTQ0MDkxQzM0ODkwNjFGQThFNTZGMzEwNEI1RTJBNV92aWRlb19kYXNoaW5pdC5tcDQVAALIARIAFQIYUWlnX3hwdl9wbGFjZW1lbnRfcGVybWFuZW50X3YyLzI4NDU3OTU1ODI5OTI3QzJGMUQ2MTBCNTRCMjY5RkI2X2F1ZGlvX2Rhc2hpbml0Lm1wNBUCAsgBEgAoABgAGwKIB3VzZV9vaWwBMRJwcm9ncmVzc2l2ZV9yZWNpcGUBMRUAACbc0d_V5tHlBRUCKAJDMywXQCQQ5WBBiTcYEmRhc2hfYmFzZWxpbmVfMV92MREAdf4HZeadAQA&_nc_gid=RCzZdDZRShnRmAd5unWWHQ&_nc_ss=7260f&_nc_map=urlgen_bucketless&_nc_zt=28&oh=00_AQTZ826Rvp57G2cvidv-sf48H2gy87o0nCVsIQaaifDWLg&oe=6AF36C85",
+  "clips_music_attribution_info": {
+    "artist_name": "Nerfd",
+    "song_name": "Unfold",
+    "uses_original_audio": false,
+    "should_mute_audio": false
+  },
+  "video_duration": 10.033,
+  "view_count": 7131,
+  "ttl_hours": 32.33361111111111
+}

@@ -27,6 +27,8 @@ import MobileLibraryItem from './views/MobileLibraryItem.jsx'
 import MobilePC from './views/MobilePC.jsx'
 import MobileTerminal from './views/MobileTerminal.jsx'
 import MobileQuickCapture from './modals/MobileQuickCapture.jsx'
+import MobileSpikeHarness from './views/MobileSpikeHarness.jsx'
+import { resumePendingPipelineItems } from './capturePipeline.js'
 import { getBundle, saveBundle, validateBundle } from './bundle.js'
 import { loadConnections, saveConnections } from './connectionStatus.js'
 import './companion.css'
@@ -45,6 +47,7 @@ export default function Companion({ onUnpair }) {
   const [transportState, setTransportState] = useState(null)
   const [telemetry, setTelemetry] = useState(null)
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
+  const [spikeHarnessOpen, setSpikeHarnessOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [addWidgetsOpen, setAddWidgetsOpen] = useState(false)
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
@@ -82,6 +85,7 @@ export default function Companion({ onUnpair }) {
 
   useEffect(() => {
     checkMobileUpdate()
+    resumePendingPipelineItems()
     const interval = setInterval(checkMobileUpdate, 15 * 60 * 1000)
     return () => clearInterval(interval)
   }, [checkMobileUpdate])
@@ -142,6 +146,7 @@ export default function Companion({ onUnpair }) {
   const navStateRef = useRef({})
   navStateRef.current = {
     quickCaptureOpen,
+    spikeHarnessOpen,
     settingsOpen,
     diagnosticsOpen,
     addWidgetsOpen,
@@ -159,6 +164,8 @@ export default function Companion({ onUnpair }) {
           const s = navStateRef.current
           if (s.quickCaptureOpen) {
             setQuickCaptureOpen(false)
+          } else if (s.spikeHarnessOpen) {
+            setSpikeHarnessOpen(false)
           } else if (s.settingsOpen) {
             setSettingsOpen(false)
           } else if (s.diagnosticsOpen) {
@@ -790,8 +797,21 @@ export default function Companion({ onUnpair }) {
           <MobileSettings
             onClose={() => setSettingsOpen(false)}
             onOpenDiagnostics={() => setDiagnosticsOpen(true)}
+            onOpenSpikes={() => {
+              setSettingsOpen(false)
+              setSpikeHarnessOpen(true)
+            }}
             onUnpair={unpair}
             transportMode={currentPath}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Spike Harness Debug Screen */}
+      <AnimatePresence>
+        {spikeHarnessOpen && (
+          <MobileSpikeHarness
+            onClose={() => setSpikeHarnessOpen(false)}
           />
         )}
       </AnimatePresence>

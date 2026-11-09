@@ -1,0 +1,47 @@
+[
+  {
+    "file": "000357.mp4",
+    "raw_size_mb": 11.65,
+    "b64_mb": 15.54,
+    "status_code": 200,
+    "elapsed_s": 8.54,
+    "response": "5 Figma skills to learn.",
+    "error": null
+  },
+  {
+    "file": "000318.mp4",
+    "raw_size_mb": 12.16,
+    "b64_mb": 16.21,
+    "status_code": 200,
+    "elapsed_s": 10.92,
+    "response": "Tech guy explaining Apple animations.",
+    "error": null
+  },
+  {
+    "file": "000345.mp4",
+    "raw_size_mb": 15.12,
+    "b64_mb": 20.16,
+    "status_code": 200,
+    "elapsed_s": 19.64,
+    "response": "Friendship changes people for good.",
+    "error": null
+  },
+  {
+    "file": "000265.mp4",
+    "raw_size_mb": 17.08,
+    "b64_mb": 22.78,
+    "status_code": 200,
+    "elapsed_s": 16.32,
+    "response": "Developer sharing tips for software engineering.",
+    "error": null
+  },
+  {
+    "file": "000306.mp4",
+    "raw_size_mb": 25.04,
+    "b64_mb": 33.38,
+    "status_code": 200,
+    "elapsed_s": 20.61,
+    "response": "Here's a 5-word description of the video:\nTen tech habits for success.",
+    "error": null
+  }
+]

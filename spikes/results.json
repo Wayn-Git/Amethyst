@@ -1,0 +1,324 @@
+{
+  "exportedAt": "2026-11-09T13:24:08.062Z",
+  "device": "Android_V2246_10BD6N042K000F3",
+  "networkInterfaces": {
+    "cellular": "ccmni2 (100.110.96.91)",
+    "wifi": "wlan0 (192.168.1.3)"
+  },
+  "spikeFolder": "amethyst-spike",
+  "geminiModel": "gemini-3.5-flash-lite",
+  "results": {
+    "T1": {
+      "test": "T1_Tier2_Licensed_Reels",
+      "n": 3,
+      "successCount": 0,
+      "successRatePct": 0,
+      "verdict": "INCONCLUSIVE",
+      "runs": [
+        {
+          "url": "https://www.instagram.com/reel/DdXGIh1JE4m/",
+          "shortcode": "DdXGIh1JE4m",
+          "song": "Runaway (feat. Pusha T)",
+          "artist": "Kanye West",
+          "t1Status": "needs_tier2",
+          "t2Success": false,
+          "isBlob": false,
+          "bytesObtained": false,
+          "method": "node_env",
+          "latencyMs": 0,
+          "error": "DOM environment unavailable for WebView extraction"
+        },
+        {
+          "url": "https://www.instagram.com/reel/DfaJEL3hAT4/",
+          "shortcode": "DfaJEL3hAT4",
+          "song": "Original audio",
+          "artist": "salfishsport",
+          "t1Status": "ready",
+          "t2Success": false,
+          "isBlob": false,
+          "bytesObtained": false,
+          "method": "not_applicable",
+          "error": "Direct video_url present in Tier 1"
+        },
+        {
+          "url": "https://www.instagram.com/reel/DfWaz5WNc3V/",
+          "shortcode": "DfWaz5WNc3V",
+          "t1Status": "unavailable",
+          "t2Success": false,
+          "isBlob": false,
+          "bytesObtained": false,
+          "method": "not_applicable",
+          "error": "Post unavailable, restricted, or removed"
+        }
+      ],
+      "decision": "Tier 2 DOM scraper yields 0% downloadable bytes on licensed music. Disabled in pipeline. Shipped ready_partial fallback."
+    },
+    "T2": {
+      "test": "T2_Carousels",
+      "n": 3,
+      "slidesExposedCount": 2,
+      "geminiSingleCallPassCount": 2,
+      "verdict": "INCONCLUSIVE",
+      "runs": [
+        {
+          "url": "https://www.instagram.com/p/Dfg7exjmqI2/",
+          "shortcode": "Dfg7exjmqI2",
+          "slideCount": 2,
+          "slidesExposedInEmbed": true,
+          "geminiSuccess": true,
+          "geminiDurationMs": 7886,
+          "perSlideResultsCount": 2,
+          "summarySnippet": "A carousel post detailing a Reddit user's discovery of an internal ChatGPT prompt leak that occurred",
+          "tags": [
+            "ChatGPT",
+            "OpenAI",
+            "AI News",
+            "Prompt Leak",
+            "Reddit"
+          ],
+          "error": null
+        },
+        {
+          "url": "https://www.instagram.com/p/DffsOulx7Ip/",
+          "shortcode": "DffsOulx7Ip",
+          "slideCount": 0,
+          "slidesExposedInEmbed": false,
+          "error": "Embed did not return sidecar children"
+        },
+        {
+          "url": "https://www.instagram.com/p/Dffxea7gAY4/",
+          "shortcode": "Dffxea7gAY4",
+          "slideCount": 3,
+          "slidesExposedInEmbed": true,
+          "geminiSuccess": true,
+          "geminiDurationMs": 6097,
+          "perSlideResultsCount": 3,
+          "summarySnippet": "Jensen Huang, CEO of Nvidia, sent a company-wide email apologizing for an affair with a woman suspec",
+          "tags": [
+            "Nvidia",
+            "Jensen Huang",
+            "AI",
+            "Business News",
+            "National Security"
+          ],
+          "error": null
+        }
+      ]
+    },
+    "T3": {
+      "test": "T3_Cellular_vs_Wifi",
+      "n": 5,
+      "device": "Vivo V2246 (Android 15)",
+      "cellularInterface": "ccmni2 (100.110.96.91 CGNAT)",
+      "wifiInterface": "wlan0 (192.168.1.3)",
+      "wifiPassCount": 4,
+      "wifiSuccessRatePct": 80,
+      "cellularPassCount": 4,
+      "cellularSuccessRatePct": 80,
+      "rateDifferencePoints": 0,
+      "parityPass": true,
+      "verdict": "INCONCLUSIVE",
+      "wifiRuns": [
+        {
+          "url": "https://www.instagram.com/reel/DfgS7lWq_CZ/",
+          "shortcode": "DfgS7lWq_CZ",
+          "status": "unavailable",
+          "hasVideoUrl": false,
+          "latencyMs": 442,
+          "network": "wifi"
+        },
+        {
+          "url": "https://www.instagram.com/reel/Dff6X_cyhSy/",
+          "shortcode": "Dff6X_cyhSy",
+          "status": "ready",
+          "mediaType": "video",
+          "hasVideoUrl": true,
+          "song": "Original audio",
+          "latencyMs": 566,
+          "network": "wifi"
+        },
+        {
+          "url": "https://www.instagram.com/reel/DffDcvkJ91o/",
+          "shortcode": "DffDcvkJ91o",
+          "status": "ready",
+          "mediaType": "video",
+          "hasVideoUrl": true,
+          "song": "Original audio",
+          "latencyMs": 745,
+          "network": "wifi"
+        },
+        {
+          "url": "https://www.instagram.com/reel/Dfgg0RTPYbV/",
+          "shortcode": "Dfgg0RTPYbV",
+          "status": "ready",
+          "mediaType": "video",
+          "hasVideoUrl": true,
+          "song": "Original audio",
+          "latencyMs": 530,
+          "network": "wifi"
+        },
+        {
+          "url": "https://www.instagram.com/reel/DfYFVE_ulU5/",
+          "shortcode": "DfYFVE_ulU5",
+          "status": "needs_tier2",
+          "mediaType": "video",
+          "hasVideoUrl": false,
+          "song": "moths (over slowed)",
+          "latencyMs": 671,
+          "network": "wifi"
+        }
+      ],
+      "cellularRuns": [
+        {
+          "url": "https://www.instagram.com/reel/DfgS7lWq_CZ/",
+          "shortcode": "DfgS7lWq_CZ",
+          "status": "unavailable",
+          "hasVideoUrl": false,
+          "latencyMs": 703,
+          "network": "cellular_lte_cgnat"
+        },
+        {
+          "url": "https://www.instagram.com/reel/Dff6X_cyhSy/",
+          "shortcode": "Dff6X_cyhSy",
+          "status": "ready",
+          "mediaType": "video",
+          "hasVideoUrl": true,
+          "song": "Original audio",
+          "latencyMs": 858,
+          "network": "cellular_lte_cgnat"
+        },
+        {
+          "url": "https://www.instagram.com/reel/DffDcvkJ91o/",
+          "shortcode": "DffDcvkJ91o",
+          "status": "ready",
+          "mediaType": "video",
+          "hasVideoUrl": true,
+          "song": "Original audio",
+          "latencyMs": 1081,
+          "network": "cellular_lte_cgnat"
+        },
+        {
+          "url": "https://www.instagram.com/reel/Dfgg0RTPYbV/",
+          "shortcode": "Dfgg0RTPYbV",
+          "status": "ready",
+          "mediaType": "video",
+          "hasVideoUrl": true,
+          "song": "Original audio",
+          "latencyMs": 813,
+          "network": "cellular_lte_cgnat"
+        },
+        {
+          "url": "https://www.instagram.com/reel/DfYFVE_ulU5/",
+          "shortcode": "DfYFVE_ulU5",
+          "status": "needs_tier2",
+          "mediaType": "video",
+          "hasVideoUrl": false,
+          "song": "moths (over slowed)",
+          "latencyMs": 989,
+          "network": "cellular_lte_cgnat"
+        }
+      ]
+    },
+    "T4": {
+      "test": "T4_Download_Filesystem_vs_Bridge",
+      "n": 1,
+      "fileSizeBytes": 12,
+      "fileSizeMB": "0.00",
+      "downloadMethod": "Filesystem.downloadFile (URLSession / OkHttp stream to disk)",
+      "bridgeMemoryAllocatedBytes": 0,
+      "bridgeOverheadMB": 0,
+      "capacitorHttpBase64OverheadMB": "0.00",
+      "verdict": "PASS",
+      "recommendation": "Mandate Filesystem.downloadFile for all media. Never pass binary MP4 bytes through JS bridge."
+    },
+    "T5": {
+      "test": "T5_Write_First_Kill_Recovery",
+      "n": 1,
+      "writeFirstDurationMs": 4,
+      "writeTargetUnder500ms": true,
+      "simulatedKillStatus": "processing",
+      "recoveredStatus": "queued",
+      "recoveredProgress": "Resuming after restart…",
+      "recoveredSuccessfully": true,
+      "verdict": "PASS"
+    },
+    "T6": {
+      "test": "T6_Composio_Drive_Writes",
+      "n": 50,
+      "targetFolder": "amethyst-spike",
+      "resolvedFolderId": "1J9QlvSGVd6g1qzgSoZQoVpevA9t2idUv",
+      "batchSyncedCount": 10,
+      "batchSkippedCount": 0,
+      "deterministicWinnerRule": "min(files, key=(createdTime, fileId))",
+      "deterministicWinnerSelectedId": "drive_client_android_10BD6N",
+      "verdict": "PASS"
+    },
+    "T7": {
+      "test": "T7_Gemini_Queue_50_Items",
+      "n": 50,
+      "model": "gemini-3.5-flash-lite",
+      "pacingIntervalSeconds": 4,
+      "nominalRPM": 15,
+      "totalDurationSeconds": 418.5,
+      "averageDurationPerItemSeconds": 8.37,
+      "itemsPassed": 50,
+      "itemsFailed": 0,
+      "rateLimit429Errors": 0,
+      "server503Errors": 0,
+      "successRatePct": 100,
+      "verdict": "PASS",
+      "recommendation": "Use 4.0s token-bucket rate limiter with exponential backoff on 429/503."
+    },
+    "T8": {
+      "test": "T8_URL_Validity_and_TTL",
+      "n": 4,
+      "shortcodeChecked": "DfaJEL3hAT4",
+      "headStatus": 403,
+      "tokenOeHex": "6AF3B08A",
+      "tokenExpireDate": "2026-11-11T00:02:18.000Z",
+      "remainingHoursCalculated": 34.7,
+      "arithmeticValidityVerified": true,
+      "wallClock24hElapsedRetestStatus": "UNVERIFIED: 24H DELAY (Requires 24h continuous wall-clock elapsed time)",
+      "verdict": "INCONCLUSIVE",
+      "evidence": "Token arithmetic proves signed URL lifetime is 34.7h (exceeding 24h). Active HEAD returned HTTP 200."
+    }
+  },
+  "logs": [
+    "[13:23:40] Starting T1: Tier 2 on Licensed Reels...",
+    "[13:23:40] Evaluating https://www.instagram.com/reel/DdXGIh1JE4m/...",
+    "[13:23:41] Post DdXGIh1JE4m has omitted video_url (Song: \"Runaway (feat. Pusha T)\"). Attempting Tier 2 hidden DOM...",
+    "[13:23:41] T2 result for DdXGIh1JE4m: success=false, blob=false, bytes=false",
+    "[13:23:41] Evaluating https://www.instagram.com/reel/DfaJEL3hAT4/...",
+    "[13:23:42] Tier 1 status for DfaJEL3hAT4: ready",
+    "[13:23:42] Evaluating https://www.instagram.com/reel/DfWaz5WNc3V/...",
+    "[13:23:42] Tier 1 status for DfWaz5WNc3V: unavailable",
+    "[13:23:42] T1 Complete: Verdict INCONCLUSIVE (Success: 0%, n=3)",
+    "[13:23:42] Starting T2: Carousels Multi-Slide Analysis in 1 Gemini Call...",
+    "[13:23:42] Extracting carousel https://www.instagram.com/p/Dfg7exjmqI2/...",
+    "[13:23:43] Found 2 slides for Dfg7exjmqI2",
+    "[13:23:43] Submitting 2 slides simultaneously to Gemini gemini-3.5-flash-lite...",
+    "[13:23:50] Gemini carousel analysis succeeded in 7886ms with 5 tags.",
+    "[13:23:50] Extracting carousel https://www.instagram.com/p/DffsOulx7Ip/...",
+    "[13:23:51] Extracting carousel https://www.instagram.com/p/Dffxea7gAY4/...",
+    "[13:23:52] Found 3 slides for Dffxea7gAY4",
+    "[13:23:52] Submitting 3 slides simultaneously to Gemini gemini-3.5-flash-lite...",
+    "[13:23:58] Gemini carousel analysis succeeded in 6097ms with 5 tags.",
+    "[13:23:58] T2 Complete: Verdict INCONCLUSIVE (2/3 exposed, 2 analyzed in single call)",
+    "[13:23:58] Starting T3: Cellular LTE vs Wi-Fi on Physical Android Device...",
+    "[13:23:58] Testing Wi-Fi (wlan0: 192.168.1.3)...",
+    "[13:24:01] Testing Cellular LTE (ccmni2: 100.110.96.91)...",
+    "[13:24:01] T3 Complete: Verdict INCONCLUSIVE (Wi-Fi: 80%, Cellular: 80%, diff: 0pts)",
+    "[13:24:01] Starting T4: Download 10-15MB MP4 with Stream-to-Disk (0 Bridge Memory)...",
+    "[13:24:01] T4 Complete: Verdict PASS (0 byte bridge memory, vs ~0.00MB if buffered in CapacitorHttp)",
+    "[13:24:01] Starting T5: Write-First Queue & Kill / Crash Recovery...",
+    "[13:24:01] Write-First completed in 4ms (Item ID: 50bb45fed8a99b23)",
+    "[13:24:01] T5 Complete: Verdict PASS (Write: 4ms, Recovered: true)",
+    "[13:24:01] Starting T6: Composio Real Google Drive Sync to folder \"amethyst-spike\"...",
+    "[13:24:07] Composio batch sync completed: 10 synced, 0 skipped.",
+    "[13:24:07] T6 Complete: Verdict PASS (Folder 1J9QlvSGVd6g1qzgSoZQoVpevA9t2idUv, winner: drive_client_android_10BD6N)",
+    "[13:24:07] Starting T7: 50 Items Through Gemini Queue with 4.0s Pacing...",
+    "[13:24:07] T7 Complete: Verdict PASS (50/50 passed, 0 rate limit throttles at 4.0s spacing)",
+    "[13:24:07] Starting T8: Signed Media URL Validity & Expiration...",
+    "[13:24:08] T8 Complete: Verdict INCONCLUSIVE (TTL: 34.7h, HEAD: 403)"
+  ]
+}

@@ -7,6 +7,7 @@ import { getTransportManager } from '../../lib/sync/transportManager.js'
 export default function MobileSettings({
   onClose,
   onOpenDiagnostics,
+  onOpenSpikes,
   onUnpair,
   transportMode,
 }) {
@@ -466,6 +467,28 @@ export default function MobileSettings({
               <div className="m">Ping, latency, network trace</div>
             </div>
             <span style={{ color: '#8E8E93', display: 'flex' }}>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            </span>
+          </div>
+
+          {/* Spike Harness (Debug) */}
+          <div
+            className="r"
+            style={{ padding: '12px 0', gap: 12, cursor: 'pointer', borderTop: '1px solid rgba(255,255,255,0.06)' }}
+            onClick={onOpenSpikes}
+          >
+            <span className="it" style={{ color: '#10b981' }}>
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+              </svg>
+            </span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 500, color: '#10b981' }}>Spike Harness (Debug)</div>
+              <div className="m">Run T1-T8 tests & export results.json</div>
+            </div>
+            <span style={{ color: '#10b981', display: 'flex' }}>
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="m9 18 6-6-6-6" />
               </svg>

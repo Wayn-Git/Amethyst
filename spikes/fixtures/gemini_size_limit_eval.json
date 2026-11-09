@@ -1,0 +1,93 @@
+{
+  "test_date": "2026-11-09T16:41:30Z",
+  "model": "gemini-3.5-flash-lite",
+  "tested_sizes": [
+    {
+      "file": "000357.mp4",
+      "raw_size_mb": 11.65,
+      "base64_payload_mb": 15.54,
+      "http_status": 200,
+      "latency_sec": 8.54,
+      "result_snippet": "5 Figma skills to learn."
+    },
+    {
+      "file": "000318.mp4",
+      "raw_size_mb": 12.16,
+      "base64_payload_mb": 16.21,
+      "http_status": 200,
+      "latency_sec": 10.92,
+      "result_snippet": "Tech guy explaining Apple animations."
+    },
+    {
+      "file": "000345.mp4",
+      "raw_size_mb": 15.12,
+      "base64_payload_mb": 20.16,
+      "http_status": 200,
+      "latency_sec": 19.64,
+      "result_snippet": "Friendship changes people for good."
+    },
+    {
+      "file": "000265.mp4",
+      "raw_size_mb": 17.08,
+      "base64_payload_mb": 22.78,
+      "http_status": 200,
+      "latency_sec": 16.32,
+      "result_snippet": "Developer sharing tips for software engineering."
+    },
+    {
+      "file": "000306.mp4",
+      "raw_size_mb": 25.04,
+      "base64_payload_mb": 33.38,
+      "http_status": 200,
+      "latency_sec": 20.61,
+      "result_snippet": "Ten tech habits for success."
+    },
+    {
+      "file": "approx_27mb.mp4",
+      "raw_size_mb": 32.29,
+      "base64_payload_mb": 43.06,
+      "http_status": 200,
+      "latency_sec": 34.52,
+      "result_snippet": "OpenAI claims an agent system solved the Navier-Stokes Millennium problem."
+    },
+    {
+      "file": "approx_33mb.mp4",
+      "raw_size_mb": 42.45,
+      "base64_payload_mb": 56.60,
+      "http_status": 200,
+      "latency_sec": 38.52,
+      "result_snippet": "Sam Altman says AGI's near."
+    },
+    {
+      "file": "approx_60mb.mp4",
+      "raw_size_mb": 71.73,
+      "base64_payload_mb": 95.64,
+      "http_status": 200,
+      "latency_sec": 61.50,
+      "result_snippet": "AI solves Navier-Stokes prize problem."
+    },
+    {
+      "file": "000007.mp4",
+      "raw_size_mb": 113.10,
+      "base64_payload_mb": 150.80,
+      "http_status": 200,
+      "latency_sec": 82.16,
+      "result_snippet": "AI solve mathematical problems video."
+    }
+  ],
+  "dataset_distribution_n_116": {
+    "total_sample_size": 116,
+    "median_mb": 2.50,
+    "p90_mb": 7.88,
+    "p95_mb": 17.08,
+    "share_under_15mb_pct": 94.0,
+    "share_under_20mb_pct": 96.55,
+    "share_over_20mb_pct": 3.45
+  },
+  "conclusions": {
+    "server_enforced_hard_ceiling": "The Gemini v1beta endpoint accepted up to 113.1MB raw (150.8MB base64 JSON payload) with 200 OK, showing Google does not reject >20MB inline HTTP requests at the gateway.",
+    "mobile_practical_ceiling": "15 MB raw MP4 (20 MB base64 payload). Exceeding 15MB risks mobile WebView OOM crashes during base64 encoding and exceeds iOS 30s background task execution limits (71MB took 61.5s, 113MB took 82.2s).",
+    "share_fitting_inline": "94.0% of reels fit under 15MB inline threshold, and 96.55% fit under 20MB."
+  }
+}
+

@@ -1,0 +1,15 @@
+{
+  "shortcode": "DakdYVEtVNq",
+  "id": "3937401189472490346",
+  "caption": "1) Transformer Fundamentals \u2013 Attention, encoder vs. decoder, tokenization, embeddings, positional encoding, and KV cache basics.\n\n2) Autoregressive Decoding \u2013 Prefill vs. decode, causal attention, greedy search, beam search, top-k, top-p, temperature, and speculative decoding.\n\n3) GPU & CUDA Basics \u2013 GPU architecture, CUDA kernels, memory hierarchy (HBM, SRAM, registers), kernel launches, tensor cores, and memory bandwidth.\n\n4) PyTorch Execution\n\n5) Model Compression \u2013 FP16, BF16, INT8, INT4, quantization, GPTQ, AWQ, GGUF, and KV cache quantization.\n\n6) Serving Architecture \u2013 API servers, OpenAI-compatible endpoints, FastAPI, request lifecycle, batching, and streaming responses.\n\n7) LLM Inference Engines \u2013 vLLM, TensorRT-LLM, SGLang, Hugging Face TGI, LMDeploy, llama.cpp, Ollama, and ONNX Runtime GenAI.\n\n8) Scheduling \u2013  batching, queues, paged attention, memory fragmentation, and KV cache management.\n\n9) KV Cache Optimization \u2013 Prefix caching, LMCache, cache reuse, CPU/SSD offloading, disaggregated prefill, and cache eviction strategies.\n\n10) Performance Metrics \u2013 TTFT, TPOT, throughput, latency, tokens/sec, GPU utilization, memory utilization, concurrency, and tail latency.\n\n11) Distributed Inference \n\n12) Production Deployment \u2013 Autoscaling, load balancing, observability, Prometheus, Grafana, tracing, fault tolerance, and cost optimization.\n\n#learningtogether #womeninstem #progresseveryday #tech #consistency",
+  "video_url": null,
+  "clips_music_attribution_info": {
+    "artist_name": "MARXO",
+    "song_name": "LEVEL UP!",
+    "uses_original_audio": false,
+    "should_mute_audio": false
+  },
+  "video_duration": 5.533,
+  "view_count": 22001,
+  "ttl_hours": null
+}

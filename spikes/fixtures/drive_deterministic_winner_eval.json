@@ -1,0 +1,26 @@
+{
+  "test_name": "Drive Deterministic Winner & Search Lag Validation",
+  "item_id": "b4107c141cc1c6ab",
+  "concurrent_files_created": [
+    "1A_drive_file_pixel8_xyz",
+    "1B_drive_file_iphone15_abc"
+  ],
+  "deterministic_winner": "1A_drive_file_pixel8_xyz",
+  "winner_device": "Pixel_8",
+  "winner_created_time": "2026-11-09T16:42:01.120Z",
+  "idempotent_agreement": true,
+  "drive_file_scope_analysis": {
+    "same_oauth_client_id_or_project": {
+      "cross_device_visibility": true,
+      "note": "Google Drive API drive.file scope grants read/write to files created by the application project. Both Android and iOS apps share access if registered under the same Google Cloud Console project."
+    },
+    "different_oauth_client_id_different_project": {
+      "cross_device_visibility": false,
+      "note": "drive.file scope is strictly isolated per GCP project. Files written by project A are invisible to project B unless broader scope (e.g. drive or drive.readonly) is used."
+    }
+  },
+  "search_lag_mitigation": {
+    "problem": "Drive search indexing lag (1-5s) causes concurrent writes to miss existing file in initial files.list query.",
+    "rule": "Deterministic Winner Rule: min(files, key=(createdTime, id)). Never perform aggressive 'loser deletes' on write path. Readers deterministically bind to winner. Reconciler softly cleans duplicates after 24h grace period."
+  }
+}
