@@ -11,6 +11,7 @@ import Sidebar from './components/Sidebar.jsx'
 import AppTitleBar from './components/AppTitleBar.jsx'
 import PanelResizer from './components/PanelResizer.jsx'
 import UserMenu from './components/UserMenu.jsx'
+import { AppleErrorBanner } from './components/ui/apple/AppleErrorBanner.jsx'
 import ConfirmDialogHost from './components/ui/ConfirmDialog.jsx'
 import PairingApprovalModal from './components/PairingApprovalModal.jsx'
 import { BootScreen, SkeletonView } from './components/Skeleton.jsx'
@@ -580,6 +581,16 @@ export default function App() {
 
   useLiquidGlassManager(glassMaterial)
 
+  const [authError, setAuthError] = useState(null)
+
+  useEffect(() => {
+    const handleAuthExpired = (e) => {
+      setAuthError(e.detail || { service: 'google_drive' })
+    }
+    window.addEventListener('amethyst:auth-expired', handleAuthExpired)
+    return () => window.removeEventListener('amethyst:auth-expired', handleAuthExpired)
+  }, [])
+
   const prevViewRef = useRef(view)
   const prevSidebarExpandedRef = useRef(null)
 
@@ -857,6 +868,18 @@ export default function App() {
   return (
     <div className="app-window-root">
       <AppTitleBar />
+      <AppleErrorBanner
+        visible={Boolean(authError)}
+        service={authError?.service || 'google_drive'}
+        email={authError?.email || ''}
+        onReauth={async () => {
+          if (authError?.service === 'google_drive') {
+            await api.connectorsAuthorize?.('googledrive')
+          }
+          setAuthError(null)
+        }}
+        onDismiss={() => setAuthError(null)}
+      />
       <div
         className={
           `wb app${compact ? ' app--compact wb--compact' : ''}`

@@ -11,6 +11,7 @@ import { getTransportManager } from '../lib/sync/transportManager.js'
 import { safeStorage } from '../lib/storage.js'
 import { storedIdentity } from '../lib/credentials.js'
 import ConnectionDiagnosticsModal from './ConnectionDiagnosticsModal.jsx'
+import { DynamicIslandStatus } from '../components/ui/apple/DynamicIslandStatus.jsx'
 import { captures, saveCapture, flushCaptures } from './captures.js'
 import { putRecord, records, getLocalOwner } from './storage.js'
 import { syncCollections, getStoredCollections } from './collectionsSync.js'
@@ -28,7 +29,9 @@ import MobilePC from './views/MobilePC.jsx'
 import MobileTerminal from './views/MobileTerminal.jsx'
 import MobileQuickCapture from './modals/MobileQuickCapture.jsx'
 import MobileSpikeHarness from './views/MobileSpikeHarness.jsx'
-import { resumePendingPipelineItems } from './capturePipeline.js'
+import { resumePendingPipelineItems, enqueueSave, loadSavedItems } from './capturePipeline.js'
+import { getSecureKey, setSecureKey } from './secureStorage.js'
+import { reconcileDriveDuplicates } from './driveSync.js'
 import { getBundle, saveBundle, validateBundle } from './bundle.js'
 import { loadConnections, saveConnections } from './connectionStatus.js'
 import './companion.css'
@@ -85,12 +88,24 @@ export default function Companion({ onUnpair }) {
 
   useEffect(() => {
     window.__openSpikeHarness = () => setSpikeHarnessOpen(true)
+    window.__enqueueSave = (url, config) => enqueueSave(url, config)
+    window.__resumePipeline = (config) => resumePendingPipelineItems(config)
+    window.__loadSavedItems = () => loadSavedItems()
+    window.__getSecureKey = (key) => getSecureKey(key)
+    window.__setSecureKey = (key, val) => setSecureKey(key, val)
+    window.__reconcileDriveDuplicates = (cfg) => reconcileDriveDuplicates(cfg)
     checkMobileUpdate()
     resumePendingPipelineItems()
     const interval = setInterval(checkMobileUpdate, 15 * 60 * 1000)
     return () => {
       clearInterval(interval)
       delete window.__openSpikeHarness
+      delete window.__enqueueSave
+      delete window.__resumePipeline
+      delete window.__loadSavedItems
+      delete window.__getSecureKey
+      delete window.__setSecureKey
+      delete window.__reconcileDriveDuplicates
     }
   }, [checkMobileUpdate])
 
@@ -476,20 +491,16 @@ export default function Companion({ onUnpair }) {
             zIndex: 30,
           }}
         >
-          {currentPath !== 'offline' ? (
-            <button
-              type="button"
-              className="transport-pill"
-              onClick={() => setDiagnosticsOpen(true)}
-              aria-label="Connection Diagnostics"
-              style={{ height: 32, padding: '0 10px', fontSize: 11.5 }}
-            >
-              <span className={`transport-dot transport-dot--${currentPath}`} />
-              <span>
-                {currentPath === 'direct' ? 'Direct LAN' : 'Cloud Relay'}
-              </span>
-            </button>
-          ) : <div />}
+          <div onClick={() => setDiagnosticsOpen(true)} style={{ cursor: 'pointer' }}>
+            <DynamicIslandStatus
+              status={currentPath === 'relayed' ? 'standalone' : currentPath}
+              latency={transportState?.latency || -1}
+              onRetry={async () => {
+                const tm = getTransportManager()
+                await tm.probe()
+              }}
+            />
+          </div>
 
           <button
             type="button"
