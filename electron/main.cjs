@@ -392,6 +392,8 @@ async function createMainWindow() {
   });
 }
 
+let lastSpotlightShowTime = 0;
+
 async function createSpotlightWindow() {
   if (spotlightWindow && !spotlightWindow.isDestroyed()) return;
 
@@ -417,6 +419,14 @@ async function createSpotlightWindow() {
     },
   });
 
+  try {
+    const level = process.platform === 'darwin' ? 'floating' : 'screen-saver';
+    spotlightWindow.setAlwaysOnTop(true, level, 1);
+    spotlightWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  } catch (e) {
+    console.warn('[Amethyst Supervisor] Could not set always-on-top level:', e.message);
+  }
+
   let targetUrl = `http://127.0.0.1:${activePort}/?spotlight=1&native=1`;
   if (IS_DEV) {
     const isViteUp = await isPortInUse(5173);
@@ -436,6 +446,8 @@ async function createSpotlightWindow() {
 
   spotlightWindow.on('blur', () => {
     if (spotlightWindow && !spotlightWindow.isDestroyed() && spotlightWindow.isVisible()) {
+      // Guard against immediate blur events triggered by window managers during initial show
+      if (Date.now() - lastSpotlightShowTime < 350) return;
       spotlightWindow.hide();
     }
   });
@@ -672,6 +684,20 @@ ipcMain.handle('desktop:hide-spotlight', () => {
     spotlightWindow.hide();
   }
 });
+ipcMain.handle('desktop:toggle-spotlight', () => {
+  toggleSpotlight();
+});
+ipcMain.handle('desktop:open-main', (_e, viewId, prompt) => {
+  if (spotlightWindow && !spotlightWindow.isDestroyed() && spotlightWindow.isVisible()) {
+    spotlightWindow.hide();
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    if (!mainWindow.isVisible()) mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send('desktop:navigate', { viewId, prompt });
+  }
+});
 ipcMain.handle('desktop:get-shortcut', () => currentRegisteredShortcut || 'Alt+Shift+Space');
 ipcMain.handle('desktop:set-shortcut', (_e, chord) => registerGlobalShortcut(chord));
 ipcMain.handle('desktop:check-shortcut-conflict', (_e, chord) => {
@@ -689,6 +715,12 @@ function toggleSpotlight() {
     createSpotlightWindow().then(() => {
       if (spotlightWindow && !spotlightWindow.isDestroyed()) {
         spotlightWindow.center();
+        try {
+          const level = process.platform === 'darwin' ? 'floating' : 'screen-saver';
+          spotlightWindow.setAlwaysOnTop(true, level, 1);
+          spotlightWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        } catch {}
+        lastSpotlightShowTime = Date.now();
         spotlightWindow.show();
         spotlightWindow.focus();
         spotlightWindow.webContents.send('palette:toggle', true);
@@ -701,6 +733,12 @@ function toggleSpotlight() {
     spotlightWindow.hide();
   } else {
     spotlightWindow.center();
+    try {
+      const level = process.platform === 'darwin' ? 'floating' : 'screen-saver';
+      spotlightWindow.setAlwaysOnTop(true, level, 1);
+      spotlightWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    } catch {}
+    lastSpotlightShowTime = Date.now();
     spotlightWindow.show();
     spotlightWindow.focus();
     spotlightWindow.webContents.send('palette:toggle', true);
@@ -718,8 +756,10 @@ function registerGlobalShortcut(preferred) {
   const candidates = [
     preferred,
     'Alt+Shift+Space',
+    'Ctrl+Shift+Space',
     'CommandOrControl+Shift+Space',
     'Ctrl+Alt+Space',
+    'Alt+Space',
   ].filter(Boolean);
 
   for (const combo of candidates) {

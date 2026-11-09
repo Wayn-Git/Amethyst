@@ -34,6 +34,13 @@ contextBridge.exposeInMainWorld('amethystDesktop', {
     return () => ipcRenderer.removeListener('palette:toggle', handler);
   },
   hideSpotlight: () => ipcRenderer.invoke('desktop:hide-spotlight'),
+  toggleSpotlight: () => ipcRenderer.invoke('desktop:toggle-spotlight'),
+  openMain: (viewId, prompt) => ipcRenderer.invoke('desktop:open-main', viewId, prompt),
+  onNavigate: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('desktop:navigate', handler);
+    return () => ipcRenderer.removeListener('desktop:navigate', handler);
+  },
   getShortcut: () => ipcRenderer.invoke('desktop:get-shortcut'),
   setShortcut: (chord) => ipcRenderer.invoke('desktop:set-shortcut', chord),
   checkShortcutConflict: (chord) => ipcRenderer.invoke('desktop:check-shortcut-conflict', chord),

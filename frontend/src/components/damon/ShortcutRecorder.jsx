@@ -9,10 +9,18 @@ const CRITICAL_CONFLICTS = new Set([
   'Ctrl+C', 'Ctrl+V', 'Ctrl+X', 'Ctrl+Z', 'Ctrl+A', 'Alt+F4',
 ])
 
+const PRESETS = [
+  { label: 'Alt+Shift+Space (Default)', chord: 'Alt+Shift+Space' },
+  { label: 'Ctrl+Shift+Space', chord: 'Ctrl+Shift+Space' },
+  { label: 'Ctrl+Alt+Space', chord: 'Ctrl+Alt+Space' },
+  { label: 'Ctrl+Space', chord: 'Ctrl+Space' },
+  { label: 'Alt+Space', chord: 'Alt+Space' },
+]
+
 export function formatChordString(e) {
   const parts = []
   if (e.ctrlKey || e.metaKey) {
-    parts.push(navigator.platform.includes('Mac') ? 'CommandOrControl' : 'Ctrl')
+    parts.push(navigator.platform?.includes('Mac') ? 'CommandOrControl' : 'Ctrl')
   }
   if (e.altKey) parts.push('Alt')
   if (e.shiftKey) parts.push('Shift')
@@ -29,14 +37,29 @@ export function formatChordString(e) {
   return null
 }
 
-export default function ShortcutRecorder({ onShortcutChange }) {
+export default function ShortcutRecorder({ currentShortcut: externalShortcut, onShortcutChange }) {
   const [currentShortcut, setCurrentShortcut] = useState(() => {
-    return localStorage.getItem('amethyst_custom_shortcut') || 'Alt+Shift+Space'
+    return externalShortcut || localStorage.getItem('amethyst_custom_shortcut') || 'Alt+Shift+Space'
   })
   const [recording, setRecording] = useState(false)
   const [recordedCombo, setRecordedCombo] = useState(null)
   const [conflictWarning, setConflictWarning] = useState(null)
   const [saving, setSaving] = useState(false)
+
+  // Sync external prop changes
+  useEffect(() => {
+    if (externalShortcut) {
+      // Normalize format like <ctrl>+<alt>+<space> to Ctrl+Alt+Space
+      const normalized = externalShortcut
+        .replace(/<ctrl>/gi, 'Ctrl')
+        .replace(/<alt>/gi, 'Alt')
+        .replace(/<shift>/gi, 'Shift')
+        .replace(/<super>/gi, 'Super')
+        .replace(/<space>/gi, 'Space')
+        .replace(/<cmd>/gi, 'Cmd')
+      setCurrentShortcut(normalized)
+    }
+  }, [externalShortcut])
 
   // Sync with electron on mount
   useEffect(() => {
@@ -120,65 +143,58 @@ export default function ShortcutRecorder({ onShortcutChange }) {
     }
   }
 
-  const handleResetDefault = async () => {
-    const def = 'Alt+Shift+Space'
-    if (window.amethystDesktop?.setShortcut) {
-      await window.amethystDesktop.setShortcut(def)
-    }
-    setCurrentShortcut(def)
-    try {
-      localStorage.setItem('amethyst_custom_shortcut', def)
-    } catch {}
-    onShortcutChange?.(def)
-    setRecording(false)
-    setRecordedCombo(null)
+  const handleApplyPreset = async (chord) => {
     setConflictWarning(null)
+    if (window.amethystDesktop?.setShortcut) {
+      const res = await window.amethystDesktop.setShortcut(chord)
+      if (!res?.ok) {
+        setConflictWarning(res?.error || `Could not bind ${chord}`)
+        return
+      }
+    }
+    setCurrentShortcut(chord)
+    try {
+      localStorage.setItem('amethyst_custom_shortcut', chord)
+    } catch {}
+    onShortcutChange?.(chord)
   }
 
+  const activeDisplay = currentShortcut || 'Alt+Shift+Space'
+
   return (
-    <div className="shortcut-recorder-card" style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 12,
-      padding: '16px 20px',
-      background: 'var(--bg-surface, rgba(255, 255, 255, 0.04))',
-      border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))',
-      borderRadius: 14,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>
-            Global Summon Hotkey
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-sub)', marginTop: 2 }}>
-            Opens the independent Amethyst Daemon from any application or workspace.
-          </div>
+    <div className="set-box">
+      <div className="set-box-row" style={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+        <div className="set-row-text" style={{ flex: '1 1 260px' }}>
+          <span className="set-row-title">Global Summon Shortcut</span>
+          <span className="set-row-desc">
+            Global system chord to summon or toggle the Amethyst Damon launcher from any app or workspace.
+          </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <kbd className="kbd" style={{
             fontFamily: 'var(--font-mono, monospace)',
             fontSize: 12,
-            padding: '4px 10px',
-            background: 'var(--bg-inset, rgba(0, 0, 0, 0.2))',
-            borderRadius: 6,
-            border: '1px solid var(--border)',
+            padding: '5px 12px',
+            background: 'var(--surface-1, rgba(0, 0, 0, 0.25))',
+            borderRadius: 7,
+            border: '1px solid var(--hairline-strong)',
             color: 'var(--accent, #a78bfa)',
             fontWeight: 600,
+            letterSpacing: '0.02em',
           }}>
-            {recording ? (recordedCombo || 'Press keys...') : currentShortcut}
-          </span>
+            {recording ? (recordedCombo || 'Press keys...') : activeDisplay}
+          </kbd>
 
           {!recording ? (
             <button
               type="button"
-              className="bt s"
+              className="set-btn-sm"
               onClick={() => {
                 setRecording(true)
                 setRecordedCombo(null)
                 setConflictWarning(null)
               }}
-              style={{ fontSize: 12 }}
             >
               Change
             </button>
@@ -186,22 +202,20 @@ export default function ShortcutRecorder({ onShortcutChange }) {
             <div style={{ display: 'flex', gap: 6 }}>
               <button
                 type="button"
-                className="bt s"
+                className="set-btn-sm is-primary"
                 onClick={handleSave}
                 disabled={!recordedCombo || Boolean(conflictWarning) || saving}
-                style={{ fontSize: 12, background: 'var(--accent)', color: '#fff' }}
               >
                 Save
               </button>
               <button
                 type="button"
-                className="bt s"
+                className="set-btn-sm"
                 onClick={() => {
                   setRecording(false)
                   setRecordedCombo(null)
                   setConflictWarning(null)
                 }}
-                style={{ fontSize: 12 }}
               >
                 Cancel
               </button>
@@ -211,55 +225,43 @@ export default function ShortcutRecorder({ onShortcutChange }) {
       </div>
 
       {recording && (
-        <div style={{
-          fontSize: 12,
-          padding: '8px 12px',
-          background: 'rgba(59, 130, 246, 0.1)',
-          border: '1px solid rgba(59, 130, 246, 0.2)',
-          borderRadius: 8,
-          color: 'var(--text)',
-        }}>
-          Press your desired key combination (e.g. <code>Ctrl+Shift+Space</code> or <code>Alt+Shift+P</code>). Press <strong>Esc</strong> to cancel.
+        <div className="set-box-row" style={{ padding: '10px 18px', background: 'rgba(59, 130, 246, 0.08)' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-sub)' }}>
+            Press your desired key combination (e.g. <code>Ctrl+Shift+Space</code> or <code>Alt+Shift+Space</code>). Press <strong>Esc</strong> to cancel.
+          </div>
         </div>
       )}
 
       {conflictWarning && (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          fontSize: 12,
-          color: '#ef4444',
-          background: 'rgba(239, 68, 68, 0.1)',
-          padding: '8px 12px',
-          borderRadius: 8,
-          border: '1px solid rgba(239, 68, 68, 0.2)',
-        }}>
-          <Icon name="alert-triangle" size={14} />
-          <span>{conflictWarning}</span>
+        <div className="set-box-row" style={{ padding: '10px 18px', background: 'rgba(239, 68, 68, 0.08)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#ef4444', fontSize: 12 }}>
+            <Icon name="alert-triangle" size={14} />
+            <span>{conflictWarning}</span>
+          </div>
         </div>
       )}
 
-      {currentShortcut !== 'Alt+Shift+Space' && !recording && (
-        <div style={{ alignSelf: 'flex-start' }}>
-          <button
-            type="button"
-            onClick={handleResetDefault}
-            style={{
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              fontSize: 11,
-              color: 'var(--text-sub)',
-              textDecoration: 'underline',
-              cursor: 'pointer',
-            }}
-          >
-            Reset to recommended default (Alt+Shift+Space)
-          </button>
+      <div className="set-box-row set-col" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+        <div className="set-row-text">
+          <span className="set-row-title">Quick Presets</span>
+          <span className="set-row-desc">Standard chords for system-wide spotlight launchers:</span>
         </div>
-      )}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: '100%', justifyContent: 'flex-start' }}>
+          {PRESETS.map((p) => {
+            const isSel = activeDisplay.toLowerCase().replace(/[^a-z0-9]/g, '') === p.chord.toLowerCase().replace(/[^a-z0-9]/g, '')
+            return (
+              <button
+                key={p.chord}
+                type="button"
+                className={`set-btn-sm${isSel ? ' is-active' : ''}`}
+                onClick={() => handleApplyPreset(p.chord)}
+              >
+                {p.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }
-

@@ -60,7 +60,11 @@ export default function CommandPalette({ bare = false }) {
   const handleNavigate = useCallback(
     (viewId, prompt) => {
       if (bare) {
-        window.pywebview?.api?.open_main?.(viewId, prompt || '')
+        if (window.amethystDesktop?.openMain) {
+          window.amethystDesktop.openMain(viewId, prompt || '')
+        } else if (window.pywebview?.api?.open_main) {
+          window.pywebview.api.open_main(viewId, prompt || '')
+        }
       } else if (prompt) {
         app.openChatWithPrompt?.(prompt)
         setOverlay(null)

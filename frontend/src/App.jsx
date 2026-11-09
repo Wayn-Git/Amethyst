@@ -627,8 +627,19 @@ export default function App() {
       }
       setView(id || 'chat')
     }
+
+    const unsubElectron = window.amethystDesktop?.onNavigate?.(({ viewId, prompt }) => {
+      const id = (viewId || '').replace(/^\//, '')
+      if (prompt) {
+        openChatWithPrompt(prompt)
+      } else {
+        setView(id || 'chat')
+      }
+    })
+
     return () => {
       delete window.__amethyst_navigate
+      unsubElectron?.()
     }
   }, [setView, openChatWithPrompt])
 

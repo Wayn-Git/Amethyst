@@ -5967,64 +5967,12 @@ function Shortcuts() {
       {/* 1. Global Desktop Launcher Chord & Key Recorder */}
       <div className="set-section-label">Global Desktop Launcher</div>
       <ShortcutRecorder
+        currentShortcut={hotkeyDraft}
         onShortcutChange={(sc) => {
           setHotkeyDraft(sc)
           handleSaveHotkeyExplicit(sc)
         }}
       />
-      <div className="set-box" style={{ marginTop: 12 }}>
-        <div className="set-box-row">
-          <div className="set-row-text">
-            <span className="set-row-title">Global Summon Shortcut</span>
-            <span className="set-row-desc">
-              Global system chord to summon or toggle the Amethyst Damon launcher from any app.
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <HouseInput
-              type="text"
-              value={hotkeyDraft}
-              onChange={(e) => setHotkeyDraft(e.target.value)}
-              placeholder="<ctrl>+<alt>+<space>"
-              style={{ width: 190, fontFamily: 'var(--font-mono)', fontSize: '13px' }}
-            />
-            <HouseButton
-              type="button"
-              className="set-btn-sm"
-              onClick={handleSaveHotkey}
-            >
-              Save
-            </HouseButton>
-          </div>
-        </div>
-
-        <div className="set-box-row set-col" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
-          <div className="set-row-text">
-            <span className="set-row-title">Quick Presets</span>
-            <span className="set-row-desc">Standard chords for system-wide spotlight launchers:</span>
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: '100%', justifyContent: 'flex-start' }}>
-            {[
-              { label: 'Ctrl+Alt+Space (Default)', chord: '<ctrl>+<alt>+<space>' },
-              { label: 'Ctrl+Space', chord: '<ctrl>+<space>' },
-              { label: 'Super+Space (Win/Linux)', chord: '<super>+<space>' },
-              { label: 'Alt+Space', chord: '<alt>+<space>' },
-            ].map((p) => (
-              <HouseButton
-                key={p.chord}
-                type="button"
-                className={`set-btn-sm${hotkeyDraft === p.chord ? ' is-active' : ''}`}
-                onClick={() => {
-                  setHotkeyDraft(p.chord)
-                  handleSaveHotkeyExplicit(p.chord)
-                }}
-              >
-                {p.label}
-              </HouseButton>
-            ))}
-          </div>
-        </div>
-      </div>
 
       {/* 2. Launcher Navigation & Actions */}
       <div className="set-section-label">Damon Launcher & Action Panel</div>
