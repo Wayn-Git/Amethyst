@@ -1,0 +1,274 @@
+/* ==========================================================================
+   Apple-Style Error States & System Surfaces
+   Conforms to Apple HIG and Stageshow tokens
+   ========================================================================== */
+
+:root {
+  --apple-glass-bg: rgba(255, 255, 255, 0.82);
+  --apple-glass-bg-dark: rgba(28, 28, 30, 0.82);
+  --apple-glass-border: rgba(0, 0, 0, 0.08);
+  --apple-glass-border-dark: rgba(255, 255, 255, 0.14);
+  --apple-amber: #FF9F0A;
+  --apple-amber-bg: rgba(255, 159, 10, 0.15);
+  --apple-red: #FF453A;
+  --apple-green: #30D158;
+  --apple-blue: #0A84FF;
+  --apple-card-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+/* --------------------------------------------------------------------------
+   1. Frosted Glass Banner (Desktop Notification / Google Drive Expired)
+   -------------------------------------------------------------------------- */
+.apple-glass-banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px;
+  margin: 8px 16px;
+  border-radius: 16px;
+  background: var(--apple-glass-bg);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--apple-glass-border);
+  box-shadow: var(--apple-card-shadow);
+  color: #1d1d1f;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  animation: appleBannerSlideIn 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  z-index: 999;
+}
+
+@media (prefers-color-scheme: dark) {
+  .apple-glass-banner {
+    background: var(--apple-glass-bg-dark);
+    border-color: var(--apple-glass-border-dark);
+    color: #f5f5f7;
+  }
+}
+
+.apple-glass-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.apple-glass-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* --------------------------------------------------------------------------
+   2. Model Down / Rate Limit Card (In-Chat Transcript Surface)
+   -------------------------------------------------------------------------- */
+.apple-rate-limit-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  margin: 12px 0;
+  border-radius: 20px;
+  background: rgba(28, 28, 30, 0.65);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f5f5f7;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  animation: appleCardFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.apple-rate-limit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.apple-rate-limit-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.apple-rate-limit-countdown {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: "SF Pro Rounded", -apple-system, BlinkMacSystemFont, ui-monospace, monospace;
+  font-size: 13px;
+  color: var(--apple-amber);
+  font-variant-numeric: tabular-nums;
+}
+
+.apple-rate-limit-body {
+  font-size: 13px;
+  color: rgba(245, 245, 247, 0.76);
+  line-height: 1.45;
+}
+
+.apple-rate-limit-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* --------------------------------------------------------------------------
+   3. Dynamic Island Status Capsule (Mobile Companion Connectivity)
+   -------------------------------------------------------------------------- */
+.apple-dynamic-island {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #000000;
+  color: #ffffff;
+  border-radius: 9999px;
+  height: 36px;
+  padding: 0 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: all 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  user-select: none;
+  overflow: hidden;
+}
+
+.apple-dynamic-island--expanded {
+  height: 48px;
+  border-radius: 24px;
+  padding: 0 18px;
+  gap: 12px;
+}
+
+.apple-dynamic-island-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.apple-dynamic-island-indicator--direct {
+  background: var(--apple-green);
+  box-shadow: 0 0 8px rgba(48, 209, 88, 0.6);
+}
+
+.apple-dynamic-island-indicator--standalone {
+  background: var(--apple-blue);
+  box-shadow: 0 0 8px rgba(10, 132, 255, 0.6);
+}
+
+.apple-dynamic-island-indicator--offline {
+  background: var(--apple-amber);
+  box-shadow: 0 0 8px rgba(255, 159, 10, 0.6);
+  animation: applePulse 1.8s infinite ease-in-out;
+}
+
+/* --------------------------------------------------------------------------
+   4. Apple UI Controls & Micro-parts
+   -------------------------------------------------------------------------- */
+.apple-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.apple-pill-btn:active {
+  transform: scale(0.96);
+}
+
+.apple-pill-btn--primary {
+  background: #0071e3;
+  color: #ffffff;
+}
+
+.apple-pill-btn--primary:hover {
+  background: #0077ed;
+}
+
+.apple-pill-btn--secondary {
+  background: rgba(120, 120, 128, 0.16);
+  color: inherit;
+}
+
+.apple-pill-btn--secondary:hover {
+  background: rgba(120, 120, 128, 0.24);
+}
+
+.apple-amber-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  background: var(--apple-amber-bg);
+  color: var(--apple-amber);
+  flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Animations
+   -------------------------------------------------------------------------- */
+@keyframes appleBannerSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes appleCardFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes applePulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .apple-glass-banner,
+  .apple-rate-limit-card,
+  .apple-dynamic-island {
+    animation: none !important;
+    transition: none !important;
+  }
+}
