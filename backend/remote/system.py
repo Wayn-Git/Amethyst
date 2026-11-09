@@ -402,8 +402,36 @@ def launch_application(target: str) -> dict[str, Any]:
         return {"ok": False, "error": str(e)}
 
 
+BLOCKED_PATTERNS = [
+    r"\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f*|-rf|-fr)\s+/\s*$",
+    r"\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f*|-rf|-fr)\s+/\*",
+    r":\(\)\s*\{\s*:\|:&\s*\};:",
+    r"\bmkfs(\.[a-z0-9]+)?\s+",
+    r"\bdd\s+.*of=/dev/(sd[a-z]|nvme[0-9]n[0-9]|hd[a-z]|vd[a-z])",
+]
+
+
+def is_command_safe(command: str) -> tuple[bool, str | None]:
+    """Check if command passes remote safety boundaries and destructive command filter."""
+    cmd = command.strip()
+    import re
+    for pat in BLOCKED_PATTERNS:
+        if re.search(pat, cmd, re.IGNORECASE):
+            return False, f"Command contains blocked destructive pattern: {pat}"
+    return True, None
+
+
 def run_terminal_command(command: str, elevated: bool = False, timeout: float = 30.0) -> dict[str, Any]:
     """Execute a shell command remotely."""
+    safe, reason = is_command_safe(command)
+    if not safe:
+        return {
+            "error": reason,
+            "returncode": -1,
+            "duration_ms": 0,
+            "elevated": elevated,
+        }
+
     cmd = command.strip()
     if elevated:
         if shutil.which("pkexec"):

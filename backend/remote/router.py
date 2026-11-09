@@ -118,6 +118,34 @@ def remote_revoke_self(request: Request) -> dict[str, Any]:
     return {"revoked": device.id}
 
 
+@router.get("/audit")
+def remote_audit_log(request: Request, limit: int = Query(default=50, ge=1, le=200)) -> dict[str, Any]:
+    """Retrieve audit log of remote actions executed on the PC."""
+    from backend.db.connection import get_connection
+
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT id, arguments, result_summary, error, confirmation_decision, duration_ms, created_at "
+        "FROM execution_logs WHERE tool_name = 'remote_pc_action' ORDER BY id DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+
+    records = []
+    for r in rows:
+        args = json.loads(r["arguments"]) if r["arguments"] else {}
+        records.append({
+            "id": r["id"],
+            "device_id": args.get("device_id"),
+            "action": args.get("action"),
+            "draft_id": args.get("draft_id"),
+            "decision": r["confirmation_decision"],
+            "error": r["error"],
+            "duration_ms": r["duration_ms"],
+            "created_at": r["created_at"],
+        })
+    return {"audit": records}
+
+
 # -- System telemetry & Processes --
 
 @router.get("/status")

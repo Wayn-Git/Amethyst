@@ -16,6 +16,11 @@ from backend.tools.base import RiskLevel, Tool, ToolContext
 
 
 def prepare(request, action, arguments, permission):
+    if action == "command":
+        from backend.remote.system import is_command_safe
+        safe, reason = is_command_safe(arguments.get("command", ""))
+        if not safe:
+            raise HTTPException(400, f"Blocked unsafe remote command: {reason}")
     device = request.scope.get("device")
     owner = device.id if device else "local"
     draft_id = str(uuid.uuid4())

@@ -46,6 +46,7 @@ def capability(path: str, method: str) -> str | None:
         ("POST", r"/api/ai/transform", "paired"),
         ("GET", r"/api/remote/credentials/bundle", "paired"),
         ("POST", r"/api/remote/revoke", "paired"),
+        ("GET", r"/api/remote/audit", "terminal"),
         ("GET", r"/api/widgets(?:/[^/]+/(?:data|settings))?", "dashboard"),
         ("POST", r"/api/widgets/[^/]+/refresh", "dashboard"),
         ("GET|PUT", r"/api/layout", "dashboard"),
