@@ -20,5 +20,7 @@ test('error-states.css exists and contains required Apple utility classes and to
 
   // Check Apple visual properties
   assert.match(content, /backdrop-filter:\s*blur\(/, 'must utilize backdrop-filter blur for frosted acrylic')
+  assert.match(content, /@supports\s+not\s*\(/, 'must provide fallback for browsers without backdrop-filter')
   assert.match(content, /border-radius:\s*(9999px|999px|16px|20px|24px)/, 'must feature Apple rounded corners')
 })
+

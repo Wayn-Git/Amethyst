@@ -264,6 +264,20 @@
   }
 }
 
+@supports not ((-webkit-backdrop-filter: blur(10px)) or (backdrop-filter: blur(10px))) {
+  .apple-glass-banner {
+    background: #ffffff !important;
+  }
+  @media (prefers-color-scheme: dark) {
+    .apple-glass-banner {
+      background: #1c1c1e !important;
+    }
+  }
+  .apple-rate-limit-card {
+    background: #1c1c1e !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .apple-glass-banner,
   .apple-rate-limit-card,
@@ -272,3 +286,4 @@
     transition: none !important;
   }
 }
+
