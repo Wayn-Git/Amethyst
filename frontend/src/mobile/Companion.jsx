@@ -462,6 +462,9 @@ export default function Companion({ onUnpair }) {
   async function unpair() {
     active.current = false
     try {
+      try {
+        await request('/remote/revoke', 'POST').catch(() => {})
+      } catch {}
       await onUnpair()
     } catch (error) {
       active.current = true
