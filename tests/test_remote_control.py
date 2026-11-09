@@ -354,3 +354,68 @@ def test_host_lan_ip_recognized_as_local(bound_wide, monkeypatch):
         res = host_client.get("/api/devices/pending")
         assert res.status_code == 200
 
+
+def test_remote_command_safety_validator():
+    from backend.remote.system import is_command_safe
+
+    safe, _ = is_command_safe("ls -la /home")
+    assert safe is True
+
+    safe, _ = is_command_safe("uptime")
+    assert safe is True
+
+    unsafe_rm, reason = is_command_safe("rm -rf /")
+    assert unsafe_rm is False
+    assert "blocked" in reason.lower()
+
+    unsafe_rm2, reason = is_command_safe("rm -rf /*")
+    assert unsafe_rm2 is False
+
+    unsafe_fork, reason = is_command_safe(":(){ :|:& };:")
+    assert unsafe_fork is False
+
+    unsafe_mkfs, reason = is_command_safe("mkfs.ext4 /dev/sda1")
+    assert unsafe_mkfs is False
+
+
+def test_remote_command_unsafe_rejected_at_prepare(remote_client, paired_phone):
+    device, token = paired_phone
+    headers = {"Authorization": f"Bearer {token}"}
+    res = remote_client.post(
+        "/api/remote/command",
+        json={"command": "rm -rf /"},
+        headers=headers,
+    )
+    assert res.status_code == 400
+    assert "Blocked unsafe remote command" in res.json().get("detail", "")
+
+
+def test_remote_audit_log_endpoint(remote_client, paired_phone):
+    device, token = paired_phone
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Prepare and decide a safe command
+    prep_res = remote_client.post(
+        "/api/remote/command",
+        json={"command": "echo 'audit test'"},
+        headers=headers,
+    )
+    assert prep_res.status_code == 200
+    draft_id = prep_res.json()["draft_id"]
+
+    # Decide
+    decide_res = remote_client.post(
+        f"/api/remote/actions/{draft_id}/decision",
+        json={"approved": True},
+        headers=headers,
+    )
+    assert decide_res.status_code == 200
+
+    # Query audit log
+    audit_res = remote_client.get("/api/remote/audit", headers=headers)
+    assert audit_res.status_code == 200
+    audit_data = audit_res.json()
+    assert "audit" in audit_data
+    assert any(entry["draft_id"] == draft_id for entry in audit_data["audit"])
+
+
