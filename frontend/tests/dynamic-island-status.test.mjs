@@ -71,3 +71,4 @@ test('DynamicIslandStatus renders offline mode with retry action', () => {
   assert.match(html, /Offline/)
   assert.match(html, /Reconnect/)
 })
+

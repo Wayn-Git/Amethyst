@@ -938,16 +938,39 @@ export default function Library() {
             }}
           />
         ) : (
-          <motion.div
-            key="grid-canvas"
-            className="view-inner view-inner--wide lib-view-inner"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.16 }}
-          >
-            {/* Unified Studio Command Deck */}
-            <LibraryToolbar
+          <div className="lib-two-col-layout">
+            <LibraryTagRail
+              total={total}
+              counts={counts}
+              categoryCounts={categoryCounts}
+              tagCounts={tagCounts}
+              selectedKind={selectedKinds[0] || ''}
+              selectedCategory={selectedCategories[0] || ''}
+              selectedTag={selectedTags[0] || ''}
+              selectedRating={selectedRatings[0] || ''}
+              selectedProgress={selectedProgress}
+              onSelectKind={(k) => handleSelectKinds(k ? [k] : [])}
+              onSelectCategory={(c) => setSelectedCategories(c ? [c] : [])}
+              onSelectTag={(t) => setSelectedTags(t ? [t] : [])}
+              onSelectRating={(r) => setSelectedRatings(r ? [r] : [])}
+              onSelectProgress={setSelectedProgress}
+              onClearFilters={handleClearFilters}
+              onOpenCreateList={() => setShowCreateListModal(true)}
+              onOpenSettings={() => { window.location.hash = '#/settings' }}
+              isOpen={railOpen}
+              onClose={() => setRailOpen(false)}
+            />
+
+            <motion.div
+              key="grid-canvas"
+              className="view-inner view-inner--wide lib-view-inner"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.16 }}
+            >
+              {/* Unified Studio Command Deck */}
+              <LibraryToolbar
               total={total}
               showing={displayedItems.length}
               isProcessingCount={isProcessingCount}
@@ -1077,18 +1100,23 @@ export default function Library() {
                 ) : error ? (
                   <ErrorState message={error} onRetry={load} />
                 ) : displayedItems.length === 0 ? (
-                  <div style={{ padding: '60px 20px', textAlign: 'center' }}>
+                  <div className="lib-empty-container">
                     <EmptyState size="md">
-                      <EmptyState.Header>
-                        <EmptyState.Title>
+                      <EmptyState.Header pattern="none">
+                        <div className="lib-empty-icon-wrap">
+                          <Icon name={activeFilterCount > 0 ? 'filter' : 'bookmark'} size={24} />
+                        </div>
+                      </EmptyState.Header>
+                      <EmptyState.Content>
+                        <EmptyState.Title className="lib-empty-title">
                           {activeFilterCount > 0 ? 'No matching knowledge found' : 'Your library is empty'}
                         </EmptyState.Title>
-                        <EmptyState.Description>
+                        <EmptyState.Description className="lib-empty-desc">
                           {activeFilterCount > 0
                             ? 'Try modifying your search or clearing active filters to see all resources.'
                             : 'Paste an article, YouTube video, PDF, or note above to start building your personal library.'}
                         </EmptyState.Description>
-                      </EmptyState.Header>
+                      </EmptyState.Content>
                       <EmptyState.Footer>
                         {activeFilterCount > 0 ? (
                           <HouseButton
@@ -1227,6 +1255,7 @@ export default function Library() {
               toast={toast}
             />
           </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

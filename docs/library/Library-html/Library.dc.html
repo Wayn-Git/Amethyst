@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Library</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.p{font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;color:#1d1d1f;background:#f5f5f7;min-height:100%;-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:248px minmax(0,1fr)}
+.p *{box-sizing:border-box}
+.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.side{background:#ececf0;padding:24px 14px;display:flex;flex-direction:column;gap:4px;border-right:1px solid rgba(0,0,0,.06)}
+.n{display:flex;align-items:center;gap:10px;height:44px;padding:0 12px;border-radius:12px;font-size:14px;color:#1d1d1f;border:0;background:none;font-family:inherit;width:100%;text-align:left}
+.n.on{background:rgba(0,0,0,.07);font-weight:600}
+.n em{margin-left:auto;font-style:normal;font-size:12px;color:#636368}
+.sl{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#636368;margin:20px 12px 6px}
+.b{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 18px;border:0;border-radius:22px;background:#fff;color:#1d1d1f;font-size:14px;font-weight:500;font-family:inherit;box-shadow:0 0 0 1px rgba(0,0,0,.06)}
+.ib{width:44px;padding:0}
+.pri{background:#1d1d1f;color:#fff;box-shadow:none}
+.seg{display:inline-flex;padding:3px;background:rgba(0,0,0,.06);border-radius:14px}
+.seg button{height:40px;padding:0 16px;border:0;border-radius:11px;background:none;font-size:14px;font-family:inherit;color:#515154}
+.seg .on{background:#fff;color:#1d1d1f;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg em{font-style:normal;color:#6e6e73;margin-left:4px;font-size:12px}
+.card{background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.t{display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:14px;background:#f2f2f5;font-size:12px;color:#424245}
+.st{background:rgba(0,113,227,.1);color:#0058b0;font-weight:500}
+.sub{font-size:13px;color:#6e6e73}
+@media(max-width:800px){.p{grid-template-columns:1fr}.side{display:none}}
+</style>
+</helmet>
+<div class="p">
+  <nav class="side" aria-label="Sidebar">
+    <div style="font-size:17px;font-weight:700;letter-spacing:-.02em;padding:4px 12px 18px">Knowledge</div>
+    <button class="n on"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>Library<em>2</em></button>
+    <button class="n"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8-5.3-2.8-5.3 2.8 1-5.8-4.2-4.1 5.9-.9z"></path></svg>Favorites</button>
+    <button class="n"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0112 0v5l1.5 2h-15zM10 20.5a2 2 0 004 0"></path></svg>Reminders</button>
+    <p class="sl">Collections</p>
+    <button class="n"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>New collection</button>
+    <p class="sl">Tags</p>
+    <button class="n">#streaming<em>1</em></button>
+    <button class="n">#youtube<em>1</em></button>
+    <button class="n">#programming<em>1</em></button>
+    <div style="margin-top:auto"><button class="n"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"></path></svg>Settings</button></div>
+  </nav>
+
+  <main style="padding:24px 40px 64px;max-width:1100px;width:100%">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="flex:1;display:flex;align-items:center;gap:10px;height:44px;padding:0 16px;border-radius:22px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.06);color:#6e6e73;font-size:14px"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4 4"></path></svg>Search or jump to…<span style="margin-left:auto;font-size:12px">Ctrl K</span></div>
+      <button class="b pri"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Add resource</button>
+    </div>
+
+    <h1 style="margin:40px 0 6px;font-size:40px;line-height:1.1;font-weight:700;letter-spacing:-.025em">Library</h1>
+    <p class="sub" style="margin:0 0 28px;font-size:15px">2 saved items</p>
+
+    <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px">
+      <div class="seg" role="group" aria-label="Type"><button class="on">All<em>2</em></button><button>Videos<em>1</em></button><button>Articles<em>0</em></button><button>Posts<em>0</em></button><button>Notes<em>1</em></button></div>
+      <div style="display:flex;gap:8px">
+        <button class="b"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"></path><circle cx="16" cy="7" r="2"></circle><circle cx="8" cy="17" r="2"></circle></svg>Filter</button>
+        <button class="b"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"></path></svg>Newest</button>
+        <button class="b ib" aria-label="Grid view"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"></rect><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"></rect><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"></rect><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"></rect></svg></button>
+        <button class="b"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg>Organize</button>
+      </div>
+    </div>
+
+    <p class="sub" style="margin:36px 0 16px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:12px">Today · Mon, Nov 9</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:20px;align-items:start">
+      <article class="card">
+        <div style="position:relative;aspect-ratio:16/9;background:#1b1530;display:grid;place-items:center">
+          <div style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.2);display:grid;place-items:center"><svg class="i" style="fill:#fff;stroke:none" aria-hidden="true" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"></path></svg></div>
+          <span style="position:absolute;right:12px;bottom:12px;padding:3px 9px;border-radius:9px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-weight:500">7:29</span>
+        </div>
+        <div style="padding:18px 20px 20px">
+          <div class="sub">Shub · YouTube</div>
+          <h2 style="margin:4px 0 12px;font-size:18px;line-height:1.25;font-weight:600;letter-spacing:-.01em">The Diwali Relapse</h2>
+          <div style="display:flex;flex-wrap:wrap;gap:6px"><span class="t st">Want to watch</span><span class="t">#streaming</span><span class="t">#youtube</span></div>
+          <div class="sub" style="margin-top:14px;font-size:12px">Saved today</div>
+        </div>
+      </article>
+      <article class="card" style="padding:22px 22px 20px">
+        <div class="sub">Note</div>
+        <p style="margin:10px 0 4px;font-size:22px;line-height:1.3;font-weight:500;letter-spacing:-.015em">“Welcome to GitHub, wayneessiva-droid!”</p>
+        <div class="sub" style="margin-bottom:16px">github.com</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px"><span class="t st">To do</span><span class="t">#programming</span></div>
+        <div class="sub" style="margin-top:14px;font-size:12px">Saved today</div>
+      </article>
+      <button style="min-height:236px;border:1.5px dashed rgba(0,0,0,.18);border-radius:20px;background:none;font-family:inherit;color:#424245;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:24px;text-align:center">
+        <svg class="i" style="width:24px;height:24px" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>
+        <span style="font-weight:600;font-size:15px;color:#1d1d1f">Add to Library</span>
+        <span class="sub">Paste a link, write a note, or drop a file</span>
+      </button>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

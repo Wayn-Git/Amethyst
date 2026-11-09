@@ -833,21 +833,29 @@ function LibraryCardComponent({
           </div>
         </div>
 
-        {/* Title */}
-        <h3 className="lib-card-title">
-          {item.url && !item.url.includes('drive.google.com') ? (
-            <a
-              href={item.url}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {item.title || 'Untitled Resource'}
-            </a>
-          ) : (
-            item.title || 'Untitled Resource'
-          )}
-        </h3>
+        {/* Title / Note Display */}
+        {isNote ? (
+          <div className="lib-card-note-body">
+            <p className="lib-card-note-quote">
+              “{item.title || item.notes || 'Note'}”
+            </p>
+          </div>
+        ) : (
+          <h3 className="lib-card-title">
+            {item.url && !item.url.includes('drive.google.com') ? (
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {item.title || 'Untitled Resource'}
+              </a>
+            ) : (
+              item.title || 'Untitled Resource'
+            )}
+          </h3>
+        )}
 
         {/* Kind-aware Interactive Progress Status Badge */}
         {showProgressBadge && progressLabel && (
@@ -923,7 +931,7 @@ function LibraryCardComponent({
               <AsciiSkeleton variant="scan" lines={2} widths={['90%', '65%']} />
             </div>
           </div>
-        ) : deduplicatedSummary ? (
+        ) : (!isNote && deduplicatedSummary) ? (
           <p className={`lib-card-summary ${!item.summary && item.notes ? 'lib-card-summary--notes' : ''}`}>
             {renderFormattedSummary(deduplicatedSummary)}
           </p>

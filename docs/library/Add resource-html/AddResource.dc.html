@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Add resource</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.p{font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;color:#1d1d1f;background:#d8d8de;min-height:100%;display:grid;place-items:center;padding:40px 20px;-webkit-font-smoothing:antialiased}
+.p *{box-sizing:border-box}
+.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.b{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 22px;border:0;border-radius:22px;background:#f2f2f5;color:#1d1d1f;font-size:14px;font-weight:500;font-family:inherit}
+.pri{background:#1d1d1f;color:#fff}
+.seg{display:flex;padding:3px;background:rgba(0,0,0,.06);border-radius:14px}
+.seg button{flex:1;height:44px;border:0;border-radius:11px;background:none;font-size:14px;font-family:inherit;color:#515154}
+.seg .on{background:#fff;color:#1d1d1f;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.f{display:flex;align-items:center;gap:12px;min-height:52px;padding:0 16px;border-radius:14px;background:#f5f5f7;font-size:14px}
+.sub{font-size:13px;color:#6e6e73}
+</style>
+</helmet>
+<div class="p">
+  <div role="dialog" aria-label="Add to Library" style="width:100%;max-width:560px;background:#fff;border-radius:28px;padding:32px;box-shadow:0 40px 80px -24px rgba(0,0,0,.35)">
+    <h1 style="margin:0 0 4px;font-size:26px;font-weight:700;letter-spacing:-.02em">Add to Library</h1>
+    <p class="sub" style="margin:0 0 24px;font-size:14px">Save a link, a note, or a file.</p>
+    <div class="seg" role="group" aria-label="Kind"><button class="on">Link</button><button>Note</button><button>File</button></div>
+    <label for="u" style="display:block;margin:20px 0 8px;font-size:13px;font-weight:600">Link</label>
+    <div class="f" style="height:56px"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"></path></svg><input id="u" placeholder="Paste a YouTube, article or post link" style="flex:1;border:0;background:none;font-size:15px;font-family:inherit;outline:none;color:#1d1d1f"></div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:20px">
+      <div class="f" style="justify-content:space-between"><span>Tags</span><span class="sub">#streaming, #youtube</span></div>
+      <div class="f" style="justify-content:space-between"><span>Collection</span><span class="sub">None</span></div>
+      <div class="f" style="justify-content:space-between;padding:10px 16px"><span>Summarize long content<br><span class="sub">Skipped for short notes and quotes</span></span><button role="switch" aria-checked="false" aria-label="Summarize long content" style="width:52px;height:32px;border:0;border-radius:16px;background:#c7c7cc;padding:3px;display:flex"><span style="width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span></button></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:28px"><button class="b">Cancel</button><button class="b pri">Save</button></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":820}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

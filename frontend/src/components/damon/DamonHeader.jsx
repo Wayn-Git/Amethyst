@@ -10,6 +10,11 @@ export const PREFIX_META = {
   web: { id: 'web', label: 'Web', icon: 'globe', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)' },
   wiki: { id: 'wiki', label: 'Wikipedia', icon: 'book', color: '#64748b', bg: 'rgba(100, 116, 139, 0.15)' },
   sys: { id: 'sys', label: 'System', icon: 'power', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' },
+  emoji: { id: 'emoji', label: 'Emoji', icon: 'sparkles', color: '#ec4899', bg: 'rgba(236, 72, 153, 0.15)' },
+  bm: { id: 'bm', label: 'Bookmarks', icon: 'bookmark', color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)' },
+  bookmark: { id: 'bm', label: 'Bookmarks', icon: 'bookmark', color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)' },
+  note: { id: 'note', label: 'Notes', icon: 'note', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' },
+  kill: { id: 'kill', label: 'Kill Process', icon: 'x-circle', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.15)' },
 }
 
 export default function DamonHeader({

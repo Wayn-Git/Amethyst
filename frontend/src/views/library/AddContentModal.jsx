@@ -29,6 +29,7 @@ export default function AddContentModal({
   const [noteTitle, setNoteTitle] = useState('')
   const [noteContent, setNoteContent] = useState('')
   const [wikiTopic, setWikiTopic] = useState('')
+  const [summarizeLongContent, setSummarizeLongContent] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const [busy, setBusy] = useState(false)
 
@@ -269,27 +270,11 @@ export default function AddContentModal({
             <div className="lib-modal-tabs">
               <HouseButton
                 type="button"
-                className={`lib-modal-tab ${mode === 'anything' ? 'lib-modal-tab--active' : ''}`}
-                onClick={() => setMode('anything')}
-              >
-                <Icon name="spark" size={14} />
-                <span>Add Anything</span>
-              </HouseButton>
-              <HouseButton
-                type="button"
                 className={`lib-modal-tab ${mode === 'url' ? 'lib-modal-tab--active' : ''}`}
                 onClick={() => setMode('url')}
               >
                 <Icon name="link" size={14} />
-                <span>Web Links</span>
-              </HouseButton>
-              <HouseButton
-                type="button"
-                className={`lib-modal-tab ${mode === 'file' ? 'lib-modal-tab--active' : ''}`}
-                onClick={() => setMode('file')}
-              >
-                <Icon name="upload" size={14} />
-                <span>Upload File</span>
+                <span>Link</span>
               </HouseButton>
               <HouseButton
                 type="button"
@@ -297,15 +282,23 @@ export default function AddContentModal({
                 onClick={() => setMode('note')}
               >
                 <Icon name="edit" size={14} />
-                <span>Write Note</span>
+                <span>Note</span>
               </HouseButton>
               <HouseButton
                 type="button"
-                className={`lib-modal-tab ${mode === 'wiki' ? 'lib-modal-tab--active' : ''}`}
-                onClick={() => setMode('wiki')}
+                className={`lib-modal-tab ${mode === 'file' ? 'lib-modal-tab--active' : ''}`}
+                onClick={() => setMode('file')}
               >
-                <Icon name="globe" size={14} />
-                <span>Wikipedia</span>
+                <Icon name="upload" size={14} />
+                <span>File</span>
+              </HouseButton>
+              <HouseButton
+                type="button"
+                className={`lib-modal-tab ${mode === 'anything' ? 'lib-modal-tab--active' : ''}`}
+                onClick={() => setMode('anything')}
+              >
+                <Icon name="spark" size={14} />
+                <span>Custom</span>
               </HouseButton>
             </div>
           </div>
@@ -455,9 +448,53 @@ export default function AddContentModal({
                     }
                   }}
                 />
-                <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
-                  Supports multiple links simultaneously. Content is fetched, transcribed, and indexed for semantic search.
-                </span>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 14px',
+                    borderRadius: 12,
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--hairline)',
+                    marginTop: 14
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>Summarize long content</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Skipped for short notes and quotes</div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={summarizeLongContent}
+                    aria-label="Summarize long content"
+                    onClick={() => setSummarizeLongContent((prev) => !prev)}
+                    style={{
+                      width: 44,
+                      height: 26,
+                      borderRadius: 13,
+                      background: summarizeLongContent ? 'var(--accent, #9333ea)' : 'var(--hairline-strong, #c7c7cc)',
+                      border: 'none',
+                      padding: 2,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: summarizeLongContent ? 'flex-end' : 'flex-start',
+                      transition: 'background 160ms ease'
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: '50%',
+                        background: '#fff',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                      }}
+                    />
+                  </button>
+                </div>
               </form>
             )}
 

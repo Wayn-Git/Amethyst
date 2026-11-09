@@ -536,14 +536,24 @@ SHORTCUT_CANDIDATES = [
 
 
 def _gnome_chord(hotkey: str) -> str:
-    """pynput's chord spelling, in GNOME's.
+    """pynput's / Electron's chord spelling, in GNOME's.
 
-    `<ctrl>+<alt>+<space>` -> `<Control><Alt>space`. The two notations agree on
-    almost nothing: pynput joins with `+` and lowercases, GNOME concatenates and
-    capitalises, and they disagree about the name of the control key.
+    `<ctrl>+<alt>+<space>` or `Ctrl+Alt+Space` -> `<Control><Alt>space`.
     """
-    names = {"ctrl": "Control", "control": "Control", "alt": "Alt", "shift": "Shift",
-             "super": "Super", "cmd": "Super", "win": "Super"}
+    names = {
+        "ctrl": "Control",
+        "control": "Control",
+        "primary": "Control",
+        "commandorcontrol": "Control",
+        "cmdorctrl": "Control",
+        "alt": "Alt",
+        "shift": "Shift",
+        "super": "Super",
+        "cmd": "Super",
+        "command": "Super",
+        "win": "Super",
+        "meta": "Super",
+    }
     mods, key = [], ""
     for part in hotkey.split("+"):
         bare = part.strip().strip("<>").lower()
@@ -551,6 +561,9 @@ def _gnome_chord(hotkey: str) -> str:
             mods.append(f"<{names[bare]}>")
         else:
             key = bare
+    # GNOME expects lowercase 'space'
+    if key.lower() == "space":
+        key = "space"
     return "".join(mods) + key
 
 
@@ -593,10 +606,15 @@ def _normalize_chord_tokens(chord: str) -> set[str]:
     """Canonical set of modifier and key tokens for conflict matching."""
     s = chord.lower().replace("<", " ").replace(">", " ").replace("+", " ")
     tokens = set(s.split())
-    if "ctrl" in tokens or "primary" in tokens:
-        tokens.discard("ctrl")
-        tokens.discard("primary")
+    if any(k in tokens for k in ("ctrl", "primary", "commandorcontrol", "cmdorctrl")):
+        tokens.difference_update({"ctrl", "primary", "commandorcontrol", "cmdorctrl"})
         tokens.add("control")
+    if any(k in tokens for k in ("cmd", "win", "meta", "command")):
+        tokens.difference_update({"cmd", "win", "meta", "command"})
+        tokens.add("super")
+    if "space" in tokens or "blank" in tokens:
+        tokens.difference_update({"blank"})
+        tokens.add("space")
     return tokens
 
 
@@ -1262,6 +1280,11 @@ def _hide_rather_than_close(window) -> None:
     def _closing() -> bool:
         if _QUITTING.is_set():
             return True  # a real quit: nothing is False, so the close proceeds
+        from backend.config import load_general_settings
+        gen_settings = load_general_settings()
+        if not gen_settings.get("close_to_tray", True):
+            _QUITTING.set()
+            return True  # user configured close button to exit application
         with contextlib.suppress(Exception):
             window.hide()
         # The spotlight is the window whose visibility this process tracks, and

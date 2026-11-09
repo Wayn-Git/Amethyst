@@ -721,14 +721,12 @@ async def _lifespan(_: FastAPI):
             log.warning("could not settle recovered job %s: %s", job.id, exc)
     with contextlib.suppress(Exception):
         jobs.JobStore().prune()
-    # Automations run while this process is up, and only while it is up. A
-    # separate daemon would keep them running with nothing able to answer a
-    # permission prompt, which is a worse promise than "they run while AMETHYST is
-    # open" -- a rule that fits in a sentence and is true.
-    _runner.start()
-    # The lane the runner above puts work into. Started after it, so a tick that
-    # fires in the same millisecond finds somewhere to put a job.
-    _automation_lane.start()
+    # Automations are in development (coming soon). Set AMETHYST_AUTOMATIONS_ENABLED=1 to enable background scheduler.
+    if os.environ.get("AMETHYST_AUTOMATIONS_ENABLED", "0").lower() in ("1", "true"):
+        _runner.start()
+        _automation_lane.start()
+    else:
+        log.info("automations are in development; background scheduler and lane not started")
     mobile_capture_lane.start()
     # The fan-out lane. Separate from the one above so a batch a scheduled turn
     # asked for cannot queue behind the turn that is waiting for it.
@@ -788,6 +786,8 @@ async def _lifespan(_: FastAPI):
             log.exception("the boot-time connector start failed")
 
     _boot_connectors = asyncio.create_task(_start_connectors())
+    # Pre-warm launcher engine and provider indexes in background thread for instant sub-millisecond search
+    asyncio.create_task(asyncio.to_thread(get_launcher_engine))
     # Stale subagent cleanup: runs every 60s, marks heartbeated-out subagents as failed
     _stale_cleanup_task = asyncio.create_task(_stale_subagent_cleanup_loop())
     yield
@@ -1024,7 +1024,7 @@ app.add_middleware(RemoteCallerGuard)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$",
+    allow_origin_regex=r"^(https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?|(chrome-extension|moz-extension)://.*)$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -7717,6 +7717,7 @@ class Settings(BaseModel):
     reasoning_summary: str | None = None
     reasoning_efforts: str | None = None
     workspace_deps_enabled: bool | None = None
+    close_to_tray: bool | None = None
 
 
 class OpenInEditorRequest(BaseModel):
@@ -7771,6 +7772,14 @@ def update_settings(body: Settings) -> dict[str, Any]:
         save_journal_schedule(body.journal.model_dump(exclude_none=True))
     if body.hotkey is not None:
         save_hotkey(body.hotkey)
+        import sys
+
+        if sys.platform.startswith("linux"):
+            try:
+                from backend.desktop import install_shortcut
+                install_shortcut(body.hotkey, auto_resolve=False)
+            except Exception as e:
+                log.warning("Could not sync GNOME shortcut: %s", e)
     for field in (
         "editor_destination",
         "speed_profile",
@@ -7785,6 +7794,7 @@ def update_settings(body: Settings) -> dict[str, Any]:
         "reasoning_summary",
         "reasoning_efforts",
         "workspace_deps_enabled",
+        "close_to_tray",
     ):
         val = getattr(body, field, None)
         if val is not None:
@@ -7840,6 +7850,66 @@ def open_in_editor(body: OpenInEditorRequest) -> dict[str, Any]:
         raise HTTPException(500, f"Failed to launch editor: {e}")
 
     return {"ok": True, "editor": editor, "path": target_path}
+
+
+class DesktopShortcutRequest(BaseModel):
+    hotkey: str
+
+
+@app.get("/api/desktop/shortcut")
+def get_desktop_shortcut() -> dict[str, Any]:
+    from backend.config import load_hotkey
+    from backend.desktop import DEFAULT_HOTKEY
+
+    hotkey = load_hotkey() or DEFAULT_HOTKEY
+    return {"ok": True, "hotkey": hotkey}
+
+
+@app.post("/api/desktop/shortcut")
+def set_desktop_shortcut(body: DesktopShortcutRequest) -> dict[str, Any]:
+    import sys
+    from backend.config import save_hotkey
+    from backend.desktop import install_shortcut
+
+    chord = body.hotkey.strip()
+    if not chord:
+        raise HTTPException(400, "Hotkey string cannot be empty")
+
+    notes: list[str] = []
+    if sys.platform.startswith("linux"):
+        ok, msg = install_shortcut(chord, auto_resolve=False)
+        if not ok:
+            return {"ok": False, "error": msg}
+        notes.append(msg)
+
+    saved = save_hotkey(chord)
+    return {"ok": True, "hotkey": saved, "message": "; ".join(notes)}
+
+
+@app.post("/api/desktop/shortcut/check")
+def check_desktop_shortcut(body: DesktopShortcutRequest) -> dict[str, Any]:
+    import sys
+    from backend.desktop import _gnome_chord, check_shortcut_conflicts
+
+    chord = body.hotkey.strip()
+    if not chord:
+        return {"conflict": True, "reason": "Empty shortcut string"}
+
+    if sys.platform.startswith("linux"):
+        try:
+            gnome_c = _gnome_chord(chord)
+            conflicts = check_shortcut_conflicts(gnome_c)
+            if conflicts:
+                names = ", ".join(c.get("name", "system") for c in conflicts)
+                return {
+                    "conflict": True,
+                    "reason": f"Conflicts with existing system keybinding: {names}",
+                    "conflicts": conflicts,
+                }
+        except Exception as e:
+            return {"conflict": False, "warning": str(e)}
+
+    return {"conflict": False}
 
 
 @app.post("/api/conversations/archive-inactive")
@@ -8655,11 +8725,32 @@ async def add_library_item(body: LibraryBody) -> dict[str, Any]:
     from backend.library.service import LibraryError, LibraryService
 
     service = LibraryService()
+    KIND_ALIASES = {
+        "quote": "note",
+        "image": "other",
+        "link": "article",
+        "page": "article",
+    }
+    normalized_kind = KIND_ALIASES.get(body.kind, body.kind)
     try:
-        if body.url and body.url.strip():
+        if body.text and body.text.strip():
+            text_content = body.text.strip()
+            if body.url and not text_content.startswith(">"):
+                text_content = f"> {text_content}\n\nSource: [{body.title or body.url}]({body.url})"
+            captured = await service.log_manual(
+                title=body.title or "",
+                kind=normalized_kind or "note",
+                category=body.category,
+                text=text_content,
+                author=body.author,
+                notes=body.notes or (f"Captured from {body.url}" if body.url else None),
+                consumed_on=body.consumed_on,
+                rating=body.rating,
+            )
+        elif body.url and body.url.strip():
             captured = await service.capture_url(
                 body.url,
-                kind=body.kind,
+                kind=normalized_kind,
                 category=body.category,
                 consumed_on=body.consumed_on,
                 notes=body.notes,
@@ -8669,7 +8760,7 @@ async def add_library_item(body: LibraryBody) -> dict[str, Any]:
             captured = await service.capture_media_file(
                 body.media_path,
                 title=body.title,
-                kind=body.kind,
+                kind=normalized_kind,
                 category=body.category,
                 notes=body.notes,
                 consumed_on=body.consumed_on,
@@ -8679,7 +8770,7 @@ async def add_library_item(body: LibraryBody) -> dict[str, Any]:
         else:
             captured = await service.log_manual(
                 title=body.title or "",
-                kind=body.kind or "note",
+                kind=normalized_kind or "note",
                 category=body.category,
                 text=body.text,
                 author=body.author,
@@ -9973,6 +10064,9 @@ def get_launcher_engine():
         from backend.launcher.providers.windows import WindowProvider
         from backend.launcher.providers.clipboard import ClipboardProvider
         from backend.launcher.providers.files import FileProvider
+        from backend.launcher.providers.emojis import EmojiProvider
+        from backend.launcher.providers.bookmarks import BookmarkProvider
+        from backend.launcher.providers.quicknotes import QuickNoteProvider
 
         engine = LauncherEngine()
         engine.register_provider(AppProvider())
@@ -9982,6 +10076,9 @@ def get_launcher_engine():
         engine.register_provider(WindowProvider())
         engine.register_provider(ClipboardProvider())
         engine.register_provider(FileProvider())
+        engine.register_provider(EmojiProvider())
+        engine.register_provider(BookmarkProvider())
+        engine.register_provider(QuickNoteProvider())
         _launcher_engine = engine
     return _launcher_engine
 
@@ -10013,6 +10110,7 @@ async def launcher_stream(
             ):
                 items = [r.to_dict() for r in batch]
                 yield f"data: {json.dumps(items)}\n\n"
+            yield "event: done\ndata: {}\n\n"
         except asyncio.CancelledError:
             pass
 

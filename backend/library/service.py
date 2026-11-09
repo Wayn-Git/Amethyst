@@ -1105,7 +1105,7 @@ class LibraryService:
         except Exception:
             can_enrich = False
 
-        initial_status = "enriching" if (can_enrich and len(body.strip()) >= 15) else "ready"
+        initial_status = "enriching" if (can_enrich and clean_kind != "note" and len(body.strip()) >= 15) else "ready"
         updates = {
             "capture_note": note or None,
             "text_source": text_source,

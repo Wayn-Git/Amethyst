@@ -11,6 +11,7 @@ import { getTransportManager } from '../lib/sync/transportManager.js'
 import { safeStorage } from '../lib/storage.js'
 import { storedIdentity } from '../lib/credentials.js'
 import ConnectionDiagnosticsModal from './ConnectionDiagnosticsModal.jsx'
+import { DynamicIslandStatus } from '../components/ui/apple/DynamicIslandStatus.jsx'
 import { captures, saveCapture, flushCaptures } from './captures.js'
 import { putRecord, records, getLocalOwner } from './storage.js'
 import { syncCollections, getStoredCollections } from './collectionsSync.js'
@@ -468,20 +469,16 @@ export default function Companion({ onUnpair }) {
             zIndex: 30,
           }}
         >
-          {currentPath !== 'offline' ? (
-            <button
-              type="button"
-              className="transport-pill"
-              onClick={() => setDiagnosticsOpen(true)}
-              aria-label="Connection Diagnostics"
-              style={{ height: 32, padding: '0 10px', fontSize: 11.5 }}
-            >
-              <span className={`transport-dot transport-dot--${currentPath}`} />
-              <span>
-                {currentPath === 'direct' ? 'Direct LAN' : 'Cloud Relay'}
-              </span>
-            </button>
-          ) : <div />}
+          <div onClick={() => setDiagnosticsOpen(true)} style={{ cursor: 'pointer' }}>
+            <DynamicIslandStatus
+              status={currentPath === 'relayed' ? 'standalone' : currentPath}
+              latency={transportState?.latency || -1}
+              onRetry={async () => {
+                const tm = getTransportManager()
+                await tm.probe()
+              }}
+            />
+          </div>
 
           <button
             type="button"

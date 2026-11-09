@@ -1258,8 +1258,259 @@ export default function LibraryDetailModal({
         </header>
 
         {/* ========================================================
-            3-REGION MAIN BODY: Left (sticky) | Center | Right Rail
+            BODY: Note Item Single-Column View OR 3-Region Workbench View
             ======================================================== */}
+        {effectiveKind === 'note' || (!videoItem && !slideItems.length && !item.url) ? (
+          <div className="lib-note-detail-container" style={{ flex: 1, overflowY: 'auto' }}>
+            <div style={{ maxWidth: 720, margin: '0 auto', padding: '48px 24px 72px' }}>
+              <p className="lib-sub" style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--text-dim, #6e6e73)' }}>
+                Note · {dateRelative ? `Saved ${dateRelative.toLowerCase() === 'today' ? 'today' : dateRelative}` : 'Saved'} · Stored locally
+              </p>
+              <h1 style={{ margin: '0 0 8px', fontSize: 36, lineHeight: 1.15, fontWeight: 700, letterSpacing: '-0.025em', color: 'var(--text)' }}>
+                {displayTitle}
+              </h1>
+
+              {/* Decorative quotation glyph and prominent quote text */}
+              <div style={{ margin: '28px 0 8px', fontFamily: 'Georgia, serif', fontSize: 64, lineHeight: 0.6, color: 'var(--hairline-strong, #c7c7cc)', height: 32 }} aria-hidden="true">
+                “
+              </div>
+              <p style={{ margin: 0, fontSize: 26, lineHeight: 1.35, fontWeight: 500, letterSpacing: '-0.015em', color: 'var(--text)' }}>
+                {notes || item.text || item.title}
+              </p>
+
+              {item.url && (
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="lib-note-ref-pill"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    height: 32,
+                    padding: '0 14px',
+                    borderRadius: 16,
+                    background: 'var(--surface-2)',
+                    boxShadow: '0 0 0 1px var(--hairline)',
+                    color: 'var(--text)',
+                    fontSize: 13,
+                    marginTop: 20,
+                    textDecoration: 'none'
+                  }}
+                >
+                  <span>{getDomain(item.url)}</span>
+                  <Icon name="arrow-up-right" size={13} />
+                </a>
+              )}
+
+              {/* Controls row: Progress + Remind me + Pin + Add to list */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, margin: '32px 0 16px' }}>
+                <ProgressSegmentedControl
+                  progress={item.progress}
+                  kind="note"
+                  variant="full"
+                  onChange={handleProgressChange}
+                />
+                <AppButton
+                  variant="secondary"
+                  size="medium"
+                  className={`lib-page-cta-pill ${item.is_pinned ? 'lib-page-cta-pill--pinned' : ''}`}
+                  onClick={handleTogglePin}
+                  title={item.is_pinned ? 'Unpin' : 'Pin'}
+                  icon={<Icon name="pin" size={14} className={item.is_pinned ? 'text-amber-500 fill-amber-500' : ''} />}
+                >
+                  {item.is_pinned ? 'Pinned' : 'Pin'}
+                </AppButton>
+                <AppButton
+                  variant="secondary"
+                  size="medium"
+                  className="lib-page-cta-pill lib-page-cta-pill--secondary"
+                  onClick={() => {
+                    if (availableLists.length > 0) {
+                      const options = availableLists.map((l, idx) => `${idx + 1}. ${l.title}`).join('\n')
+                      const choice = window.prompt(`Choose a list to add this note to:\n${options}\n\nOr enter a new list name:`)
+                      if (!choice) return
+                      const num = parseInt(choice, 10)
+                      if (!isNaN(num) && num >= 1 && num <= availableLists.length) {
+                        handleAddItemToList(availableLists[num - 1].id)
+                        return
+                      }
+                      api.createLibraryList({ title: choice.trim() }).then((newList) => {
+                        if (newList?.id) {
+                          handleAddItemToList(newList.id)
+                        }
+                      })
+                    } else {
+                      const name = window.prompt('Create new list name for this note:')
+                      if (name && name.trim()) {
+                        api.createLibraryList({ title: name.trim() }).then((newList) => {
+                          if (newList?.id) {
+                            handleAddItemToList(newList.id)
+                          }
+                        })
+                      }
+                    }
+                  }}
+                  title="Add note to a list"
+                  icon={<Icon name="folder-plus" size={14} />}
+                >
+                  Add to list
+                </AppButton>
+              </div>
+
+              {/* Tag row */}
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 28 }}>
+                {tags.map((t) => (
+                  <span
+                    key={t}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      height: 28,
+                      padding: '0 12px',
+                      borderRadius: 14,
+                      background: 'var(--surface-2)',
+                      fontSize: 12,
+                      color: 'var(--text-muted)'
+                    }}
+                  >
+                    #{t}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTag(t)}
+                      style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0 }}
+                      aria-label={`Remove tag ${t}`}
+                    >
+                      <Icon name="x" size={10} />
+                    </button>
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = window.prompt('Enter new tag:')
+                    if (next) handleAddTag(next)
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--accent, #9333ea)',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    padding: '4px 8px'
+                  }}
+                >
+                  + Add tag
+                </button>
+              </div>
+
+              {/* Your Notes / Thought card */}
+              <div
+                style={{
+                  background: 'var(--surface)',
+                  borderRadius: 18,
+                  padding: 24,
+                  border: '1px solid var(--hairline)',
+                  minHeight: 140,
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
+                    Your notes
+                  </p>
+                  {savingNotes && (
+                    <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Saving…</span>
+                  )}
+                  {notesSavedIndicator && (
+                    <span style={{ fontSize: 11, color: 'var(--accent)' }}>Saved</span>
+                  )}
+                </div>
+                <textarea
+                  className="lib-notes-editor"
+                  placeholder="Add a thought or personal takeaways..."
+                  rows={4}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  onBlur={handleSaveNotes}
+                  style={{
+                    width: '100%',
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    color: 'var(--text)',
+                    fontSize: 15,
+                    lineHeight: 1.5,
+                    resize: 'vertical',
+                    fontFamily: 'inherit'
+                  }}
+                />
+              </div>
+
+              {/* Referenced link card if present */}
+              {item.url && (
+                <div
+                  style={{
+                    marginTop: 16,
+                    background: 'var(--surface)',
+                    borderRadius: 18,
+                    padding: '16px 20px',
+                    border: '1px solid var(--hairline)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 14,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: '50%',
+                      background: 'var(--surface-3)',
+                      color: 'var(--text)',
+                      display: 'grid',
+                      placeItems: 'center',
+                      fontWeight: 600,
+                      fontSize: 14,
+                      flexShrink: 0
+                    }}
+                  >
+                    {getDomain(item.url).charAt(0).toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>{getDomain(item.url)}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>Referenced in this note</div>
+                  </div>
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      height: 32,
+                      padding: '0 14px',
+                      borderRadius: 16,
+                      background: 'var(--surface-2)',
+                      border: '1px solid var(--hairline)',
+                      color: 'var(--text)',
+                      fontSize: 13,
+                      fontWeight: 500,
+                      textDecoration: 'none'
+                    }}
+                  >
+                    Open
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
         <div
           ref={bodyRef}
           className={`lib-page-body ${isTheater ? 'lib-page-body--theater' : ''} ${isDraggingSplitter ? 'lib-page-body--resizing' : ''}`}
@@ -1932,6 +2183,7 @@ export default function LibraryDetailModal({
           </>
         )}
       </div>
+      )}
       </div>
 
       {/* Lightbox Modal */}

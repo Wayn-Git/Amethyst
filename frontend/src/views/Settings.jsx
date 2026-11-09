@@ -896,6 +896,7 @@ function General() {
     showUsage, setShowUsage,
     editorDestination, setEditorDestination,
     confirmClose, setConfirmClose,
+    closeToTray, setCloseToTray,
     fullViewDefault, setFullViewDefault,
     preventSleep, setPreventSleep,
     autoArchiveDays, setAutoArchiveDays,
@@ -1151,6 +1152,21 @@ function General() {
               onChange={(v) => setConfirmClose(v)}
               options={confirmCloseOptions}
               minWidth={165}
+            />
+          </div>
+
+          <div className="set-box-row">
+            <div className="set-row-text">
+              <span className="set-row-title">Minimize to system tray on close</span>
+              <span className="set-row-desc">Keep Amethyst and background tasks alive in the system tray when closing the window with (X).</span>
+            </div>
+            <Switch
+              on={Boolean(closeToTray)}
+              onChange={(val) => {
+                setCloseToTray(val)
+                toast(val ? 'Closing window will minimize to tray' : 'Closing window will quit application', 'ok')
+              }}
+              tone="default"
             />
           </div>
 

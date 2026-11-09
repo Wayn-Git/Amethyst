@@ -1,0 +1,132 @@
+/* Amethyst Browser Extension - In-Page Content Styles */
+
+/* Floating Selection Action Button */
+.amethyst-highlight-chip {
+  position: absolute;
+  z-index: 2147483646;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(19, 17, 28, 0.94);
+  color: #F3F4F6;
+  border: 1px solid rgba(139, 92, 246, 0.45);
+  border-radius: 9999px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 10px rgba(139, 92, 246, 0.25);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  user-select: none;
+  animation: amethyst-chip-in 0.16s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.amethyst-highlight-chip:hover {
+  background: rgba(30, 27, 46, 0.98);
+  border-color: rgba(167, 139, 250, 0.7);
+  transform: translateY(-1px) scale(1.02);
+}
+
+.amethyst-highlight-chip:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.amethyst-chip-icon {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+/* In-Page Transient HUD Toast */
+.amethyst-hud-toast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 2147483647;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 340px;
+  padding: 12px 16px;
+  background: rgba(18, 16, 26, 0.96);
+  color: #F9FAFB;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45), 0 0 16px rgba(139, 92, 246, 0.2);
+  backdrop-filter: blur(12px);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  animation: amethyst-toast-slide-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.amethyst-hud-toast.amethyst-toast-closing {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.96);
+}
+
+.amethyst-hud-icon {
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.amethyst-hud-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.amethyst-hud-status {
+  font-size: 13px;
+  font-weight: 600;
+  color: #EDE9FE;
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.amethyst-hud-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(139, 92, 246, 0.25);
+  color: #C4B5FD;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.amethyst-hud-title {
+  font-size: 12px;
+  color: #9CA3AF;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+@keyframes amethyst-chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes amethyst-toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

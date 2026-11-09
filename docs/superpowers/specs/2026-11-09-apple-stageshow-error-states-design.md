@@ -121,3 +121,4 @@ sequenceDiagram
    - Verify dark and light themes with backdrop blur support.
    - Verify layout responsiveness across 390px (mobile) and desktop viewports.
    - Verify Stageshow showcase renders clean geometry without layout shifts.
+

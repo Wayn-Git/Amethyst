@@ -54,3 +54,4 @@ test('secureStoreItem and secureGetItem work end-to-end with localStorage mock',
   const retrieved = await secureGetItem('amethyst.v2.bundle', mockStorage)
   assert.deepEqual(retrieved, credentials)
 })
+

@@ -103,7 +103,18 @@ export default function ShortcutRecorder({ currentShortcut: externalShortcut, on
         try {
           const res = await window.amethystDesktop.checkShortcutConflict(chord)
           if (res?.conflict) {
-            setConflictWarning(`Shortcut '${chord}' conflicts with another application or OS shortcut.`)
+            setConflictWarning(res?.reason || `Shortcut '${chord}' conflicts with another application or OS shortcut.`)
+          }
+        } catch {}
+      } else {
+        try {
+          const res = await fetch('/api/desktop/shortcut/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ hotkey: chord }),
+          }).then((r) => r.json())
+          if (res?.conflict) {
+            setConflictWarning(res?.reason || `Shortcut '${chord}' conflicts with system keybinding.`)
           }
         } catch {}
       }
@@ -129,6 +140,17 @@ export default function ShortcutRecorder({ currentShortcut: externalShortcut, on
           setSaving(false)
           return
         }
+      } else {
+        const res = await fetch('/api/desktop/shortcut', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hotkey: recordedCombo }),
+        }).then((r) => r.json()).catch(() => ({ ok: false }))
+        if (!res?.ok) {
+          setConflictWarning(res?.error || 'Failed to register shortcut with operating system')
+          setSaving(false)
+          return
+        }
       }
       setCurrentShortcut(recordedCombo)
       try {
@@ -147,6 +169,16 @@ export default function ShortcutRecorder({ currentShortcut: externalShortcut, on
     setConflictWarning(null)
     if (window.amethystDesktop?.setShortcut) {
       const res = await window.amethystDesktop.setShortcut(chord)
+      if (!res?.ok) {
+        setConflictWarning(res?.error || `Could not bind ${chord}`)
+        return
+      }
+    } else {
+      const res = await fetch('/api/desktop/shortcut', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hotkey: chord }),
+      }).then((r) => r.json()).catch(() => ({ ok: false }))
       if (!res?.ok) {
         setConflictWarning(res?.error || `Could not bind ${chord}`)
         return

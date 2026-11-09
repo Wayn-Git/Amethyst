@@ -27,3 +27,4 @@ test('Companion.jsx wires DynamicIslandStatus for transport state', () => {
   assert.match(content, /import\s+.*DynamicIslandStatus.*from/, 'Companion.jsx must import DynamicIslandStatus')
   assert.match(content, /<DynamicIslandStatus/, 'Companion.jsx must render DynamicIslandStatus')
 })
+

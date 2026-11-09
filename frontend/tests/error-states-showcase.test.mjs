@@ -46,3 +46,4 @@ test('ErrorStatesShowcase renders side-by-side macOS window and iPhone frame', (
   assert.match(html, /ModelRateLimitCard|Rate Limit Exceeded/)
   assert.match(html, /DynamicIslandStatus|LAN|Offline/)
 })
+
