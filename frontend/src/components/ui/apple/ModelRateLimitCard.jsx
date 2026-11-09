@@ -45,24 +45,18 @@ export function ModelRateLimitCard({
   return (
     <div className="apple-rate-limit-card" role="alert" aria-live="polite">
       <div className="apple-rate-limit-header">
-        <div className="apple-rate-limit-title">
-          <span className="apple-amber-badge" style={{ width: 20, height: 20 }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
-          </span>
-          <span>Rate Limit Exceeded · {modelLabel}</span>
-        </div>
-
-        <div className="apple-rate-limit-countdown">
-          <span>Retrying in {remaining}s</span>
-        </div>
-      </div>
-
-      <div className="apple-rate-limit-body">
-        {error ? `${error}. ` : ''}
-        Provider quota exhausted or endpoint is overloaded. You can wait for the automatic retry or switch to a high-speed fallback model immediately.
+        <span className="apple-amber-badge" aria-hidden="true">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+        </span>
+        <span className="apple-rate-limit-title">
+          Rate Limit Exceeded · {modelLabel}
+        </span>
+        <span className="apple-rate-limit-countdown">
+          ({remaining}s)
+        </span>
       </div>
 
       <div className="apple-rate-limit-actions">

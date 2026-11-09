@@ -54,18 +54,23 @@ export function DynamicIslandStatus({
 
       {isOffline ? (
         <>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <span style={{ fontWeight: 600 }}>Offline</span>
-            <span style={{ fontSize: '10px', opacity: 0.7 }}>No Host Link</span>
-          </div>
-
+          <span style={{ fontWeight: 600 }}>Offline</span>
           {onRetry ? (
             <button
               type="button"
-              className="apple-pill-btn apple-pill-btn--primary"
-              style={{ padding: '4px 10px', fontSize: '11px', height: '24px' }}
               onClick={handleRetry}
               disabled={retrying}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#0A84FF',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                padding: '0 2px',
+                fontFamily: 'inherit',
+                opacity: retrying ? 0.6 : 1,
+              }}
             >
               {retrying ? 'Connecting…' : 'Reconnect'}
             </button>
