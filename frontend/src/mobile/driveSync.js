@@ -320,3 +320,4 @@ export async function syncItemsBatchToDrive({ items, folderName = 'amethyst-spik
     results,
   }
 }
+

@@ -1,0 +1,55 @@
+{
+  "testUrl": "https://www.instagram.com/reel/DfaJEL3hAT4/",
+  "itemId": "50bb45fed8a99b23",
+  "writeDurationMs": 62,
+  "stateBeforeKill": {
+    "id": "50bb45fed8a99b23",
+    "url": "https://www.instagram.com/reel/DfaJEL3hAT4/",
+    "canonicalUrl": "https://www.instagram.com/reel/DfaJEL3hAT4/",
+    "savedAt": "2026-11-09T13:35:11.697Z",
+    "status": "processing",
+    "progress": "Extracting media in background",
+    "caption": "",
+    "owner": null,
+    "music": null,
+    "mediaType": "unknown",
+    "summary": null,
+    "transcript": null,
+    "tags": [],
+    "resources": [],
+    "slides": [],
+    "error": null
+  },
+  "killTimestamp": "2026-11-09T13:35:11.757Z",
+  "relaunchOutput": "Starting: Intent { cmp=app.amethyst.companion/.MainActivity }",
+  "recoveredState": {
+    "id": "50bb45fed8a99b23",
+    "url": "https://www.instagram.com/reel/DfaJEL3hAT4/",
+    "canonicalUrl": "https://www.instagram.com/reel/DfaJEL3hAT4/",
+    "savedAt": "2026-11-09T13:35:11.697Z",
+    "status": "ready_partial",
+    "progress": "Ready",
+    "caption": "#あらゆる追いかけっこを繰り広げるtvアニメ",
+    "owner": {
+      "id": "80722804077",
+      "username": "salfishsport",
+      "fullName": null,
+      "profilePic": "https://scontent.cdninstagram.com/v/t51.82787-19/890349224_17867504913692078_6426472134829442681_n.jpg?stp=dst-jpg_s150x150_tt6&_nc_cat=104&ig_cache_key=GKimETWuNWerZno-AHmGdJNbai9ZbmNDAQAB1501500j-ccb7-5&ccb=7-5&_nc_sid=669407&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4zMjAuQzMifQ%3D%3D&_nc_ohc=ahcEuEfYWx8Q7kNvwHMK7W0&_nc_oc=Ado12wOU87nW94nw5Wd9Q5lehO1dc6SkxE5qa_seio1Wwub2E80CHko7MaT09lAKD78&_nc_zt=24&_nc_ht=scontent.cdninstagram.com&_nc_gid=_vaXwryC70oKJeoT4G1L2w&_nc_ss=70689&oh=00_AQTUokAh52sLaL1eA83edffwjX1-p4RN9EzeJeo9yBoo2g&oe=6AF799FD"
+    },
+    "music": {
+      "songName": "Original audio",
+      "artistName": "salfishsport",
+      "usesOriginalAudio": true,
+      "shouldMuteAudio": false
+    },
+    "mediaType": "video",
+    "summary": null,
+    "transcript": null,
+    "tags": [],
+    "resources": [],
+    "slides": [],
+    "error": null,
+    "embedUrl": "https://www.instagram.com/p/DfaJEL3hAT4/embed/captioned/"
+  },
+  "recoveredSuccessfully": true
+}

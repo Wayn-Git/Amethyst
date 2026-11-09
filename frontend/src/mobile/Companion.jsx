@@ -84,10 +84,14 @@ export default function Companion({ onUnpair }) {
   }, [])
 
   useEffect(() => {
+    window.__openSpikeHarness = () => setSpikeHarnessOpen(true)
     checkMobileUpdate()
     resumePendingPipelineItems()
     const interval = setInterval(checkMobileUpdate, 15 * 60 * 1000)
-    return () => clearInterval(interval)
+    return () => {
+      clearInterval(interval)
+      delete window.__openSpikeHarness
+    }
   }, [checkMobileUpdate])
 
   const handleInstallMobileUpdate = async () => {

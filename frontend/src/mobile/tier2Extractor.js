@@ -85,7 +85,15 @@ export async function attemptTier2Extraction(shortcode, { timeoutMs = 8000 } = {
         const pollInterval = setInterval(async () => {
           attempts += 1
           const videoEl = doc.querySelector('video')
-          const videoSrc = videoEl?.src || videoEl?.querySelector('source')?.src
+          const src = videoEl?.src || null
+          const currentSrc = videoEl?.currentSrc || null
+          const videoSrc = currentSrc || src || videoEl?.querySelector('source')?.src || null
+
+          // Inspect performance network resource timings
+          const resourceEntries = performance.getEntriesByType('resource') || []
+          const mediaNetworkRequests = resourceEntries
+            .filter((r) => /(?:\.mp4|\.m3u8|\.mpd|bytestart|mime=video)/i.test(r.name))
+            .map((r) => ({ name: r.name.slice(0, 120), duration: Math.round(r.duration), transferSize: r.transferSize }))
 
           if (videoSrc) {
             clearInterval(pollInterval)
@@ -94,39 +102,40 @@ export async function attemptTier2Extraction(shortcode, { timeoutMs = 8000 } = {
             if (isBlob) {
               // Try fetching blob bytes
               let bytesObtained = false
+              let byteLength = 0
               try {
                 const blobRes = await fetch(videoSrc)
                 const blob = await blobRes.blob()
+                byteLength = blob.size
                 bytesObtained = blob.size > 0
               } catch {
                 bytesObtained = false
               }
 
-              if (bytesObtained) {
-                finish({
-                  success: true,
-                  videoUrl: videoSrc,
-                  isBlob: true,
-                  bytesObtained: true,
-                  method: 'dom_video_blob',
-                  error: null,
-                })
-              } else {
-                finish({
-                  success: false,
-                  videoUrl: videoSrc,
-                  isBlob: true,
-                  bytesObtained: false,
-                  method: 'dom_video_blob_unreachable',
-                  error: 'Video source is a blob: URL whose bytes cannot be extracted from outside the frame context',
-                })
-              }
+              finish({
+                success: bytesObtained,
+                videoUrl: videoSrc,
+                src,
+                currentSrc,
+                isBlob: true,
+                bytesObtained,
+                byteLength,
+                mediaNetworkRequests,
+                method: bytesObtained ? 'dom_video_blob' : 'dom_video_blob_unreachable',
+                error: bytesObtained
+                  ? null
+                  : 'Video source is a blob: URL whose bytes cannot be extracted from outside the frame context',
+              })
             } else if (videoSrc.startsWith('http')) {
               finish({
                 success: true,
                 videoUrl: videoSrc,
+                src,
+                currentSrc,
                 isBlob: false,
                 bytesObtained: true,
+                byteLength: -1,
+                mediaNetworkRequests,
                 method: 'dom_video_http',
                 error: null,
               })

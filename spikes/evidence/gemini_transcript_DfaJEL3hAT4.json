@@ -1,0 +1,50 @@
+{
+  "fileUri": "https://generativelanguage.googleapis.com/v1beta/files/5f2tskofu1v6",
+  "fileSizeBytes": 1220927,
+  "parsed": {
+    "transcript": null,
+    "summary": "This video humorously showcases a Rocket League player remaining idle (afk) while their car accidentally scores or contributes to a play. The funny moment highlights the unpredictable and sometimes comical nature of gaming.",
+    "tags": [
+      "gaming",
+      "Rocket League",
+      "afk",
+      "funny",
+      "meme"
+    ]
+  },
+  "raw": {
+    "candidates": [
+      {
+        "content": {
+          "parts": [
+            {
+              "text": "{\n  \"transcript\": null,\n  \"summary\": \"This video humorously showcases a Rocket League player remaining idle (afk) while their car accidentally scores or contributes to a play. The funny moment highlights the unpredictable and sometimes comical nature of gaming.\",\n  \"tags\": [\n    \"gaming\",\n    \"Rocket League\",\n    \"afk\",\n    \"funny\",\n    \"meme\"\n  ]\n}",
+              "thoughtSignature": "EmAKXgFpFH0TQmZmaZgBHFrRV3oijIOWcHVfuL/vcZQnqyLXBPan5L50JhbD5Qj8PR/hg1aLfZtWVh/yBukHFfkuvDu39vMTXkBAYQDrga0CRTH4SCteSFPngJm6f2kUeIw="
+            }
+          ],
+          "role": "model"
+        },
+        "finishReason": "STOP",
+        "index": 0
+      }
+    ],
+    "usageMetadata": {
+      "promptTokenCount": 1125,
+      "candidatesTokenCount": 91,
+      "totalTokenCount": 1216,
+      "promptTokensDetails": [
+        {
+          "modality": "TEXT",
+          "tokenCount": 38
+        },
+        {
+          "modality": "VIDEO",
+          "tokenCount": 1087
+        }
+      ],
+      "serviceTier": "standard"
+    },
+    "modelVersion": "gemini-3.5-flash-lite",
+    "responseId": "NcvxaumAPLiD4t4P4fq20Ao"
+  }
+}

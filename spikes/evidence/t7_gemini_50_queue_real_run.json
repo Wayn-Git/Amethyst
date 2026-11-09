@@ -1,0 +1,513 @@
+{
+  "test": "T7_Gemini_Queue_50_Items_Real_Timestamps",
+  "totalItems": 50,
+  "startedAt": "2026-11-09T13:36:42.596Z",
+  "endedAt": "2026-11-09T13:40:52.020Z",
+  "totalDurationSeconds": 249.4,
+  "meetsDurationFloor200s": true,
+  "passedCount": 50,
+  "failedCount": 0,
+  "rateLimit429Count": 0,
+  "items": [
+    {
+      "index": 1,
+      "startedAt": "2026-11-09T13:36:42.596Z",
+      "finishedAt": "2026-11-09T13:36:43.515Z",
+      "latencyMs": 919,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 2,
+      "startedAt": "2026-11-09T13:36:47.616Z",
+      "finishedAt": "2026-11-09T13:36:48.377Z",
+      "latencyMs": 761,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 3,
+      "startedAt": "2026-11-09T13:36:52.478Z",
+      "finishedAt": "2026-11-09T13:36:53.612Z",
+      "latencyMs": 1134,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 4,
+      "startedAt": "2026-11-09T13:36:57.712Z",
+      "finishedAt": "2026-11-09T13:36:59.126Z",
+      "latencyMs": 1413,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, Google Drive",
+      "error": null
+    },
+    {
+      "index": 5,
+      "startedAt": "2026-11-09T13:37:03.228Z",
+      "finishedAt": "2026-11-09T13:37:04.072Z",
+      "latencyMs": 844,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 6,
+      "startedAt": "2026-11-09T13:37:08.176Z",
+      "finishedAt": "2026-11-09T13:37:09.596Z",
+      "latencyMs": 1420,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 7,
+      "startedAt": "2026-11-09T13:37:13.696Z",
+      "finishedAt": "2026-11-09T13:37:14.416Z",
+      "latencyMs": 720,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, Google Drive",
+      "error": null
+    },
+    {
+      "index": 8,
+      "startedAt": "2026-11-09T13:37:18.516Z",
+      "finishedAt": "2026-11-09T13:37:19.259Z",
+      "latencyMs": 743,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 9,
+      "startedAt": "2026-11-09T13:37:23.360Z",
+      "finishedAt": "2026-11-09T13:37:24.000Z",
+      "latencyMs": 640,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 10,
+      "startedAt": "2026-11-09T13:37:28.102Z",
+      "finishedAt": "2026-11-09T13:37:28.782Z",
+      "latencyMs": 680,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 11,
+      "startedAt": "2026-11-09T13:37:32.882Z",
+      "finishedAt": "2026-11-09T13:37:34.071Z",
+      "latencyMs": 1189,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "1. Offline-first\n2. Capacitor",
+      "error": null
+    },
+    {
+      "index": 12,
+      "startedAt": "2026-11-09T13:37:38.171Z",
+      "finishedAt": "2026-11-09T13:37:38.818Z",
+      "latencyMs": 647,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 13,
+      "startedAt": "2026-11-09T13:37:42.918Z",
+      "finishedAt": "2026-11-09T13:37:43.585Z",
+      "latencyMs": 667,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 14,
+      "startedAt": "2026-11-09T13:37:47.686Z",
+      "finishedAt": "2026-11-09T13:37:49.492Z",
+      "latencyMs": 1806,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 15,
+      "startedAt": "2026-11-09T13:37:53.592Z",
+      "finishedAt": "2026-11-09T13:37:54.745Z",
+      "latencyMs": 1153,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 16,
+      "startedAt": "2026-11-09T13:37:58.846Z",
+      "finishedAt": "2026-11-09T13:38:00.018Z",
+      "latencyMs": 1172,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 17,
+      "startedAt": "2026-11-09T13:38:04.118Z",
+      "finishedAt": "2026-11-09T13:38:05.692Z",
+      "latencyMs": 1574,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 18,
+      "startedAt": "2026-11-09T13:38:09.793Z",
+      "finishedAt": "2026-11-09T13:38:10.911Z",
+      "latencyMs": 1118,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 19,
+      "startedAt": "2026-11-09T13:38:15.012Z",
+      "finishedAt": "2026-11-09T13:38:15.874Z",
+      "latencyMs": 862,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 20,
+      "startedAt": "2026-11-09T13:38:19.974Z",
+      "finishedAt": "2026-11-09T13:38:20.726Z",
+      "latencyMs": 752,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 21,
+      "startedAt": "2026-11-09T13:38:24.826Z",
+      "finishedAt": "2026-11-09T13:38:26.113Z",
+      "latencyMs": 1287,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 22,
+      "startedAt": "2026-11-09T13:38:30.213Z",
+      "finishedAt": "2026-11-09T13:38:30.938Z",
+      "latencyMs": 725,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 23,
+      "startedAt": "2026-11-09T13:38:35.040Z",
+      "finishedAt": "2026-11-09T13:38:36.507Z",
+      "latencyMs": 1467,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 24,
+      "startedAt": "2026-11-09T13:38:40.607Z",
+      "finishedAt": "2026-11-09T13:38:41.268Z",
+      "latencyMs": 661,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 25,
+      "startedAt": "2026-11-09T13:38:45.368Z",
+      "finishedAt": "2026-11-09T13:38:46.042Z",
+      "latencyMs": 674,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 26,
+      "startedAt": "2026-11-09T13:38:50.142Z",
+      "finishedAt": "2026-11-09T13:38:51.005Z",
+      "latencyMs": 863,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 27,
+      "startedAt": "2026-11-09T13:38:55.105Z",
+      "finishedAt": "2026-11-09T13:38:55.810Z",
+      "latencyMs": 705,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 28,
+      "startedAt": "2026-11-09T13:38:59.910Z",
+      "finishedAt": "2026-11-09T13:39:00.666Z",
+      "latencyMs": 756,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "1. Capacitor\n2. SQLite",
+      "error": null
+    },
+    {
+      "index": 29,
+      "startedAt": "2026-11-09T13:39:04.766Z",
+      "finishedAt": "2026-11-09T13:39:05.505Z",
+      "latencyMs": 738,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 30,
+      "startedAt": "2026-11-09T13:39:09.606Z",
+      "finishedAt": "2026-11-09T13:39:10.500Z",
+      "latencyMs": 894,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 31,
+      "startedAt": "2026-11-09T13:39:14.600Z",
+      "finishedAt": "2026-11-09T13:39:15.398Z",
+      "latencyMs": 798,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 32,
+      "startedAt": "2026-11-09T13:39:19.498Z",
+      "finishedAt": "2026-11-09T13:39:20.323Z",
+      "latencyMs": 825,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 33,
+      "startedAt": "2026-11-09T13:39:24.425Z",
+      "finishedAt": "2026-11-09T13:39:25.151Z",
+      "latencyMs": 726,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "1. Capacitor\n2. SQLite",
+      "error": null
+    },
+    {
+      "index": 34,
+      "startedAt": "2026-11-09T13:39:29.251Z",
+      "finishedAt": "2026-11-09T13:39:30.035Z",
+      "latencyMs": 784,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 35,
+      "startedAt": "2026-11-09T13:39:34.135Z",
+      "finishedAt": "2026-11-09T13:39:35.102Z",
+      "latencyMs": 967,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 36,
+      "startedAt": "2026-11-09T13:39:39.203Z",
+      "finishedAt": "2026-11-09T13:39:39.928Z",
+      "latencyMs": 725,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 37,
+      "startedAt": "2026-11-09T13:39:44.029Z",
+      "finishedAt": "2026-11-09T13:39:45.069Z",
+      "latencyMs": 1040,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 38,
+      "startedAt": "2026-11-09T13:39:49.169Z",
+      "finishedAt": "2026-11-09T13:39:50.419Z",
+      "latencyMs": 1250,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 39,
+      "startedAt": "2026-11-09T13:39:54.521Z",
+      "finishedAt": "2026-11-09T13:39:55.204Z",
+      "latencyMs": 683,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 40,
+      "startedAt": "2026-11-09T13:39:59.305Z",
+      "finishedAt": "2026-11-09T13:40:00.106Z",
+      "latencyMs": 801,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 41,
+      "startedAt": "2026-11-09T13:40:04.206Z",
+      "finishedAt": "2026-11-09T13:40:05.439Z",
+      "latencyMs": 1233,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 42,
+      "startedAt": "2026-11-09T13:40:09.541Z",
+      "finishedAt": "2026-11-09T13:40:10.415Z",
+      "latencyMs": 874,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 43,
+      "startedAt": "2026-11-09T13:40:14.516Z",
+      "finishedAt": "2026-11-09T13:40:15.608Z",
+      "latencyMs": 1092,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 44,
+      "startedAt": "2026-11-09T13:40:19.709Z",
+      "finishedAt": "2026-11-09T13:40:20.522Z",
+      "latencyMs": 813,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 45,
+      "startedAt": "2026-11-09T13:40:24.622Z",
+      "finishedAt": "2026-11-09T13:40:25.524Z",
+      "latencyMs": 902,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 46,
+      "startedAt": "2026-11-09T13:40:29.624Z",
+      "finishedAt": "2026-11-09T13:40:30.575Z",
+      "latencyMs": 951,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 47,
+      "startedAt": "2026-11-09T13:40:34.677Z",
+      "finishedAt": "2026-11-09T13:40:35.576Z",
+      "latencyMs": 899,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 48,
+      "startedAt": "2026-11-09T13:40:39.676Z",
+      "finishedAt": "2026-11-09T13:40:40.490Z",
+      "latencyMs": 814,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    },
+    {
+      "index": 49,
+      "startedAt": "2026-11-09T13:40:44.590Z",
+      "finishedAt": "2026-11-09T13:40:45.938Z",
+      "latencyMs": 1348,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "1. Capacitor\n2. SQLite",
+      "error": null
+    },
+    {
+      "index": 50,
+      "startedAt": "2026-11-09T13:40:50.039Z",
+      "finishedAt": "2026-11-09T13:40:52.019Z",
+      "latencyMs": 1981,
+      "httpStatus": 200,
+      "success": true,
+      "responseText": "Capacitor, SQLite",
+      "error": null
+    }
+  ]
+}

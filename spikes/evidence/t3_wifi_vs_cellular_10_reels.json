@@ -1,0 +1,166 @@
+{
+  "test": "T3_Cellular_vs_Wifi_10_Reels",
+  "n": 10,
+  "wifiPhase": {
+    "publicIp": "103.181.15.198",
+    "startedAt": "2026-11-09T13:34:39.645Z",
+    "endedAt": "2026-11-09T13:34:45.123Z",
+    "successCount": 10,
+    "successRatePct": 100,
+    "runs": [
+      {
+        "shortcode": "DfaJEL3hAT4",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 526,
+        "timestamp": "2026-11-09T13:34:40.171Z"
+      },
+      {
+        "shortcode": "Dff6X_cyhSy",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 419,
+        "timestamp": "2026-11-09T13:34:40.591Z"
+      },
+      {
+        "shortcode": "DffDcvkJ91o",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 553,
+        "timestamp": "2026-11-09T13:34:41.144Z"
+      },
+      {
+        "shortcode": "Dfgg0RTPYbV",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 653,
+        "timestamp": "2026-11-09T13:34:41.797Z"
+      },
+      {
+        "shortcode": "DV79WToDXwb",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 489,
+        "timestamp": "2026-11-09T13:34:42.286Z"
+      },
+      {
+        "shortcode": "DVlQSpfk8tl",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 535,
+        "timestamp": "2026-11-09T13:34:42.821Z"
+      },
+      {
+        "shortcode": "DZf737nzLtj",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 499,
+        "timestamp": "2026-11-09T13:34:43.320Z"
+      },
+      {
+        "shortcode": "Dbah-D_Kkkp",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 728,
+        "timestamp": "2026-11-09T13:34:44.048Z"
+      },
+      {
+        "shortcode": "DbtGW4eBEid",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 420,
+        "timestamp": "2026-11-09T13:34:44.468Z"
+      },
+      {
+        "shortcode": "DbyNa6Np-pz",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 654,
+        "timestamp": "2026-11-09T13:34:45.122Z"
+      }
+    ]
+  },
+  "switchTimestamp": "2026-11-09T13:34:45.196Z",
+  "cellularPhase": {
+    "publicIp": "100.110.96.91 (Carrier CGNAT)",
+    "startedAt": "2026-11-09T13:34:50.203Z",
+    "endedAt": "2026-11-09T13:34:56.272Z",
+    "successCount": 9,
+    "successRatePct": 90,
+    "runs": [
+      {
+        "shortcode": "DfaJEL3hAT4",
+        "status": "error",
+        "hasVideoUrl": false,
+        "latencyMs": 509,
+        "timestamp": "2026-11-09T13:34:50.712Z"
+      },
+      {
+        "shortcode": "Dff6X_cyhSy",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 717,
+        "timestamp": "2026-11-09T13:34:51.430Z"
+      },
+      {
+        "shortcode": "DffDcvkJ91o",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 544,
+        "timestamp": "2026-11-09T13:34:51.974Z"
+      },
+      {
+        "shortcode": "Dfgg0RTPYbV",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 758,
+        "timestamp": "2026-11-09T13:34:52.732Z"
+      },
+      {
+        "shortcode": "DV79WToDXwb",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 494,
+        "timestamp": "2026-11-09T13:34:53.226Z"
+      },
+      {
+        "shortcode": "DVlQSpfk8tl",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 772,
+        "timestamp": "2026-11-09T13:34:53.999Z"
+      },
+      {
+        "shortcode": "DZf737nzLtj",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 561,
+        "timestamp": "2026-11-09T13:34:54.560Z"
+      },
+      {
+        "shortcode": "Dbah-D_Kkkp",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 399,
+        "timestamp": "2026-11-09T13:34:54.959Z"
+      },
+      {
+        "shortcode": "DbtGW4eBEid",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 621,
+        "timestamp": "2026-11-09T13:34:55.581Z"
+      },
+      {
+        "shortcode": "DbyNa6Np-pz",
+        "status": "ready",
+        "hasVideoUrl": true,
+        "latencyMs": 691,
+        "timestamp": "2026-11-09T13:34:56.272Z"
+      }
+    ]
+  },
+  "rateDifferencePoints": 10,
+  "parityPass": true,
+  "verdict": "PASS"
+}

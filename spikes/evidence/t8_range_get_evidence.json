@@ -1,0 +1,53 @@
+{
+  "timestamp": "2026-11-09T13:34:27.614Z",
+  "results": [
+    {
+      "shortcode": "DfaJEL3hAT4",
+      "httpStatus": 206,
+      "statusText": "",
+      "durationMs": 52,
+      "bytesReceived": 1024,
+      "contentRange": "bytes 0-1023/1220927",
+      "contentLength": "1024",
+      "tokenOeHex": "6AF3B08A",
+      "expireDate": "2026-11-11T00:02:18.000Z",
+      "magicBytesHex": "000000206674797069736f6d00000200"
+    },
+    {
+      "shortcode": "Dff6X_cyhSy",
+      "httpStatus": 206,
+      "statusText": "",
+      "durationMs": 13,
+      "bytesReceived": 1024,
+      "contentRange": "bytes 0-1023/2675714",
+      "contentLength": "1024",
+      "tokenOeHex": "6AF3A316",
+      "expireDate": "2026-11-10T23:04:54.000Z",
+      "magicBytesHex": "000000206674797069736f6d00000200"
+    },
+    {
+      "shortcode": "DffDcvkJ91o",
+      "httpStatus": 206,
+      "statusText": "",
+      "durationMs": 11,
+      "bytesReceived": 1024,
+      "contentRange": "bytes 0-1023/6092565",
+      "contentLength": "1024",
+      "tokenOeHex": "6AF3A3BA",
+      "expireDate": "2026-11-10T23:07:38.000Z",
+      "magicBytesHex": "000000206674797069736f6d00000200"
+    },
+    {
+      "shortcode": "Dfgg0RTPYbV",
+      "httpStatus": 206,
+      "statusText": "",
+      "durationMs": 11,
+      "bytesReceived": 1024,
+      "contentRange": "bytes 0-1023/4419074",
+      "contentLength": "1024",
+      "tokenOeHex": "6AF3A0F1",
+      "expireDate": "2026-11-10T22:55:45.000Z",
+      "magicBytesHex": "000000206674797069736f6d00000200"
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "test": "T1_Tier2_Licensed_Reels_Hidden_WebView",
+  "evaluatedAt": "2026-11-09T13:37:38.000Z",
+  "n": 3,
+  "reels": [
+    {
+      "shortcode": "DdXGIh1JE4m",
+      "url": "https://www.instagram.com/reel/DdXGIh1JE4m/",
+      "song": "Runaway (feat. Pusha T)",
+      "artist": "Kanye West",
+      "usesOriginalAudio": false,
+      "tier1VideoUrl": null,
+      "domInspection": {
+        "renderedElement": "EmbeddedMediaImage",
+        "videoElementCount": 0,
+        "src": null,
+        "currentSrc": null,
+        "isBlob": false,
+        "bytesObtained": 0
+      },
+      "networkInterception": {
+        "requestsForMp4": 0,
+        "requestsForM3u8": 0,
+        "requestsForDASH": 0
+      },
+      "method": "hidden_webview_dom_inspect",
+      "error": "Meta embed SSR renders static poster image without <video> element on licensed audio reels"
+    },
+    {
+      "shortcode": "DfYFVE_ulU5",
+      "url": "https://www.instagram.com/reel/DfYFVE_ulU5/",
+      "song": "moths (over slowed)",
+      "artist": "Navjaxx, Staarz",
+      "usesOriginalAudio": false,
+      "tier1VideoUrl": null,
+      "domInspection": {
+        "renderedElement": "EmbeddedMediaImage",
+        "videoElementCount": 0,
+        "src": null,
+        "currentSrc": null,
+        "isBlob": false,
+        "bytesObtained": 0
+      },
+      "networkInterception": {
+        "requestsForMp4": 0,
+        "requestsForM3u8": 0,
+        "requestsForDASH": 0
+      },
+      "method": "hidden_webview_dom_inspect",
+      "error": "Meta embed SSR renders static poster image without <video> element on licensed audio reels"
+    },
+    {
+      "shortcode": "DfWaz5WNc3V",
+      "url": "https://www.instagram.com/reel/DfWaz5WNc3V/",
+      "tier1Status": "unavailable",
+      "domInspection": {
+        "renderedElement": "EmbedBrokenMedia",
+        "videoElementCount": 0,
+        "src": null,
+        "currentSrc": null,
+        "isBlob": false,
+        "bytesObtained": 0
+      },
+      "method": "hidden_webview_dom_inspect",
+      "error": "Post removed or restricted"
+    }
+  ],
+  "successCount": 0,
+  "successRatePct": 0,
+  "verdict": "INCONCLUSIVE",
+  "decision": "Tier 2 DOM scraper yields 0% downloadable bytes. Keep Tier 2 DISABLED. Ship ready_partial fallback (preserving URL, caption, music attribution, and official embed iframe playback)."
+}

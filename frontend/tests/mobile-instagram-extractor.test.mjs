@@ -126,3 +126,4 @@ test('Instagram Extractor: extractInstagramTier1 Mock HTTP', async () => {
   assert.equal(result.videoUrl, 'https://cdn.instagram.com/v/test.mp4')
   assert.equal(result.music.songName, 'Original audio')
 })
+

@@ -294,3 +294,4 @@ Analyze all slides sequentially and return a single valid JSON object:
 
   return JSON.parse(candidateText)
 }
+

@@ -1,0 +1,114 @@
+{
+  "totalBurstTimeMs": 7155,
+  "totalRequests": 18,
+  "results": [
+    {
+      "index": 1,
+      "status": "SUCCESS",
+      "latencyMs": 1210,
+      "text": "ok_1"
+    },
+    {
+      "index": 2,
+      "status": "SUCCESS",
+      "latencyMs": 5020,
+      "text": "ok_2"
+    },
+    {
+      "index": 3,
+      "status": "SUCCESS",
+      "latencyMs": 4994,
+      "text": "ok_3"
+    },
+    {
+      "index": 4,
+      "status": "SUCCESS",
+      "latencyMs": 5101,
+      "text": "ok_4"
+    },
+    {
+      "index": 5,
+      "status": "SUCCESS",
+      "latencyMs": 4745,
+      "text": "ok_5"
+    },
+    {
+      "index": 6,
+      "status": "SUCCESS",
+      "latencyMs": 5615,
+      "text": "ok_6"
+    },
+    {
+      "index": 7,
+      "status": "SUCCESS",
+      "latencyMs": 5397,
+      "text": "ok_7"
+    },
+    {
+      "index": 8,
+      "status": "SUCCESS",
+      "latencyMs": 5694,
+      "text": "ok_8"
+    },
+    {
+      "index": 9,
+      "status": "SUCCESS",
+      "latencyMs": 7154,
+      "text": "ok_9"
+    },
+    {
+      "index": 10,
+      "status": "SUCCESS",
+      "latencyMs": 5387,
+      "text": "ok_10"
+    },
+    {
+      "index": 11,
+      "status": "SUCCESS",
+      "latencyMs": 5433,
+      "text": "ok_11"
+    },
+    {
+      "index": 12,
+      "status": "SUCCESS",
+      "latencyMs": 5289,
+      "text": "ok_12"
+    },
+    {
+      "index": 13,
+      "status": "SUCCESS",
+      "latencyMs": 5738,
+      "text": "ok_13"
+    },
+    {
+      "index": 14,
+      "status": "SUCCESS",
+      "latencyMs": 5724,
+      "text": "ok_14"
+    },
+    {
+      "index": 15,
+      "status": "SUCCESS",
+      "latencyMs": 5806,
+      "text": "ok_15"
+    },
+    {
+      "index": 16,
+      "status": "SUCCESS",
+      "latencyMs": 5837,
+      "text": "ok_16"
+    },
+    {
+      "index": 17,
+      "status": "SUCCESS",
+      "latencyMs": 5066,
+      "text": "ok_17"
+    },
+    {
+      "index": 18,
+      "status": "SUCCESS",
+      "latencyMs": 5360,
+      "text": "ok_18"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "test": "T4_Download_MP4_Filesystem_vs_Bridge",
+  "evaluatedAt": "2026-11-09T13:31:38.000Z",
+  "sampleReel": {
+    "shortcode": "DfaJEL3hAT4",
+    "url": "https://www.instagram.com/reel/DfaJEL3hAT4/",
+    "videoUrl": "https://instagram.fbom57-1.fna.fbcdn.net/o1/v/t2/f2/m86/AQMqUTRsWha8wAH4b1NysOatRdYjKLTIyruuHxvmtD86",
+    "headersSent": {
+      "User-Agent": "Mozilla/5.0 (Linux; Android 15; V2246) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+      "Accept": "*/*",
+      "Accept-Encoding": "identity",
+      "Referer": "https://www.instagram.com/"
+    },
+    "httpStatus": 200,
+    "bytesOnDisk": 1220927,
+    "fileSizeMB": 1.16,
+    "localFilePath": "spikes/evidence/reel_DfaJEL3hAT4.mp4",
+    "adbDeviceFilePath": "/data/local/tmp/reel_DfaJEL3hAT4.mp4",
+    "ffprobe": {
+      "videoCodec": "h264 (High)",
+      "resolution": "720x1280",
+      "frameRate": "30 fps",
+      "videoDurationSec": 11.8,
+      "audioCodec": "aac (HE-AAC)",
+      "channels": 2,
+      "sampleRateHz": 48000
+    },
+    "explanation12ByteFailure": "The previous 12-byte placeholder was caused by a truncated test script fetch that did not send required User-Agent and Referer headers to Instagram CDN (fbcdn.net), causing a partial error page. Adding realistic browser User-Agent and Referer headers completely fixed the issue, delivering the full 1,220,927-byte MP4.",
+    "bridgeMemoryOverheadBytes": 0,
+    "geminiFilesApi": {
+      "fileUri": "https://generativelanguage.googleapis.com/v1beta/files/5f2tskofu1v6",
+      "state": "ACTIVE",
+      "transcript": null,
+      "summary": "This video humorously showcases a Rocket League player remaining idle (afk) while their car accidentally scores or contributes to a play. The funny moment highlights the unpredictable and sometimes comical nature of gaming.",
+      "tags": ["gaming", "Rocket League", "afk", "funny", "meme"]
+    }
+  },
+  "verdict": "PASS"
+}

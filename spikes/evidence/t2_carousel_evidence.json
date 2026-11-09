@@ -1,0 +1,56 @@
+{
+  "test": "T2_Carousels_Multimodal_Analysis",
+  "evaluatedAt": "2026-11-09T13:38:00.000Z",
+  "n": 3,
+  "runs": [
+    {
+      "shortcode": "Dfg7exjmqI2",
+      "url": "https://www.instagram.com/p/Dfg7exjmqI2/",
+      "isCarousel": true,
+      "slideCount": 2,
+      "slidesExposedInEmbed": true,
+      "geminiCallSuccess": true,
+      "geminiDurationMs": 7366,
+      "summary": "A carousel post detailing a Reddit user's discovery of a leaked internal instruction prompt from ChatGPT when it encountered an error running its Python code analysis tool.",
+      "tags": ["ChatGPT", "OpenAI", "PromptLeak", "ArtificialIntelligence", "Reddit"],
+      "slides": [
+        { "slide": 1, "description": "Screenshot of chat interface showing Python execution error" },
+        { "slide": 2, "description": "Expanded system instruction excerpt revealing internal guidelines" }
+      ]
+    },
+    {
+      "shortcode": "DffsOulx7Ip",
+      "url": "https://www.instagram.com/p/DffsOulx7Ip/",
+      "isCarousel": false,
+      "mediaType": "GraphImage",
+      "slideCount": 0,
+      "slidesExposedInEmbed": false,
+      "rawEmbedAnalysis": {
+        "dataMediaType": "GraphImage",
+        "isSidecar": false,
+        "contextJSON": null,
+        "reasonNoSlides": "The post is a single photo/image (GraphImage), not a carousel sidecar. The user listed it under # carousel in device_urls.txt by mistake."
+      }
+    },
+    {
+      "shortcode": "Dffxea7gAY4",
+      "url": "https://www.instagram.com/p/Dffxea7gAY4/",
+      "isCarousel": true,
+      "slideCount": 3,
+      "slidesExposedInEmbed": true,
+      "geminiCallSuccess": true,
+      "geminiDurationMs": 6097,
+      "summary": "A multi-slide carousel post reporting on an alleged company-wide memo from NVIDIA CEO Jensen Huang regarding an internal investigation.",
+      "tags": ["NVIDIA", "Jensen Huang", "Tech News", "Corporate Scandal", "National Security"],
+      "slides": [
+        { "slide": 1, "description": "Headline and overview of alleged NVIDIA executive email" },
+        { "slide": 2, "description": "Body text of apology and acknowledgement of board investigation" },
+        { "slide": 3, "description": "Closing statement and statement requesting personal privacy" }
+      ]
+    }
+  ],
+  "slidesExposedCount": 2,
+  "geminiSingleCallPassCount": 2,
+  "verdict": "INCONCLUSIVE",
+  "recommendation": "Send all carousel slide image thumbnails simultaneously in 1 multimodal call to Gemini."
+}

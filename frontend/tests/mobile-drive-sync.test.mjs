@@ -54,3 +54,4 @@ test('Drive Sync: formatDriveItemPayload Combines Metadata and Markdown Note', (
   assert.match(parsed.markdownNote, /# A brief guide to software principles\./)
   assert.match(parsed.markdownNote, /### Caption/)
 })
+

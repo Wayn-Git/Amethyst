@@ -1,0 +1,13 @@
+11-09 19:05:13.045 20278 20278 D nativeloader: Configuring clns-7 for other apk /data/app/~~Ku8SHpYBs1LAj53OanZMLA==/app.amethyst.companion-juvnnpXb2JoA8ZCh_x85Ww==/base.apk. target_sdk_version=36, uses_libraries=, library_path=/data/app/~~Ku8SHpYBs1LAj53OanZMLA==/app.amethyst.companion-juvnnpXb2JoA8ZCh_x85Ww==/lib/arm64, permitted_path=/data:/mnt/expand:/data/user/0/app.amethyst.companion
+11-09 19:05:13.064 20278 20278 V GraphicsEnvironment: app.amethyst.companion is not listed in per-application setting
+11-09 19:05:13.090 20278 20278 E thyst.companion: BBinder_init Processname  app.amethyst.companion  
+11-09 19:05:13.090 20278 20278 E thyst.companion: BBinder_init hasGetProcessName  app.amethyst.companion
+11-09 19:05:13.691  1713  3085 D BatteryStatsService: noteVideoSurfaceChanged  noteWhich: 49,arg1: 0, arg2: 0, arg3: 20278, arg4: 9, name: app.amethyst.companion
+11-09 19:05:13.765 20278 25193 D VivoJavaJsonManager: failed to find appName:app.amethyst.companion from config key:mProtakePackages
+11-09 19:05:13.765 20278 25193 D VivoJavaJsonManager: failed to find appName:app.amethyst.companion from config key:mProtakePackages
+11-09 19:05:13.775 20278 25196 D VivoJavaJsonManager: failed to find appName:app.amethyst.companion from config key:mProtakePackages
+11-09 19:05:14.004 20278 25161 W MediaCodec-JNI: pid:20278,client name:app.amethyst.companion
+11-09 19:05:14.013  1713  1803 I ActivityTaskManager: Displayed app.amethyst.companion/.MainActivity for user 0: +1s155ms
+11-09 19:05:14.095  4792  4792 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1614 onStartInput(EditorInfo{EditorInfo{packageName=app.amethyst.companion, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=12000000, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[], initialToolType=0}}, false)
+11-09 19:05:15.741 20278 20278 I Capacitor/Console: File:  - Line 333 - Msg: {"name":"Amethyst","id":"app.amethyst.companion","build":"4","version":"1.0.3"}
+11-09 19:05:18.619 20278 25372 D ProfileInstaller: Installing profile for app.amethyst.companion
