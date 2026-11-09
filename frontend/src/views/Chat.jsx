@@ -696,7 +696,7 @@ const Msg = memo(function Msg({
           retryAfter={item.retryAfter || 24}
           fallbackModel="groq/llama-3.3-70b-versatile"
           onRetry={() => onRegenerate?.(item)}
-          onSwitchFallback={() => onRegenerate?.(item)}
+          onSwitchFallback={(fallback) => onRegenerate?.(item, fallback)}
         />
       )
     }
@@ -2658,7 +2658,10 @@ export default function Chat() {
     return lastSet
   }, [transcript])
 
-  const handleRegenerateAnswer = useCallback((msgItem) => {
+  const handleRegenerateAnswer = useCallback((msgItem, overrideModel) => {
+    if (overrideModel && typeof setDraft === 'function') {
+      setDraft((d) => ({ ...d, model: overrideModel }))
+    }
     const idx = transcript.findIndex((it) => it.id === msgItem.id || (it.rowId && it.rowId === msgItem.rowId))
     if (idx < 0) return
     const prevUser = transcript.slice(0, idx).reverse().find((it) => it.kind === 'user')
@@ -2667,7 +2670,7 @@ export default function Chat() {
     } else {
       send('Please regenerate your previous response with more detail.')
     }
-  }, [transcript, send])
+  }, [transcript, send, setDraft])
 
   const handleBranchInNewChat = useCallback(async (msgItem) => {
     const idx = transcript.findIndex((it) => it.id === msgItem.id || (it.rowId && it.rowId === msgItem.rowId))
@@ -3731,7 +3734,7 @@ export default function Chat() {
                         onCancelEdit={() => setEditingMessageId(null)}
                         onSaveEdit={handleSaveMessageEdit}
                         onOpenFullScreen={() => setFullScreenMessage(item)}
-                        onRegenerate={() => handleRegenerateAnswer(item)}
+                        onRegenerate={(targetItem, fallback) => handleRegenerateAnswer(targetItem || item, fallback)}
                         onExportDocx={handleExportDocx}
                         onBranchInNewChat={handleBranchInNewChat}
                         onViewSources={handleViewSources}
