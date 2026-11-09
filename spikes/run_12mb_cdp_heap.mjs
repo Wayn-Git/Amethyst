@@ -15,13 +15,9 @@ async function run() {
   console.log('1. Clearing 12MB and 15MB reels from library in app...');
   await evalInWebView(`
     (async () => {
-      const items = (window.__savedLibraryItems || []).filter(
-        i => i.shortcode !== '${SHORTCODE_12MB}' && i.shortcode !== '${SHORTCODE_15MB}'
-      );
-      window.__savedLibraryItems = items;
-      try {
-        localStorage.setItem('amethyst_saved_items', JSON.stringify(items));
-      } catch(e) {}
+      let items = JSON.parse(localStorage.getItem('amethyst_saved_items') || '[]');
+      items = items.filter(i => !i.url.includes('${SHORTCODE_12MB}') && !i.url.includes('${SHORTCODE_15MB}'));
+      localStorage.setItem('amethyst_saved_items', JSON.stringify(items));
       return true;
     })()
   `, true);
@@ -67,8 +63,8 @@ async function run() {
   while (Date.now() - pollStart < timeoutMs) {
     const itemState = await evalInWebView(`
       (async () => {
-        const items = window.__savedLibraryItems || [];
-        return items.find(i => i.shortcode === '${SHORTCODE_12MB}') || null;
+        const items = JSON.parse(localStorage.getItem('amethyst_saved_items') || '[]');
+        return items.find(i => i.url.includes('${SHORTCODE_12MB}') || (i.canonicalUrl && i.canonicalUrl.includes('${SHORTCODE_12MB}'))) || null;
       })()
     `, true);
 
@@ -105,8 +101,8 @@ async function run() {
   while (Date.now() - poll15Start < timeoutMs) {
     const itemState = await evalInWebView(`
       (async () => {
-        const items = window.__savedLibraryItems || [];
-        return items.find(i => i.shortcode === '${SHORTCODE_15MB}') || null;
+        const items = JSON.parse(localStorage.getItem('amethyst_saved_items') || '[]');
+        return items.find(i => i.url.includes('${SHORTCODE_15MB}') || (i.canonicalUrl && i.canonicalUrl.includes('${SHORTCODE_15MB}'))) || null;
       })()
     `, true);
 

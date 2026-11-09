@@ -1,0 +1,29 @@
+{
+  "testedAt": "2026-11-09T19:14:40.173Z",
+  "reel12MB": {
+    "url": "https://www.instagram.com/reel/De5oNXKteqU/",
+    "shortcode": "De5oNXKteqU",
+    "finalStatus": "ready",
+    "durationMs": 14942,
+    "summary": "The creator investigates the secret behind iOS's smooth and intuitive feel by examining its decompiled scrolling code, revealing that it uses a capped hyperbolic function for overscroll bounce and spring-based damped harmonic motion for state changes rather than simple timelines.",
+    "transcriptSample": "what's fascinated me for a while is how the animations on an iPhone feel so intuitive to the touch so today I actually tried to gain an understanding ...",
+    "heapMetrics": {
+      "measurementTool": "CDP Runtime.getHeapUsage",
+      "baselineUsedMB": 51.34,
+      "baselineTotalMB": 56.11,
+      "peakUsedMB": 115.61,
+      "peakTotalMB": 118.71,
+      "finalUsedMB": 47.91,
+      "finalTotalMB": 49.61,
+      "heapExpansionMB": 64.26
+    }
+  },
+  "reel15MBCeiling": {
+    "url": "https://www.instagram.com/reel/DfGMReUIX-d/",
+    "shortcode": "DfGMReUIX-d",
+    "finalStatus": "ready_partial",
+    "durationMs": 5206,
+    "progressReason": "Saved with embed playback (video size 15.1MB exceeds 15MB limit)",
+    "exceedsLimitCorrectlyHandled": true
+  }
+}
