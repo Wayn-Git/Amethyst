@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { storedIdentity, saveIdentity } from '../../lib/credentials.js'
 import { safeStorage } from '../../lib/storage.js'
 import { getTransportManager } from '../../lib/sync/transportManager.js'
@@ -19,6 +19,8 @@ export default function MobileSettings({
   const [editingHost, setEditingHost] = useState(false)
   const [hostInput, setHostInput] = useState(initialHost)
   const [testShareStatus, setTestShareStatus] = useState('')
+  const [showRevokeConfirm, setShowRevokeConfirm] = useState(false)
+  const [revoking, setRevoking] = useState(false)
 
   const handleSaveHost = async () => {
     const trimmed = hostInput.trim().replace(/\/+$/, '')
@@ -474,15 +476,11 @@ export default function MobileSettings({
 
           <div className="hr" />
 
-          {/* Unpair This Phone */}
+          {/* Revoke This Phone */}
           <div
             className="r"
             style={{ padding: '12px 0', gap: 12, cursor: 'pointer' }}
-            onClick={() => {
-              if (window.confirm('Unpair this phone from your PC?')) {
-                onUnpair()
-              }
-            }}
+            onClick={() => setShowRevokeConfirm(true)}
           >
             <span className="it" style={{ background: '#FEE2E2', color: '#DC2626' }}>
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -492,12 +490,122 @@ export default function MobileSettings({
               </svg>
             </span>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 500, color: '#DC2626' }}>Unpair this phone</div>
-              <div className="m">Disconnects from PC and clears tokens</div>
+              <div style={{ fontWeight: 500, color: '#DC2626' }}>Revoke this phone</div>
+              <div className="m">Invalidates access on PC & clears encrypted credentials</div>
             </div>
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showRevokeConfirm && (
+          <motion.div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 200,
+              background: 'rgba(0, 0, 0, 0.4)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'flex-end',
+              padding: '0 16px calc(16px + env(safe-area-inset-bottom, 0px)) 16px',
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowRevokeConfirm(false)}
+          >
+            <motion.div
+              initial={{ y: 80, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 80, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                maxWidth: 400,
+                width: '100%',
+                margin: '0 auto',
+              }}
+            >
+              <div
+                style={{
+                  background: 'rgba(255, 255, 255, 0.94)',
+                  borderRadius: 14,
+                  overflow: 'hidden',
+                  backdropFilter: 'blur(20px)',
+                  WebkitBackdropFilter: 'blur(20px)',
+                  boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15)',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ padding: '16px 20px 14px' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#8E8E93', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                    Revoke This Phone
+                  </div>
+                  <div style={{ fontSize: 13, color: '#3A3A3C', lineHeight: 1.4 }}>
+                    This phone will be removed from your PC and its access token revoked immediately. Synced encrypted credentials will be permanently erased.
+                  </div>
+                </div>
+                <div style={{ height: 1, background: 'rgba(60, 60, 67, 0.12)' }} />
+                <button
+                  type="button"
+                  disabled={revoking}
+                  onClick={async () => {
+                    setRevoking(true)
+                    try {
+                      await onUnpair?.()
+                    } finally {
+                      setRevoking(false)
+                      setShowRevokeConfirm(false)
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '16px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#FF3B30',
+                    fontSize: 17,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {revoking ? 'Revoking…' : 'Revoke Phone & Disconnect'}
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowRevokeConfirm(false)}
+                style={{
+                  width: '100%',
+                  padding: '16px',
+                  background: '#FFFFFF',
+                  borderRadius: 14,
+                  border: 'none',
+                  color: '#007AFF',
+                  fontSize: 17,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15)',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Cancel
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

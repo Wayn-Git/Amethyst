@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 import { safeStorage } from './storage.js'
+import { secureStoreItem, secureGetItem, secureRemoveItem } from './cryptoStorage.js'
 
 export const isNativeMobile = () => Capacitor.isNativePlatform()
 export const IDENTITY_KEY = 'amethyst.sync.identity.v1'
@@ -32,22 +33,18 @@ export async function nativeVault() {
 
 export async function initializeCredentials() {
   const vault = await nativeVault()
-  if (!vault) return
-  nativeIdentity = await vault.get(IDENTITY_KEY)
-  if (typeof nativeIdentity === 'string') {
-    try { nativeIdentity = JSON.parse(nativeIdentity) } catch {}
+  if (vault) {
+    nativeIdentity = await vault.get(IDENTITY_KEY)
+    if (typeof nativeIdentity === 'string') {
+      try { nativeIdentity = JSON.parse(nativeIdentity) } catch {}
+    }
   }
-  const legacy = safeStorage.getItem(IDENTITY_KEY)
-  if (!nativeIdentity && legacy) {
-    try {
-      const parsed = JSON.parse(legacy)
-      await vault.set(IDENTITY_KEY, parsed)
-      nativeIdentity = parsed
-    } catch {}
+  if (!nativeIdentity) {
+    nativeIdentity = await secureGetItem(IDENTITY_KEY)
   }
   if (nativeIdentity && typeof nativeIdentity === 'object') {
     try {
-      safeStorage.setItem(IDENTITY_KEY, JSON.stringify(nativeIdentity))
+      await secureStoreItem(IDENTITY_KEY, nativeIdentity)
       if (nativeIdentity.hostUrl) {
         safeStorage.setItem('amethyst.pc_host', nativeIdentity.hostUrl)
       }
@@ -56,7 +53,7 @@ export async function initializeCredentials() {
 }
 
 export function storedIdentity() {
-  if (isNativeMobile() && nativeIdentity) {
+  if (nativeIdentity) {
     if (typeof nativeIdentity === 'string') {
       try { nativeIdentity = JSON.parse(nativeIdentity) } catch {}
     }
@@ -66,22 +63,19 @@ export function storedIdentity() {
     const raw = safeStorage.getItem(IDENTITY_KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (parsed) {
-        if (isNativeMobile() && !nativeIdentity) nativeIdentity = parsed
+      if (parsed && !parsed.__amethyst_enc) {
+        nativeIdentity = parsed
         return parsed
       }
     }
   } catch {}
-  if (typeof nativeIdentity === 'string') {
-    try { nativeIdentity = JSON.parse(nativeIdentity) } catch {}
-  }
-  return nativeIdentity || null
+  return null
 }
 
 export async function saveIdentity(identity) {
   nativeIdentity = identity
   try {
-    safeStorage.setItem(IDENTITY_KEY, JSON.stringify(identity))
+    await secureStoreItem(IDENTITY_KEY, identity)
     if (identity?.hostUrl) {
       safeStorage.setItem('amethyst.pc_host', identity.hostUrl)
     }
@@ -97,6 +91,7 @@ export async function saveIdentity(identity) {
 export async function removeIdentity() {
   nativeIdentity = null
   try {
+    secureRemoveItem(IDENTITY_KEY)
     safeStorage.removeItem(IDENTITY_KEY)
     safeStorage.removeItem('amethyst.pc_host')
   } catch {}

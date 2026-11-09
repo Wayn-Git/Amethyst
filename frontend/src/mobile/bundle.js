@@ -1,5 +1,6 @@
 import { nativeVault, isNativeMobile } from '../lib/credentials.js'
 import { safeStorage } from '../lib/storage.js'
+import { secureStoreItem, secureGetItem, secureRemoveItem } from '../lib/cryptoStorage.js'
 
 export const BUNDLE_KEY = 'amethyst.v2.bundle'
 
@@ -106,8 +107,8 @@ export async function getBundle() {
   if (memoryBundle) return memoryBundle
 
   try {
-    const fallback = safeStorage.getItem(BUNDLE_KEY)
-    if (fallback) return JSON.parse(fallback)
+    const fallback = await secureGetItem(BUNDLE_KEY)
+    if (fallback) return fallback
   } catch {
     return null
   }
@@ -167,13 +168,16 @@ export async function saveBundle(bundle) {
   const vault = await nativeVault()
   if (vault) {
     await vault.set(BUNDLE_KEY, bundle)
-    safeStorage.removeItem(BUNDLE_KEY)
+    try {
+      secureRemoveItem(BUNDLE_KEY)
+      safeStorage.removeItem(BUNDLE_KEY)
+    } catch {}
     return
   }
 
   if (!isNativeMobile()) {
     try {
-      safeStorage.setItem(BUNDLE_KEY, JSON.stringify(bundle))
+      await secureStoreItem(BUNDLE_KEY, bundle)
     } catch {
       // Non-blocking in test environment
     }
@@ -194,6 +198,7 @@ export async function clearBundle() {
     // Ignore vault remove error on cleanup
   }
   try {
+    secureRemoveItem(BUNDLE_KEY)
     safeStorage.removeItem(BUNDLE_KEY)
   } catch {
     // Ignore storage remove error

@@ -103,6 +103,21 @@ def remote_credentials_bundle(request: Request) -> dict[str, Any]:
     return build_credentials_bundle(device_id=device.id, hosts=hosts)
 
 
+@router.post("/revoke")
+def remote_revoke_self(request: Request) -> dict[str, Any]:
+    """Revoke the calling companion device from the host and invalidate its token."""
+    device = request.scope.get("device")
+    if not device:
+        raise HTTPException(403, "Device authentication required")
+    from backend.db.connection import get_connection, transaction
+    from backend.sync import devices as sync_devices
+
+    conn = get_connection()
+    with transaction(conn):
+        gone = sync_devices.revoke(conn, device.id)
+    return {"revoked": device.id}
+
+
 # -- System telemetry & Processes --
 
 @router.get("/status")
