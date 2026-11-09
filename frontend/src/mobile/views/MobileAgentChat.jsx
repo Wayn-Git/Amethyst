@@ -1,9 +1,102 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
+import { Button as HouseButton } from '../../components/ui/bento/index.jsx'
 import { getBundle } from '../bundle.js'
 import { getAvailableModels } from '../llmClient.js'
 import { runAgentTurn } from '../agent/agentLoop.js'
 import { getConversation } from '../agent/conversationStore.js'
+import Markdown from '../../components/markdown/Markdown.jsx'
+import MobileActivity from '../components/MobileActivity.jsx'
+
+function extractThoughtFromContent(content) {
+  if (!content || typeof content !== 'string') return { thought: '', text: content || '' }
+  const match = content.match(/<thought>([\s\S]*?)<\/thought>/i)
+  if (match) {
+    const thought = match[1].trim()
+    const text = content.replace(/<thought>[\s\S]*?<\/thought>/i, '').trim()
+    return { thought, text }
+  }
+  return { thought: '', text: content }
+}
+
+function groupMessagesIntoTurns(messages = []) {
+  const turns = []
+  let currentAssistantTurn = null
+
+  for (const msg of messages) {
+    if (msg.role === 'user') {
+      if (currentAssistantTurn) {
+        turns.push(currentAssistantTurn)
+        currentAssistantTurn = null
+      }
+      turns.push({ kind: 'user', id: msg.id, content: msg.content, timestamp: msg.timestamp })
+      continue
+    }
+
+    if (msg.role === 'assistant' || msg.role === 'tool') {
+      if (!currentAssistantTurn) {
+        currentAssistantTurn = {
+          kind: 'assistant',
+          id: msg.id || `turn_a_${Date.now()}`,
+          content: '',
+          tools: [],
+          reasoning: '',
+          durationMs: msg.durationMs || 0,
+          artifact: msg.artifact || null,
+        }
+      }
+
+      if (msg.role === 'assistant') {
+        if (msg.content) {
+          const { thought, text } = extractThoughtFromContent(msg.content)
+          if (thought) {
+            currentAssistantTurn.reasoning = currentAssistantTurn.reasoning
+              ? `${currentAssistantTurn.reasoning}\n\n${thought}`
+              : thought
+          }
+          if (text) {
+            currentAssistantTurn.content = currentAssistantTurn.content
+              ? `${currentAssistantTurn.content}\n\n${text}`
+              : text
+          }
+        }
+        if (msg.artifact) {
+          currentAssistantTurn.artifact = msg.artifact
+        }
+        if (Array.isArray(msg.tool_calls)) {
+          for (const tc of msg.tool_calls) {
+            currentAssistantTurn.tools.push({
+              id: tc.id,
+              name: tc.name,
+              arguments: tc.arguments,
+              status: 'done',
+            })
+          }
+        }
+      } else if (msg.role === 'tool') {
+        const matched = currentAssistantTurn.tools.find((t) => t.id === msg.tool_call_id)
+        if (matched) {
+          matched.result = msg.content
+          matched.is_error = Boolean(msg.is_error)
+        } else {
+          currentAssistantTurn.tools.push({
+            id: msg.tool_call_id,
+            name: msg.name,
+            result: msg.content,
+            is_error: Boolean(msg.is_error),
+            status: 'done',
+          })
+        }
+      }
+    }
+  }
+
+  if (currentAssistantTurn) {
+    turns.push(currentAssistantTurn)
+  }
+
+  return turns
+}
 
 export default function MobileAgentChat({ session, onBack }) {
   const [conversationId, setConversationId] = useState(
@@ -14,7 +107,9 @@ export default function MobileAgentChat({ session, onBack }) {
   const [sending, setSending] = useState(false)
   const [streamingText, setStreamingText] = useState('')
   const [agentStatus, setAgentStatus] = useState(null)
-  const [currentToolCall, setCurrentToolCall] = useState(null)
+  const [liveTools, setLiveTools] = useState([])
+  const [liveReasoning, setLiveReasoning] = useState('')
+  const [liveStartTime, setLiveStartTime] = useState(0)
   const [activeConfirmation, setActiveConfirmation] = useState(session?.confirmation || null)
   const [errorBanner, setErrorBanner] = useState(null)
 
@@ -81,7 +176,9 @@ export default function MobileAgentChat({ session, onBack }) {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages, streamingText, currentToolCall, activeConfirmation])
+  }, [messages, streamingText, liveTools, agentStatus, activeConfirmation])
+
+  const turns = useMemo(() => groupMessagesIntoTurns(messages), [messages])
 
   const handleSend = async (textToSend) => {
     const text = (textToSend || input).trim()
@@ -97,7 +194,9 @@ export default function MobileAgentChat({ session, onBack }) {
     setStreamingText('')
     setErrorBanner(null)
     setAgentStatus('thinking')
-    setCurrentToolCall(null)
+    setLiveTools([])
+    setLiveReasoning('')
+    setLiveStartTime(Date.now())
     setActiveConfirmation(null)
 
     const controller = new AbortController()
@@ -125,21 +224,40 @@ export default function MobileAgentChat({ session, onBack }) {
         signal: controller.signal,
         onEvent: (ev) => {
           if (ev.type === 'delta') {
-            setStreamingText(ev.fullText || '')
+            const raw = ev.fullText || ''
+            const { thought, text: cleanText } = extractThoughtFromContent(raw)
+            if (thought) {
+              setLiveReasoning(thought)
+            }
+            setStreamingText(cleanText)
+          } else if (ev.type === 'thought') {
+            setLiveReasoning((prev) => (prev ? `${prev}\n\n${ev.text}` : ev.text))
           } else if (ev.type === 'status') {
             setAgentStatus(ev.status)
           } else if (ev.type === 'tool_call') {
-            setCurrentToolCall({
-              id: ev.id,
-              tool: ev.tool,
-              arguments: ev.arguments,
-              status: 'running',
-            })
+            setAgentStatus('tool')
+            setLiveTools((prev) => [
+              ...prev,
+              {
+                id: ev.id,
+                name: ev.tool,
+                arguments: ev.arguments,
+                status: 'running',
+                startTime: Date.now(),
+              },
+            ])
           } else if (ev.type === 'tool_result') {
-            setCurrentToolCall((prev) =>
-              prev?.id === ev.id
-                ? { ...prev, status: ev.status, result: ev.result }
-                : prev
+            setLiveTools((prev) =>
+              prev.map((t) =>
+                t.id === ev.id
+                  ? {
+                      ...t,
+                      status: ev.status,
+                      result: ev.result,
+                      durationMs: Date.now() - (t.startTime || Date.now()),
+                    }
+                  : t
+              )
             )
           } else if (ev.type === 'confirmation_required') {
             setActiveConfirmation({
@@ -157,7 +275,9 @@ export default function MobileAgentChat({ session, onBack }) {
               setMessages(ev.conversation.messages)
             }
             setStreamingText('')
-            setCurrentToolCall(null)
+            setLiveTools([])
+            setLiveReasoning('')
+            setLiveStartTime(0)
             setActiveConfirmation(null)
           } else if (ev.type === 'error') {
             setErrorBanner(ev.error)
@@ -208,7 +328,7 @@ export default function MobileAgentChat({ session, onBack }) {
       <div className="b" style={{ paddingBottom: 20, gap: 12 }}>
         {/* Top Header Bar */}
         <div className="r sp">
-          <button
+          <HouseButton
             type="button"
             className="ib"
             aria-label="Sessions"
@@ -217,11 +337,11 @@ export default function MobileAgentChat({ session, onBack }) {
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="m15 18-6-6 6-6" />
             </svg>
-          </button>
+          </HouseButton>
           <div className="ttl" style={{ fontSize: 17, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>
             {sessionTitle}
           </div>
-          <button
+          <HouseButton
             type="button"
             className="ib"
             aria-label="More"
@@ -234,7 +354,7 @@ export default function MobileAgentChat({ session, onBack }) {
               <circle cx="19" cy="12" r="1" />
               <circle cx="5" cy="12" r="1" />
             </svg>
-          </button>
+          </HouseButton>
         </div>
 
         {/* Model Selector Pill */}
@@ -254,6 +374,7 @@ export default function MobileAgentChat({ session, onBack }) {
                 <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
               </svg>
             </span>
+            {/* oxlint-disable-next-line amethyst-ui/no-raw-controls */}
             <select
               aria-label="Select model"
               style={{
@@ -292,13 +413,13 @@ export default function MobileAgentChat({ session, onBack }) {
           >
             <div className="r" style={{ gap: 8 }}>
               <div style={{ flex: 1 }}>{errorBanner}</div>
-              <button
+              <HouseButton
                 type="button"
                 style={{ background: 'none', border: 0, cursor: 'pointer', color: '#991B1B' }}
                 onClick={() => setErrorBanner(null)}
               >
                 ✕
-              </button>
+              </HouseButton>
             </div>
           </div>
         )}
@@ -354,143 +475,141 @@ export default function MobileAgentChat({ session, onBack }) {
             </div>
           )}
 
-          {messages.map((msg, idx) => {
-            const isUser = msg.role === 'user'
+          {turns.map((turn, idx) => {
+            if (turn.kind === 'user') {
+              return (
+                <div
+                  key={turn.id || idx}
+                  style={{
+                    alignSelf: 'flex-end',
+                    background: '#111113',
+                    color: '#fff',
+                    borderRadius: '22px 22px 6px 22px',
+                    padding: '12px 16px',
+                    maxWidth: 290,
+                    marginTop: 4,
+                    lineHeight: 1.45,
+                    wordBreak: 'break-word',
+                    fontSize: 15,
+                  }}
+                >
+                  {turn.content}
+                </div>
+              )
+            }
 
             return (
               <div
-                key={msg.id || idx}
+                key={turn.id || idx}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
-                  alignItems: isUser ? 'flex-end' : 'flex-start',
-                  gap: 6,
+                  gap: 8,
+                  maxWidth: '100%',
+                  width: '100%',
+                  marginTop: 2,
                 }}
               >
-                {isUser ? (
+                {/* Historical Activity Drawer */}
+                {(turn.tools?.length > 0 || turn.reasoning) && (
+                  <MobileActivity
+                    tools={turn.tools}
+                    reasoning={turn.reasoning}
+                    running={false}
+                    durationMs={turn.durationMs}
+                  />
+                )}
+
+                {/* Structured Markdown Message Body */}
+                {turn.content && (
                   <div
+                    className="m-shell selectable-text"
                     style={{
-                      alignSelf: 'flex-end',
-                      background: '#111113',
-                      color: '#fff',
-                      borderRadius: '22px 22px 6px 22px',
+                      maxWidth: '100%',
+                      width: '100%',
+                      background: '#FFFFFF',
                       padding: '12px 16px',
-                      maxWidth: 290,
-                      marginTop: 6,
-                      lineHeight: 1.4,
-                      wordBreak: 'break-word',
+                      borderRadius: '20px 20px 20px 6px',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
+                      border: '1px solid rgba(0,0,0,0.04)',
                     }}
                   >
-                    {msg.content}
+                    <Markdown text={turn.content} />
                   </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: '92%' }}>
-                    {msg.tool_calls && Array.isArray(msg.tool_calls) && msg.tool_calls.map((tc, tcIdx) => (
-                      <span key={tcIdx} className="ch" style={{ alignSelf: 'flex-start' }}>
-                        <span style={{ display: 'flex', color: '#34C759' }}>
-                          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                            <path d="M20 6 9 17l-5-5" />
-                          </svg>
-                        </span>
-                        {tc.name ? `Executed ${tc.name}` : 'Searched Library, 4 items'}
-                      </span>
-                    ))}
+                )}
 
-                    <p style={{ margin: 0, lineHeight: 1.5, color: '#1D1D1F' }}>
-                      {msg.content}
-                    </p>
-
-                    {/* Artifact note card if artifact present */}
-                    {msg.artifact && (
-                      <div className="c r" style={{ gap: 12, marginTop: 4 }}>
-                        <span className="it">
-                          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                            <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
-                            <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-                            <path d="M10 9H8" />
-                            <path d="M16 13H8" />
-                            <path d="M16 17H8" />
-                          </svg>
-                        </span>
-                        <div>
-                          <div className="m">Draft note</div>
-                          <div className="ttl">{msg.artifact.title || 'Hybrid retrieval, in short'}</div>
-                        </div>
-                      </div>
-                    )}
+                {/* Artifact note card if artifact present */}
+                {turn.artifact && (
+                  <div className="c r" style={{ gap: 12, marginTop: 4 }}>
+                    <span className="it">
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+                        <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+                        <path d="M10 9H8" />
+                        <path d="M16 13H8" />
+                        <path d="M16 17H8" />
+                      </svg>
+                    </span>
+                    <div>
+                      <div className="m">Draft note</div>
+                      <div className="ttl">{turn.artifact.title || 'Hybrid retrieval, in short'}</div>
+                    </div>
                   </div>
                 )}
               </div>
             )
           })}
 
-          {/* Animated Agent Status Indicators */}
-          {sending && !streamingText && (
+          {/* Active Live Running Turn */}
+          {sending && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="r"
               style={{
-                alignSelf: 'flex-start',
+                display: 'flex',
+                flexDirection: 'column',
                 gap: 8,
-                padding: '10px 16px',
-                borderRadius: 20,
-                background: 'rgba(255, 255, 255, 0.85)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                border: '1px solid rgba(255, 255, 255, 0.9)',
-                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.05)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: '#1D1D1F',
+                maxWidth: '100%',
+                width: '100%',
+                marginTop: 2,
               }}
             >
-              {agentStatus === 'searching' ? (
-                <>
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#0071E3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ animation: 'r 2s linear infinite' }}>
-                    <circle cx="11" cy="11" r="8" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </svg>
-                  <span>Searching Library & Drive…</span>
-                </>
-              ) : currentToolCall || agentStatus === 'calling' ? (
-                <>
-                  <span className="spn" style={{ width: 14, height: 14, borderColor: '#D1D1D6', borderTopColor: '#873FFF' }} />
-                  <span>Running {currentToolCall?.tool || 'tool'}…</span>
-                </>
-              ) : (
-                <>
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#873FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z" />
-                  </svg>
-                  <span>Thinking…</span>
-                </>
-              )}
-            </motion.div>
-          )}
+              <MobileActivity
+                running={true}
+                status={agentStatus}
+                tools={liveTools}
+                reasoning={liveReasoning}
+                startTime={liveStartTime}
+                defaultOpen={liveTools.length > 0}
+              />
 
-          {/* Streaming Assistant Response */}
-          {streamingText && (
-            <motion.div
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: '92%' }}
-            >
-              <p className="selectable-text" style={{ margin: 0, lineHeight: 1.5, color: '#1D1D1F' }}>
-                {streamingText}
-                <span
+              {streamingText && (
+                <div
+                  className="m-shell selectable-text"
                   style={{
-                    display: 'inline-block',
-                    width: 2,
-                    height: 14,
-                    background: '#873FFF',
-                    marginLeft: 4,
-                    verticalAlign: 'middle',
-                    animation: 'p 1s infinite alternate',
+                    maxWidth: '100%',
+                    width: '100%',
+                    background: '#FFFFFF',
+                    padding: '12px 16px',
+                    borderRadius: '20px 20px 20px 6px',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
+                    border: '1px solid rgba(0,0,0,0.04)',
                   }}
-                />
-              </p>
+                >
+                  <Markdown text={streamingText} />
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 2,
+                      height: 14,
+                      background: '#873FFF',
+                      marginLeft: 4,
+                      verticalAlign: 'middle',
+                      animation: 'p 1s infinite alternate',
+                    }}
+                  />
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -516,22 +635,22 @@ export default function MobileAgentChat({ session, onBack }) {
                 {activeConfirmation.tool || activeConfirmation.command || 'git status'}
               </div>
               <div className="r">
-                <button
+                <HouseButton
                   type="button"
                   className="bt"
                   style={{ flex: 1, background: '#fff', color: '#1D1D1F' }}
                   onClick={() => handleConfirmDecision(true)}
                 >
                   Allow
-                </button>
-                <button
+                </HouseButton>
+                <HouseButton
                   type="button"
                   className="bt"
                   style={{ flex: 1, background: '#2C2C2E', color: '#fff' }}
                   onClick={() => handleConfirmDecision(false)}
                 >
                   Deny
-                </button>
+                </HouseButton>
               </div>
             </div>
           )}
@@ -541,27 +660,27 @@ export default function MobileAgentChat({ session, onBack }) {
 
         {/* Suggestion Chips Row */}
         <div className="r" style={{ marginTop: 'auto', gap: 8, overflowX: 'auto', scrollbarWidth: 'none' }}>
-          <button
+          <HouseButton
             type="button"
             className="ch"
             onClick={() => handleSend('Summarise today')}
           >
             Summarise today
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="ch"
             onClick={() => handleSend('Triage inbox')}
           >
             Triage inbox
-          </button>
-          <button
+          </HouseButton>
+          <HouseButton
             type="button"
             className="ch"
             onClick={() => handleSend('What changed?')}
           >
             What changed?
-          </button>
+          </HouseButton>
         </div>
 
         {/* Offline Warning Banner */}
@@ -604,7 +723,7 @@ export default function MobileAgentChat({ session, onBack }) {
             boxSizing: 'border-box',
           }}
         >
-          <button
+          <HouseButton
             type="button"
             className="ib"
             aria-label="Attach"
@@ -614,8 +733,9 @@ export default function MobileAgentChat({ session, onBack }) {
               <path d="M5 12h14" />
               <path d="M12 5v14" />
             </svg>
-          </button>
+          </HouseButton>
 
+          {/* oxlint-disable-next-line amethyst-ui/no-raw-controls */}
           <input
             className="in"
             style={{ minWidth: 0, flex: 1, padding: '0 4px', fontSize: 15 }}
@@ -625,7 +745,7 @@ export default function MobileAgentChat({ session, onBack }) {
             onChange={(e) => setInput(e.target.value)}
           />
 
-          <button
+          <HouseButton
             type="button"
             className="ib"
             aria-label="Voice"
@@ -636,9 +756,9 @@ export default function MobileAgentChat({ session, onBack }) {
               <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
               <line x1="12" x2="12" y1="19" y2="22" />
             </svg>
-          </button>
+          </HouseButton>
 
-          <button
+          <HouseButton
             type="submit"
             disabled={!input.trim() || sending || !isOnline}
             className="ib k"
@@ -656,7 +776,7 @@ export default function MobileAgentChat({ session, onBack }) {
               <path d="m5 12 7-7 7 7" />
               <path d="M12 19V5" />
             </svg>
-          </button>
+          </HouseButton>
         </form>
       </div>
     </motion.div>

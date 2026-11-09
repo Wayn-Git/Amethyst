@@ -1138,23 +1138,25 @@
 }
 
 .lib-summary-error-box {
-  background: var(--surface-2);
-  border: 1px solid var(--hairline);
-  border-radius: 6px;
-  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle, var(--hairline));
+  border-left: 3px solid var(--warning, #eab308);
+  border-radius: 8px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  transition: all 180ms ease;
 }
 
 .lib-summary-error-header {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 10px;
 }
 
 .lib-summary-error-icon {
-  color: var(--accent);
+  color: var(--warning, #eab308);
   flex-shrink: 0;
   margin-top: 2px;
 }
@@ -1162,18 +1164,48 @@
 .lib-summary-error-message {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  flex: 1;
+}
+
+.lib-summary-error-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .lib-summary-error-title {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text, var(--foreground));
+}
+
+.lib-failed-model-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-dim, var(--muted));
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.lib-failed-model-badge__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text, var(--foreground));
+  font-weight: 500;
 }
 
 .lib-summary-error-desc {
   font-size: 12px;
   color: var(--text-muted);
+  line-height: 1.4;
   margin: 0;
 }
 
@@ -1181,6 +1213,42 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+.lib-btn-free-model {
+  border-color: var(--accent-subtle, var(--hairline)) !important;
+  color: var(--accent, #a78bfa) !important;
+  font-weight: 500;
+}
+
+.lib-btn-free-model:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.05)) !important;
+}
+
+.lib-summary-error-menu-wrap {
+  position: relative;
+}
+
+.lib-summary-error-menu {
+  top: calc(100% + 4px);
+  left: 0;
+  right: auto;
+  min-width: 220px;
+}
+
+.lib-model-free-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  padding: 1px 5px;
+  border-radius: 4px;
 }
 
 /* ==========================================================================

@@ -1032,4 +1032,27 @@
   color: #1D1D1F;
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(139, 92, 246, 0.4));
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.85;
+    filter: drop-shadow(0 0 14px rgba(139, 92, 246, 0.7));
+  }
+}
+
+.amethyst-pulse-mark {
+  animation: pulse 1.8s infinite ease-in-out;
+}
+
+
 

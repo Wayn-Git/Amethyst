@@ -23,6 +23,8 @@ import './library-detail.css'
 export function formatModelDisplayName(modelStr) {
   if (!modelStr) return 'AI Synthesis'
   const clean = String(modelStr).trim()
+  if (clean.includes('north-mini-code')) return 'Cohere North Mini (Free)'
+  if (clean.includes('openrouter/free')) return 'OpenRouter Free'
   if (clean.includes('gemini-2.5-pro')) return 'Gemini 2.5 Pro'
   if (clean.includes('gemini-2.5-flash')) return 'Gemini 2.5 Flash'
   if (clean.includes('gemini-2') || clean.includes('gemini-flash')) return 'Gemini Flash'
@@ -37,7 +39,10 @@ export function formatModelDisplayName(modelStr) {
   if (clean.includes('llama-3') || clean.includes('llama-3-8b')) return 'LLaMA 3 8B'
   if (clean.includes('mimo')) return 'MiMo Flash'
   if (clean.includes('nemotron')) return 'Nemotron 120B'
+  if (clean.includes('kilo-auto/free') || clean === 'kilo-auto/free') return 'Kilo Auto (Free)'
   if (clean.includes('kilo')) return 'Kilo Free'
+  if (clean.includes('deepseek-r1')) return 'DeepSeek R1 (Free)'
+  if (clean.includes('deepseek')) return 'DeepSeek V3'
   if (clean.includes('ministral-8b') || clean.includes('ministral')) return 'Ministral 8B'
   if (clean.includes('mistral-large')) return 'Mistral Large'
   if (clean.includes('mistral-small')) return 'Mistral Small'
@@ -50,6 +55,10 @@ export function formatModelDisplayName(modelStr) {
   }
   if (clean.startsWith('groq:')) return `Groq · ${clean.replace('groq:', '')}`
   if (clean.startsWith('ollama:')) return `Ollama · ${clean.replace('ollama:', '')}`
+  if (clean.includes('/')) {
+    const after = clean.split('/')[1]
+    return after.replace(/:free$/, ' (Free)')
+  }
   return clean.split(':')[0] || 'AI Synthesis'
 }
 
@@ -57,10 +66,13 @@ export function formatModelProvider(modelStr) {
   if (!modelStr) return 'google'
   const clean = String(modelStr).toLowerCase().trim()
   if (clean.startsWith('google') || clean.includes('gemini')) return 'google'
-  if (clean.startsWith('groq') || clean.includes('llama')) return 'groq'
+  if (clean.startsWith('openrouter') || clean.includes('cohere') || clean.includes('openrouter/')) return 'openrouter'
   if (clean.startsWith('anthropic') || clean.includes('claude')) return 'anthropic'
   if (clean.startsWith('openai') || clean.includes('gpt') || clean.startsWith('o1') || clean.startsWith('o3')) return 'openai'
+  if (clean.startsWith('groq') || clean.includes('llama')) return 'groq'
+  if (clean.startsWith('nvidia')) return 'nvidia'
   if (clean.startsWith('mistral') || clean.includes('ministral')) return 'mistral'
+  if (clean.startsWith('kilocode') || clean.includes('kilo')) return 'kilocode'
   if (clean.startsWith('deepseek')) return 'deepseek'
   if (clean.startsWith('cloudflare') || clean.startsWith('@cf/')) return 'cloudflare'
   if (clean.startsWith('ollama')) return 'ollama'
@@ -449,15 +461,56 @@ export default function LibraryDetailModal({
       })
       .catch(() => {})
 
+    const PRESET_LIBRARY_MODELS = {
+      openrouter: [
+        'cohere/north-mini-code:free',
+        'openrouter/free',
+      ],
+      kilocode: ['kilo-auto/free'],
+      nvidia: ['meta/llama-3.1-70b-instruct', 'deepseek-ai/deepseek-v4.1-flash'],
+      mistral: ['mistral-large-latest', 'codestral-latest'],
+      groq: ['llama-3.3-70b-versatile', 'mixtral-8x7b-32768'],
+      google: ['gemini-2.5-flash', 'gemini-2.0-flash'],
+    }
+
     api.health?.()
-      .then((h) => {
+      .then(async (h) => {
         if (h?.providers) {
           const list = []
+          const seen = new Set()
+
+          const addEntry = (p, m) => {
+            const key = `${p}:${m}`
+            if (!seen.has(key) && m && m !== 'default') {
+              seen.add(key)
+              list.push({ provider: p, model: m, label: formatModelDisplayName(m) })
+            }
+          }
+
           for (const p of h.providers) {
-            const defModel = h.provider_defaults?.[p] || (p === 'google' ? 'gemini-2.5-flash' : p === 'groq' ? 'llama-3.3-70b-versatile' : 'default')
-            list.push({ provider: p, model: defModel, label: formatModelDisplayName(defModel) })
+            const defModel = h.provider_defaults?.[p] || (p === 'google' ? 'gemini-2.5-flash' : p === 'groq' ? 'llama-3.3-70b-versatile' : null)
+            if (defModel) addEntry(p, defModel)
+            if (PRESET_LIBRARY_MODELS[p]) {
+              for (const pm of PRESET_LIBRARY_MODELS[p]) {
+                addEntry(p, pm)
+              }
+            }
           }
           if (list.length > 0) setAvailableModels(list)
+
+          // Fetch extra models asynchronously
+          for (const p of h.providers.slice(0, 4)) {
+            try {
+              const res = await api.providerModels?.(p)
+              if (res?.models && Array.isArray(res.models)) {
+                for (const item of res.models.slice(0, 5)) {
+                  const mId = item.id || item.name
+                  if (mId) addEntry(p, mId)
+                }
+                setAvailableModels([...list])
+              }
+            } catch {}
+          }
         }
       })
       .catch(() => {})
@@ -806,6 +859,11 @@ export default function LibraryDetailModal({
     try {
       const res = await api.enrichLibraryItem(item.id, { provider, model })
       if (res) {
+        if (!res.summary && res.enrichment_note) {
+          setEnrichError(res.enrichment_note)
+        } else {
+          setEnrichError(null)
+        }
         setDetailItem(res)
         onUpdate?.(res)
       }
@@ -815,6 +873,35 @@ export default function LibraryDetailModal({
       setIsEnriching(false)
     }
   }, [item?.id, configuredProvider, configuredModel, onUpdate])
+
+  const handleTestAndSetModel = useCallback(
+    async (provider, model) => {
+      try {
+        const res = await api.testModel({ provider, model })
+        if (res?.ok) {
+          await api.updateLibrarySettings?.({
+            enrich_provider: provider,
+            enrich_model: model,
+          })
+          setConfiguredProvider(provider)
+          setConfiguredModel(model)
+          toast?.(`Verified & set ${formatModelDisplayName(model)} as library model`, 'ok')
+          return { ok: true, latency_ms: res.latency_ms }
+        } else {
+          const err = res?.error || 'Model test failed'
+          setEnrichError(err)
+          toast?.(`Test failed: ${err}`, 'bad')
+          return { ok: false, error: err }
+        }
+      } catch (err) {
+        const errStr = err.message || String(err)
+        setEnrichError(errStr)
+        toast?.(`Test failed: ${errStr}`, 'bad')
+        return { ok: false, error: errStr }
+      }
+    },
+    [toast]
+  )
 
   const handleSaveTitle = async () => {
     const clean = titleDraft.trim()
@@ -1641,6 +1728,7 @@ export default function LibraryDetailModal({
                         configuredProvider={configuredProvider}
                         availableModels={availableModels}
                         onRegenerate={handleEnrich}
+                        onTestAndSetModel={handleTestAndSetModel}
                         onCopySummary={handleCopySummary}
                         copiedSummary={copiedSummary}
                         onOpenModelSettings={() => {

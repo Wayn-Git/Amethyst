@@ -14,6 +14,7 @@ export {
 } from './conversationStore.js'
 export {
   getToolsForUser,
+  clearToolsCache,
   isWriteAction,
   executeToolWithSafety,
   formatToolsForProvider,

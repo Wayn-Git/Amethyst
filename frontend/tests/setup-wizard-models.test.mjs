@@ -64,7 +64,7 @@ test('sensible default model auto-picking for connected provider', () => {
   const providerPresets = {
     groq: 'llama-3.3-70b-versatile',
     openai: 'gpt-4o',
-    openrouter: 'meta-llama/llama-3.3-70b-instruct:free',
+    openrouter: 'cohere/north-mini-code:free',
     gemini: 'gemini-1.5-flash',
   }
 

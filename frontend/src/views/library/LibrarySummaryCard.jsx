@@ -127,6 +127,7 @@ export default function LibrarySummaryCard({
   configuredProvider = null,
   availableModels = [],
   onRegenerate,
+  onTestAndSetModel,
   onCopySummary,
   copiedSummary = false,
   onOpenModelSettings,
@@ -134,19 +135,43 @@ export default function LibrarySummaryCard({
   // Collapsed by default (show TL;DR only)
   const [showDetails, setShowDetails] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const [showErrorMenu, setShowErrorMenu] = useState(false)
+  const [testingModel, setTestingModel] = useState(null)
   const menuRef = useRef(null)
+  const errorMenuRef = useRef(null)
 
-  // Outside click for split button menu
+  const handleSelectModel = async (m) => {
+    setShowMenu(false)
+    setShowErrorMenu(false)
+    if (onTestAndSetModel) {
+      setTestingModel(m.model)
+      try {
+        const res = await onTestAndSetModel(m.provider, m.model)
+        if (res?.ok) {
+          onRegenerate?.(m)
+        }
+      } finally {
+        setTestingModel(null)
+      }
+    } else {
+      onRegenerate?.(m)
+    }
+  }
+
+  // Outside click for split button menu & error menu
   useEffect(() => {
-    if (!showMenu) return
+    if (!showMenu && !showErrorMenu) return
     const handleClick = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
+      if (showMenu && menuRef.current && !menuRef.current.contains(e.target)) {
         setShowMenu(false)
+      }
+      if (showErrorMenu && errorMenuRef.current && !errorMenuRef.current.contains(e.target)) {
+        setShowErrorMenu(false)
       }
     }
     window.addEventListener('mousedown', handleClick, true)
     return () => window.removeEventListener('mousedown', handleClick, true)
-  }, [showMenu])
+  }, [showMenu, showErrorMenu])
 
   const { tldr, detailItems } = useMemo(
     () => extractSummaryTldrAndDetails(summaryText),
@@ -154,6 +179,26 @@ export default function LibrarySummaryCard({
   )
 
   const errorInfo = useMemo(() => mapErrorMessage(enrichError), [enrichError])
+
+  // Working free model selection
+  const workingFreeModel = useMemo(() => {
+    if (!availableModels || availableModels.length === 0) {
+      return { provider: 'openrouter', model: 'cohere/north-mini-code:free', label: 'Cohere North Mini (Free)' }
+    }
+    const cohere = availableModels.find((m) => m.model === 'cohere/north-mini-code:free')
+    if (cohere) return cohere
+    const orFree = availableModels.find((m) => m.provider === 'openrouter' && (m.model.includes('free') || m.model.includes('cohere')))
+    if (orFree) return orFree
+    const anyFree = availableModels.find((m) => m.model.includes('free'))
+    if (anyFree) return anyFree
+    return availableModels[0]
+  }, [availableModels])
+
+  const canSwitchToFree = Boolean(
+    workingFreeModel &&
+    configuredModel !== workingFreeModel.model &&
+    !String(configuredModel || '').includes('north-mini-code')
+  )
 
   // Is configured model different from the model that generated this summary?
   const isStale = useMemo(() => {
@@ -209,17 +254,21 @@ export default function LibrarySummaryCard({
               size="sm"
               className="lib-split-btn lib-split-btn--main"
               onClick={() => onRegenerate?.()}
-              disabled={isEnriching}
+              disabled={isEnriching || Boolean(testingModel)}
               title={`Regenerate summary with ${formatModelDisplayName(configuredModel || 'default model')}`}
               icon={
                 <Icon
-                  name={isEnriching ? 'loader' : 'refresh'}
+                  name={isEnriching || testingModel ? 'loader' : 'refresh'}
                   size={14}
-                  className={isEnriching ? 'animate-spin' : ''}
+                  className={isEnriching || testingModel ? 'animate-spin' : ''}
                 />
               }
             >
-              {isEnriching ? 'Summarizing...' : 'Regenerate'}
+              {testingModel
+                ? `Testing ${formatModelDisplayName(testingModel)}...`
+                : isEnriching
+                ? 'Summarizing...'
+                : 'Regenerate'}
             </AppButton>
 
             <AppButton
@@ -227,7 +276,7 @@ export default function LibrarySummaryCard({
               size="sm"
               className="lib-split-btn lib-split-btn--chevron"
               onClick={() => setShowMenu((v) => !v)}
-              disabled={isEnriching}
+              disabled={isEnriching || Boolean(testingModel)}
               title="Regenerate with other models"
               aria-label="Select model to regenerate with"
               aria-haspopup="true"
@@ -237,25 +286,30 @@ export default function LibrarySummaryCard({
 
             {showMenu && (
               <div className="lib-split-menu" role="menu">
-                <div className="lib-split-menu-header">Regenerate with...</div>
+                <div className="lib-split-menu-header">Regenerate & set default...</div>
                 {availableModels.length > 0 ? (
                   availableModels.map((m, idx) => (
                     <button
-                      key={m.model || idx}
+                      key={`${m.provider}-${m.model}` || idx}
                       type="button"
                       role="menuitem"
                       className={`lib-split-menu-item ${m.model === configuredModel ? 'lib-split-menu-item--active' : ''}`}
-                      onClick={() => {
-                        setShowMenu(false)
-                        onRegenerate?.(m)
-                      }}
+                      disabled={Boolean(testingModel) || isEnriching}
+                      onClick={() => handleSelectModel(m)}
                     >
                       <AiProviderIcon provider={m.provider || 'google'} model={m.model} size={14} />
-                      <span className="lib-split-menu-name">
-                        {formatModelDisplayName(m.model || m.label)}
-                      </span>
-                      {m.model === configuredModel && (
+                      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, textAlign: 'left' }}>
+                        <span className="lib-split-menu-name">
+                          {formatModelDisplayName(m.model || m.label)}
+                        </span>
+                        <span style={{ fontSize: 10, color: 'var(--text-dim, var(--muted))' }}>
+                          {m.provider}
+                        </span>
+                      </div>
+                      {m.model === configuredModel ? (
                         <span className="lib-split-menu-badge">Default</span>
+                      ) : (
+                        <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 'auto' }}>Test & use</span>
                       )}
                     </button>
                   ))
@@ -293,33 +347,107 @@ export default function LibrarySummaryCard({
       {isFailed && (
         <div className="lib-summary-error-box" role="alert">
           <div className="lib-summary-error-header">
-            <Icon name="alert" size={14} className="lib-summary-error-icon" />
+            <Icon name="alert" size={16} className="lib-summary-error-icon" />
             <div className="lib-summary-error-message">
-              <span className="lib-summary-error-title">Synthesis failed</span>
+              <div className="lib-summary-error-title-row">
+                <span className="lib-summary-error-title">Synthesis failed</span>
+                {configuredModel && (
+                  <div className="lib-failed-model-badge" title={`Failed on ${configuredProvider || 'AI'}:${configuredModel}`}>
+                    <span className="lib-failed-model-badge__label">Failed with:</span>
+                    <span className="lib-failed-model-badge__pill">
+                      <AiProviderIcon provider={configuredProvider || 'google'} model={configuredModel} size={12} />
+                      <span>{formatModelDisplayName(configuredModel)}</span>
+                    </span>
+                  </div>
+                )}
+              </div>
               <p className="lib-summary-error-desc">{errorInfo.reason}</p>
             </div>
           </div>
 
           <div className="lib-summary-error-actions">
             <AppButton
-              variant="primary"
+              variant="secondary"
               size="sm"
               onClick={() => onRegenerate?.()}
-              disabled={isEnriching}
-              icon={<Icon name="refresh" size={14} />}
+              disabled={isEnriching || Boolean(testingModel)}
+              icon={
+                <Icon
+                  name={isEnriching ? 'loader' : 'refresh'}
+                  size={13}
+                  className={isEnriching ? 'animate-spin' : ''}
+                />
+              }
             >
               Retry
             </AppButton>
 
-            {alternateModel && (
+            {canSwitchToFree && (
               <AppButton
                 variant="secondary"
                 size="sm"
-                onClick={() => onRegenerate?.(alternateModel)}
-                disabled={isEnriching}
+                className="lib-btn-free-model"
+                onClick={() => handleSelectModel(workingFreeModel)}
+                disabled={isEnriching || Boolean(testingModel)}
+                icon={<Icon name="spark" size={13} />}
+                title={`Switch to verified free model ${formatModelDisplayName(workingFreeModel.model)}`}
               >
-                Try with {formatModelDisplayName(alternateModel.model)}
+                {testingModel === workingFreeModel.model
+                  ? 'Testing Free Model...'
+                  : `Try with ${formatModelDisplayName(workingFreeModel.model)}`}
               </AppButton>
+            )}
+
+            {/* Model switcher dropdown inside error state */}
+            {availableModels.length > 0 && (
+              <div className="lib-summary-error-menu-wrap" ref={errorMenuRef}>
+                <AppButton
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowErrorMenu((v) => !v)}
+                  disabled={isEnriching || Boolean(testingModel)}
+                  icon={<Icon name="cpu" size={13} />}
+                >
+                  <span>{testingModel ? `Testing ${formatModelDisplayName(testingModel)}...` : 'Switch model'}</span>
+                  <Icon name="chevron-down" size={11} style={{ marginLeft: 3 }} />
+                </AppButton>
+
+                {showErrorMenu && (
+                  <div className="lib-split-menu lib-summary-error-menu" role="menu">
+                    <div className="lib-split-menu-header">Select model to test & use...</div>
+                    {availableModels.map((m, idx) => (
+                      <button
+                        key={`${m.provider}-${m.model}` || idx}
+                        type="button"
+                        role="menuitem"
+                        className={`lib-split-menu-item ${m.model === configuredModel ? 'lib-split-menu-item--active' : ''}`}
+                        disabled={Boolean(testingModel) || isEnriching}
+                        onClick={() => {
+                          setShowErrorMenu(false)
+                          handleSelectModel(m)
+                        }}
+                      >
+                        <AiProviderIcon provider={m.provider || 'google'} model={m.model} size={14} />
+                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, textAlign: 'left' }}>
+                          <span className="lib-split-menu-name">
+                            {formatModelDisplayName(m.model || m.label)}
+                          </span>
+                          <span style={{ fontSize: 10, color: 'var(--text-dim, var(--muted))' }}>
+                            {m.provider}
+                          </span>
+                        </div>
+                        {m.model.includes('free') ? (
+                          <span className="lib-model-free-badge">Free</span>
+                        ) : m.model === configuredModel ? (
+                          <span className="lib-split-menu-badge">Current</span>
+                        ) : (
+                          <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 'auto' }}>Test & use</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
 
             {errorInfo.type === 'auth' && onOpenModelSettings && (
@@ -327,9 +455,9 @@ export default function LibrarySummaryCard({
                 variant="secondary"
                 size="sm"
                 onClick={onOpenModelSettings}
-                icon={<Icon name="sliders" size={14} />}
+                icon={<Icon name="sliders" size={13} />}
               >
-                Open model settings
+                Model settings
               </AppButton>
             )}
           </div>

@@ -276,6 +276,7 @@ strengths and limits; the catalogue fills what the file does not say.
 | Change retry policy | `runtime/http.py`, `runtime/failures.py` |
 | Change embeddings | `retrieval/embeddings.py`, `EMBEDDING_CANDIDATES` |
 | Change the model picker | `frontend/src/components/ModelMenu.jsx`, `/api/providers*` |
+| Test candidate model | `backend/api/main.py::test_model_route`, `POST /api/models/test` |
 
 Rules:
 

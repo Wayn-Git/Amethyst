@@ -97,7 +97,7 @@ class EnvVarDetector(BaseDetector):
     ENV_MAPPING = [
         ("OPENAI_API_KEY", "openai", "OpenAI", "gpt-4o", None, None),
         ("ANTHROPIC_API_KEY", "anthropic", "Anthropic", "claude-3-7-sonnet-latest", None, None),
-        ("OPENROUTER_API_KEY", "openrouter", "OpenRouter", "meta-llama/llama-3.3-70b-instruct:free", "https://openrouter.ai/api/v1", None),
+        ("OPENROUTER_API_KEY", "openrouter", "OpenRouter", "cohere/north-mini-code:free", "https://openrouter.ai/api/v1", None),
         ("GEMINI_API_KEY", "google", "Google Gemini", "gemini-2.0-flash", "https://generativelanguage.googleapis.com/v1beta/openai/", None),
         ("GOOGLE_API_KEY", "google", "Google Gemini", "gemini-2.0-flash", "https://generativelanguage.googleapis.com/v1beta/openai/", None),
         ("GROQ_API_KEY", "groq", "Groq", "llama-3.3-70b-versatile", "https://api.groq.com/openai/v1", None),

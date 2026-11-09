@@ -16,12 +16,40 @@ export default function StepAiEngine({ onNext, onBack, onSkip }) {
   const [selectedOllamaModel, setSelectedOllamaModel] = useState('')
   const [probing, setProbing] = useState(true)
 
-  // Cloud Providers state
-  const [activeSlug, setActiveSlug] = useState('groq')
+  // OpenRouter OAuth state
+  const [openRouterConnecting, setOpenRouterConnecting] = useState(false)
+  const [openRouterConnected, setOpenRouterConnected] = useState(false)
+  const [openRouterError, setOpenRouterError] = useState(null)
+
+  // API Key Providers state
+  const [activeSlug, setActiveSlug] = useState('kilocode')
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [verifying, setVerifying] = useState(false)
   const [verifyStatus, setVerifyStatus] = useState(null) // null | { ok: boolean, msg: string }
   const [configuredProviders, setConfiguredProviders] = useState([])
+
+  const apiKeyProviders = [
+    {
+      slug: 'kilocode',
+      name: 'Kilo Code',
+      defaultModel: 'kilo-auto/free',
+    },
+    {
+      slug: 'nvidia',
+      name: 'NVIDIA NIM',
+      defaultModel: 'meta/llama-3.1-70b-instruct',
+    },
+    {
+      slug: 'mistral',
+      name: 'Mistral',
+      defaultModel: 'mistral-large-latest',
+    },
+    {
+      slug: 'groq',
+      name: 'Groq',
+      defaultModel: 'llama-3.3-70b-versatile',
+    },
+  ]
 
   // Probe Ollama & Providers
   const scanEngines = useCallback(async () => {
@@ -43,7 +71,11 @@ export default function StepAiEngine({ onNext, onBack, onSkip }) {
       }
 
       if (provRes.status === 'fulfilled' && provRes.value?.configured) {
-        setConfiguredProviders(provRes.value.configured.filter((p) => p.has_key && p.enabled))
+        const active = provRes.value.configured.filter((p) => p.has_key && p.enabled)
+        setConfiguredProviders(active)
+        if (active.some((p) => p.name === 'openrouter')) {
+          setOpenRouterConnected(true)
+        }
       }
     } catch {
       // Non-blocking fallback
@@ -55,6 +87,74 @@ export default function StepAiEngine({ onNext, onBack, onSkip }) {
   useEffect(() => {
     scanEngines()
   }, [scanEngines])
+
+  // OpenRouter PKCE OAuth Flow
+  const handleOpenRouterOAuth = async () => {
+    setOpenRouterConnecting(true)
+    setOpenRouterError(null)
+    try {
+      const redirectUri = typeof window !== 'undefined'
+        ? `${window.location.origin}/api/auth/openrouter/callback`
+        : 'http://localhost:8000/api/auth/openrouter/callback'
+
+      const res = await api.startOpenRouterAuth(redirectUri)
+      if (!res?.auth_url) {
+        throw new Error('Unable to start OpenRouter OAuth session')
+      }
+
+      const width = 600
+      const height = 700
+      const left = window.screen.width / 2 - width / 2
+      const top = window.screen.height / 2 - height / 2
+      const popup = window.open(
+        res.auth_url,
+        'openrouter-auth',
+        `toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,width=${width},height=${height},top=${top},left=${left}`
+      )
+
+      const pollTimer = setInterval(async () => {
+        try {
+          if (res.state) {
+            const pollRes = await api.pollOpenRouterAuth(res.state)
+            if (pollRes?.status === 'completed') {
+              clearInterval(pollTimer)
+              if (popup && !popup.closed) popup.close()
+              setOpenRouterConnected(true)
+              setOpenRouterConnecting(false)
+              scanEngines()
+              return
+            } else if (pollRes?.status === 'failed') {
+              clearInterval(pollTimer)
+              setOpenRouterConnecting(false)
+              setOpenRouterError(pollRes.error || 'OpenRouter authentication failed')
+              return
+            }
+          }
+          if (popup && popup.closed) {
+            clearInterval(pollTimer)
+            setOpenRouterConnecting(false)
+            scanEngines()
+          }
+        } catch {
+          // Keep polling
+        }
+      }, 1000)
+
+      const handleMsg = (e) => {
+        if (e.data?.type === 'openrouter_auth_success') {
+          clearInterval(pollTimer)
+          window.removeEventListener('message', handleMsg)
+          setOpenRouterConnected(true)
+          setOpenRouterConnecting(false)
+          scanEngines()
+        }
+      }
+      window.addEventListener('message', handleMsg)
+    } catch (err) {
+      setOpenRouterConnecting(false)
+      setOpenRouterError(err.message || 'Could not connect to OpenRouter')
+    }
+  }
 
   // Paste from clipboard accelerator
   const handlePaste = async () => {
@@ -75,13 +175,22 @@ export default function StepAiEngine({ onNext, onBack, onSkip }) {
     if (!key || key.length < 8) return
     setVerifying(true)
     setVerifyStatus(null)
+    const provDef = apiKeyProviders.find((p) => p.slug === activeSlug)
+    const defModel = provDef?.defaultModel
+
     try {
       const res = await api.verifyProvider?.(activeSlug, { api_key: key })
-      if (res?.ok) {
+      if (res?.ok || res?.valid) {
         setVerifyStatus({ ok: true, msg: `Verified (${res.latency_ms || 120}ms)` })
-        await api.saveKey?.(activeSlug, key)
+        await api.addProvider({
+          name: activeSlug,
+          api_key: key,
+          key: key,
+          default_model: defModel,
+        })
+        scanEngines()
       } else {
-        setVerifyStatus({ ok: false, msg: res?.error || 'Invalid API key' })
+        setVerifyStatus({ ok: false, msg: res?.error || res?.message || 'Invalid API key' })
       }
     } catch (err) {
       setVerifyStatus({ ok: false, msg: err.message || 'Key check failed' })
@@ -94,38 +203,7 @@ export default function StepAiEngine({ onNext, onBack, onSkip }) {
     onNext?.()
   }
 
-  const cloudList = [
-    {
-      slug: 'groq',
-      name: 'Groq',
-      defaultModel: 'llama-3.3-70b-versatile',
-      models: ['llama-3.3-70b-versatile', 'mixtral-8x7b-32768'],
-    },
-    {
-      slug: 'gemini',
-      name: 'Google Gemini',
-      defaultModel: 'gemini-2.0-flash',
-      models: ['gemini-2.0-flash', 'gemini-1.5-pro'],
-    },
-    {
-      slug: 'kilocode',
-      name: 'Kilo Code',
-      defaultModel: 'kilo-auto/free',
-      models: ['kilo-auto/free'],
-    },
-    {
-      slug: 'openrouter',
-      name: 'OpenRouter',
-      defaultModel: 'auto',
-      models: ['auto', 'deepseek/deepseek-r1:free'],
-    },
-    {
-      slug: 'deepseek',
-      name: 'DeepSeek',
-      defaultModel: 'deepseek-chat',
-      models: ['deepseek-chat', 'deepseek-reasoner'],
-    },
-  ]
+  const isOpenRouterConfigured = openRouterConnected || configuredProviders.some((p) => p.name === 'openrouter')
 
   return (
     <div className="onb-card">
@@ -135,7 +213,7 @@ export default function StepAiEngine({ onNext, onBack, onSkip }) {
         <p className="onb-eyebrow">Step 2 of 6 · AI engine</p>
         <h1 className="onb-title">Choose your AI engine</h1>
         <p className="onb-desc">
-          Run a model on this {osName}, or connect a free cloud provider. You can add more later.
+          Connect OpenRouter with 1-click for free models, add your preferred API keys, or run offline models.
         </p>
 
         <div style={{ marginTop: 'auto' }}>
@@ -164,8 +242,182 @@ export default function StepAiEngine({ onNext, onBack, onSkip }) {
       <div className="onb-perforation" aria-hidden="true" />
 
       {/* Right Content Pane */}
-      <div className="onb-pane-right">
-        {/* Local Ollama Section */}
+      <div className="onb-pane-right" style={{ overflowY: 'auto' }}>
+        {/* 1. Primary: OpenRouter OAuth */}
+        <p className="onb-section-header">Primary · Recommended</p>
+        <div className="onb-group" style={{ marginBottom: 16 }}>
+          <div className="onb-row" style={{ minHeight: 56 }}>
+            <div className="onb-row-icon" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>
+              <AiProviderIcon provider="openrouter" size={20} />
+            </div>
+            <div className="onb-row-meta">
+              OpenRouter
+              <span>{isOpenRouterConfigured ? 'Connected · Free model auto-selected' : 'OAuth sign-in · Free cloud models'}</span>
+            </div>
+            {isOpenRouterConfigured ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span
+                  className="onb-tag-pill"
+                  style={{
+                    background: 'rgba(52, 211, 153, 0.15)',
+                    color: '#34d399',
+                    border: '1px solid rgba(52, 211, 153, 0.3)',
+                    fontSize: 11,
+                    padding: '3px 8px',
+                  }}
+                >
+                  <Icon name="check" size={12} weight="bold" />
+                  <span>Free Model</span>
+                </span>
+                <span
+                  className="onb-pill-btn"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    font: '500 11px JetBrains Mono, monospace',
+                    minHeight: 32,
+                    padding: '0 10px',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                  }}
+                >
+                  cohere/north-mini-code:free
+                </span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="onb-pill-btn"
+                onClick={handleOpenRouterOAuth}
+                disabled={openRouterConnecting}
+                style={{
+                  background: accentColor || '#7132f5',
+                  color: '#ffffff',
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  cursor: openRouterConnecting ? 'wait' : 'pointer',
+                }}
+              >
+                {openRouterConnecting ? (
+                  <>
+                    <Icon name="loader" size={14} className="animate-spin" />
+                    <span>Connecting…</span>
+                  </>
+                ) : (
+                  <>
+                    <Icon name="spark" size={14} />
+                    <span>Connect with OpenRouter</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {openRouterError && (
+          <div
+            style={{
+              fontSize: 12,
+              margin: '-10px 4px 14px',
+              color: '#f87171',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Icon name="warning-circle" size={14} />
+            <span>{openRouterError}</span>
+          </div>
+        )}
+
+        {/* 2. Middle: API Key Providers */}
+        <p className="onb-section-header">API key providers</p>
+
+        {/* API Key Quick Paste Bar */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          <input
+            type="password"
+            className="onb-input"
+            style={{ height: 40 }}
+            placeholder={`Paste API key for ${apiKeyProviders.find((c) => c.slug === activeSlug)?.name || 'provider'}`}
+            value={apiKeyInput}
+            onChange={(e) => {
+              setApiKeyInput(e.target.value)
+              autoVerifyKey(e.target.value)
+            }}
+          />
+          <button
+            type="button"
+            className="onb-pill-btn"
+            style={{ minHeight: 40, whiteSpace: 'nowrap' }}
+            onClick={handlePaste}
+          >
+            Paste
+          </button>
+        </div>
+
+        {verifyStatus && (
+          <div
+            style={{
+              fontSize: 12,
+              marginBottom: 10,
+              color: verifyStatus.ok ? '#34d399' : '#f87171',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Icon name={verifyStatus.ok ? 'check' : 'warning-circle'} size={14} />
+            <span>{verifyStatus.msg}</span>
+          </div>
+        )}
+
+        {/* Provider List Rows */}
+        <div className="onb-group" style={{ marginBottom: 16 }}>
+          {apiKeyProviders.map((p) => {
+            const isRowActive = activeSlug === p.slug
+            const isConfigured = configuredProviders.some((cp) => cp.name === p.slug)
+            return (
+              <div
+                key={p.slug}
+                className="onb-row"
+                onClick={() => {
+                  setActiveSlug(p.slug)
+                  setApiKeyInput('')
+                  setVerifyStatus(null)
+                }}
+                style={{
+                  cursor: 'pointer',
+                  background: isRowActive ? 'rgba(255, 255, 255, 0.04)' : 'transparent',
+                }}
+              >
+                <div className="onb-row-icon" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>
+                  <AiProviderIcon provider={p.slug} size={20} />
+                </div>
+                <div className="onb-row-meta">
+                  {p.name}
+                  <span>{isConfigured ? 'Connected' : isRowActive ? 'Selected' : 'Available'}</span>
+                </div>
+                <span
+                  className="onb-pill-btn"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    font: '500 11px JetBrains Mono, monospace',
+                    minHeight: 32,
+                    padding: '0 12px',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                  }}
+                >
+                  {p.defaultModel}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* 3. Bottom: Local Ollama Section */}
         <p className="onb-section-header">On this {osName}</p>
         <div className="onb-group" style={{ marginBottom: 6 }}>
           <div className="onb-row">
@@ -224,95 +476,10 @@ export default function StepAiEngine({ onNext, onBack, onSkip }) {
             </div>
           )}
         </div>
-        <p style={{ fontSize: 12, color: '#9ea3c4', margin: '6px 4px 18px', lineHeight: 1.45 }}>
+        <p style={{ fontSize: 12, color: '#9ea3c4', margin: '6px 4px 12px', lineHeight: 1.45 }}>
           Private · No API cost · Works offline
         </p>
-
-        {/* Free Cloud Providers Section */}
-        <p className="onb-section-header" style={{ marginTop: 12 }}>Free cloud providers</p>
-
-        {/* API Key Quick Paste Bar */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-          <input
-            type="password"
-            className="onb-input"
-            style={{ height: 40 }}
-            placeholder={`Paste API key for ${cloudList.find((c) => c.slug === activeSlug)?.name || 'cloud provider'}`}
-            value={apiKeyInput}
-            onChange={(e) => {
-              setApiKeyInput(e.target.value)
-              autoVerifyKey(e.target.value)
-            }}
-          />
-          <button
-            type="button"
-            className="onb-pill-btn"
-            style={{ minHeight: 40, whiteSpace: 'nowrap' }}
-            onClick={handlePaste}
-          >
-            Paste
-          </button>
-        </div>
-
-        {verifyStatus && (
-          <div
-            style={{
-              fontSize: 12,
-              marginBottom: 10,
-              color: verifyStatus.ok ? '#34d399' : '#f87171',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <Icon name={verifyStatus.ok ? 'check' : 'warning-circle'} size={14} />
-            <span>{verifyStatus.msg}</span>
-          </div>
-        )}
-
-        {/* Provider List Rows */}
-        <div className="onb-group">
-          {cloudList.map((p) => {
-            const isRowActive = activeSlug === p.slug
-            const isConfigured = configuredProviders.some((cp) => cp.name === p.slug)
-            return (
-              <div
-                key={p.slug}
-                className="onb-row"
-                onClick={() => setActiveSlug(p.slug)}
-                style={{
-                  cursor: 'pointer',
-                  background: isRowActive ? 'rgba(255, 255, 255, 0.04)' : 'transparent',
-                }}
-              >
-                <div className="onb-row-icon" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>
-                  <AiProviderIcon provider={p.slug} size={20} />
-                </div>
-                <div className="onb-row-meta">
-                  {p.name}
-                  <span>{isConfigured ? 'Connected' : isRowActive ? 'Selected' : 'Available'}</span>
-                </div>
-                <button
-                  type="button"
-                  className="onb-pill-btn"
-                  style={{
-                    display: 'inline-flex',
-                    gap: 8,
-                    alignItems: 'center',
-                    font: '500 11px JetBrains Mono, monospace',
-                    minHeight: 34,
-                    padding: '0 12px',
-                  }}
-                >
-                  <span>{p.defaultModel}</span>
-                  <Icon name="caret-down" size={12} weight="bold" />
-                </button>
-              </div>
-            )
-          })}
-        </div>
       </div>
     </div>
   )
 }
-

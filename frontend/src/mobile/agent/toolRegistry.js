@@ -198,11 +198,18 @@ export function formatToolsForProvider(tools = [], provider = 'anthropic') {
   }))
 }
 
+let _toolsCache = new Map()
+const TOOLS_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+
+export function clearToolsCache() {
+  _toolsCache.clear()
+}
+
 /**
  * Load available tools for the user_id from Composio, falling back
  * to core Drive tools if needed.
  */
-export async function getToolsForUser({ composioConfig, http }) {
+export async function getToolsForUser({ composioConfig, http, forceRefresh = false }) {
   const toolMap = new Map()
 
   // 1. Add core drive tools first
@@ -212,16 +219,30 @@ export async function getToolsForUser({ composioConfig, http }) {
 
   // 2. Fetch live connected tools from Composio if configured
   if (composioConfig?.api_key && composioConfig?.user_id) {
+    const cacheKey = `${composioConfig.api_key}:${composioConfig.user_id}`
+    const cached = _toolsCache.get(cacheKey)
+    const now = Date.now()
+
+    if (!forceRefresh && cached && (now - cached.timestamp < TOOLS_CACHE_TTL_MS)) {
+      for (const t of cached.tools) {
+        toolMap.set(t.name, t)
+      }
+      return Array.from(toolMap.values())
+    }
+
     try {
       const rawTools = await listAvailableTools({ composioConfig, http })
+      const composioTools = []
       if (Array.isArray(rawTools)) {
         for (const raw of rawTools) {
           const norm = normalizeComposioTool(raw)
           if (norm && norm.name) {
             toolMap.set(norm.name, norm)
+            composioTools.push(norm)
           }
         }
       }
+      _toolsCache.set(cacheKey, { tools: composioTools, timestamp: now })
     } catch {
       // Non-fatal: keep core tools
     }

@@ -256,11 +256,12 @@ PROVIDER_PRESETS: tuple[ProviderPreset, ...] = (
         slug="openrouter",
         label="OpenRouter",
         base_url="https://openrouter.ai/api/v1",
+        default_model="cohere/north-mini-code:free",
         keys_url="https://openrouter.ai/keys",
         docs_url="https://openrouter.ai/models",
         note=(
-            "One key for many providers. Model ids are namespaced,"
-            " so pick one from the model list."
+            "One key for many providers. Free models available like"
+            " cohere/north-mini-code:free."
         ),
     ),
     ProviderPreset(

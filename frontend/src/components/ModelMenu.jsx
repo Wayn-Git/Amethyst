@@ -43,9 +43,8 @@ const FALLBACK_MODELS = {
     { id: 'big-pickle', context_length: 131072 },
   ],
   openrouter: [
-    { id: 'meta-llama/llama-3.3-70b-instruct:free', context_length: 131072, free: true },
-    { id: 'google/gemini-2.0-flash-thinking-exp:free', context_length: 1048576, free: true },
-    { id: 'deepseek/deepseek-r1:free', context_length: 131072, free: true },
+    { id: 'cohere/north-mini-code:free', context_length: 128000, free: true },
+    { id: 'openrouter/free', context_length: 131072, free: true },
   ],
   kilocode: [
     { id: 'kilo-auto/free', context_length: 131072, free: true },

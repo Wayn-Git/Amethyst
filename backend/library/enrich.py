@@ -974,10 +974,23 @@ async def enrich_text(
     if client is not None:
         return await _ask(client, messages, None, None, source_text=body, known_urls=known_urls)
 
-    from backend.config import load_library
+    from backend.config import load_library, load_providers
+    from backend.provider_catalogue import preset as find_preset
+
     lib_settings = load_library()
+    is_explicit = bool(provider or model)
     target_provider = provider or (lib_settings.enrich_provider if lib_settings else None)
     target_model = model or (lib_settings.enrich_model if lib_settings else None)
+
+    if target_provider and not target_model:
+        cfgs = load_providers()
+        cfg = cfgs.get(target_provider)
+        if cfg and cfg.default_model:
+            target_model = cfg.default_model
+        else:
+            pr = find_preset(target_provider)
+            if pr and pr.default_model:
+                target_model = pr.default_model
 
     if target_provider and target_model:
         try:
@@ -999,10 +1012,19 @@ async def enrich_text(
                     model=res.model,
                     note=None if clean_fallback else "the text was too brief to extract further insights from.",
                 )
+            if is_explicit:
+                # Explicit model requested by user failed or returned note: never substitute random models
+                return res
         except Exception as exc:
-            log.warning("explicit enrichment model %s:%s failed: %s; falling back to chain", target_provider, target_model, exc)
+            log.warning("explicit enrichment model %s:%s failed: %s", target_provider, target_model, exc)
+            if is_explicit:
+                return Enrichment(
+                    note=f"Model {target_provider}:{target_model} failed: {exc}",
+                    provider=target_provider,
+                    model=target_model,
+                )
 
-    # Use default chain; check default tier first (often higher quality) then fast
+    # Use default chain only when no explicit model was requested
     links = default_chain(tier="default", limit=BACKGROUND_FALLBACK_LINKS)
     if not links:
         links = default_chain(tier="fast", limit=BACKGROUND_FALLBACK_LINKS)

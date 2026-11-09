@@ -117,7 +117,8 @@ flowchart LR
 - `backend/retrieval/indexer.py` chunks and indexes. `search.py` combines
   keyword and vector candidates.
 - `POST /api/library/{id}/reindex` rebuilds one item.
-- `POST /api/library/{id}/enrich` re-runs enrichment.
+- `POST /api/library/{id}/enrich` re-runs enrichment. Explicit model selections strictly execute against the requested model and do not fall back to random background chains.
+- `POST /api/models/test` tests a candidate model before setting it as the library's enrichment model.
 
 ## Search
 
