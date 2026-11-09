@@ -23,6 +23,7 @@ import ContextPopover from '../components/ContextPopover.jsx'
 import GuardMenu from '../components/GuardMenu.jsx'
 import MatrixLoader from '../components/MatrixLoader.jsx'
 import { LoaderIcon } from '../components/LoaderIcon.jsx'
+import { ModelRateLimitCard } from '../components/ui/apple/ModelRateLimitCard.jsx'
 import { BlurredText } from '../components/arc/streaming-text/blurred-text'
 import { useApp } from '../store.jsx'
 import { api, copyText } from '../api.js'
@@ -681,6 +682,25 @@ const Msg = memo(function Msg({
   }
 
   if (role === 'note') {
+    const isRateLimit = item.tone === 'error' && (
+      item.rateLimit ||
+      item.text?.includes('429') ||
+      item.text?.toLowerCase().includes('rate limit') ||
+      item.text?.toLowerCase().includes('overloaded')
+    )
+    if (isRateLimit) {
+      return (
+        <ModelRateLimitCard
+          model={item.model || ''}
+          error={item.text}
+          retryAfter={item.retryAfter || 24}
+          fallbackModel="groq/llama-3.3-70b-versatile"
+          onRetry={() => onRegenerate?.(item)}
+          onSwitchFallback={() => onRegenerate?.(item)}
+        />
+      )
+    }
+
     const cls = item.tone === 'guard'
       ? 'msg-note--guard'
       : item.tone === 'error' ? 'msg-note--error' : 'msg-note--warning'
