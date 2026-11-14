@@ -424,38 +424,6 @@ export default function LibraryListView({
           </div>
         )}
       </div>
-
-      {/* Floating Action Button (FAB) */}
-      {!selectMode && onOpenCreate && (
-        <motion.button
-          type="button"
-          aria-label="Save new item"
-          whileTap={{ scale: 0.92 }}
-          style={{
-            position: 'fixed',
-            right: 20,
-            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 82px)',
-            width: 56,
-            height: 56,
-            borderRadius: 28,
-            border: 0,
-            background: '#0B5FD9',
-            color: '#fff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 8px 24px rgba(11,95,217,0.38)',
-            cursor: 'pointer',
-            zIndex: 90,
-          }}
-          onClick={onOpenCreate}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-        </motion.button>
-      )}
     </div>
   )
 }

@@ -789,7 +789,13 @@ export default function Companion({ onUnpair }) {
           type="button"
           className="m-fab"
           aria-label="Send to Amethyst"
-          onClick={() => setQuickCaptureOpen(true)}
+          onClick={() => {
+            if (tab === 'library') {
+              window.dispatchEvent(new CustomEvent('amethyst:library:create'))
+            } else {
+              setQuickCaptureOpen(true)
+            }
+          }}
         >
           <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M12 5v14" />
