@@ -1,0 +1,395 @@
+/* Movie detail screen styles — library-revamp-design.md section 8.5.
+   All classes prefixed mv-. */
+
+.mv-root {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Hero band — 190 tall, radius 32, movie blue */
+.mv-hero {
+  position: relative;
+  height: 190px;
+  border-radius: 32px;
+  overflow: hidden;
+  background: #1e2a4f;
+}
+
+.mv-hero-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* glass-tint "Trailer" pill, right 16 bottom 16 */
+.mv-trailer {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  height: 46px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 23px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.22);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  backdrop-filter: blur(20px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+
+/* Poster row — poster 96x142 r22 + title/meta/chips */
+.mv-poster-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  margin-top: 12px;
+  padding: 0 4px;
+}
+
+.mv-poster {
+  position: relative;
+  flex: none;
+  width: 96px;
+  height: 142px;
+  border-radius: 22px;
+  overflow: hidden;
+  background: #34428a;
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
+.mv-poster img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mv-poster-info {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 2px;
+}
+
+.mv-title {
+  margin: 0;
+  font-size: 27px;
+  line-height: 31px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #151517;
+}
+
+.mv-meta {
+  margin: 6px 0 0;
+  font-size: 15px;
+  color: #636366;
+}
+
+.mv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.mv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.mv-chip-score {
+  background: #fbebc8;
+  color: #6b4300;
+}
+
+.mv-chip-plain {
+  background: #e5e5ea;
+  color: #2a2640;
+}
+
+/* Uppercase section label */
+.mv-label {
+  margin: 16px 4px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #636366;
+}
+
+/* Status trio — h52 r26 */
+.mv-status-row {
+  display: flex;
+  gap: 8px;
+}
+
+.mv-st {
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+  padding: 0;
+  border: 1px solid #d8d8de;
+  border-radius: 26px;
+  background: #fff;
+  color: #151517;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.mv-st.on {
+  border-color: transparent;
+  background: #151517;
+  color: #fff;
+  font-weight: 650;
+}
+
+.mv-st:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* White detail card */
+.mv-card {
+  background: #fff;
+  border-radius: 22px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 6px 18px rgba(0, 0, 0, 0.06);
+}
+
+/* Rating card — 5 x 44px stars, score right */
+.mv-rating-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+}
+
+.mv-stars {
+  display: flex;
+  gap: 4px;
+}
+
+.mv-star {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.mv-star:disabled {
+  cursor: default;
+}
+
+.mv-score {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  flex: none;
+}
+
+.mv-score-value {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #151517;
+}
+
+.mv-score-out {
+  font-size: 15px;
+  font-weight: 600;
+  color: #636366;
+}
+
+/* Where to watch — Stream/Rent/Buy pill group + region explainer */
+.mv-watch-card {
+  padding: 12px;
+}
+
+.mv-watch-group {
+  display: flex;
+  gap: 8px;
+}
+
+.mv-watch-pill {
+  flex: 1;
+  height: 46px;
+  border-radius: 23px;
+  border: 1px solid #d8d8de;
+  background: #fff;
+  color: #151517;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.mv-watch-pill.on {
+  border-color: transparent;
+  background: #151517;
+  color: #fff;
+  font-weight: 650;
+}
+
+.mv-watch-note {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 20px;
+  background: #f2f2f7;
+  font-size: 15px;
+  line-height: 21px;
+  color: #48484a;
+}
+
+.mv-watch-ic {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: #e4edfc;
+  color: #0a55c4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Synopsis */
+.mv-synopsis-card {
+  padding: 14px 16px;
+}
+
+.mv-synopsis-card p {
+  margin: 0;
+  font-size: 17px;
+  line-height: 26px;
+  color: #2c2c2e;
+  white-space: pre-line;
+}
+
+/* Key-value details */
+.mv-kv-card {
+  padding: 4px 20px;
+}
+
+.mv-kv {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 46px;
+  border-bottom: 1px solid #ececf0;
+  font-size: 16px;
+}
+
+.mv-kv:last-child {
+  border-bottom: 0;
+}
+
+.mv-kv-k {
+  flex: none;
+  color: #636366;
+}
+
+.mv-kv-v {
+  color: #151517;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* Saved from link card */
+.mv-source-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.mv-source-ic {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+  background: #e4f5ea;
+  color: #14703a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mv-source-title {
+  font-size: 16px;
+  font-weight: 650;
+  color: #151517;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mv-source-sub {
+  font-size: 14px;
+  color: #636366;
+  margin-top: 2px;
+}
+
+.mv-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mv-row-arrow {
+  flex: none;
+  display: flex;
+  color: #636366;
+}
+
+.mv-root button:focus-visible,
+.mv-root a:focus-visible,
+.mv-root textarea:focus-visible {
+  outline: 2px solid #0b5fd9;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mv-root *,
+  .mv-root *::before,
+  .mv-root *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

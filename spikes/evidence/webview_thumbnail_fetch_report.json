@@ -1,0 +1,29 @@
+{
+  "origin": "https://localhost",
+  "pcHost": "http://192.168.1.2:8000",
+  "identity": null,
+  "pairing": null,
+  "pairingVault": null,
+  "hostBase": "http://192.168.1.2:8000",
+  "fetchResult": {
+    "targetUrl": "http://192.168.1.2:8000/api/library/832224/thumbnail",
+    "status": 403,
+    "statusText": "Forbidden",
+    "error": null,
+    "errorName": null,
+    "headers": {
+      "client-via": "shouldInterceptRequest",
+      "content-length": "0, 124",
+      "content-security-policy": "sandbox; frame-ancestors 'none'",
+      "content-type": "application/json",
+      "date": "Tue, 10 Nov 2026 09:25:27 GMT",
+      "server": "uvicorn",
+      "x-android-received-millis": "1794302728268",
+      "x-android-response-source": "NETWORK 403",
+      "x-android-selected-protocol": "http/1.1",
+      "x-android-sent-millis": "1794302728162"
+    },
+    "ok": false
+  },
+  "authFetchResult": null
+}

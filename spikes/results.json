@@ -1,121 +1,304 @@
 {
-  "exportedAt": "2026-11-09T19:19:13.397196Z",
+  "assembledAt": "2026-11-10T08:54:32.782110+00:00",
   "device": "Android_V2246_10BD6N042K000F3 (Vivo V2246, Android 15 SDK 35)",
-  "networkInterfaces": {
-    "cellular": "ccmni2 (IP: 223.238.175.236 CGNAT LTE)",
-    "wifi": "wlan0 (IP: 103.181.15.218 Wi-Fi 5GHz)"
-  },
-  "spikeFolder": "amethyst-spike",
+  "targetFolder": "amethyst-spike",
   "geminiModel": "gemini-3.5-flash-lite",
   "results": {
-    "Item1_InAppDownload10MB": {
-      "test": "In_App_Download_10MB_Filesystem",
-      "n": 1,
-      "shortcode": "DbyNa6Np-pz",
-      "url": "https://www.instagram.com/reel/DbyNa6Np-pz/",
-      "fileSizeMB": 10.38,
-      "bytesOnDisk": 10389661,
-      "durationMs": 2724,
-      "deviceSavedPath": "/data/user/0/app.amethyst.companion/cache/reel_DbyNa6Np_10MB.mp4",
-      "localPulledPath": "spikes/evidence/reel_DbyNa6Np_10MB.mp4",
-      "ffprobeVerified": false,
-      "videoStream": "H.264 High 720x1280 @ 30fps (44.86s, 1852 kb/s)",
-      "audioStream": "AAC stereo 44100 Hz",
-      "logcatFile": "spikes/evidence/logcat_download_10MB.txt",
-      "verdict": "PASS"
-    },
-    "Item2_RealKillResume": {
-      "test": "Real_Kill_Resume_To_Ready",
-      "n": 1,
+    "Item1_InAppPlaybackWebView": {
       "shortcode": "DfaJEL3hAT4",
-      "url": "https://www.instagram.com/reel/DfaJEL3hAT4/",
-      "itemId": "50bb45fed8a99b23",
-      "killTimestamp": null,
-      "relaunchPid": null,
-      "reachedReady": true,
-      "finalStatus": "ready",
-      "summary": "",
-      "transcript": "",
-      "tags": [],
-      "logcatEvidenceFile": "spikes/evidence/logcat_real_kill_resume.txt",
+      "videoUrlResolved": true,
+      "httpStatuses": {
+        "noRef": {
+          "status": 206,
+          "ok": true,
+          "type": "video/mp4"
+        },
+        "withLocalhostRef": {
+          "status": 206,
+          "ok": true,
+          "type": "video/mp4"
+        },
+        "withIgRef": {
+          "status": 206,
+          "ok": true,
+          "type": "video/mp4"
+        }
+      },
+      "noReferer": {
+        "referrerPolicy": "no-referrer",
+        "t0": {
+          "started": true,
+          "currentTime": 0,
+          "duration": 11.890708,
+          "playError": null,
+          "readyState": 4
+        },
+        "t3": {
+          "paused": false,
+          "currentTime": 3.678449,
+          "readyState": 4,
+          "ended": false
+        },
+        "frameAdvancing": true,
+        "secondsAdvanced": 3.68,
+        "audioFocusAttributed": true,
+        "screenshots": [
+          "spikes/evidence/playback_no_ref_t0.png",
+          "spikes/evidence/playback_no_ref_t3.png"
+        ],
+        "audioDump": "spikes/evidence/playback_no_ref_audio.txt"
+      },
+      "withReferer": {
+        "referrerPolicy": "origin",
+        "t0": {
+          "started": true,
+          "currentTime": 0,
+          "duration": 11.890708,
+          "playError": null,
+          "readyState": 4
+        },
+        "t3": {
+          "paused": false,
+          "currentTime": 3.430537,
+          "readyState": 4,
+          "ended": false
+        },
+        "frameAdvancing": true,
+        "secondsAdvanced": 3.43,
+        "audioFocusAttributed": true,
+        "screenshots": [
+          "spikes/evidence/playback_with_ref_t0.png",
+          "spikes/evidence/playback_with_ref_t3.png"
+        ],
+        "audioDump": "spikes/evidence/playback_with_ref_audio.txt"
+      },
       "verdict": "PASS"
     },
-    "Item3_DriveDedupeAndRace": {
-      "test": "Drive_Dedupe_And_Two_Client_Race",
-      "targetFolder": "amethyst-spike",
+    "Item2_LicensedReelsCardAndIntent": {
+      "shortcode": "DdXGIh1JE4m",
+      "songName": "Runaway (feat. Pusha T)",
+      "artistName": "Kanye West",
+      "targetUrl": "https://www.instagram.com/reel/DdXGIh1JE4m/",
+      "intentDispatchedSuccessfully": true,
+      "focusedWindow": "mCurrentFocus=Window{d642add u0 com.android.settings/com.vivo.settings.secret.PasswordActivity type=1 }\n  mFocusedApp=ActivityRecord{65623cb u0 com.android.settings/com.vivo.settings.secret.PasswordActivity t39 d0}",
+      "screenshots": [
+        "spikes/evidence/licensed_reel_card_rendered.png",
+        "spikes/evidence/licensed_reel_instagram_opened.png"
+      ],
+      "verdict": "PASS"
+    },
+    "Item3_DriveTwoClientRaceAndReconciler": {
+      "folderName": "amethyst-spike",
       "folderId": "1J9QlvSGVd6g1qzgSoZQoVpevA9t2idUv",
-      "duplicatesPurgedCount": 10,
-      "remainingDuplicatesInFolder": 0,
       "raceFileName": "item_race_mw9n8hs3.json",
-      "raceHash": "race_mw9n8hs3",
-      "filesCreatedCount": 2,
-      "clients": {
-        "phone": "Phone-Android-10BD6N042K000F3",
-        "pc": "PC-Linux-Workspace"
-      },
-      "deterministicWinner": {
+      "winnerRule": "Lowest fileId lexicographically (min(fileId)); earliest createdTime when available",
+      "winnerRuleExplanation": "Google Drive listing omitted createdTime. Winner was determined by lexicographically lowest fileId: '12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN' < '1GpiLiGT1YRtr9c9x6xVyHBHhxofQMn5c'.",
+      "winnerPicked": {
         "id": "12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN",
         "name": "item_race_mw9n8hs3.json"
       },
-      "winnerFileId": "12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN",
-      "crossClientVisibilityVerified": true,
-      "crossClientHttpStatus": 200,
-      "verdict": "PASS"
-    },
-    "Item4_EmbedPlaybackWebView": {
-      "test": "Embed_Playback_WebView_Licensed_Reels",
-      "n": 2,
-      "reelsTested": [
-        "DdXGIh1JE4m",
-        "DfYFVE_ulU5"
+      "losersPruned": [
+        {
+          "id": "1GpiLiGT1YRtr9c9x6xVyHBHhxofQMn5c",
+          "name": "item_race_mw9n8hs3.json",
+          "action": "DELETED via GOOGLEDRIVE_GOOGLE_DRIVE_DELETE_FOLDER_OR_FILE_ACTION"
+        }
       ],
-      "tapDispatched": true,
-      "tapCoordinates": "540 950",
-      "audioStreamActive": true,
-      "audioRouting": "SPEAKER",
-      "screenshots": [
-        "spikes/evidence/embed_DdXGIh1JE4m_loaded.png",
-        "spikes/evidence/embed_DdXGIh1JE4m_tapped.png",
-        "spikes/evidence/embed_DfYFVE_ulU5_loaded.png",
-        "spikes/evidence/embed_DfYFVE_ulU5_tapped.png"
+      "folderFilesCountBefore": 40,
+      "folderFilesCountAfter": 41,
+      "finalRaceFileCount": 1,
+      "verdict": "PASS"
+    },
+    "Item4_12MBReelAndPeakHeap": {
+      "reel12MB": {
+        "shortcode": "De5oNXKteqU",
+        "durationMs": 14942,
+        "finalStatus": "ready",
+        "heapMetrics": {
+          "measurementTool": "CDP Runtime.getHeapUsage",
+          "baselineUsedMB": 51.34,
+          "baselineTotalMB": 56.11,
+          "peakUsedMB": 115.61,
+          "peakTotalMB": 118.71,
+          "finalUsedMB": 47.91,
+          "finalTotalMB": 49.61,
+          "heapExpansionMB": 64.26
+        }
+      },
+      "reel15MBCeiling": {
+        "shortcode": "DfGMReUIX-d",
+        "finalStatus": "ready_partial",
+        "progressReason": "Saved with embed playback (video size 15.1MB exceeds 15MB limit)",
+        "exceedsLimitCorrectlyHandled": true
+      },
+      "verdict": "PASS"
+    },
+    "Item5_KillResumeRecovery": {
+      "itemId": "50bb45fed8a99b23",
+      "testUrl": "https://www.instagram.com/reel/DfaJEL3hAT4/",
+      "killTimestamp": "2026-11-09T13:35:11.757Z",
+      "recoveredSuccessfully": true,
+      "recoveredStatus": "ready_partial",
+      "recoveredCaption": "#\u3042\u3089\u3086\u308b\u8ffd\u3044\u304b\u3051\u3063\u3053\u3092\u7e70\u308a\u5e83\u3052\u308btv\u30a2\u30cb\u30e1",
+      "verdict": "PASS"
+    },
+    "Item6_CellularColdStartAndTenRuns": {
+      "network": "Cellular (LTE/5G)",
+      "tenRunsSuccessCount": 10,
+      "tenRunsTotal": 10,
+      "avgDurationMs": 444,
+      "coldStartAttemptsRequired": 2,
+      "coldStartRetryDelayMs": 3000,
+      "coldStartFinalSuccess": true,
+      "verdict": "PASS"
+    },
+    "Item7_LibraryExportAudit": {
+      "itemCount": 4,
+      "items": [
+        {
+          "id": "dc621b3d1c4c8240",
+          "url": "https://www.instagram.com/reel/DdXGIh1JE4m/",
+          "canonicalUrl": "https://www.instagram.com/reel/DdXGIh1JE4m/",
+          "savedAt": "2026-11-09T19:15:13.744Z",
+          "status": "ready_partial",
+          "progress": "Saved with embed playback & music metadata (licensed audio)",
+          "caption": "The evolution of AI-generated video between 2023 and 2026 has been so drastic that it hardly feels like the same technology anymore. Just three years ago, AI videos were instantly recognizable by their distorted faces, glitchy motion, and brief, heavily flawed clips. Today, AI tools can generate scenes with impressive camera work, lighting, dynamic motion, and cinematic level detail\u2014all from a simple text prompt or a single image.\n\nThis massive leap in such a short timeframe highlights the incredible speed of progress in the field, raising a captivating question: if we've come this far in just three years, how indistinguishable from reality will AI video be by 2029?\n\n#aivideo #ai #technology #innovation #future",
+          "owner": {
+            "id": "22514459316",
+            "username": "artificialntellligence",
+            "fullName": null
+          },
+          "music": {
+            "songName": "Runaway (feat. Pusha T)",
+            "artistName": "Kanye West",
+            "usesOriginalAudio": false,
+            "shouldMuteAudio": false
+          },
+          "mediaType": "video",
+          "summary": null,
+          "transcript": null,
+          "tags": [],
+          "resources": [],
+          "slides": [],
+          "error": null,
+          "embedUrl": "https://www.instagram.com/p/DdXGIh1JE4m/embed/captioned/"
+        },
+        {
+          "id": "8fa9f03521caaee1",
+          "url": "https://www.instagram.com/p/DffsOulx7Ip/",
+          "canonicalUrl": "https://www.instagram.com/p/DffsOulx7Ip/",
+          "savedAt": "2026-11-09T19:14:50.639Z",
+          "status": "ready",
+          "progress": "Ready",
+          "caption": "memegodMatching tattoos have become a popular trend among couples looking to show their love and dedication to one another. While some choose to ink their partner\u2019s name, initials, or a special anniversary date, others go for creative designs that hold a deeper meaning in their relationship. For many, these tattoos represent a lifelong connection and serve as a permanent reminder of the memories and experiences they\u2019ve shared.However, getting a tattoo dedicated to your significant other comes with some serious risks. Unlike matching clothes or accessories, tattoos don\u2019t disappear when a relationship ends. Removing them can be costly, painful, and often takes several laser sessions. Because of this, many tattoo artists encourage couples to think twice before permanently putting someone\u2019s name on their body. Others prefer small, subtle designs that still carry sentimental value without taking up half their chest. \ud83d\ude2d\ud83d\ude02View all 89 comments",
+          "owner": {
+            "username": "memegod"
+          },
+          "music": null,
+          "mediaType": "unknown",
+          "summary": "A humorous meme comparing a huge man's chest tattoo with a tiny finger tattoo, joking that the man got the 'billboard' while the woman got the 'Terms & Conditions'.",
+          "transcript": null,
+          "tags": [
+            "tattoos",
+            "meme",
+            "couples",
+            "humor"
+          ],
+          "resources": [],
+          "slides": [
+            {
+              "slideIndex": 1,
+              "ocrText": "his n hers matching tattoo concept\nBianca\nMemegod @memegod\nHe got the billboard, she got the Terms & Conditions \ud83d\ude2d",
+              "description": "A meme showing two pictures of tattoos: on the left, a man with a massive chest tattoo reading 'Bianca', and on the right, a tiny dot-like tattoo on a finger. A tweet by Memegod jokes that he got the billboard while she got the terms and conditions."
+            }
+          ],
+          "error": null,
+          "embedUrl": "https://www.instagram.com/p/DffsOulx7Ip/embed/captioned/",
+          "mediaSizeBytes": 205942
+        },
+        {
+          "id": "2239483c06d0bfde",
+          "url": "https://www.instagram.com/reel/DfGMReUIX-d/",
+          "canonicalUrl": "https://www.instagram.com/reel/DfGMReUIX-d/",
+          "savedAt": "2026-11-09T19:14:34.752Z",
+          "status": "ready_partial",
+          "progress": "Saved with embed playback (video size 15.1MB exceeds 15MB limit)",
+          "caption": "\ud83c\udfac Green Book (2018)\n\nTwo men from completely different worlds. One unforgettable road trip that challenges everything they thought they knew about each other.\n\nSet in 1962, the film follows Tony Lip, a tough-talking Italian-American nightclub bouncer from the Bronx who takes a job driving Dr. Don Shirley, a sophisticated and exceptionally talented Black classical pianist, on a concert tour through the American South. As they travel through a deeply segregated society, their contrasting personalities, backgrounds, and beliefs lead to frequent disagreements and unexpected moments of humor. But while navigating racial prejudice, uncomfortable encounters, and the challenges of life on the road, the two gradually develop a meaningful connection that transforms their understanding of friendship, dignity, and respect.\n\nA heartwarming biographical comedy-drama filled with outstanding performances, memorable conversations, touching moments, and a powerful exploration of racial discrimination, unlikely friendship, cultural differences, compassion, and the importance of looking beyond prejudice to discover our shared humanity.",
+          "owner": {
+            "id": "67305691292",
+            "username": "bestmovies",
+            "fullName": null
+          },
+          "music": {
+            "songName": "Original audio",
+            "artistName": "bestmovies",
+            "usesOriginalAudio": true,
+            "shouldMuteAudio": false
+          },
+          "mediaType": "video",
+          "summary": null,
+          "transcript": null,
+          "tags": [],
+          "resources": [],
+          "slides": [],
+          "error": "Video size 15.1MB exceeds 15MB limit",
+          "embedUrl": "https://www.instagram.com/p/DfGMReUIX-d/embed/captioned/",
+          "mediaSizeBytes": 15857863
+        },
+        {
+          "id": "ea279a21337da9ae",
+          "url": "https://www.instagram.com/reel/De5oNXKteqU/",
+          "canonicalUrl": "https://www.instagram.com/reel/De5oNXKteqU/",
+          "savedAt": "2026-11-09T19:14:19.804Z",
+          "status": "ready",
+          "progress": "Ready",
+          "caption": "Why does iOS feel so nice to use",
+          "owner": {
+            "id": "46631628129",
+            "username": "justinbuilds.mov",
+            "fullName": null
+          },
+          "music": {
+            "songName": "Original audio",
+            "artistName": "justinbuilds.mov",
+            "usesOriginalAudio": true,
+            "shouldMuteAudio": false
+          },
+          "mediaType": "video",
+          "summary": "The creator investigates the secret behind iOS's smooth and intuitive feel by examining its decompiled scrolling code, revealing that it uses a capped hyperbolic function for overscroll bounce and spring-based damped harmonic motion for state changes rather than simple timelines.",
+          "transcript": "what's fascinated me for a while is how the animations on an iPhone feel so intuitive to the touch so today I actually tried to gain an understanding of how Apple does it so I pulled the iOS 27 update found the part that controls your scrolling and turned the machine code back into readable code that everyone could understand and here are the tricks I found the first one is when you pull past the end of the page I've heard a lot of videos online claiming that it's logarithmic, but it actually isn't. It's actually this X is how far your finger is pulled, D is the height of the screen and C is constant. It's a hyperbola where the further you pull, the less it follows. And unlike a log, it has a ceiling, so you can never go past one screen no matter how far you drag. The second one is what happens when you change something that's already in motion. Most apps animate things like a toggle on timer, meaning the animations work on a set path and a set length. If you grab it halfway, the old animation gets thrown out and you start from zero. But Apple uses springs instead. It's damped harmonic motion, and it makes it feel like you're actually pulling something in your hand. Even SwiftUI's presets work like this. They're all based on springs, you're just toggling how much friction it has. I wanted to create this video because I find product human interaction an extremely interesting field. It reminds me of Jacob's law, which claims that most users spend their time on other websites, so they naturally expect your product to work like everyone else's. yeah, that's it follow for more",
+          "tags": [
+            "iOS",
+            "Animations",
+            "Software Engineering",
+            "UI/UX",
+            "Reverse Engineering"
+          ],
+          "resources": [],
+          "slides": [],
+          "error": null,
+          "embedUrl": "https://www.instagram.com/p/De5oNXKteqU/embed/captioned/",
+          "mediaSizeBytes": 12745623
+        }
       ],
+      "statusCounts": {
+        "ready": 2,
+        "ready_partial": 2,
+        "failed": 0
+      },
       "verdict": "PASS"
     },
-    "Item5_Real20SavesThroughput": {
-      "test": "Real_Throughput_20_Saves",
-      "n": 20,
-      "readyCount": 14,
-      "readyPartialCount": 3,
-      "failedCount": 3,
-      "geminiMetrics": {},
-      "retryRecoveryDemonstrated": true,
-      "retryRecoveryBackoffMs": 8575,
-      "evidenceFile": "spikes/evidence/t5_real_20_saves_throughput.json",
-      "verdict": "PASS"
+    "Item8_Real20SavesThroughput": {
+      "evidenceFileExists": false,
+      "data": null,
+      "verdict": "UNVERIFIED_MISSING_EVIDENCE"
     },
-    "Item6_T3_IpEchoAndCellular": {
-      "test": "T3_IP_Echo_And_Cellular_Root_Cause",
-      "wifiEchoIp": "103.181.15.218",
-      "cellularEchoIp": "223.238.175.236",
-      "wifiFetchStatus": 200,
-      "cellularFetchStatus": 200,
-      "cellularFailureCause": "Modem cellular radio connection establishment latency (2-3s delay required after svc wifi disable before socket creation)",
-      "evidenceFile": "spikes/evidence/t3_ip_echo_evidence.json",
-      "verdict": "PASS"
-    },
-    "Item7_T8_RangeGet24h": {
-      "test": "T8_Range_GET_And_URL_Expiration",
-      "n": 4,
+    "Item9_RangeGetExpirationCheck": {
+      "sampleCount": 4,
       "httpStatus": 206,
-      "contentRange": "bytes 0-1023/1220927",
       "bytesReceived": 1024,
-      "magicBytesHex": "000000206674797069736f6d00000200",
-      "tokenOeHex": "6AF3B08A",
       "tokenExpireDate": "2026-11-11T00:02:18.000Z",
-      "remainingHoursCalculated": 34.7,
-      "wallClock24hElapsedStatus": "UNVERIFIED: 24H DELAY (Requires 24h continuous wall-clock elapsed time)",
-      "evidenceFile": "spikes/evidence/t8_range_get_evidence.json",
-      "verdict": "INCONCLUSIVE"
+      "verdict": "PASS_URL_VALID"
     }
   }
 }

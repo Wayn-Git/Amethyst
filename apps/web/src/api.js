@@ -1,4 +1,4 @@
-import { storedIdentity, isNativeMobile } from './lib/credentials.js'
+import { storedIdentity, isNativeMobile, initializeCredentials } from './lib/credentials.js'
 import { safeStorage } from './lib/storage.js'
 import { getTransportManager } from './lib/sync/transportManager.js'
 /* Where the API is.
@@ -60,6 +60,15 @@ export function getApiOrigin() {
       } catch {}
     }
   } catch {}
+  if (isNativeMobile()) {
+    try {
+      const pcHost = safeStorage.getItem('amethyst.pc_host')
+      if (pcHost) return pcHost.replace(/\/+$/, '')
+      const id = storedIdentity()
+      if (id?.hostUrl) return id.hostUrl.replace(/\/+$/, '')
+    } catch {}
+    return 'http://127.0.0.1:8000'
+  }
   return ''
 }
 
@@ -91,6 +100,16 @@ export function getAuthToken() {
   } catch {
     return ''
   }
+}
+
+export async function getAuthHeadersAsync() {
+  await initializeCredentials()
+  return getAuthHeaders()
+}
+
+export async function getAuthTokenAsync() {
+  await initializeCredentials()
+  return getAuthToken()
 }
 
 export function appendAuthToken(url) {
@@ -157,6 +176,7 @@ async function ping(timeout) {
   // provider, which can itself take seconds and is the wrong thing to make a
   // cold start wait for. Any request wakes the container; the cheapest one
   // should be the one that does it.
+  await initializeCredentials()
   const stop = new AbortController()
   const timer = setTimeout(() => stop.abort(), timeout)
   try {
@@ -1027,20 +1047,42 @@ export const api = {
 
   // With `q`, a hybrid search over captured text; without it, the most recent
   // items. Both come back as items rather than passages.
-  library: ({ q = '', kind = '', category = '', tag = '', list_id = '', listId = '', order = 'desc', limit = 500, offset = 0, signal } = {}) => {
+  library: ({ q = '', kind = '', types = '', category = '', tag = '', tags = '', list_id = '', listId = '', order = 'desc', sort = '', status = '', from = '', include_deleted = false, limit = 500, offset = 0, signal } = {}) => {
     const activeListId = list_id || listId
+    const activeKind = kind || types
+    const activeTag = tag || tags
     return j(`/library?limit=${limit}&offset=${offset}`
       + (q ? `&q=${encodeURIComponent(q)}` : '')
-      + (kind ? `&kind=${encodeURIComponent(kind)}` : '')
+      + (activeKind ? `&kind=${encodeURIComponent(activeKind)}` : '')
       + (category ? `&category=${encodeURIComponent(category)}` : '')
-      + (tag ? `&tag=${encodeURIComponent(tag)}` : '')
+      + (activeTag ? `&tag=${encodeURIComponent(activeTag)}` : '')
       + (activeListId ? `&list_id=${encodeURIComponent(activeListId)}` : '')
-      + (order ? `&order=${encodeURIComponent(order)}` : ''), signal ? { signal } : undefined)
+      + (order ? `&order=${encodeURIComponent(order)}` : '')
+      + (sort ? `&sort=${encodeURIComponent(sort)}` : '')
+      + (status ? `&status=${encodeURIComponent(status)}` : '')
+      + (from ? `&from=${encodeURIComponent(from)}` : '')
+      + (include_deleted ? `&include_deleted=true` : ''), signal ? { signal } : undefined)
   },
+  libraryCounts: () => j('/library/counts'),
+  libraryResume: () => j('/library/resume'),
+  libraryDetect: (url) => j('/library/detect', json('POST', { url })),
+  libraryBulkDelete: (itemIds) => j('/library/bulk/delete', json('POST', { item_ids: itemIds })),
+  libraryBulkRestore: (itemIds) => j('/library/bulk/restore', json('POST', { item_ids: itemIds })),
+  libraryBulkCollect: (itemIds, listId) => j('/library/bulk/collect', json('POST', { item_ids: itemIds, list_id: listId })),
+  libraryBulkTag: (itemIds, tags) => j('/library/bulk/tag', json('POST', { item_ids: itemIds, tags })),
+  libraryTags: () => j('/library/tags'),
+  libraryRenameTag: (oldTag, newTag) => j('/library/tags/rename', json('POST', { old_tag: oldTag, new_tag: newTag })),
+  libraryMergeTags: (sourceTags, targetTag) => j('/library/tags/merge', json('POST', { source_tags: sourceTags, target_tag: targetTag })),
+  libraryDeleteTag: (tag) => j(`/library/tags/${encodeURIComponent(tag)}`, json('DELETE')),
+  libraryJobStatus: (id) => j(`/library/${id}/job-status`),
+  restoreLibraryItem: (id) => j(`/library/${id}/restore`, json('POST')),
   libraryItem: (id) => j(`/library/${id}`),
   addLibraryItem: (body) => j('/library', json('POST', body)),
   updateLibraryItem: (id, patch) => j(`/library/${id}`, json('PATCH', patch)),
-  deleteLibraryItem: (id) => j(`/library/${id}`, json('DELETE')),
+  deleteLibraryItem: (id, opts = {}) => {
+    const soft = typeof opts === 'boolean' ? opts : Boolean(opts?.soft)
+    return j(`/library/${id}${soft ? '?soft=true' : ''}`, json('DELETE'))
+  },
   // Clears the process-wide "that embedder refused" cache first, so starting
   // Ollama and pressing this is enough — no restart.
   reindexLibraryItem: (id) => j(`/library/${id}/reindex`, json('POST')),

@@ -1149,37 +1149,36 @@ export default function LibraryDetailModal({
         <header className="lib-page-header">
           <div className="lib-page-header-left">
             {/* Back to Library */}
-            <AppButton
-              variant="secondary"
-              size="medium"
-              className="lib-page-back-btn"
+            <button
+              type="button"
+              className="lib-topbar-pill-btn"
               onClick={onClose}
               title="Back to Library (Esc)"
               aria-label="Back to Library"
-              icon={<Icon name="arrow-left" size={14} />}
             >
-              Library
-            </AppButton>
+              <Icon name="arrow-left" size={16} />
+              <span>Library</span>
+            </button>
           </div>
 
-          <div className="lib-page-header-right">
+          <div className="lib-page-header-center">
             {/* Prev / Next with "1 of 285" queue trigger */}
             {items && items.length > 0 && currentIndex !== -1 && (
-              <div className="lib-page-pager">
+              <div className="lib-topbar-pager">
                 <button
                   type="button"
-                  className="lib-page-pager-btn"
+                  className="lib-topbar-circle-btn"
                   onClick={handlePrev}
                   disabled={!hasPrev}
                   title="Previous item (J or ←)"
                   aria-label="Previous item"
                 >
-                  <Icon name="chevron-left" size={14} />
+                  <Icon name="chevron-left" size={16} />
                 </button>
 
                 <button
                   type="button"
-                  className="lib-page-pager-queue-trigger"
+                  className="lib-topbar-pager-label"
                   onClick={() => setShowQueuePopover((v) => !v)}
                   title="View queue filmstrip"
                   aria-haspopup="true"
@@ -1188,18 +1187,18 @@ export default function LibraryDetailModal({
                   <span>
                     {currentIndex + 1} of {items.length}
                   </span>
-                  <Icon name="chevron-down" size={12} />
+                  <Icon name="chevron-down" size={12} style={{ marginLeft: 4, opacity: 0.6 }} />
                 </button>
 
                 <button
                   type="button"
-                  className="lib-page-pager-btn"
+                  className="lib-topbar-circle-btn"
                   onClick={handleNext}
                   disabled={!hasNext}
                   title="Next item (K or →)"
                   aria-label="Next item"
                 >
-                  <Icon name="chevron-right" size={14} />
+                  <Icon name="chevron-right" size={16} />
                 </button>
 
                 {showQueuePopover && (
@@ -1215,45 +1214,127 @@ export default function LibraryDetailModal({
                 )}
               </div>
             )}
+          </div>
 
-            {/* Copy Link Button */}
-            {item.url && (
-              <AppButton
-                variant="secondary"
-                size="icon"
-                className="lib-page-icon-btn"
-                onClick={handleCopyLink}
-                title="Copy original link (C)"
-                aria-label="Copy link"
-                icon={<Icon name={copiedLink ? 'check' : 'copy'} size={14} />}
+          <div className="lib-page-header-right">
+            {/* Favorite Button */}
+            <button
+              type="button"
+              className={`lib-topbar-circle-btn ${rating && rating >= 4 ? 'lib-topbar-circle-btn--fav' : ''}`}
+              onClick={handleToggleFavorite}
+              title={rating && rating >= 4 ? 'Remove from favorites' : 'Add to favorites'}
+              aria-label="Favorite"
+            >
+              <Icon
+                name={rating && rating >= 4 ? 'star-filled' : 'star'}
+                size={18}
+                className={rating && rating >= 4 ? 'text-amber-400 fill-amber-400' : ''}
               />
-            )}
+            </button>
 
-            {/* Keyboard Shortcuts Guide Trigger */}
-            <AppButton
-              variant="secondary"
-              size="icon"
-              className="lib-page-icon-btn"
-              onClick={() => setShowShortcutsModal(true)}
-              title="Keyboard shortcuts (?)"
-              aria-label="Keyboard shortcuts"
-              icon={<Icon name="keyboard" size={14} />}
-            />
+            {/* Overflow Menu with Theater, Shortcuts, Copy Link, Re-analyze, Delete */}
+            <div className="lib-cta-overflow-menu-wrap" ref={actionsMenuRef}>
+              <button
+                type="button"
+                className="lib-topbar-circle-btn"
+                onClick={() => setShowActionsMenu((v) => !v)}
+                title="More actions"
+                aria-label="More actions"
+                aria-haspopup="true"
+                aria-expanded={showActionsMenu}
+              >
+                <Icon name="dots" size={18} />
+              </button>
 
-            {/* The ONLY Theater Mode toggle in the entire view (icon-only like others) */}
-            <AppButton
-              variant="secondary"
-              size="icon"
-              className={`lib-header-theater-btn ${isTheater ? 'lib-header-theater-btn--active' : ''}`}
-              onClick={() => setIsTheater((prev) => !prev)}
-              title={isTheater ? 'Exit Theater Mode' : 'Focus media in Theater Mode'}
-              aria-label={isTheater ? 'Exit theater mode' : 'Enter theater mode'}
-              aria-pressed={isTheater}
-              icon={<Icon name={isTheater ? 'collapse' : 'desktop'} size={14} />}
-            />
+              {showActionsMenu && (
+                <div className="lib-overflow-menu" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="lib-overflow-menu-item"
+                    onClick={() => {
+                      setShowActionsMenu(false)
+                      handleEnrich()
+                    }}
+                  >
+                    <Icon name="spark" size={14} />
+                    <span>Re-analyze</span>
+                  </button>
 
-            {/* Close Button */}
-            <CloseButton size="sm" onClick={onClose} slot={null} aria-label="Close detail view" />
+                  {item.url && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="lib-overflow-menu-item"
+                      onClick={() => {
+                        setShowActionsMenu(false)
+                        handleCopyLink()
+                      }}
+                    >
+                      <Icon name="copy" size={14} />
+                      <span>Copy link</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="lib-overflow-menu-item"
+                    onClick={() => {
+                      setShowActionsMenu(false)
+                      setIsTheater((prev) => !prev)
+                    }}
+                  >
+                    <Icon name={isTheater ? 'collapse' : 'desktop'} size={14} />
+                    <span>{isTheater ? 'Exit theater mode' : 'Theater mode'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="lib-overflow-menu-item"
+                    onClick={() => {
+                      setShowActionsMenu(false)
+                      setShowShortcutsModal(true)
+                    }}
+                  >
+                    <Icon name="keyboard" size={14} />
+                    <span>Keyboard shortcuts (?)</span>
+                  </button>
+
+                  {item.resources?.some((r) => r.type === 'music') && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="lib-overflow-menu-item"
+                      onClick={() => {
+                        setShowActionsMenu(false)
+                        handleExportPlaylistTrigger(item.resources.filter((r) => r.type === 'music'))
+                      }}
+                    >
+                      <Icon name="list-plus" size={14} />
+                      <span>Export Playlist</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="lib-overflow-menu-item lib-overflow-menu-item--danger"
+                    onClick={() => {
+                      setShowActionsMenu(false)
+                      if (window.confirm(`Delete "${item.title}" from library?`)) {
+                        onDelete?.(item)
+                        onClose?.()
+                      }
+                    }}
+                  >
+                    <Icon name="trash" size={14} />
+                    <span>Delete item</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 

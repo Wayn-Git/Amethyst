@@ -72,13 +72,14 @@ export async function uploadToGeminiFilesApi({ fileUri, mimeType, displayName, a
   const fileSize = blob.size
 
   // 2. Initialize resumable upload
-  const startUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`
+  const startUrl = 'https://generativelanguage.googleapis.com/upload/v1beta/files'
   const startHeaders = {
     'X-Goog-Upload-Protocol': 'resumable',
     'X-Goog-Upload-Command': 'start',
     'X-Goog-Upload-Header-Content-Length': String(fileSize),
     'X-Goog-Upload-Header-Content-Type': mimeType,
     'Content-Type': 'application/json',
+    'x-goog-api-key': apiKey,
   }
 
   const startRes = await fetch(startUrl, {
@@ -128,7 +129,8 @@ export async function uploadToGeminiFilesApi({ fileUri, mimeType, displayName, a
     pollAttempts += 1
     await new Promise((r) => setTimeout(r, 2000))
     const checkRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${apiKey}`
+      `https://generativelanguage.googleapis.com/v1beta/${fileName}`,
+      { headers: { 'x-goog-api-key': apiKey } }
     )
     if (checkRes.ok) {
       const checkData = await checkRes.json()
@@ -150,8 +152,12 @@ export async function uploadToGeminiFilesApi({ fileUri, mimeType, displayName, a
 /**
  * Execute Gemini generateContent with token-bucket pacing and retry backoff.
  */
-export async function executeGeminiWithRetry(url, payload, { maxRetries = 5 } = {}) {
+export async function executeGeminiWithRetry(url, payload, { maxRetries = 5, apiKey = '' } = {}) {
   let attempt = 0
+  const headers = { 'Content-Type': 'application/json' }
+  if (apiKey) {
+    headers['x-goog-api-key'] = apiKey
+  }
   while (attempt <= maxRetries) {
     attempt += 1
     await waitForTokenBucket()
@@ -159,7 +165,7 @@ export async function executeGeminiWithRetry(url, payload, { maxRetries = 5 } = 
     try {
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload),
       })
 
@@ -193,7 +199,7 @@ export async function executeGeminiWithRetry(url, payload, { maxRetries = 5 } = 
  * Supports inlineData (base64) or fileUri (Files API).
  */
 export async function analyzeVideoReel({ fileUri, inlineData, mimeType = 'video/mp4', caption = '', music = null, apiKey }) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
   const musicContext = music?.songName
     ? `Audio attribution from platform: Song "${music.songName}" by "${music.artistName || 'Unknown'}" (${music.usesOriginalAudio ? 'Original Audio' : 'Licensed Audio'}). Do not guess different songs.`
@@ -230,7 +236,7 @@ Return a valid JSON object matching this schema exactly:
     },
   }
 
-  const responseJson = await executeGeminiWithRetry(url, payload)
+  const responseJson = await executeGeminiWithRetry(url, payload, { apiKey })
   const candidateText = responseJson?.candidates?.[0]?.content?.parts?.[0]?.text
   if (!candidateText) {
     throw new Error('Gemini returned empty candidate response')
@@ -243,7 +249,7 @@ Return a valid JSON object matching this schema exactly:
  * Analyze Carousel with multiple slides in ONE single Gemini call.
  */
 export async function analyzeCarousel({ slideImages, caption = '', apiKey }) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
   const parts = []
 
@@ -294,7 +300,7 @@ Analyze all slides sequentially and return a single valid JSON object:
     },
   }
 
-  const responseJson = await executeGeminiWithRetry(url, payload)
+  const responseJson = await executeGeminiWithRetry(url, payload, { apiKey })
   const candidateText = responseJson?.candidates?.[0]?.content?.parts?.[0]?.text
   if (!candidateText) {
     throw new Error('Gemini returned empty candidate response')

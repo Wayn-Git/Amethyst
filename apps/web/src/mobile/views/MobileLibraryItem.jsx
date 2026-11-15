@@ -100,7 +100,7 @@ export default function MobileLibraryItem({ item: initialItem, onBack, onAskAgen
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F2F2F7', color: INK, position: 'relative' }}>
+    <div style={{ flex: 1, height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: '#F2F2F7', color: INK, position: 'relative', paddingBottom: 100 }}>
       {/* Pinned Top Bar */}
       <div
         style={{

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Library item – Note</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.p{font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;color:#1d1d1f;background:#f5f5f7;min-height:100%;-webkit-font-smoothing:antialiased}
+.p *{box-sizing:border-box}
+.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.bar{display:flex;align-items:center;justify-content:space-between;height:64px;padding:0 28px;border-bottom:1px solid rgba(0,0,0,.06)}
+.b{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 18px;border:0;border-radius:22px;background:#fff;color:#1d1d1f;font-size:14px;font-weight:500;font-family:inherit;box-shadow:0 0 0 1px rgba(0,0,0,.06)}
+.ib{width:44px;padding:0}
+.seg{display:inline-flex;padding:3px;background:rgba(0,0,0,.06);border-radius:14px}
+.seg button{height:44px;padding:0 18px;border:0;border-radius:11px;background:none;font-size:14px;font-family:inherit;color:#515154}
+.seg .on{background:#fff;color:#1d1d1f;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.t{display:inline-flex;align-items:center;height:32px;padding:0 14px;border-radius:16px;background:#fff;font-size:13px;box-shadow:0 0 0 1px rgba(0,0,0,.06)}
+.card{background:#fff;border-radius:20px;padding:24px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.lab{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#6e6e73;margin:0 0 12px}
+.sub{font-size:13px;color:#6e6e73}
+a{color:#0066cc;text-decoration:none}
+</style>
+</helmet>
+<div class="p">
+  <div class="bar">
+    <button class="b"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>Library</button>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="b ib" aria-label="Previous item"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg></button>
+      <span class="sub" style="min-width:56px;text-align:center">2 of 2</span>
+      <button class="b ib" aria-label="Next item"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"></path></svg></button>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="b ib" aria-label="Favorite"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8-5.3-2.8-5.3 2.8 1-5.8-4.2-4.1 5.9-.9z"></path></svg></button>
+      <button class="b ib" aria-label="More actions"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"></circle><circle cx="12" cy="12" r="1.3"></circle><circle cx="19" cy="12" r="1.3"></circle></svg></button>
+    </div>
+  </div>
+
+  <div style="max-width:720px;margin:0 auto;padding:56px 28px 72px">
+    <p class="sub" style="margin:0 0 14px;font-size:14px">Note · Saved today · Stored locally</p>
+    <h1 style="margin:0;font-size:40px;line-height:1.1;font-weight:700;letter-spacing:-.025em">Quote: GitHub</h1>
+
+    <div style="margin:36px 0 12px;font-family:Georgia,serif;font-size:72px;line-height:.6;color:#c7c7cc;height:36px">“</div>
+    <p style="margin:0;font-size:30px;line-height:1.3;font-weight:500;letter-spacing:-.015em">Welcome to GitHub, wayneessiva-droid!</p>
+    <a href="#" class="t" style="margin-top:20px;color:#1d1d1f;gap:6px">GitHub · github.com<svg class="i" style="width:14px;height:14px" aria-hidden="true" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"></path></svg></a>
+
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:36px 0 20px">
+      <div class="seg" role="group" aria-label="Progress"><button class="on">To do</button><button>In progress</button><button>Done</button></div>
+      <button class="b"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0112 0v5l1.5 2h-15zM10 20.5a2 2 0 004 0"></path></svg>Remind me</button>
+      <button class="b"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M9 3h6l-1 6 3 3v1H7v-1l3-3zM12 13v8"></path></svg>Pin</button>
+      <button class="b"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Add to list</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:32px"><span class="t">#programming</span><button class="b" style="height:36px;padding:0 14px;font-size:13px;background:none;box-shadow:none;color:#0066cc">+ Add tag</button></div>
+
+    <div class="card" style="min-height:150px">
+      <p class="lab">Your notes</p>
+      <p style="margin:0 0 10px;font-size:16px;line-height:1.55;color:#424245">Captured from github.com.</p>
+      <p class="sub" style="margin:0;font-size:16px">Add a thought…</p>
+    </div>
+
+    <div class="card" style="margin-top:16px;display:flex;align-items:center;gap:14px;padding:16px 24px">
+      <div style="width:36px;height:36px;border-radius:50%;background:#1d1d1f;color:#fff;display:grid;place-items:center;font-weight:600;font-size:14px">G</div>
+      <div style="flex:1"><div style="font-weight:600">GitHub</div><div class="sub">github.com · Referenced in this note</div></div>
+      <a href="#" class="b">Open</a>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":820}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

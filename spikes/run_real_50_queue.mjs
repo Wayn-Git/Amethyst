@@ -9,7 +9,7 @@ if (!apiKey) {
 }
 
 const model = 'gemini-3.5-flash-lite';
-const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
 console.log('--- STARTING 50-ITEM REAL GEMINI QUEUE WITH 4.1s PACING (>=200s DURATION) ---');
 const queueStart = new Date().toISOString();
@@ -40,7 +40,10 @@ for (let i = 1; i <= 50; i++) {
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey
+      },
       body: JSON.stringify(payload)
     });
     status = res.status;

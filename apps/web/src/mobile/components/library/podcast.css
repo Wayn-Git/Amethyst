@@ -1,0 +1,450 @@
+/* Podcast detail screen — library revamp artboard 8.12.
+   Values from docs/agent-context/sections/library-revamp-design.md §1 + §8.12. */
+
+.pc-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* Uppercase section label (§1.3 h2.lbl: 13/700/+0.07em #636366) */
+.pc-lbl {
+  margin: 16px 4px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #636366;
+}
+
+.pc-lbl-cnt {
+  margin-left: 4px;
+  color: #636366;
+  font-weight: 700;
+}
+
+/* White detail card, radius 22 (§8 shared) */
+.pc-card {
+  border-radius: 22px;
+  background: #fff;
+  color: #151517;
+}
+
+/* Summary card (§8.12 #6: p 16/24 #2C2C2E) */
+.pc-summary {
+  padding: 14px 16px;
+}
+
+.pc-summary p {
+  margin: 0;
+  font-size: 16px;
+  line-height: 24px;
+  color: #2c2c2e;
+  overflow-wrap: anywhere;
+}
+
+/* Key-value group (§1.6 .kv: space-between, min-height 46, key #636366, value 600) */
+.pc-kv {
+  padding: 2px 18px;
+}
+
+.pc-kv-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 46px;
+  border-bottom: 1px solid #ececf0;
+  font-size: 16px;
+}
+
+.pc-kv-row:last-child {
+  border-bottom: 0;
+}
+
+.pc-kv-key {
+  color: #636366;
+  flex: none;
+}
+
+.pc-kv-val {
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* Entity action pills (§1.5 tint pill: h44/0 16/r22) */
+.pc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.pc-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 22px;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+/* Status trio (§1.6 .st: h48 r24; .on dark) */
+.pc-status {
+  display: flex;
+  gap: 8px;
+}
+
+.pc-st {
+  flex: 1;
+  height: 48px;
+  border-radius: 24px;
+  border: 1px solid #d8d8de;
+  background: #fff;
+  color: #151517;
+  font-size: 15px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pc-st.on {
+  border-color: #151517;
+  background: #151517;
+  color: #fff;
+  font-weight: 650;
+}
+
+.pc-st:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Player card (§8.12 #4) */
+.pc-player {
+  padding: 14px 16px;
+}
+
+.pc-scrub {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: linear-gradient(
+    to right,
+    #0b5fd9 var(--pc-fill, 0%),
+    #e5e5ea var(--pc-fill, 0%)
+  );
+  cursor: pointer;
+}
+
+.pc-scrub:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pc-scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  border: 0;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.pc-scrub::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  border: 0;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.pc-times {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #636366;
+  font-variant-numeric: tabular-nums;
+}
+
+.pc-transport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  margin-top: 6px;
+}
+
+.pc-skip {
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
+  border: 0;
+  background: transparent;
+  color: #151517;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pc-skip:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pc-play {
+  width: 64px;
+  height: 64px;
+  border-radius: 32px;
+  border: 0;
+  background: #0b5fd9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.5),
+    0 10px 24px rgba(11, 95, 217, 0.3);
+}
+
+.pc-play:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.pc-sub {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pc-chipbtn {
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(118, 118, 128, 0.16);
+  color: #151517;
+  font-size: 15px;
+  font-weight: 650;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0 10px;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.pc-chipbtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Open-source card (link-card layout, §8.10/8.11 style) */
+.pc-src {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.pc-art {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  overflow: hidden;
+  flex: none;
+  background: #f2f2f7;
+  color: #7a3550;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pc-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.pc-src-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pc-src-name {
+  font-size: 16px;
+  font-weight: 650;
+  color: #151517;
+}
+
+.pc-src-sub {
+  font-size: 13px;
+  color: #636366;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pc-src-chevron {
+  color: #636366;
+  flex: none;
+  display: flex;
+}
+
+/* Chapters group (§8.12 #7: time 52w 14/700 #0A55C4, name 16/600) */
+.pc-chapters {
+  padding: 2px 16px;
+}
+
+.pc-chapter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+  padding: 8px 0;
+  border-bottom: 1px solid #ececf0;
+}
+
+.pc-chapter:last-child {
+  border-bottom: 0;
+}
+
+.pc-chapter-time {
+  width: 52px;
+  flex: none;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0a55c4;
+  font-variant-numeric: tabular-nums;
+}
+
+.pc-chapter-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #151517;
+  overflow-wrap: anywhere;
+}
+
+/* Notes card (§8.12 #8 text: 16/23 #2C2C2E) */
+.pc-notes {
+  padding: 12px 14px;
+}
+
+.pc-notes p {
+  margin: 0;
+  font-size: 16px;
+  line-height: 23px;
+  color: #2c2c2e;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Screen-reader-only live region for playback state */
+.pc-a11y {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.pc-st:focus-visible,
+.pc-skip:focus-visible,
+.pc-play:focus-visible,
+.pc-chipbtn:focus-visible,
+.pc-scrub:focus-visible,
+.pc-action:focus-visible,
+.pc-src:focus-visible {
+  outline: 2px solid #0b5fd9;
+  outline-offset: 2px;
+}
+
+/* Hero band + title (artboard 8.12) */
+.pc-hero {
+  position: relative;
+  height: 190px;
+  border-radius: 32px;
+  overflow: hidden;
+  background: #7a3550;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.pc-hero-art {
+  width: 132px;
+  height: 132px;
+  border-radius: 24px;
+  background: #f2f2f7;
+  color: #7a3550;
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, .25);
+  overflow: hidden;
+}
+
+.pc-hero-tag {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #fff;
+  background: rgba(28, 28, 30, .72);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+}
+
+.pc-title {
+  margin: 12px 4px 0;
+  font-size: 26px;
+  line-height: 31px;
+  font-weight: 800;
+  letter-spacing: -.03em;
+  color: #151517;
+}
+
+.pc-title-meta {
+  margin: 4px 4px 0;
+  font-size: 15px;
+  color: #636366;
+}
+

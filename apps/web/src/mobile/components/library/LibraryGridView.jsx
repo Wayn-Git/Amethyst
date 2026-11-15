@@ -1,161 +1,170 @@
 import { motion } from 'framer-motion'
-import { LibraryThumbnail } from '../../thumbnailLoader.jsx'
-import { INK, MUTED, KIND_META, canonicalKind } from './tokens.js'
-
-function itemScreenKind(item) {
-  const kind = canonicalKind(item.kind)
-  if (item.category === 'movie' || item.category === 'film') return 'movie'
-  if (item.category === 'food' || item.category === 'recipe') return 'recipe'
-  return kind
-}
+import { KIND_META, canonicalKind, INK, MUTED, BLUE } from './tokens.js'
+import { EmptyLibraryState } from './LibraryListView.jsx'
+import { Skeleton } from '../libraryUi.jsx'
 
 export default function LibraryGridView({
   items = [],
-  onOpenItem,
-  onOpenActions,
+  loading = false,
+  activeFilter = 'all',
+  onFilterChange,
   selectMode = false,
   selectedIds = new Set(),
   onToggleSelect,
+  onSelectItem,
+  onOpenItem,
+  onStartSelect,
+  onCreateClick,
 }) {
+  const handleItemClick = onSelectItem || onOpenItem
+  if (loading && items.length === 0) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px 10px', padding: '14px 0 20px' }}>
+        {[...Array(9)].map((_, i) => (
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <Skeleton height={106} radius={18} />
+            <Skeleton height={14} radius={4} width="80%" />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  if (items.length === 0 && !loading) {
+    return <EmptyLibraryState onSaveFirst={onCreateClick} />
+  }
+
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: 12,
-        padding: '16px 16px 110px',
-      }}
-    >
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          gap: '12px 10px',
+          padding: '4px 0 20px',
+          boxSizing: 'border-box',
+          width: '100%',
+        }}
+      >
       {items.map((item) => {
-        const kind = itemScreenKind(item)
-        const meta = KIND_META[kind] || KIND_META.other
         const isSelected = selectedIds.has(item.id)
+        const kind = canonicalKind(item.kind)
+        const meta = KIND_META[kind] || KIND_META.article
 
         return (
           <motion.div
             key={item.id}
-            layout
-            whileTap={{ scale: 0.97 }}
-            onClick={() => {
-              if (selectMode) {
-                onToggleSelect?.(item.id)
-              } else {
-                onOpenItem?.(item)
-              }
+            whileTap={{ scale: 0.96 }}
+            onClick={selectMode ? () => onToggleSelect?.(item.id) : () => handleItemClick?.(item)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              onStartSelect?.(item.id)
             }}
             style={{
               position: 'relative',
-              borderRadius: 20,
-              background: '#fff',
-              overflow: 'hidden',
-              boxShadow: '0 1px 2px rgba(0,0,0,.05), 0 4px 14px rgba(0,0,0,.05)',
+              cursor: 'pointer',
               display: 'flex',
               flexDirection: 'column',
-              cursor: 'pointer',
+              borderRadius: 18,
+              minWidth: 0,
+              width: '100%',
+              overflow: 'hidden',
+              boxShadow: isSelected ? `0 0 0 2px ${BLUE}` : 'none',
+              padding: isSelected ? 2 : 0,
             }}
           >
-            {/* Thumbnail banner */}
+            {/* Square thumbnail with radius 18 */}
             <div
               style={{
                 position: 'relative',
                 width: '100%',
-                paddingTop: '68%',
-                background: meta.color,
+                aspectRatio: '1 / 1',
+                borderRadius: 18,
                 overflow: 'hidden',
+                background: meta.color,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <LibraryThumbnail item={item} />
-              </div>
-
-              {/* Kind badge */}
-              <span
-                className="glass-dark"
-                style={{
-                  position: 'absolute',
-                  top: 8,
-                  left: 8,
-                  padding: '3px 8px',
-                  borderRadius: 8,
-                  fontSize: 10,
-                  fontWeight: 700,
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  color: '#fff',
-                }}
-              >
-                {meta.label}
+              <span style={{ fontSize: 28, opacity: 0.6, color: meta.darkText ? INK : '#FFFFFF' }}>
+                {kind === 'video' ? '▶' : kind === 'recipe' ? '🍳' : kind === 'book' ? '📖' : kind === 'movie' ? '🎬' : '📄'}
               </span>
-
-              {/* Video duration */}
-              {item.duration && (
-                <span
-                  className="glass-dark"
-                  style={{
-                    position: 'absolute',
-                    bottom: 8,
-                    right: 8,
-                    padding: '2px 6px',
-                    borderRadius: 6,
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: '#fff',
-                  }}
-                >
-                  {item.duration}
-                </span>
+              {item.thumbnail_url && (
+                <img
+                  src={item.thumbnail_url}
+                  alt=""
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                  loading="lazy"
+                  onError={(e) => { e.currentTarget.style.display = 'none' }}
+                />
               )}
 
-              {/* Multi-select check */}
               {selectMode && (
-                <div
+                <span
                   style={{
                     position: 'absolute',
-                    top: 8,
-                    right: 8,
-                    width: 24,
-                    height: 24,
-                    borderRadius: 12,
-                    border: isSelected ? 0 : '2px solid rgba(255,255,255,0.85)',
-                    background: isSelected ? '#0B5FD9' : 'rgba(0,0,0,0.25)',
+                    top: 6,
+                    left: 6,
+                    width: 22,
+                    height: 22,
+                    borderRadius: 11,
+                    background: isSelected ? BLUE : 'rgba(0,0,0,.5)',
+                    border: '1.5px solid #FFFFFF',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    color: '#FFFFFF',
                   }}
                 >
                   {isSelected && (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M5 12.5l4.5 4.5L19 7.5" />
                     </svg>
                   )}
-                </div>
+                </span>
+              )}
+
+              {/* Duration badge */}
+              {item.duration_seconds > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    right: 6,
+                    bottom: 6,
+                    padding: '2px 5px',
+                    borderRadius: 5,
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: '#FFFFFF',
+                    background: 'rgba(0,0,0,.6)',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {Math.floor(item.duration_seconds / 60)}:{String(item.duration_seconds % 60).padStart(2, '0')}
+                </span>
               )}
             </div>
 
-            {/* Title & metadata caption */}
-            <div style={{ padding: '10px 12px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div
-                style={{
-                  fontSize: 14,
-                  fontWeight: 650,
-                  lineHeight: '18px',
-                  color: INK,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                }}
-              >
-                {item.title || item.url || 'Untitled save'}
-              </div>
-              <div style={{ fontSize: 12, color: MUTED }}>
-                {item.author || meta.label}
-              </div>
+            {/* One-line title under it (13/600) */}
+            <div
+              style={{
+                margin: '6px 2px 0',
+                fontSize: 13,
+                fontWeight: 600,
+                lineHeight: '17px',
+                color: INK,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {item.title || item.url || 'Untitled save'}
             </div>
           </motion.div>
         )
       })}
+      </div>
     </div>
   )
 }

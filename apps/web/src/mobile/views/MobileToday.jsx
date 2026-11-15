@@ -4,6 +4,7 @@ import { api, appendAuthToken, getBase } from '../../api.js'
 import { safeStorage } from '../../lib/storage.js'
 import { storedIdentity } from '../../lib/credentials.js'
 import { getTransportManager } from '../../lib/sync/transportManager.js'
+import { LibraryThumbnail } from '../thumbnailLoader.jsx'
 import '../companion.css'
 
 function formatWhen(value) {
@@ -661,22 +662,21 @@ export default function MobileToday({
           </div>
 
           {/* Real Thumbnail */}
-          {resolveHighlightThumbnail(libraryHighlight) && !highlightImgError ? (
-            <img
-              src={resolveHighlightThumbnail(libraryHighlight)}
-              alt=""
+          {libraryHighlight && (
+            <div
               style={{
                 width: 68,
                 height: 68,
                 borderRadius: 16,
-                objectFit: 'cover',
+                overflow: 'hidden',
                 flexShrink: 0,
                 boxShadow: '0 3px 10px rgba(0,0,0,0.1)',
                 border: '1px solid rgba(255,255,255,0.6)',
               }}
-              onError={() => setHighlightImgError(true)}
-            />
-          ) : null}
+            >
+              <LibraryThumbnail item={libraryHighlight} />
+            </div>
+          )}
         </div>
       </div>
 

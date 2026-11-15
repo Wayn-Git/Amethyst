@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Library item – Video</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.p{font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;color:#1d1d1f;background:#f5f5f7;min-height:100%;-webkit-font-smoothing:antialiased}
+.p *{box-sizing:border-box}
+.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.bar{display:flex;align-items:center;justify-content:space-between;height:64px;padding:0 28px;border-bottom:1px solid rgba(0,0,0,.06)}
+.b{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 18px;border:0;border-radius:22px;background:#fff;color:#1d1d1f;font-size:14px;font-weight:500;font-family:inherit;box-shadow:0 0 0 1px rgba(0,0,0,.06)}
+.ib{width:44px;padding:0}
+.main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:56px;max-width:1240px;margin:0 auto;padding:40px 28px 64px}
+.seg{display:inline-flex;padding:3px;background:rgba(0,0,0,.06);border-radius:14px}
+.seg button{height:44px;padding:0 18px;border:0;border-radius:11px;background:none;font-size:14px;font-family:inherit;color:#515154}
+.seg .on{background:#fff;color:#1d1d1f;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.t{display:inline-flex;align-items:center;height:32px;padding:0 14px;border-radius:16px;background:#fff;font-size:13px;box-shadow:0 0 0 1px rgba(0,0,0,.06)}
+.tabs{display:flex;gap:28px;border-bottom:1px solid rgba(0,0,0,.08)}
+.tabs button{height:48px;border:0;background:none;font-family:inherit;font-size:15px;color:#6e6e73;border-bottom:2px solid transparent;padding:0}
+.tabs .on{color:#1d1d1f;font-weight:600;border-color:#1d1d1f}
+.card{background:#fff;border-radius:20px;padding:24px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.lab{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#6e6e73;margin:0 0 12px}
+.row{display:flex;align-items:center;gap:14px;padding:14px 0;border-top:1px solid rgba(0,0,0,.07)}
+.row:first-of-type{border-top:0}
+.dot{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:600;font-size:14px;flex:none}
+.sub{font-size:13px;color:#6e6e73}
+a{color:#0066cc;text-decoration:none}
+</style>
+</helmet>
+<div class="p">
+  <div class="bar">
+    <button class="b"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>Library</button>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="b ib" aria-label="Previous item"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg></button>
+      <span class="sub" style="min-width:56px;text-align:center">1 of 2</span>
+      <button class="b ib" aria-label="Next item"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"></path></svg></button>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="b ib" aria-label="Favorite"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8-5.3-2.8-5.3 2.8 1-5.8-4.2-4.1 5.9-.9z"></path></svg></button>
+      <button class="b ib" aria-label="More actions"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"></circle><circle cx="12" cy="12" r="1.3"></circle><circle cx="19" cy="12" r="1.3"></circle></svg></button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div>
+      <div style="position:relative;aspect-ratio:16/9;border-radius:22px;background:#1b1530;box-shadow:0 20px 40px -20px rgba(27,21,48,.5)">
+        <div style="position:absolute;inset:0;display:grid;place-items:center">
+          <div style="width:76px;height:76px;border-radius:50%;background:rgba(255,255,255,.2);display:grid;place-items:center;color:#fff"><svg class="i" style="width:28px;height:28px;fill:#fff;stroke:none" aria-hidden="true" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"></path></svg></div>
+        </div>
+        <div style="position:absolute;left:24px;right:24px;bottom:22px;height:4px;border-radius:2px;background:rgba(255,255,255,.25)"><div style="width:6%;height:100%;border-radius:2px;background:#fff"></div></div>
+        <span style="position:absolute;right:16px;top:16px;padding:4px 10px;border-radius:10px;background:rgba(0,0,0,.5);color:#fff;font-size:13px;font-weight:500">7:29</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:20px">
+        <div class="dot" style="background:#5e4bb8">S</div>
+        <div style="flex:1"><div style="font-weight:600">Shub</div><div class="sub">YouTube</div></div>
+        <a href="#" class="b">Open on YouTube<svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"></path></svg></a>
+      </div>
+      <p style="margin:20px 0 6px;font-size:15px;line-height:1.55;color:#424245">Diwali has been very special for me since my childhood along with Holi of course. But it was five years ago when I used to burst crackers but today was that day again, I guess…</p>
+      <a href="#" style="font-size:14px">Show more</a>
+    </div>
+
+    <div>
+      <h1 style="margin:0;font-size:36px;line-height:1.1;font-weight:700;letter-spacing:-.025em">The Diwali Relapse</h1>
+      <p class="sub" style="margin:10px 0 24px;font-size:14px">Shub · Video · 7:29 · Saved today</p>
+      <div class="seg" role="group" aria-label="Progress"><button class="on">Want to watch</button><button>Watching</button><button>Watched</button></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin:20px 0">
+        <button class="b"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0112 0v5l1.5 2h-15zM10 20.5a2 2 0 004 0"></path></svg>Remind me</button>
+        <button class="b"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M9 3h6l-1 6 3 3v1H7v-1l3-3zM12 13v8"></path></svg>Pin</button>
+        <button class="b"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Add to list</button>
+        <button class="b"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"></path></svg>Copy link</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:28px"><span class="t">#streaming</span><span class="t">#youtube</span><button class="b" style="height:36px;padding:0 14px;font-size:13px;background:none;box-shadow:none;color:#0066cc">+ Add tag</button></div>
+
+      <div class="tabs" role="tablist"><button class="on">Overview</button><button>Transcript</button><button>Notes</button></div>
+
+      <div class="card" style="margin-top:24px">
+        <p class="lab">At a glance</p>
+        <p style="margin:0 0 16px;font-size:17px;line-height:1.5;letter-spacing:-.01em">A personal vlog about getting back into bursting crackers on Diwali after five years, mixing nostalgia with a look at the creator’s PC setup.</p>
+        <div class="row" style="padding:10px 0"><span style="color:#424245;font-size:15px">Reflects on childhood Diwali and Holi</span></div>
+        <div class="row" style="padding:10px 0"><span style="color:#424245;font-size:15px">Walks through the creator’s PC specs</span></div>
+        <div class="row" style="padding:10px 0"><span style="color:#424245;font-size:15px">Points to Twitch, memberships and Instagram</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px"><span class="sub" style="font-size:12px">Summarized by Cohere North Mini</span><a href="#" style="font-size:13px">Regenerate</a></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <p class="lab">Links in this video</p>
+        <div class="row"><div class="dot" style="background:#7a35e0">T</div><div style="flex:1"><div style="font-weight:600">Twitch</div><div class="sub">twitch.tv/beastboyshub</div></div><a href="#" class="b">Watch</a></div>
+        <div class="row"><div class="dot" style="background:#ff9900;color:#1d1d1f">A</div><div style="flex:1"><div style="font-weight:600">Amazon shop</div><div class="sub">PC specs, affiliate</div></div><a href="#" class="b ib" aria-label="Open Amazon shop"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"></path></svg></a></div>
+        <div class="row"><div class="dot" style="background:#cc1f1a">Y</div><div style="flex:1"><div style="font-weight:600">Channel membership</div><div class="sub">Emotes and badges</div></div><a href="#" class="b ib" aria-label="Open membership"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"></path></svg></a></div>
+        <div class="row"><div class="dot" style="background:#b02c78">I</div><div style="flex:1"><div style="font-weight:600">Instagram</div><div class="sub">instagram.com/notshubatall</div></div><a href="#" class="b ib" aria-label="Open Instagram"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"></path></svg></a></div>
+      </div>
+
+      <div class="card" style="margin-top:16px;min-height:110px">
+        <p class="lab">Your notes</p>
+        <p class="sub" style="margin:0;font-size:15px">Add a thought…</p>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1240}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

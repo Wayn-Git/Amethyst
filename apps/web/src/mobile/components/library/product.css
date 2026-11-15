@@ -1,0 +1,377 @@
+/* Product detail screen styles — library-revamp-design.md section 8.13.
+   All classes prefixed pr-. */
+
+.pr-root {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Hero band — 210 tall, radius 32, neutral grey */
+.pr-hero {
+  position: relative;
+  height: 210px;
+  border-radius: 32px;
+  overflow: hidden;
+  background: #e5e5ea;
+}
+
+.pr-hero-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Fallback product art when no thumbnail exists */
+.pr-hero-art {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #3a3a3c;
+}
+
+/* glass-dark PRODUCT tag, left 16 bottom 16 */
+.pr-tag {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  background: rgba(28, 28, 30, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  backdrop-filter: blur(20px) saturate(170%);
+}
+
+/* Title + price row */
+.pr-title-row {
+  margin-top: 14px;
+  padding: 0 4px;
+}
+
+.pr-title {
+  margin: 0;
+  font-size: 26px;
+  line-height: 31px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #151517;
+}
+
+.pr-price-row {
+  margin: 4px 0 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pr-price {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #151517;
+}
+
+.pr-price-src {
+  font-size: 15px;
+  color: #636366;
+}
+
+/* Uppercase section label */
+.pr-label {
+  margin: 16px 4px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #636366;
+}
+
+.pr-h2row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 16px 4px 8px;
+}
+
+.pr-h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #151517;
+}
+
+.pr-count {
+  font-size: 14px;
+  color: #636366;
+}
+
+.pr-save {
+  border: 0;
+  border-radius: 16px;
+  padding: 8px 14px;
+  background: rgba(118, 118, 128, 0.16);
+  color: #151517;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.pr-save:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* Status trio — h48 r24 */
+.pr-status-row {
+  display: flex;
+  gap: 8px;
+}
+
+.pr-st {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  padding: 0;
+  border: 1px solid #d8d8de;
+  border-radius: 24px;
+  background: #fff;
+  color: #151517;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.pr-st.on {
+  border-color: transparent;
+  background: #151517;
+  color: #fff;
+  font-weight: 650;
+}
+
+.pr-st:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* White detail card */
+.pr-card {
+  background: #fff;
+  border-radius: 22px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 6px 18px rgba(0, 0, 0, 0.06);
+}
+
+/* Store rows (Where to buy) */
+.pr-shops-card {
+  padding: 4px 16px;
+}
+
+.pr-shop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid #ececf0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.pr-shop:last-child {
+  border-bottom: 0;
+}
+
+.pr-shop-tile {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f2f2f7;
+  color: #3a3a3c;
+  font-size: 16px;
+  font-weight: 800;
+  overflow: hidden;
+}
+
+.pr-shop-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pr-shop-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.pr-shop-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 650;
+  color: #151517;
+}
+
+.pr-shop-sub {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: #636366;
+}
+
+.pr-shop-price {
+  flex: none;
+  font-size: 16px;
+  font-weight: 700;
+  color: #151517;
+}
+
+.pr-shop-arrow {
+  flex: none;
+  display: flex;
+  align-items: center;
+  color: #636366;
+}
+
+/* Saved-from link row */
+.pr-from {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+}
+
+.pr-from-tile {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2b3040;
+  color: #fff;
+  overflow: hidden;
+}
+
+.pr-from-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pr-from-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 650;
+  color: #151517;
+}
+
+.pr-from-sub {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: #636366;
+}
+
+.pr-from-arrow {
+  flex: none;
+  display: flex;
+  align-items: center;
+  color: #636366;
+}
+
+/* Key/value detail rows */
+.pr-kv-card {
+  padding: 4px 16px;
+}
+
+.pr-kv {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 46px;
+  padding: 6px 0;
+  border-bottom: 1px solid #ececf0;
+}
+
+.pr-kv:last-child {
+  border-bottom: 0;
+}
+
+.pr-kv-k {
+  flex: none;
+  font-size: 14px;
+  color: #636366;
+}
+
+.pr-kv-v {
+  font-size: 15px;
+  font-weight: 600;
+  color: #151517;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* Notes + private notes */
+.pr-notes-card {
+  padding: 12px 16px;
+}
+
+.pr-notes-input {
+  width: 100%;
+  min-height: 96px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #151517;
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 24px;
+  resize: none;
+  outline: none;
+}
+
+.pr-notes-input::placeholder {
+  color: #8e8e93;
+}
+
+.pr-lock-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #8e8e93;
+}

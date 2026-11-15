@@ -1,0 +1,535 @@
+/* Place detail (§8.10) + Places map (§8.11) — library revamp mobile.
+   Values copied verbatim from docs/agent-context/sections/library-revamp-design.md. */
+
+.pl-screen,
+.pl-map-screen {
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pl-screen {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 8px;
+  min-width: 0;
+}
+
+.pl-screen button {
+  font-family: inherit;
+}
+
+/* ---- Glass recipes (§1.2). Detail screens use the .42 variant,
+   the places map screen overrides to the .55 variant. ---- */
+.pl-glass {
+  background: rgba(255, 255, 255, 0.42);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  backdrop-filter: blur(28px) saturate(200%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 0 0 0.5px rgba(0, 0, 0, 0.10),
+    0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* ---- Hero map band (§8.10.1): margin 16px sides, height 250, radius 32 ---- */
+.pl-hero {
+  position: relative;
+  margin: 0 16px;
+  height: 250px;
+  border-radius: 32px;
+  overflow: hidden;
+  background: #E8E7E1;
+}
+
+.pl-hero-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.pl-hero-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Pin: 44×44, radius 22/22/22/4, rotate(-45deg), blue, shadow */
+.pl-hero-pin {
+  position: absolute;
+  left: 150px;
+  top: 112px;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  background: #0B5FD9;
+  border-radius: 22px 22px 22px 4px;
+  box-shadow: 0 6px 14px rgba(11, 95, 217, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  pointer-events: none;
+}
+
+.pl-hero-pin svg {
+  transform: rotate(45deg);
+}
+
+/* "Open in Maps" glass pill right 12 bottom 12, h40, padding 0 14, r20, 14/700 */
+.pl-open-maps {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #151517;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* ---- Title + meta (§8.10.3): H1 26/31/800/-0.03em, meta 15 #636366 ---- */
+.pl-h1 {
+  margin: 12px 16px 0;
+  font-size: 26px;
+  line-height: 31px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #151517;
+}
+
+.pl-meta {
+  margin: 6px 16px 0;
+  font-size: 15px;
+  color: #636366;
+}
+
+/* ---- Action row (§8.10.4): Directions h52 r14 blue 17/700 ---- */
+.pl-actions {
+  margin: 14px 16px 0;
+  display: flex;
+  gap: 8px;
+}
+
+.pl-actions > * {
+  flex: 1;
+  min-width: 0;
+}
+
+.pl-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 52px;
+  border: 0;
+  border-radius: 14px;
+  padding: 0 16px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.pl-btn-blue {
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+/* ---- Section label .lbl: 13/700/+0.07em uppercase #636366 ---- */
+.pl-lbl {
+  margin: 18px 4px 8px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #636366;
+}
+
+/* ---- Status trio (§1.5 status trio detail): h48 r24 ---- */
+.pl-status {
+  margin: 0 16px;
+  display: flex;
+  gap: 8px;
+}
+
+.pl-st {
+  flex: 1;
+  height: 48px;
+  border-radius: 24px;
+  border: 1px solid #D8D8DE;
+  background: #fff;
+  color: #151517;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pl-st.on {
+  border-color: #151517;
+  background: #151517;
+  color: #fff;
+  font-weight: 650;
+}
+
+.pl-st[disabled],
+.pl-note textarea[disabled] {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ---- Grouped rows .grp: padding 0 14, r22, white, soft shadow ---- */
+.pl-grp {
+  margin: 0 16px;
+  padding: 0 14px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 4px 14px rgba(0, 0, 0, 0.05);
+}
+
+.pl-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  border-bottom: 1px solid #ECECF0;
+  padding: 8px 0;
+  min-width: 0;
+}
+
+.pl-row:last-child {
+  border-bottom: 0;
+}
+
+.pl-row-link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* Row icon tile: 36×36 r11 #E4EDFC/#0A55C4 (large 44×44 r14) */
+.pl-ic {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: #E4EDFC;
+  color: #0A55C4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.pl-ic-lg {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+}
+
+.pl-row-val {
+  font-size: 16px;
+  font-weight: 600;
+  color: #151517;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pl-res-name {
+  display: block;
+  font-size: 16px;
+  font-weight: 650;
+  color: #151517;
+}
+
+.pl-res-detail {
+  display: block;
+  margin-top: 2px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #48484A;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Key-value rows (§1.6 .kv) ---- */
+.pl-kv {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+  border-bottom: 1px solid #ECECF0;
+  font-size: 16px;
+}
+
+.pl-kv:last-child {
+  border-bottom: 0;
+}
+
+/* ---- White content cards (detail cards r22) ---- */
+.pl-card {
+  margin: 0 16px;
+  padding: 14px 16px;
+  border-radius: 22px;
+  background: #fff;
+}
+
+.pl-synopsis {
+  margin: 0;
+  font-size: 17px;
+  line-height: 26px;
+  color: #2C2C2E;
+}
+
+/* ---- Note box (§8.10.8): padding 14/16, min-height 90, r22 ---- */
+.pl-note {
+  margin: 0 16px;
+  padding: 14px 16px;
+  min-height: 90px;
+  border-radius: 22px;
+  background: #fff;
+}
+
+.pl-note textarea {
+  display: block;
+  width: 100%;
+  min-height: 62px;
+  border: 0;
+  outline: 0;
+  resize: vertical;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #151517;
+}
+
+.pl-note textarea::placeholder {
+  color: #8E8E93;
+}
+
+/* ---- Places map (§8.11): full-screen board, canvas #E8E7E1 ---- */
+.pl-map-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 420;
+  overflow: hidden;
+  background: #E8E7E1;
+}
+
+.pl-map-board {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.pl-map-screen .pl-glass {
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 0 0 0.5px rgba(0, 0, 0, 0.10),
+    0 8px 24px rgba(0, 0, 0, 0.14);
+}
+
+/* Top controls: back 48×48 r24 + glass search field */
+.pl-map-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 48px 16px 0;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  z-index: 5;
+}
+
+.pl-map-back {
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
+  border: 0;
+  color: #151517;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: none;
+}
+
+.pl-map-search {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+}
+
+.pl-map-search svg {
+  color: #636366;
+  flex: none;
+}
+
+.pl-map-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  color: #151517;
+}
+
+.pl-map-search input::placeholder {
+  color: #636366;
+}
+
+/* Ping behind selected pin: r46 → 92px, rgba(11,95,217,.12) */
+.pl-map-ping {
+  position: absolute;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  background: rgba(11, 95, 217, 0.12);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Pins: 36×36 r18/18/18/4 rotate(-45), white, icon #0A55C4.
+   Selected: 48×48 r24/24/24/5 blue, white icon, blue shadow. */
+.pl-map-pin {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  border-radius: 18px 18px 18px 4px;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  background: #fff;
+  color: #0A55C4;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+  border: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+  transition: width 0.18s ease, height 0.18s ease, background 0.18s ease;
+}
+
+.pl-map-pin svg {
+  transform: rotate(45deg);
+}
+
+.pl-map-pin.on {
+  width: 48px;
+  height: 48px;
+  border-radius: 24px 24px 24px 5px;
+  background: #0B5FD9;
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(11, 95, 217, 0.5);
+  z-index: 3;
+}
+
+/* Selected place card: .glass, left/right 16, bottom safe, r26, padding 12 */
+.pl-map-card {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  border-radius: 26px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 5;
+}
+
+.pl-map-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: #CDE4C5;
+  color: #2F6B34;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.pl-map-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.pl-map-body {
+  flex: 1;
+  min-width: 0;
+  display: block;
+}
+
+.pl-map-name {
+  display: block;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #151517;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pl-map-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: #48484A;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pl-map-dir {
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 22px;
+  display: inline-flex;
+  align-items: center;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  flex: none;
+}
+
+.pl-map-hint {
+  position: absolute;
+  top: 54%;
+  left: 16px;
+  right: 16px;
+  margin: 0;
+  text-align: center;
+  font-size: 15px;
+  color: #636366;
+  z-index: 2;
+}

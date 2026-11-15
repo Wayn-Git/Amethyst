@@ -1,0 +1,298 @@
+{
+  "pc_total": 371,
+  "pc_junk_count": 16,
+  "pc_junk_breakdown": {
+    "no_thumbnail": 15,
+    "no_title": 1,
+    "no_summary": 1
+  },
+  "pc_junk_sample": [
+    {
+      "id": "832228",
+      "title": "GitHub - amethyst/amethyst: Data-oriented and data",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "832225",
+      "title": "GitHub - amethyst/amethyst: Data-oriented and data",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "832221",
+      "title": "GitHub - amethyst/amethyst: Data-oriented and data",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "832220",
+      "title": "If you want this website comment \u201cwebsite \u201d and fo",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "44708",
+      "title": "https://example.com/sync",
+      "url": "https://example.com/sync",
+      "reasons": [
+        "no_title",
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "44699",
+      "title": "Example Domain",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "44698",
+      "title": "Example Domain",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "44693",
+      "title": "Note",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "396",
+      "title": "another fav scene from directing hate notes! \ud83d\udc8c",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "342",
+      "title": "Instagram Reel DfDN9tgMI7H",
+      "url": "https://www.instagram.com/reel/DfDN9tgMI7H/",
+      "reasons": [
+        "no_summary"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "302",
+      "title": "Create a step-by-step plan to implement a TypeScri",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "283",
+      "title": "@jack: just setting up my twttr",
+      "url": "https://x.com/jack",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "282",
+      "title": "Meeting Notes on Quantum Computing",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "281",
+      "title": "AI Engineering Notes",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "276",
+      "title": "Example Domain Test",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    }
+  ],
+  "phone_pipeline_total": 4,
+  "phone_cached_total": 371,
+  "phone_unique_total": 375,
+  "phone_junk_count": 21,
+  "phone_junk_breakdown": {
+    "no_thumbnail": 20,
+    "no_summary": 5,
+    "no_title": 1
+  },
+  "phone_junk_sample": [
+    {
+      "id": "dc621b3d1c4c8240",
+      "title": "The evolution of AI-generated video between 2023 a",
+      "url": "https://www.instagram.com/reel/DdXGIh1JE4m/",
+      "reasons": [
+        "no_thumbnail",
+        "no_summary"
+      ],
+      "status": "ready_partial"
+    },
+    {
+      "id": "8fa9f03521caaee1",
+      "title": "memegodMatching tattoos have become a popular tren",
+      "url": "https://www.instagram.com/p/DffsOulx7Ip/",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "2239483c06d0bfde",
+      "title": "\ud83c\udfac Green Book (2018)\n\nTwo men from completely diffe",
+      "url": "https://www.instagram.com/reel/DfGMReUIX-d/",
+      "reasons": [
+        "no_thumbnail",
+        "no_summary"
+      ],
+      "status": "ready_partial"
+    },
+    {
+      "id": "ea279a21337da9ae",
+      "title": "Why does iOS feel so nice to use",
+      "url": "https://www.instagram.com/reel/De5oNXKteqU/",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "temp_1794252150655",
+      "title": "Hj",
+      "url": "https://www.instagram.com/p/DfgYc3XGnFj/?img_index=2&exln=MXFiemczenkwZ3gxeg==",
+      "reasons": [
+        "no_thumbnail",
+        "no_summary"
+      ],
+      "status": "processing"
+    },
+    {
+      "id": "temp_1794252116731",
+      "title": "Hj",
+      "url": "",
+      "reasons": [
+        "no_thumbnail",
+        "no_summary"
+      ],
+      "status": "processing"
+    },
+    {
+      "id": "832220",
+      "title": "If you want this website comment \u201cwebsite \u201d and fo",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "44708",
+      "title": "https://example.com/sync",
+      "url": "https://example.com/sync",
+      "reasons": [
+        "no_title",
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "44699",
+      "title": "Example Domain",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "44698",
+      "title": "Example Domain",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "342",
+      "title": "Instagram Reel DfDN9tgMI7H",
+      "url": "https://www.instagram.com/reel/DfDN9tgMI7H/",
+      "reasons": [
+        "no_summary"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "832228",
+      "title": "GitHub - amethyst/amethyst: Data-oriented and data",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "832225",
+      "title": "GitHub - amethyst/amethyst: Data-oriented and data",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "832221",
+      "title": "GitHub - amethyst/amethyst: Data-oriented and data",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "44693",
+      "title": "Note",
+      "url": "",
+      "reasons": [
+        "no_thumbnail"
+      ],
+      "status": "ready"
+    }
+  ]
+}

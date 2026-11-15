@@ -441,6 +441,114 @@ URL_PATTERN = re.compile(
 )
 
 
+_KIND_HOSTS = {
+    "recipe": (
+        "allrecipes.com", "seriouseats.com", "bonappetit.com", "epicurious.com",
+        "foodnetwork.com", "simplyrecipes.com", "cookingclassy.com", "lovingitvegan.com",
+        "minimalistbaker.com", "budgetbytes.com", "jamieoliver.com", "food52.com",
+        "nytcooking.com", "cooking.nytimes.com", "kitchenstories.com", "hellofresh.com",
+        "blueapron.com", "taste.com.au", "recipetineats.com", "pinchofyum.com",
+        "gimmesomeoven.com", "howtobake", "baking",
+    ),
+    "movie": (
+        "imdb.com", "letterboxd.com", "themoviedb.org", "rottentomatoes.com",
+        "netflix.com", "hulu.com", "disneyplus.com", "primevideo.com", "max.com",
+        "paramountplus.com", "peacocktv.com", "apple.co", "tv.apple.com",
+        "movies.apple.com", "justwatch.com", "metacritic.com/movie",
+    ),
+    "game": (
+        "steampowered.com", "store.steampowered.com", "epicgames.com", "itch.io",
+        "playstation.com", "nintendo.com", "xbox.com", "gog.com", "humblebundle.com",
+        "rockstargames.com", "ea.com", "ubisoft.com", "blizzard.com", "riotgames.com",
+        "square-enix", "bungie.net", "metacritic.com/game", "ign.com", "opencritic.com",
+    ),
+    "video": (
+        "youtube.com", "youtu.be", "vimeo.com", "dailymotion.com", "twitch.tv",
+        "bilibili.com", "tubitv.com", "rivial", "streamable.com", "vidmy",
+    ),
+}
+
+_KIND_PATH_HINTS = {
+    "recipe": ("/recipe", "/recipes", "/cooking", "ingredients", "servings"),
+    "movie": ("/movie", "/movies", "/film", "/films", "/title/", "/watch", "/series", "/tv/"),
+    "game": ("/game", "/games", "/app/", "/store/", "/buy", "/wishlist"),
+    "video": ("/watch", "/video", "/videos", "/shorts", "/reel", "/clip"),
+    "article": ("/blog", "/article", "/articles", "/post", "/news", "/guide", "/story", "/p/"),
+}
+
+
+def infer_kind(url: str | None = None, title: str = "", text: str = "") -> str:
+    """Guess what kind of thing a capture is when the caller did not say.
+
+    Host and path beats title beats body. Returns a KINDS value or "other";
+    never raises -- a wrong guess costs one patch, a crash costs the capture.
+    """
+    host = ""
+    path = ""
+    if url:
+        try:
+            parsed = urlparse(url if re.match(r"^https?://", url) else f"https://{url}")
+            host = (parsed.netloc or "").lower().removeprefix("www.")
+            path = (parsed.path or "").lower()
+        except Exception:
+            host = url.lower()[:120]
+
+    def host_matches(kind: str) -> bool:
+        return any(h in host for h in _KIND_HOSTS.get(kind, ()))
+
+    for kind in ("recipe", "movie", "game", "video"):
+        if host and host_matches(kind):
+            # Recipe/video sites can also be .com domains for other kinds; a
+            # stronger path hint wins first, then the host match stands.
+            return kind
+
+    # A host that is not specific enough: article and note hosts never guessed
+    # above, so try the path hints.
+    for kind in ("recipe", "movie", "game", "video", "article"):
+        for hint in _KIND_PATH_HINTS.get(kind, ()):
+            if hint and hint in path:
+                return kind
+
+    haystack_title = f" {title.lower()} "
+    if any(w in haystack_title for w in (" recipe ", " how to cook ", " how to make ", " ingredients:")):
+        return "recipe"
+    if any(w in haystack_title for w in (" movie ", " film ", " review —")):
+        return "movie"
+    if any(w in haystack_title for w in (" game ", " gameplay ", " review —")):
+        return "game"
+
+    body = (text or "")[:4000].lower()
+    if body:
+        ingredient_lines = sum(
+            1 for line in body.splitlines()
+            if line.strip().startswith(("-", "•")) and any(u in line for u in ("tbsp", "tsp", "cup", "g ", "kg ", "oz", "ml", "cloves"))
+        )
+        if ingredient_lines >= 3 or "step 1" in body and "ingredients" in body:
+            return "recipe"
+        if "season " in body and "episode" in body and ("netflix" in body or "streaming" in body or "watch" in body):
+            return "movie"
+
+    if not url:
+        return "note"
+    if host and any(
+        h in host
+        for h in ("x.com", "twitter.com", "threads.net", "threads.com", "reddit.com", "instagram.com", "tiktok.com", "linkedin.com")
+    ):
+        return "post"
+    if host and any(
+        h in host
+        for h in (
+            "news.ycombinator.com", "nytimes.com", "theguardian.com", "washingtonpost.com",
+            "bbc.", "cnn.com", "reuters.com", "theverge.com", "techcrunch.com", "arstechnica.com",
+            "wired.com", "vox.com", "arxiv.org", "nature.com", "science.org", "nautil.us",
+            "substack.com", "medium.com", "blog", "dev.to", "hashnode.",
+            "notion.site", "github.io",
+        )
+    ):
+        return "article"
+    return "article"
+
+
 def normalize_url(raw: str) -> str:
     """Normalize a raw string or domain into a proper, clickable http(s) URL."""
     if not raw or not isinstance(raw, str):

@@ -1,0 +1,40 @@
+11-11 19:48:17.950 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:17.976 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"data":null}
+11-11 19:48:17.977 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:18.007 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"data":null}
+11-11 19:48:18.019 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:18.022 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"data":null}
+11-11 19:48:18.022 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:18.059 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"data":"{\"deviceId\":\"<REDACTED_DEVICE>\",\"token\":\"<REDACTED_TOKEN>\",\"hostUrl\":\"http://192.168.1.2:8000\",\"name\":\"Android Phone\",\"permissions\":{\"library\":true,\"agent\":true,\"terminal\":true,\"pc\":true}}"}
+11-11 19:48:18.060 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:18.069 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"data":null}
+11-11 19:48:18.069 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:18.071 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"data":null}
+11-11 19:48:18.089 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:18.125 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"status":422,"headers":{"content-length":"232","content-type":"application/json","date":"Wed, 11 Nov 2026 14:18:17 GMT","server":"uvicorn","X-Android-Received-Millis":"1794406698105","X-Android-Response-Source":"NETWORK 422","X-Android-Selected-Protocol":"http/1.1","X-Android-Sent-Millis":"1794406698095"},"url":"http://192.168.1.2:8000/api/mobile/captures","data":{"detail":[{"type":"value_error","loc":["body"],"msg":"Value error, A title and text or URL are required","input":{"id":"4a0cee7d-b8ac-4728-a1c4-1cf8efdacebc","title":"Heyaa","text":"","url":"","approved":true},"ctx":{"error":{}}}]},"error":true}
+11-11 19:48:18.127 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:18.138 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"data":null}
+11-11 19:48:18.139 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:18.156 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"data":"{\"deviceId\":\"<REDACTED_DEVICE>\",\"token\":\"<REDACTED_TOKEN>\",\"hostUrl\":\"http://192.168.1.2:8000\",\"name\":\"Android Phone\",\"permissions\":{\"library\":true,\"agent\":true,\"terminal\":true,\"pc\":true}}"}
+11-11 19:48:18.156 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:18.173 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"data":null}
+11-11 19:48:18.173 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:18.186 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"data":null}
+11-11 19:48:18.187 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:18.189 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"data":null}
+11-11 19:48:18.190 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:18.242 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"data":"{\"deviceId\":\"<REDACTED_DEVICE>\",\"token\":\"<REDACTED_TOKEN>\",\"hostUrl\":\"http://192.168.1.2:8000\",\"name\":\"Android Phone\",\"permissions\":{\"library\":true,\"agent\":true,\"terminal\":true,\"pc\":true}}"}
+11-11 19:48:18.242 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:18.295 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"data":null}
+11-11 19:48:18.297 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:18.309 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"data":null}
+11-11 19:48:18.384 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:18.426 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"data":null}
+11-11 19:48:18.426 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:18.458 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"data":"{\"deviceId\":\"<REDACTED_DEVICE>\",\"token\":\"<REDACTED_TOKEN>\",\"hostUrl\":\"http://192.168.1.2:8000\",\"name\":\"Android Phone\",\"permissions\":{\"library\":true,\"agent\":true,\"terminal\":true,\"pc\":true}}"}
+11-11 19:48:18.458 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:18.478 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"data":null}
+11-11 19:48:18.490 I/Capacitor/Console(24080): File:  - Line 349 - Msg: [object Object]
+11-11 19:48:18.493 I/Capacitor/Console(24080): File:  - Line 333 - Msg: {"data":null}
+11-11 19:48:27.796 D/Capacitor(24080): Handling CapacitorHttp request: https://localhost/_capacitor_http_interceptor_?u=http%3A%2F%2F192.168.1.2%3A8000%2Fapi%2Fhealth
+11-11 19:48:27.798 D/Capacitor(24080): Handling CapacitorHttp request: https://localhost/_capacitor_http_interceptor_?u=http%3A%2F%2F192.168.1.2%3A8000%2Fapi%2Fcapabilities

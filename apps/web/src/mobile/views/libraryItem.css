@@ -1,0 +1,60 @@
+/* MobileLibraryItem detail-shell styles (library revamp §8).
+   Inline styles carry layout; this file only adds focus/active pseudo-states. */
+
+/* Sheet-style field (§1.7 .fld) used by the "Add a link" inline form. */
+.libi-fld {
+  width: 100%;
+  box-sizing: border-box;
+  height: 52px;
+  padding: 0 14px;
+  border: 0;
+  outline: 0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 0 0 1px #e3e3e8;
+  font: inherit;
+  font-size: 16px;
+  color: #151517;
+  min-width: 0;
+}
+
+.libi-fld:focus {
+  box-shadow:
+    0 0 0 1.5px #0b5fd9,
+    0 0 0 4px rgba(11, 95, 217, 0.14);
+}
+
+.libi-fld::placeholder {
+  color: #8e8e93;
+}
+
+/* Inline "+ Tag" input chip (§8.3) — sized to match the 12/600, padding 6 12 chips. */
+.libi-taginput {
+  height: 28px;
+  padding: 0 12px;
+  border: 1.5px dashed #aeaeb8;
+  border-radius: 999px;
+  background: transparent;
+  color: #0a55c4;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  outline: 0;
+  min-width: 130px;
+  flex: 1;
+  box-sizing: border-box;
+}
+
+.libi-taginput::placeholder {
+  color: #8e8e93;
+}
+
+.libi-taginput:focus {
+  border-style: solid;
+  border-color: #0b5fd9;
+}
+
+/* Dashed add rows/buttons: press feedback without a hover state on touch. */
+.libi-dashed:active {
+  transform: scale(0.98);
+}

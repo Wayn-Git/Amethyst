@@ -618,39 +618,8 @@ export default function Companion({ onUnpair }) {
           )}
 
           {tab === 'library' && (
-            librarySubView === 'ask' ? (
-              <MobileAskLibrary
-                key="library-ask"
-                onBack={() => setLibrarySubView(null)}
-                onSelectItem={(item) => {
-                  setSelectedLibraryItem(item)
-                  setLibrarySubView('item')
-                }}
-              />
-            ) : librarySubView === 'item' ? (
-              <MobileLibraryItem
-                key={`library-item-${selectedLibraryItem?.id || 'selected'}`}
-                item={selectedLibraryItem}
-                onBack={() => {
-                  setLibrarySubView(null)
-                  setSelectedLibraryItem(null)
-                }}
-                onDeleteItem={() => {
-                  setLibrarySubView(null)
-                  setSelectedLibraryItem(null)
-                  refresh()
-                }}
-                onAskAgent={(item) => {
-                  setActiveSession({
-                    id: `temp-${Date.now()}`,
-                    title: `Discussion: ${item?.title || 'Saved Reel'}`,
-                  })
-                  setTab('agent')
-                }}
-              />
-            ) : (
+            <div style={{ flex: 1, height: '100%', position: 'relative', display: 'flex', flexDirection: 'column' }}>
               <MobileLibrary
-                key="library-list"
                 onSelectItem={(item) => {
                   setSelectedLibraryItem(item)
                   setLibrarySubView('item')
@@ -658,7 +627,45 @@ export default function Companion({ onUnpair }) {
                 onOpenAsk={() => setLibrarySubView('ask')}
                 onOpenCapture={() => setQuickCaptureOpen(true)}
               />
-            )
+
+              {librarySubView === 'ask' && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 120, background: '#F2F2F7', display: 'flex', flexDirection: 'column' }}>
+                  <MobileAskLibrary
+                    key="library-ask"
+                    onBack={() => setLibrarySubView(null)}
+                    onSelectItem={(item) => {
+                      setSelectedLibraryItem(item)
+                      setLibrarySubView('item')
+                    }}
+                  />
+                </div>
+              )}
+
+              {librarySubView === 'item' && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 120, background: '#F2F2F7', display: 'flex', flexDirection: 'column' }}>
+                  <MobileLibraryItem
+                    key={`library-item-${selectedLibraryItem?.id || 'selected'}`}
+                    item={selectedLibraryItem}
+                    onBack={() => {
+                      setLibrarySubView(null)
+                      setSelectedLibraryItem(null)
+                    }}
+                    onDeleteItem={() => {
+                      setLibrarySubView(null)
+                      setSelectedLibraryItem(null)
+                      refresh()
+                    }}
+                    onAskAgent={(item) => {
+                      setActiveSession({
+                        id: `temp-${Date.now()}`,
+                        title: `Discussion: ${item?.title || 'Saved Reel'}`,
+                      })
+                      setTab('agent')
+                    }}
+                  />
+                </div>
+              )}
+            </div>
           )}
 
           {tab === 'devices' && (
@@ -680,129 +687,142 @@ export default function Companion({ onUnpair }) {
         </AnimatePresence>
       </main>
 
+      {/* Bottom Gradient Fade to seamlessly blend into phone navigation bar */}
+      {!librarySubView && !activeSession && !pcSubView && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 96,
+            background: 'linear-gradient(180deg, rgba(242,242,247,0) 0%, rgba(242,242,247,0.85) 50%, #F2F2F7 100%)',
+            pointerEvents: 'none',
+            zIndex: 90,
+          }}
+        />
+      )}
+
       {/* Floating Bottom Navigation Dock (Design Flow Screens 2, 3, 5, 7, 10, 11) */}
       {!librarySubView && !activeSession && !pcSubView && (
         <nav className="m-nav" aria-label="Main navigation">
           <div className="m-pill">
-          {/* Today Tab */}
-          <button
-            type="button"
-            aria-label="Today"
-            className={tab === 'today' ? 'on' : ''}
-            onClick={() => {
-              setTab('today')
-              setLibrarySubView(null)
-              setPcSubView(null)
-            }}
-          >
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <rect width="7" height="7" x="3" y="3" rx="1" />
-              <rect width="7" height="7" x="14" y="3" rx="1" />
-              <rect width="7" height="7" x="14" y="14" rx="1" />
-              <rect width="7" height="7" x="3" y="14" rx="1" />
-            </svg>
-            {tab === 'today' && <span>Today</span>}
-          </button>
-
-          {/* Agent Tab */}
-          <button
-            type="button"
-            aria-label="Agent"
-            className={tab === 'agent' ? 'on' : ''}
-            onClick={() => {
-              setTab('agent')
-              setLibrarySubView(null)
-              setPcSubView(null)
-            }}
-          >
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
-              <path d="M20 3v4" />
-              <path d="M22 5h-4" />
-            </svg>
-            {tab === 'agent' && <span>Agent</span>}
-          </button>
-
-          {/* Library Tab */}
-          <button
-            type="button"
-            aria-label="Library"
-            className={tab === 'library' ? 'on' : ''}
-            onClick={() => {
-              if (tab === 'library' && librarySubView !== null) {
+            {/* Today Tab */}
+            <button
+              type="button"
+              aria-label="Home"
+              className={tab === 'today' ? 'on' : ''}
+              onClick={() => {
+                setTab('today')
                 setLibrarySubView(null)
-                setSelectedLibraryItem(null)
-              } else {
-                setTab('library')
-              }
-            }}
-          >
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M12 7v14" />
-              <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />
-            </svg>
-            {tab === 'library' && <span>Library</span>}
-          </button>
-
-          {/* Tasks Tab */}
-          <button
-            type="button"
-            aria-label="Tasks"
-            className={tab === 'tasks' ? 'on' : ''}
-            onClick={() => {
-              setTab('tasks')
-              setLibrarySubView(null)
-              setPcSubView(null)
-            }}
-          >
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" />
-              <path d="m9 12 2 2 4-4" />
-            </svg>
-            {tab === 'tasks' && <span>Tasks</span>}
-          </button>
-
-          {/* PC Tab */}
-          <button
-            type="button"
-            aria-label="PC"
-            className={tab === 'devices' ? 'on' : ''}
-            onClick={() => {
-              if (tab === 'devices' && pcSubView !== null) {
                 setPcSubView(null)
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="4" y="4" width="6.5" height="6.5" rx="1.5" />
+                <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" />
+                <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" />
+                <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" />
+              </svg>
+              {tab === 'today' && <span>Home</span>}
+            </button>
+
+            {/* Agent Tab */}
+            <button
+              type="button"
+              aria-label="Agent"
+              className={tab === 'agent' ? 'on' : ''}
+              onClick={() => {
+                setTab('agent')
+                setLibrarySubView(null)
+                setPcSubView(null)
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M10 3l1.8 5.2L17 10l-5.2 1.8L10 17l-1.8-5.2L3 10l5.2-1.8z" />
+                <path d="M18 14l.9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9z" />
+              </svg>
+              {tab === 'agent' && <span>Agent</span>}
+            </button>
+
+            {/* Library Tab */}
+            <button
+              type="button"
+              aria-label="Library"
+              className={tab === 'library' ? 'on' : ''}
+              onClick={() => {
+                if (tab === 'library' && librarySubView !== null) {
+                  setLibrarySubView(null)
+                  setSelectedLibraryItem(null)
+                } else {
+                  setTab('library')
+                }
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 6c-2-1.5-5-2-8-2v13c3 0 6 .5 8 2 2-1.5 5-2 8-2V4c-3 0-6 .5-8 2zM12 6v13" />
+              </svg>
+              {tab === 'library' && <span>Library</span>}
+            </button>
+
+            {/* Tasks Tab */}
+            <button
+              type="button"
+              aria-label="Tasks"
+              className={tab === 'tasks' ? 'on' : ''}
+              onClick={() => {
+                setTab('tasks')
+                setLibrarySubView(null)
+                setPcSubView(null)
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M8 12.5l3 3 5-6" />
+              </svg>
+              {tab === 'tasks' && <span>Tasks</span>}
+            </button>
+
+            {/* PC Tab */}
+            <button
+              type="button"
+              aria-label="Screen"
+              className={tab === 'devices' ? 'on' : ''}
+              onClick={() => {
+                if (tab === 'devices' && pcSubView !== null) {
+                  setPcSubView(null)
+                } else {
+                  setTab('devices')
+                }
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="12" rx="2" />
+                <path d="M8 20h8M12 16v4" />
+              </svg>
+              {tab === 'devices' && <span>Screen</span>}
+            </button>
+          </div>
+
+          {/* Floating Action Button (FAB) -> Send to Amethyst / Create */}
+          <button
+            type="button"
+            className="m-fab"
+            aria-label="Create"
+            onClick={() => {
+              if (tab === 'library') {
+                window.dispatchEvent(new CustomEvent('amethyst:library:create'))
               } else {
-                setTab('devices')
+                setQuickCaptureOpen(true)
               }
             }}
           >
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <rect width="20" height="14" x="2" y="3" rx="2" />
-              <line x1="8" x2="16" y1="21" y2="21" />
-              <line x1="12" x2="12" y1="17" y2="21" />
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" />
             </svg>
-            {tab === 'devices' && <span>PC</span>}
           </button>
-        </div>
-
-        {/* Floating Action Button (FAB) -> Send to Amethyst */}
-        <button
-          type="button"
-          className="m-fab"
-          aria-label="Send to Amethyst"
-          onClick={() => {
-            if (tab === 'library') {
-              window.dispatchEvent(new CustomEvent('amethyst:library:create'))
-            } else {
-              setQuickCaptureOpen(true)
-            }
-          }}
-        >
-          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M12 5v14" />
-            <path d="M5 12h14" />
-          </svg>
-        </button>
-      </nav>
+        </nav>
       )}
 
       {/* Add Widgets Subview Modal */}

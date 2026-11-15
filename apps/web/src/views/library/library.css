@@ -27,6 +27,7 @@
 .lib-two-col-layout {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
+  align-items: start;
   width: 100%;
   min-height: calc(100vh - var(--header-height, 56px));
 }
@@ -40,18 +41,7 @@
   }
 }
 
-.lib-rail {
-  background: var(--surface-2, #ececf0);
-  padding: 20px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  border-right: 1px solid var(--hairline);
-  height: calc(100vh - var(--header-height, 56px));
-  position: sticky;
-  top: var(--header-height, 56px);
-  overflow-y: auto;
-}
+/* lib-rail base styles defined in full below */
 
 .lib-rail-nav-btn {
   display: flex;
@@ -623,7 +613,7 @@
 }
 
 .lib-rail {
-  width: 260px;
+  width: 248px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -632,6 +622,11 @@
   border: 1px solid var(--hairline);
   padding: 16px 14px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  position: sticky;
+  top: calc(var(--header-height, 56px) + 16px);
+  align-self: flex-start;
+  max-height: calc(100vh - var(--header-height, 56px) - 32px);
+  overflow-y: auto;
 }
 
 .lib-rail-header {
@@ -10353,9 +10348,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
   flex-wrap: wrap;
-  margin-top: 4px;
+  margin-top: 12px;
+  padding: 0 4px;
 }
 
 .lib-format-track {
@@ -10372,9 +10368,9 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 28px;
-  padding: 0 11px;
-  border-radius: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 7px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-dim, #a1a1aa);
@@ -10414,7 +10410,7 @@
 .lib-tools-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
@@ -10423,9 +10419,9 @@
   position: relative;
   display: flex;
   align-items: center;
-  min-width: 210px;
-  max-width: 280px;
-  height: 34px;
+  min-width: 220px;
+  max-width: 300px;
+  height: 36px;
 }
 
 .lib-search-icon {

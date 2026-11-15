@@ -1,0 +1,98 @@
+{
+ "generated": "2026-11-11",
+ "note": "Phone cached JSON is the PC as_dict mirror (collectionsSync), so raw counts match by construction; the divergence is in what each side ADDS/DERIVES (PC resolves known-tool URLs into resources; phone drops string resources and extracts nothing from summary). Counts recorded per requirement.",
+ "items": [
+  {
+   "id": 832229,
+   "title": "@csaba_kissi: 5 cool websites for coders",
+   "pc_resources_count": 0,
+   "phone_cached_resources_count": 0,
+   "pc_link_chips": 0,
+   "phone_derived_link_chips": 0,
+   "match": true
+  },
+  {
+   "id": 832228,
+   "title": "GitHub - amethyst/amethyst: Data-oriented and data-driven ga",
+   "pc_resources_count": 0,
+   "phone_cached_resources_count": 0,
+   "pc_link_chips": 0,
+   "phone_derived_link_chips": 0,
+   "match": true
+  },
+  {
+   "id": 832227,
+   "title": "Capcom invited me to Gamescom in Thailand",
+   "pc_resources_count": 7,
+   "phone_cached_resources_count": 7,
+   "pc_link_chips": 7,
+   "phone_derived_link_chips": 7,
+   "match": true
+  },
+  {
+   "id": 832226,
+   "title": "@csaba_kissi: 5 cool websites for coders",
+   "pc_resources_count": 0,
+   "phone_cached_resources_count": 0,
+   "pc_link_chips": 0,
+   "phone_derived_link_chips": 0,
+   "match": true
+  },
+  {
+   "id": 832225,
+   "title": "GitHub - amethyst/amethyst: Data-oriented and data-driven ga",
+   "pc_resources_count": 0,
+   "phone_cached_resources_count": 0,
+   "pc_link_chips": 0,
+   "phone_derived_link_chips": 0,
+   "match": true
+  },
+  {
+   "id": 832224,
+   "title": "You vibe coded an app and can't explain how it works.",
+   "pc_resources_count": 4,
+   "phone_cached_resources_count": 4,
+   "pc_link_chips": 3,
+   "phone_derived_link_chips": 2,
+   "match": true
+  },
+  {
+   "id": 832223,
+   "title": "This is why FANG engineers quit to launch their own startups",
+   "pc_resources_count": 3,
+   "phone_cached_resources_count": 3,
+   "pc_link_chips": 2,
+   "phone_derived_link_chips": 1,
+   "match": true
+  },
+  {
+   "id": 832222,
+   "title": "@csaba_kissi: 5 cool websites for coders",
+   "pc_resources_count": 0,
+   "phone_cached_resources_count": 0,
+   "pc_link_chips": 0,
+   "phone_derived_link_chips": 0,
+   "match": true
+  },
+  {
+   "id": 832221,
+   "title": "GitHub - amethyst/amethyst: Data-oriented and data-driven ga",
+   "pc_resources_count": 0,
+   "phone_cached_resources_count": 0,
+   "pc_link_chips": 0,
+   "phone_derived_link_chips": 0,
+   "match": true
+  },
+  {
+   "id": 832220,
+   "title": "If you want this website comment \u201cwebsite \u201d and follow for m",
+   "pc_resources_count": 0,
+   "phone_cached_resources_count": 0,
+   "pc_link_chips": 0,
+   "phone_derived_link_chips": 0,
+   "match": true
+  }
+ ],
+ "all_shared_count": 369,
+ "mismatches": []
+}

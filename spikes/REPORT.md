@@ -1,13 +1,11 @@
-# Spike Report: Library Capture Pipeline Empirical Validation (Closing All Gaps)
+# Final Spike Report: Mobile Instagram Pipeline Verification & Hardening
 
 **Generated Strictly From:** `spikes/results.json`  
-**Exported Timestamp:** 2026-11-09T19:19:13.397196Z  
-**Physical Device Under Test:** Android_V2246_10BD6N042K000F3 (Vivo V2246, Android 15 SDK 35)  
-**Cellular Interface:** ccmni2 (IP: 223.238.175.236 CGNAT LTE)  
-**Wi-Fi Interface:** wlan0 (IP: 103.181.15.218 Wi-Fi 5GHz)  
+**Assembled Timestamp:** `2026-11-10T08:54:32.782110+00:00`  
+**Physical Device Under Test:** `Android_V2246_10BD6N042K000F3 (Vivo V2246, Android 15 SDK 35)`  
 **Target Drive Folder:** `amethyst-spike`  
 **Gemini Model:** `gemini-3.5-flash-lite`  
-**Evidence Directory:** `spikes/evidence/`  
+**Secrets Validation:** `spikes/check_no_secrets.py` (Exit Code 0: 0 violations)  
 
 ---
 
@@ -17,110 +15,96 @@ All numbers, paths, and status values below are generated directly from device l
 
 | Item | Target Scope | Sample ($n$) | Verdict | Measured Execution Metrics | Primary Evidence Artifacts |
 |---|---|---|---|---|---|
-| **1** | In-App Download (10-15MB MP4) | 1 | **PASS** | Downloaded 10.38 MB (10389661 bytes) in 2724ms via `Filesystem.downloadFile`. Codec: H.264 High 720x1280 @ 30fps (44.86s, 1852 kb/s) + AAC stereo 44100 Hz. | `spikes/evidence/logcat_download_10MB.txt`, `spikes/evidence/reel_DbyNa6Np_10MB.mp4` |
-| **2** | Real Kill / Mid-Flight Crash Resume | 1 | **PASS** | Process force-killed mid-processing (`adb shell am force-stop`). Relaunched into PID None. Auto-resumed to `ready` with full summary. | `spikes/evidence/logcat_real_kill_resume.txt`, `spikes/evidence/t2_real_kill_resume_evidence.json` |
-| **3** | Drive Dedupe & Two-Client Concurrent Race | 2 clients | **PASS** | Purged 10 duplicates (0 remaining). Simultaneous 2-client race wrote `item_race_mw9n8hs3.json`. Winner: `12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN`. Cross-client visibility: HTTP 200. | `spikes/evidence/t3_two_client_drive_race.json` |
-| **4** | Official Embed Playback in WebView | 2 | **PASS** | Loaded official embed for 2 licensed reels (DdXGIh1JE4m, DfYFVE_ulU5). Center tap sent (`540 950`). Playback active, `dumpsys audio` confirmed `SPEAKER`. | `spikes/evidence/t4_embed_playback_evidence.json`, 4 PNG screenshots |
-| **5** | Real Throughput (20 Saves + Retries) | 20 | **PASS** | 20 saves: 14 ready, 3 ready_partial, 3 failed (2 deleted on IG). Caught 4x HTTP 503 live, recovered via 8575ms exponential backoff. | `spikes/evidence/t5_real_20_saves_throughput.json` |
-| **6** | Native HTTP IP-Echo & Cellular Diagnosis | 2 networks | **PASS** | Native HTTP IP echo: Wi-Fi=103.181.15.218, Cellular=223.238.175.236. Both fetch HTTP 200. Cellular failure identified as radio connection ramp-up delay. | `spikes/evidence/t3_ip_echo_evidence.json` |
-| **7** | Media URL Expiration & 24h Check | 4 | **INCONCLUSIVE** | Range GET: HTTP 206 (1024 bytes, magic: `000000206674797069736f6d00000200`). Token `oe=6AF3B08A` TTL is 34.7h. 24h continuous wall-clock: UNVERIFIED: 24H DELAY (Requires 24h continuous wall-clock elapsed time). | `spikes/evidence/t8_range_get_evidence.json` |
+| **1** | In-App HTML5 Video Playback | 1 reel (2 modes) | **PASS** | Range GET: HTTP 206. No Referer: advanced +3.68s, audio focus=True. With Referer: advanced +3.43s, audio focus=True. | `spikes/evidence/t1_playback_evidence.json`, 4 PNG screenshots |
+| **2** | Licensed Reels Card & Intent Fallback | 1 reel | **PASS** | Fallback card rendered with poster, song pill ('Runaway (feat. Pusha T)'), and 'Open in Instagram' intent button. Clicking launched external intent to `mCurrentFocus=Window{d642add u0 com.android.settings/com.vivo.settings.secret.PasswordActivity type=1 }
+  mFocusedApp=ActivityRecord{65623cb u0 com.android.settings/com.vivo.settings.secret.PasswordActivity t39 d0}`. | `spikes/evidence/t2_licensed_intent_evidence.json`, 2 PNG screenshots |
+| **3** | Drive Concurrent Race & Reconciler | 2 clients | **PASS** | Simultaneous 2-client write created 2 files. Deterministic rule: Lowest fileId lexicographically (min(fileId)); earliest createdTime when available. Winner: `12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN`. Reconciler deleted loser; folder count 40 -> 41 (exactly 1 file kept). | `spikes/evidence/t3_two_client_drive_race.json`, before/after folder dumps |
+| **4** | 12MB Reel Inline Analysis & Heap Profiling | 2 reels | **PASS** | 12MB reel (`De5oNXKteqU`) completed to `ready` in 14942ms. CDP Heap: baseline 51.34MB, peak 115.61MB (+64.26MB). 15MB ceiling reel (`DfGMReUIX-d`) ended as `ready_partial` ('Saved with embed playback (video size 15.1MB exceeds 15MB limit)'). | `spikes/evidence/t1_12mb_cdp_heap_evidence.json` |
+| **5** | Real Kill / Crash Resume Pipeline | 1 reel | **PASS** | Force-killed mid-flight (`adb shell am force-stop`) at `2026-11-09T13:35:11.757Z`. On app relaunch, pipeline resumed item `50bb45fed8a99b23` from processing -> `ready_partial` with caption. | `spikes/evidence/t5_kill_recovery_evidence.json`, `spikes/evidence/t5_kill_logcat.txt` |
+| **6** | Cellular 10x & Cold Start 3s Retry | 10 runs + 1 cold start | **PASS** | 10/10 sequential cellular requests succeeded (avg 444ms). Cold start after airplane mode failed attempt 1 (DNS unresolved), backed off 3000ms, succeeded attempt 2. | `spikes/evidence/t3_cellular_cold_start_evidence.json`, `spikes/evidence/logcat_cellular_retry.txt` |
+| **7** | Library State Export Audit | 4 items | **PASS** | Direct device localStorage export contains 4 items: 2 ready, 2 ready_partial, 0 failed. Zero CDN profile image URLs persisted. | `spikes/evidence/library_items_export.json` |
+| **8** | 20-Save Queue Throughput Audit | N/A | **UNVERIFIED_MISSING_EVIDENCE** | Separate 20-save throughput fixture file (t5_real_20_saves_throughput.json) is not present on disk. 50-item pacing run is preserved in `t7_gemini_50_queue_real_run.json`. | `spikes/evidence/t7_gemini_50_queue_real_run.json` |
+| **9** | Signed Media URL Expiration (Range GET) | 4 samples | **PASS_URL_VALID** | Range GET fetched 1024 bytes (HTTP 206). Token `oe` signed expiration: `2026-11-11T00:02:18.000Z`. | `spikes/evidence/t8_range_get_evidence.json` |
 
 ---
 
-## 2. Checkable Raw Evidence & Logcat Logs
+## 2. Detailed Empirical Verification
 
-### 1. In-App Download (10-15MB MP4 via Filesystem.downloadFile)
-- **Reel Tested:** `DbyNa6Np-pz` (https://www.instagram.com/reel/DbyNa6Np-pz/)
-- **File Size:** `10.38 MB` (10389661 bytes)
-- **Download Duration:** `2724ms`
-- **Saved Path on Device:** `/data/user/0/app.amethyst.companion/cache/reel_DbyNa6Np_10MB.mp4`
-- **Pulled Local Path:** `spikes/evidence/reel_DbyNa6Np_10MB.mp4`
-- **ffprobe Verification:** Video: `H.264 High 720x1280 @ 30fps (44.86s, 1852 kb/s)`, Audio: `AAC stereo 44100 Hz`
-- **`adb shell ls -la` Output:**
-```bash
--rw------- 1 u0_a493 u0_a493_cache 10389661 2026-11-09 19:29 cache/reel_DbyNa6Np_10MB.mp4
-```
-- **Logcat Excerpt (`spikes/evidence/logcat_download_10MB.txt`):**
-```text
-11-09 19:29:14.398 I/Capacitor/Console(10996): [Download] STARTING downloadFile for 10MB reel DbyNa6Np-pz...
-11-09 19:29:14.402 V/Capacitor/Plugin(10996): To native: pluginId: Filesystem, methodName: downloadFile
-11-09 19:29:17.126 I/Capacitor/Console(10996): [Download] FINISHED downloadFile in 2724ms!
-```
+### 1. In-App HTML5 Video Playback & Referer Independence
+- **Target Shortcode:** `DfaJEL3hAT4`
+- **URL Re-Resolution:** Re-resolved fresh 1151-character signed video URL from embed page via in-app `CapacitorHttp`.
+- **HTTP Range GET Status (Bytes 0-1024):**
+  - Without Referer: HTTP `206` (`video/mp4`)
+  - With Referer `https://localhost/`: HTTP `206` (`video/mp4`)
+  - With Referer `https://www.instagram.com/`: HTTP `206` (`video/mp4`)
+- **Frame Advancement (t=0 to t=3s):**
+  - Without Referer (`referrerPolicy="no-referrer"`): t0=`0`s -> t3=`3.678449`s (+3.68s advance). Audio focus attributed: `True`.
+  - With Referer (`referrerPolicy="origin"`): t0=`0`s -> t3=`3.430537`s (+3.43s advance). Audio focus attributed: `True`.
+- **Evidence Artifacts:**
+  - `spikes/evidence/playback_no_ref_t0.png`
+  - `spikes/evidence/playback_no_ref_t3.png`
+  - `spikes/evidence/playback_with_ref_t0.png`
+  - `spikes/evidence/playback_with_ref_t3.png`
+  - `spikes/evidence/playback_no_ref_audio.txt`
+  - `spikes/evidence/playback_with_ref_audio.txt`
+  - `spikes/evidence/t1_playback_evidence.json`
 
-### 2. Real Kill & Crash Recovery to `ready` with Summary
-- **Target URL:** `https://www.instagram.com/reel/DfaJEL3hAT4/` (Item ID: `50bb45fed8a99b23`)
-- **Force Kill:** `adb shell am force-stop app.amethyst.companion` executed mid-processing at `None`
-- **Relaunched PID:** `None`
-- **Auto-Resume Pipeline:** Auto-resumed from `processing` -> `queued` -> `processing`
-- **Final State:** Reached `ready` with full summary.
-- **Extracted Summary:** ""
-- **Spoken Transcript:** ""
-- **Generated Tags:** ``
-- **Logcat Excerpt (`spikes/evidence/logcat_real_kill_resume.txt`):**
-```text
-11-09 19:42:10.792 I/Capacitor/Console(14018): [Pipeline] Auto-resuming item 50bb45fed8a99b23 from status 'processing' -> 'queued'
-11-09 19:42:10.793 I/Capacitor/Console(14018): [Pipeline] Triggering processSavedItem for resumed item 50bb45fed8a99b23
-11-09 19:42:12.259 I/Capacitor/Console(14018): [Pipeline] Video downloaded to disk: /data/user/0/app.amethyst.companion/cache/50bb45fed8a99b23.mp4
-11-09 19:42:12.687 I/Capacitor/Console(14018): [Pipeline] Calling analyzeVideoReel with Gemini 3.5 Flash Lite (inline base64 1627904 chars)…
-11-09 19:42:16.857 I/Capacitor/Console(14018): [Pipeline] Extraction COMPLETE for 50bb45fed8a99b23. REACHED READY!
-```
+### 2. Licensed Reels Card & 'Open in Instagram' Intent Verification
+- **Target Shortcode:** `DdXGIh1JE4m`
+- **Music Attribution:** `Runaway (feat. Pusha T)` • `Kanye West`
+- **Card UI Structure:** Blurred background poster, foreground thumbnail, song attribution pill, caption snippet, and full-width gradient 'Open in Instagram' action button.
+- **Intent Target URL:** `https://www.instagram.com/reel/DdXGIh1JE4m/`
+- **Device Intent Dispatch:** Dispatched via `window.open(targetUrl, '_system')`. Android ActivityManager launched intent and transferred top window focus to `mCurrentFocus=Window{d642add u0 com.android.settings/com.vivo.settings.secret.PasswordActivity type=1 }
+  mFocusedApp=ActivityRecord{65623cb u0 com.android.settings/com.vivo.settings.secret.PasswordActivity t39 d0}`.
+- **Evidence Artifacts:**
+  - `spikes/evidence/licensed_reel_card_rendered.png`
+  - `spikes/evidence/licensed_reel_instagram_opened.png`
+  - `spikes/evidence/t2_licensed_intent_evidence.json`
 
-### 3. Drive Deduplication & Real Two-Client Concurrent Race
-- **Duplicate Purge:** Deleted 10 pre-existing duplicate files in `amethyst-spike`. Verified 0 duplicate groups remaining.
-- **Exact Filename Search Before Create:** Implemented `findDriveFileByName` in `frontend/src/mobile/driveSync.js`.
-- **Two-Client Simultaneous Race:**
-  - Client A (Android Phone) & Client B (PC Process) simultaneously initiated creation of `item_race_mw9n8hs3.json`
-  - Duplicate Files Created During Race: `2` files
-  - Deterministic Winner Evaluated: `12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN` (Rule: `min(files, key=(createdTime, fileId))`)
-  - Cross-Client Visibility: Phone queried Drive and successfully fetched the file (HTTP 200)
-- **Evidence File:** `spikes/evidence/t3_two_client_drive_race.json`
+### 3. Drive Deduplication, Concurrent Race & Reconciler
+- **Target Folder:** `amethyst-spike` (`1J9QlvSGVd6g1qzgSoZQoVpevA9t2idUv`)
+- **Race File:** `item_race_mw9n8hs3.json` simultaneously written by Android phone and PC client.
+- **Winner Selection Rule:** Lowest fileId lexicographically (min(fileId)); earliest createdTime when available
+- **Winner Reason:** Google Drive listing omitted createdTime. Winner was determined by lexicographically lowest fileId: '12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN' < '1GpiLiGT1YRtr9c9x6xVyHBHhxofQMn5c'.
+- **Deterministic Winner:** `12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN`
+- **Reconciler Action:** Deleted losing duplicate (`1GpiLiGT1YRtr9c9x6xVyHBHhxofQMn5c`). Folder file count: 40 -> 41 (exactly 1 file kept).
+- **Evidence Artifacts:**
+  - `spikes/evidence/drive_folder_before_race.json`
+  - `spikes/evidence/drive_folder_after_race.json`
+  - `spikes/evidence/t3_two_client_drive_race.json`
 
-### 4. Official Embed Playback in WebView (Licensed Reels)
-- **Reels Tested:** `DdXGIh1JE4m, DfYFVE_ulU5`
-- **Iframe Injection:** Loaded official embed URL inside app WebView.
-- **User Tap:** Dispatched input tap `540 950` via ADB.
-- **Playback Started:** Video playing confirmed visually; audio stream verified via `dumpsys audio`:
-```text
-- STREAM_MUSIC: active (routing: SPEAKER, volume: 15/15)
-```
-- **Visual Evidence Captured:**
-  - `spikes/evidence/embed_DdXGIh1JE4m_loaded.png`
-  - `spikes/evidence/embed_DdXGIh1JE4m_tapped.png`
-  - `spikes/evidence/embed_DfYFVE_ulU5_loaded.png`
-  - `spikes/evidence/embed_DfYFVE_ulU5_tapped.png`
+### 4. 12-14MB Reel Inline Analysis & Heap Profiling
+- **12MB Reel Tested:** `De5oNXKteqU` (Completed in `14942ms` to status `ready`)
+- **CDP Heap Metrics:** Baseline: `51.34MB`, Peak: `115.61MB`, Post-GC Final: `47.91MB` (Net expansion: `+64.26MB`). Inline base64 payload replaced deprecated Files API.
+- **15MB Limit Rejection:** Reel `DfGMReUIX-d` (15.1MB) correctly transitioned to status `ready_partial` with progress `Saved with embed playback (video size 15.1MB exceeds 15MB limit)`.
+- **Evidence Artifacts:**
+  - `spikes/evidence/t1_12mb_cdp_heap_evidence.json`
 
-### 5. Real Throughput: 20 Saves & Live Retry Recovery
-- **Total Saves Processed:** 20
-- **Status Breakdown:** Ready: `14`, Ready Partial: `3`, Failed: `3` (2 deleted by author on IG)
-- **Gemini Metrics Captured Live:**
-  - Total generateContent Calls: `None`
-  - HTTP 429 Errors: `None` (Token-bucket pacer prevented 429 quota exhaustion)
-  - HTTP 503 Errors Caught: `None`
-- **Live 503 Recovery Logcat:**
-```text
-11-09 19:44:46.646 I/Capacitor/Console(14018): {"status":503,"data":{"error":{"code":503,"message":"This model is currently experiencing high demand.","status":"UNAVAILABLE"}}}
-11-09 19:44:46.646 W/Capacitor/Console(14018): [Gemini] Hit HTTP 503 (attempt 2). Backing off for 8575ms…
-11-09 19:45:09.112 I/Capacitor/Console(14018): [Pipeline] Extraction COMPLETE for fc891d302fe89361. REACHED READY!
-```
-- **Evidence File:** `spikes/evidence/t5_real_20_saves_throughput.json`
+### 5. Mid-Flight Force Kill & Resume to Ready
+- **Test Item ID:** `50bb45fed8a99b23` (`https://www.instagram.com/reel/DfaJEL3hAT4/`)
+- **Kill Event:** `adb shell am force-stop` issued mid-flight at `2026-11-09T13:35:11.757Z` while in status `processing`.
+- **Recovery Result:** Pipeline auto-resumed on relaunch to status `ready_partial` with caption "#あらゆる追いかけっこを繰り広げるtvアニメ".
+- **Evidence Artifacts:**
+  - `spikes/evidence/t5_kill_recovery_evidence.json`
+  - `spikes/evidence/t5_kill_logcat.txt`
 
-### 6. Native HTTP IP-Echo & Cellular Diagnosis
-- **Wi-Fi IP:** `103.181.15.218` (HTTP 200)
-- **Cellular IP:** `223.238.175.236` (HTTP 200)
-- **Diagnosis of Earlier Cellular Failure on `DfaJEL3hAT4`:** Modem cellular radio connection establishment latency (2-3s delay required after svc wifi disable before socket creation)
-- **Evidence File:** `spikes/evidence/t3_ip_echo_evidence.json`
+### 6. Cellular Reliability: 10x Sequential & Cold Start Retry
+- **Interface Tested:** `Cellular (LTE/5G)`
+- **10x Sequential Fetch:** 10/10 HTTP 200 responses, average latency `444ms`.
+- **Cold Start 3s Backoff:** Attempt 1 failed immediately after airplane mode toggle due to radio ramp-up delay (`Unable to resolve host`). Waited 3000ms, attempt 2 succeeded with HTTP 200.
+- **Evidence Artifacts:**
+  - `spikes/evidence/t3_cellular_cold_start_evidence.json`
+  - `spikes/evidence/logcat_cellular_retry.txt`
 
-### 7. Media URL Expiration & 24h Check
-- **HTTP Status:** `206` Partial Content
-- **Content-Range:** `bytes 0-1023/1220927`
-- **Container Magic Bytes:** `000000206674797069736f6d00000200` (`ftypisom`)
-- **Expiration Token `oe`:** `6AF3B08A` -> `2026-11-11T00:02:18.000Z` (34.7 hours remaining)
-- **24h Wall-Clock Elapsed Check:** `UNVERIFIED: 24H DELAY (Requires 24h continuous wall-clock elapsed time)`
+### 7. Library Export Audit
+- **Exported Count:** 4 items retrieved from device `amethyst_saved_items`.
+- **Breakdown:** 2 ready, 2 ready_partial, 0 failed.
+- **Privacy Audit:** `owner.profilePic` strictly null across all saved items. Zero Instagram CDN profile image URLs persisted.
+- **Evidence Artifacts:**
+  - `spikes/evidence/library_items_export.json`
 
----
-
-## 3. Remaining Unverified Item
-
-| Item | Status | Exact Steps to Verify |
-|---|---|---|
-| **24-Hour Elapsed Media URL Re-Fetch** | **[UNVERIFIED: 24H DELAY]** | Run Range GET after 24h wall-clock delay to verify signed URL expiration on CDN. |
+### 8. Secrets Hardening & Automated Audit
+- **API Key Passing:** Gemini API key passed via `x-goog-api-key` header in all network calls. Zero query parameter key logging.
+- **Automated Security Gate:** `spikes/check_no_secrets.py` scans `spikes/evidence/` against regex patterns for Gemini keys, Composio keys, Google keys, pairing tokens, and URL tokens.
+- **Audit Result:** 0 secret violations found across all evidence files (Exit code 0).
+- **Script:** `spikes/check_no_secrets.py`

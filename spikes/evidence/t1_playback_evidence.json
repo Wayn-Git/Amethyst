@@ -1,0 +1,70 @@
+{
+  "testedAt": "2026-11-10T08:48:39.733Z",
+  "shortcode": "DfaJEL3hAT4",
+  "videoUrlResolved": true,
+  "httpStatuses": {
+    "noRef": {
+      "status": 206,
+      "ok": true,
+      "type": "video/mp4"
+    },
+    "withLocalhostRef": {
+      "status": 206,
+      "ok": true,
+      "type": "video/mp4"
+    },
+    "withIgRef": {
+      "status": 206,
+      "ok": true,
+      "type": "video/mp4"
+    }
+  },
+  "noReferer": {
+    "referrerPolicy": "no-referrer",
+    "t0": {
+      "started": true,
+      "currentTime": 0,
+      "duration": 11.890708,
+      "playError": null,
+      "readyState": 4
+    },
+    "t3": {
+      "paused": false,
+      "currentTime": 3.678449,
+      "readyState": 4,
+      "ended": false
+    },
+    "frameAdvancing": true,
+    "secondsAdvanced": 3.68,
+    "audioFocusAttributed": true,
+    "screenshots": [
+      "spikes/evidence/playback_no_ref_t0.png",
+      "spikes/evidence/playback_no_ref_t3.png"
+    ],
+    "audioDump": "spikes/evidence/playback_no_ref_audio.txt"
+  },
+  "withReferer": {
+    "referrerPolicy": "origin",
+    "t0": {
+      "started": true,
+      "currentTime": 0,
+      "duration": 11.890708,
+      "playError": null,
+      "readyState": 4
+    },
+    "t3": {
+      "paused": false,
+      "currentTime": 3.430537,
+      "readyState": 4,
+      "ended": false
+    },
+    "frameAdvancing": true,
+    "secondsAdvanced": 3.43,
+    "audioFocusAttributed": true,
+    "screenshots": [
+      "spikes/evidence/playback_with_ref_t0.png",
+      "spikes/evidence/playback_with_ref_t3.png"
+    ],
+    "audioDump": "spikes/evidence/playback_with_ref_audio.txt"
+  }
+}

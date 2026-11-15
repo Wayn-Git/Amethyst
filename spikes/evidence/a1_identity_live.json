@@ -1,0 +1,45 @@
+{
+ "origin": "https://localhost",
+ "href": "https://localhost/today",
+ "rawIdentityPresent": true,
+ "rawIdentityIsEncEnvelope": true,
+ "rawIdentityLen": 352,
+ "envelopeDecrypts": true,
+ "localStorageIdentity": {
+  "keys": [
+   "deviceId",
+   "token",
+   "hostUrl",
+   "name",
+   "permissions"
+  ],
+  "hasToken": true,
+  "tokenLen": 32,
+  "hostUrl": "http://192.168.1.2:8000"
+ },
+ "isNativeMobile": true,
+ "vaultIdentityPresent": null,
+ "vaultIdentityIsEnc": false,
+ "vaultIdentityLen": 0,
+ "vaultIdentity": null,
+ "base": "http://192.168.1.2:8000",
+ "tokenFetch": {
+  "status": 200,
+  "ok": true,
+  "ms": 50,
+  "blob": {
+   "size": 63942,
+   "type": "image/jpeg"
+  }
+ },
+ "headerFetch": {
+  "status": 403,
+  "ok": false,
+  "ms": 29,
+  "blob": null
+ },
+ "imgElement": {
+  "loaded": false,
+  "error": "img onerror"
+ }
+}

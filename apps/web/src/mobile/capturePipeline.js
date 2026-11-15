@@ -14,6 +14,49 @@ import {
 export const SAVED_ITEMS_STORAGE_KEY = 'amethyst_saved_items'
 export const MAX_INLINE_VIDEO_BYTES = 15 * 1024 * 1024 // 15MB inline limit
 
+export async function generate240pxWebp(imageUrl) {
+  if (!imageUrl) return null
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    const timer = setTimeout(() => {
+      img.src = ''
+      resolve(null)
+    }, 4000)
+    img.onload = () => {
+      clearTimeout(timer)
+      try {
+        let width = img.naturalWidth || img.width || 240
+        let height = img.naturalHeight || img.height || 240
+        const maxDim = 240
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width)
+            width = maxDim
+          } else {
+            width = Math.round((width * maxDim) / height)
+            height = maxDim
+          }
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.max(1, width)
+        canvas.height = Math.max(1, height)
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, width, height)
+        const dataUrl = canvas.toDataURL('image/webp', 0.8)
+        resolve(dataUrl)
+      } catch {
+        resolve(null)
+      }
+    }
+    img.onerror = () => {
+      clearTimeout(timer)
+      resolve(null)
+    }
+    img.src = imageUrl
+  })
+}
+
 let pipelineSubscribers = new Set()
 
 /**
@@ -186,6 +229,19 @@ export async function processSavedItem(id, config = {}) {
       delete item.thumbnailUrl
       if (item.owner) {
         delete item.owner.profilePic
+      }
+
+      // Generate 240px WebP data URL for thumbnail at save time
+      const rawThumb = tier1.thumbnailUrl || tier1.displayUrl || (tier1.carouselMedia?.[0]?.displayUrl) || null
+      if (rawThumb) {
+        try {
+          const webpData = await generate240pxWebp(rawThumb)
+          if (webpData) {
+            item.thumbnail_url = webpData
+          }
+        } catch (err) {
+          console.warn('[Pipeline] WebP generation failed:', err.message)
+        }
       }
 
       // Step 2: Handle Video Reels

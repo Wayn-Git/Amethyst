@@ -1,6 +1,6 @@
 --------- beginning of main
 11-10 00:42:12.492 26010 26010 W Capacitor/Console: File: https://localhost/today - Line 0 - Msg: Mixed Content: The page at 'https://localhost/today' was loaded over HTTPS, but requested an insecure EventSource endpoint 'http://192.168.1.2:8000/api/control/stream'. This content should also be served over HTTPS.
-11-10 00:42:14.649 26010 26010 W Capacitor/Console: File: https://localhost/assets/main-D0h72Zpf.js - Line 451 - Msg: Mixed Content: The page at 'https://localhost/today' was loaded over HTTPS, but attempted to connect to the insecure WebSocket endpoint 'ws://192.168.1.2:8000/api/remote/ws?token=c88a08e073e64d803936575b14af67af'. This endpoint should be available via WSS. Insecure access is deprecated.
+11-10 00:42:14.649 26010 26010 W Capacitor/Console: File: https://localhost/assets/main-D0h72Zpf.js - Line 451 - Msg: Mixed Content: The page at 'https://localhost/today' was loaded over HTTPS, but attempted to connect to the insecure WebSocket endpoint 'ws://192.168.1.2:8000/api/remote/ws?token=[REDACTED_PAIRING_TOKEN]'. This endpoint should be available via WSS. Insecure access is deprecated.
 11-10 00:42:14.651 26010 26010 W Capacitor/Console: File: https://localhost/assets/main-D0h72Zpf.js - Line 451 - Msg: Connecting to a non-secure WebSocket server from a secure origin is deprecated.
 11-10 00:42:15.017 26010 26010 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
 11-10 00:42:15.032 26010 26010 E Capacitor/Console: File:  - Line 330 - Msg: [object Object]
@@ -13,7 +13,7 @@
 11-10 00:42:17.799 26010 26010 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
 11-10 00:42:17.803 26010 26010 I Capacitor/Console: File:  - Line 333 - Msg: {"data":null}
 11-10 00:42:17.803 26010 26010 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
-11-10 00:42:17.830 26010 26010 I Capacitor/Console: File:  - Line 333 - Msg: {"data":"{\"deviceId\":\"phone_78bcaf78133b85a7\",\"token\":\"c88a08e073e64d803936575b14af67af\",\"hostUrl\":\"http://192.168.1.2:8000\",\"name\":\"Android Phone\",\"permissions\":{\"library\":true,\"agent\":true,\"terminal\":true,\"pc\":true}}"}
+11-10 00:42:17.830 26010 26010 I Capacitor/Console: File:  - Line 333 - Msg: {"data":"{\"deviceId\":\"phone_78bcaf78133b85a7\",\"token\":\"[REDACTED_PAIRING_TOKEN]\",\"hostUrl\":\"http://192.168.1.2:8000\",\"name\":\"Android Phone\",\"permissions\":{\"library\":true,\"agent\":true,\"terminal\":true,\"pc\":true}}"}
 11-10 00:42:17.830 26010 26010 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
 11-10 00:42:17.832 26010 26010 I Capacitor/Console: File:  - Line 333 - Msg: {"data":null}
 11-10 00:42:17.834 26010 26010 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]

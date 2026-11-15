@@ -174,6 +174,7 @@ def as_dict(row, *, include_content: bool = True, store=None) -> dict:
         if isinstance(r, dict) and r.get("resolved_url") and str(r.get("url", "")).startswith("https://t.co/"):
             r["url"] = r["resolved_url"]
     data["entity"] = _json_dict(data.get("entity"))
+    data["checklist"] = _json_list(data.get("checklist"))
 
     app_tag = app_tag_for_url(data.get("url"))
     if app_tag and app_tag not in tags:
@@ -318,6 +319,12 @@ def as_dict(row, *, include_content: bool = True, store=None) -> dict:
 
     data["progress"] = data.get("progress") or "unstarted"
     data["is_pinned"] = bool(data.get("is_pinned"))
+    data["favorite"] = bool(data.get("is_favorite") or data.get("is_pinned"))
+    data["is_favorite"] = bool(data.get("is_favorite") or data.get("is_pinned"))
+    data["deleted_at"] = data.get("deleted_at") or None
+    data["latitude"] = data.get("latitude")
+    data["longitude"] = data.get("longitude")
+    data["extra_data"] = _json_dict(data.get("extra_data"))
     data["position"] = int(data.get("position") or 0)
     data["remind_at"] = data.get("remind_at") or None
     data["remind_action"] = data.get("remind_action") or "revisit"
@@ -438,6 +445,9 @@ class LibraryService:
             # Strip query strings, hash fragments, and raw links from being treated as notes
             if surrounding and not re.match(r"^[?&#/]", surrounding) and not surrounding.startswith("http"):
                 notes = surrounding[:2000]
+        if not kind:
+            from backend.library.enrich import infer_kind
+            kind = infer_kind(url, title or "")
         if kind and kind not in KINDS:
             raise LibraryError(f"unknown kind '{kind}'. One of: {', '.join(KINDS)}")
 
@@ -1897,20 +1907,27 @@ class LibraryService:
         tag: str | None = None,
         list_id: int | None = None,
         order: str = "desc",
+        since: str | None = None,
+        status: str | None = None,
+        sort: str | None = None,
+        include_deleted: bool = False,
         limit: int = 50,
         offset: int = 0,
         include_content: bool = False,
     ) -> list[dict]:
         # The store does the filtering.
-        #
-        # `category` used to be handled here instead: read 5000 rows, keep the
-        # ones that match in Python, then slice. `LibraryStore.list` has taken
-        # a `category` argument the whole time -- this read the entire table to
-        # do in memory what an indexed WHERE does, and silently truncated at
-        # 5000 items.
         if not category:
             rows = self.store.list(
-                kind=kind, tag=tag, list_id=list_id, order=order, limit=limit, offset=offset
+                kind=kind,
+                tag=tag,
+                list_id=list_id,
+                order=order,
+                since=since,
+                status=status,
+                sort=sort,
+                include_deleted=include_deleted,
+                limit=limit,
+                offset=offset,
             )
             return [as_dict(row, include_content=include_content, store=self.store) for row in rows]
 

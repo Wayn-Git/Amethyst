@@ -258,3 +258,4 @@ Tap Library tab (`adb shell input tap 518 2206`). Test list scrolling, filter ch
 - [ ] **Step 6: Capture screenshot of verified screen**
 Run: `adb shell screencap -p /sdcard/library_verified.png && adb pull /sdcard/library_verified.png /tmp/library_verified.png`
 Verify layout and styling against design mockups.
+

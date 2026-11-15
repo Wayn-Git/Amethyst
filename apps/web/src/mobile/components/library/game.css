@@ -1,0 +1,367 @@
+/* Game detail screen styles — library-revamp-design.md section 8.8.
+   All classes prefixed gm-. */
+
+.gm-root {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Hero band — 190 tall, radius 32, game teal */
+.gm-hero {
+  position: relative;
+  height: 190px;
+  border-radius: 32px;
+  overflow: hidden;
+  background: #0c3a46;
+}
+
+.gm-hero-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* glass-tint platform chips, left 16 bottom 16 */
+.gm-chips {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+}
+
+.gm-chip {
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 19px;
+  display: inline-flex;
+  align-items: center;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.22);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  backdrop-filter: blur(20px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+
+/* Title block */
+.gm-title-row {
+  margin-top: 14px;
+  padding: 0 4px;
+}
+
+.gm-title {
+  margin: 0;
+  font-size: 30px;
+  line-height: 34px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #151517;
+}
+
+.gm-meta {
+  margin: 6px 0 0;
+  font-size: 15px;
+  color: #636366;
+}
+
+/* Source card — avatar 48 r24 + Open pill */
+.gm-source {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px 14px;
+}
+
+.gm-avatar {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #151517;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  overflow: hidden;
+}
+
+.gm-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gm-source-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 700;
+  color: #151517;
+}
+
+.gm-source-sub {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: #636366;
+}
+
+.gm-open {
+  flex: none;
+  height: 42px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 21px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #e4edfc;
+  color: #0a55c4;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* Uppercase section label */
+.gm-label {
+  margin: 16px 4px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #636366;
+}
+
+.gm-h2row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 16px 4px 8px;
+}
+
+.gm-h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #151517;
+}
+
+.gm-save {
+  border: 0;
+  border-radius: 16px;
+  padding: 8px 14px;
+  background: rgba(118, 118, 128, 0.16);
+  color: #151517;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.gm-save:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* Status trio — h52 r26 */
+.gm-status-row {
+  display: flex;
+  gap: 8px;
+}
+
+.gm-st {
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+  padding: 0;
+  border: 1px solid #d8d8de;
+  border-radius: 26px;
+  background: #fff;
+  color: #151517;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.gm-st.on {
+  border-color: transparent;
+  background: #151517;
+  color: #fff;
+  font-weight: 650;
+}
+
+.gm-st:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* White detail card */
+.gm-card {
+  background: #fff;
+  border-radius: 22px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 6px 18px rgba(0, 0, 0, 0.06);
+}
+
+/* Key/value detail rows */
+.gm-kv-card {
+  padding: 4px 16px;
+}
+
+.gm-kv {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 46px;
+  padding: 6px 0;
+  border-bottom: 1px solid #ececf0;
+}
+
+.gm-kv:last-child {
+  border-bottom: 0;
+}
+
+.gm-kv-k {
+  flex: none;
+  font-size: 14px;
+  color: #636366;
+}
+
+.gm-kv-v {
+  font-size: 15px;
+  font-weight: 600;
+  color: #151517;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* About / synopsis */
+.gm-about-card {
+  padding: 14px 16px;
+}
+
+.gm-about-card p {
+  margin: 0;
+  font-size: 17px;
+  line-height: 26px;
+  color: #2c2c2e;
+}
+
+/* Link rows (entity.actions) */
+.gm-rows-card {
+  padding: 4px 16px;
+}
+
+.gm-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid #ececf0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.gm-row:last-child {
+  border-bottom: 0;
+}
+
+.gm-row-ic {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: #e4edfc;
+  color: #0a55c4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gm-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.gm-row-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 650;
+  color: #151517;
+}
+
+.gm-row-sub {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: #636366;
+}
+
+.gm-row-arrow {
+  flex: none;
+  display: flex;
+  align-items: center;
+  color: #636366;
+}
+
+/* Notes + private notes */
+.gm-notes-card {
+  padding: 12px 16px;
+}
+
+.gm-notes-input {
+  width: 100%;
+  min-height: 96px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #151517;
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 24px;
+  resize: none;
+  outline: none;
+}
+
+.gm-notes-input::placeholder {
+  color: #8e8e93;
+}
+
+.gm-lock-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #8e8e93;
+}

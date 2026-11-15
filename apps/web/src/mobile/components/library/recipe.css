@@ -1,0 +1,708 @@
+/* Recipe detail screen + cooking mode — rc- prefix, plain CSS.
+   Pixel source of truth: docs/agent-context/sections/library-revamp-design.md §8.6, §8.7. */
+
+.rc {
+  padding: 0 16px 130px;
+  font-family: Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+}
+
+.rc :focus-visible,
+.rc-cook :focus-visible {
+  outline: 2px solid #0B5FD9;
+  outline-offset: 2px;
+}
+
+.rc-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- hero (§8.6.1) ---------- */
+
+.rc-hero {
+  position: relative;
+  height: 190px;
+  border-radius: 32px;
+  overflow: hidden;
+  background: #9A4A18;
+  margin-top: 98px; /* detail hero band sits below the pinned top bar (§1.9) */
+}
+
+.rc-hero-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+.rc-hero-chips {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  z-index: 2;
+}
+
+.rc-hero-chip {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.22);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  backdrop-filter: blur(20px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+
+.rc-h1 {
+  margin: 12px 4px 0;
+  font-size: 30px;
+  line-height: 34px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #151517;
+}
+
+.rc-meta {
+  margin: 4px 4px 0;
+  font-size: 15px;
+  color: #636366;
+}
+
+/* ---------- section headers ---------- */
+
+.rc-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 22px 4px 8px;
+}
+
+.rc-lbl {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #636366;
+}
+
+.rc-count {
+  font-size: 14px;
+  color: #636366;
+}
+
+.rc-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: #E5E5EA;
+  margin: 0 4px 10px;
+  overflow: hidden;
+}
+
+.rc-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* ---------- cards and rows (§1.6) ---------- */
+
+.rc-card {
+  background: #fff;
+  border-radius: 22px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 6px 18px rgba(0, 0, 0, 0.06);
+}
+
+.rc-pad {
+  padding: 2px 18px;
+}
+
+.rc-ing-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 50px;
+  border-bottom: 1px solid #ECECF0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rc-ing-row:last-child {
+  border-bottom: 0;
+}
+
+.rc-row-static {
+  cursor: default;
+}
+
+.rc-circle {
+  flex: none;
+  box-sizing: border-box;
+  width: 30px;
+  height: 30px;
+  border-radius: 15px;
+  background: #fff;
+  border: 2px solid #C7C7CC;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.rc-circle.on {
+  background: #0B5FD9;
+  border-color: #0B5FD9;
+}
+
+.rc-ing-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 500;
+  color: #151517;
+}
+
+.rc-ing-qty {
+  flex: none;
+  font-size: 16px;
+  color: #636366;
+  white-space: nowrap;
+}
+
+.rc-ing-row.done .rc-ing-name {
+  text-decoration: line-through;
+  color: #6E6E73;
+}
+
+.rc-ing-row.done .rc-ing-qty {
+  color: #6E6E73;
+}
+
+/* ---------- steps (§8.6.8) ---------- */
+
+.rc-step-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #ECECF0;
+}
+
+.rc-step-row:last-child {
+  padding: 16px 0;
+  border-bottom: 0;
+}
+
+.rc-step-num {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  background: #E4EDFC;
+  font-size: 17px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rc-step-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.rc-step-title {
+  display: block;
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 700;
+  color: #151517;
+}
+
+.rc-step-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 15px;
+  line-height: 20px;
+  color: #636366;
+}
+
+.rc-step-time {
+  flex: none;
+  align-self: center;
+  padding: 5px 12px;
+  border-radius: 13px;
+  background: #ECECF0;
+  color: #3A3A3C;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ---------- start cooking (§8.6.4) ---------- */
+
+.rc-cookbtn {
+  margin-top: 16px;
+  width: 100%;
+  height: 58px;
+  border: 0;
+  border-radius: 29px;
+  background: #0B5FD9;
+  color: #fff;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  cursor: pointer;
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.5), 0 10px 24px rgba(11, 95, 217, 0.35);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- empty state ---------- */
+
+.rc-empty {
+  margin-top: 22px;
+  padding: 14px 16px;
+}
+
+.rc-empty p {
+  margin: 10px 0 0;
+  font-size: 16px;
+  line-height: 23px;
+  color: #636366;
+}
+
+.rc-raw {
+  margin: 12px 0 0;
+  padding: 0;
+  font: inherit;
+  font-size: 17px;
+  line-height: 26px;
+  color: #2C2C2E;
+  white-space: pre-wrap;
+}
+
+/* ---------- cooking mode (§8.7) ---------- */
+
+.rc-cook {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: #F2F2F7;
+  color: #151517;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+}
+
+.rc-cook :focus-visible {
+  outline: 2px solid #0B5FD9;
+  outline-offset: 2px;
+}
+
+.rc-glassbtn {
+  flex: none;
+  border: 0;
+  border-radius: 22px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #151517;
+  background: rgba(255, 255, 255, 0.42);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  backdrop-filter: blur(28px) saturate(200%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 0 0 0.5px rgba(0, 0, 0, 0.10),
+    0 8px 24px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rc-glassbtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.rc-cook-top {
+  flex: none;
+  position: relative;
+  z-index: 5;
+  padding: 48px 16px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rc-cook-title {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.rc-cook-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #151517;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rc-cook-step-sub {
+  margin-top: 1px;
+  font-size: 13px;
+  color: #636366;
+}
+
+.rc-cook-progress {
+  flex: none;
+  display: flex;
+  gap: 6px;
+  margin: 14px 16px 0;
+}
+
+.rc-cook-bar {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: #D1D1D6;
+}
+
+.rc-cook-bar.on {
+  background: #0B5FD9;
+}
+
+.rc-cook-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 20px 150px;
+}
+
+.rc-cook-num {
+  margin-top: 36px;
+  width: 44px;
+  height: 44px;
+  border-radius: 22px;
+  background: #E4EDFC;
+  font-size: 20px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rc-cook-h1 {
+  margin: 14px 0 0;
+  font-size: 38px;
+  line-height: 42px;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  color: #151517;
+}
+
+.rc-cook-subline {
+  margin: 10px 0 0;
+  font-size: 22px;
+  line-height: 30px;
+  color: #3A3A3C;
+}
+
+.rc-need-lbl {
+  display: block;
+  margin: 28px 0 8px;
+}
+
+.rc-need {
+  display: flex;
+  gap: 8px;
+}
+
+.rc-cook-chip {
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 0 0 1px #E3E3E8;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+}
+
+.rc-cook-chip .rc-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+}
+
+.rc-cook-chip-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #151517;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rc-cook-chip-qty {
+  flex: none;
+  font-size: 15px;
+  color: #636366;
+  white-space: nowrap;
+}
+
+.rc-timer {
+  margin-top: 20px;
+  padding: 18px 16px 16px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 4px 14px rgba(0, 0, 0, 0.05);
+  text-align: center;
+}
+
+.rc-timer-digits {
+  margin-top: 6px;
+  font-size: 64px;
+  line-height: 72px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #151517;
+  font-variant-numeric: tabular-nums;
+}
+
+.rc-timer-btns {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.rc-timer-start {
+  flex: 2;
+  height: 52px;
+  border: 0;
+  border-radius: 14px;
+  background: #0B5FD9;
+  color: #fff;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rc-timer-reset {
+  flex: 1;
+  height: 52px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(118, 118, 128, 0.16);
+  color: #151517;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 650;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rc-wake {
+  margin-top: 12px;
+  height: 56px;
+  padding: 0 14px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 0 0 1px #E3E3E8;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rc-wake-label {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 600;
+  color: #151517;
+}
+
+.rc-switch {
+  flex: none;
+  position: relative;
+  width: 52px;
+  height: 32px;
+  border-radius: 16px;
+  border: 0;
+  padding: 0;
+  background: #D1D1D6;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+
+.rc-switch.on {
+  background: #34C759;
+}
+
+.rc-switch:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.rc-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+  transition: left 0.18s ease;
+}
+
+.rc-switch.on .rc-switch-knob {
+  left: 23px;
+}
+
+.rc-cook-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0 16px 28px;
+  display: flex;
+  gap: 10px;
+  z-index: 2;
+}
+
+.rc-cook-prev {
+  width: 58px;
+  height: 58px;
+  border-radius: 29px;
+}
+
+.rc-cook-next {
+  flex: 1;
+  min-width: 0;
+  height: 58px;
+  border: 0;
+  border-radius: 29px;
+  background: #0B5FD9;
+  color: #fff;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.45), 0 10px 24px rgba(11, 95, 217, 0.35);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rc-cook-next span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- ingredients panel inside cooking mode ---------- */
+
+.rc-cook-dim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.rc-cook-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  max-height: 70%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 28px 28px 0 0;
+  background: rgba(250, 250, 252, 0.82);
+  -webkit-backdrop-filter: blur(32px) saturate(200%);
+  backdrop-filter: blur(32px) saturate(200%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 -8px 32px rgba(0, 0, 0, 0.14);
+  padding: 8px 16px 32px;
+}
+
+.rc-panel-head {
+  flex: none;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rc-panel-done {
+  border: 0;
+  background: transparent;
+  height: 44px;
+  padding: 0 4px;
+  color: #0A55C4;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rc-panel-list {
+  min-height: 0;
+  overflow-y: auto;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 4px 14px rgba(0, 0, 0, 0.05);
+  padding: 2px 18px;
+}
+
+.rc-panel-none {
+  margin: 14px 0;
+  font-size: 16px;
+  color: #636366;
+}

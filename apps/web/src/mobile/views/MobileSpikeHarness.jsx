@@ -428,7 +428,7 @@ export default function MobileSpikeHarness({ onClose }) {
       return
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
     let successCount = 0
     let rateLimitCount = 0
     const t0 = Date.now()
@@ -452,7 +452,7 @@ export default function MobileSpikeHarness({ onClose }) {
       }
 
       try {
-        const res = await executeGeminiWithRetry(url, payload)
+        const res = await executeGeminiWithRetry(url, payload, { apiKey: geminiKey })
         if (res?.candidates) {
           successCount += 1
         }

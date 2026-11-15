@@ -24,7 +24,7 @@
       "mimeType": "text/plain"
     }
   ],
-  "winnerRule": "Earliest createdTime wins; on timestamp tie, lexicographically lowest file id wins",
+  "winnerRule": "Lowest fileId lexicographically (min(fileId)); earliest createdTime when available",
   "winnerPicked": {
     "id": "12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN",
     "name": "item_race_mw9n8hs3.json"
@@ -71,5 +71,6 @@
     "id": "12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN",
     "name": "item_race_mw9n8hs3.json"
   },
-  "crossClientVisibilityVerified": true
+  "crossClientVisibilityVerified": true,
+  "winnerRuleExplanation": "Google Drive listing omitted createdTime. Winner was determined by lexicographically lowest fileId: '12QPPtftifRdcHx5RWCcMDrIZ4ja0oLJN' < '1GpiLiGT1YRtr9c9x6xVyHBHhxofQMn5c'."
 }

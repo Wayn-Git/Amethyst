@@ -1,0 +1,1 @@
+11-10 16:06:55.888 30413 30413 I Capacitor/Console: File: https://localhost/assets/main-BvIIGAJv.js - Line 355 - Msg: [thumbnail] cold-start thumbnail request for item 832231, token present: true (len: 32)

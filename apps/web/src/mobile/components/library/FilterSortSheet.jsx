@@ -1,142 +1,232 @@
-import { BottomSheet } from '../libraryUi.jsx'
+import { useState, useEffect } from 'react'
+import { BottomSheet, SectionLabel } from '../libraryUi.jsx'
+import { ALL_11_TYPES, INK, MUTED, BLUE, BLUE_SOFT, DEEP_BLUE, CARD_SHADOW } from './tokens.js'
+import { api } from '../../../api.js'
 
-const TYPE_OPTIONS = [
-  ['all', 'All'],
-  ['video', 'Videos'],
-  ['article', 'Articles'],
-  ['post', 'Posts'],
-  ['movie', 'Movies'],
-  ['recipe', 'Recipes'],
-  ['game', 'Games'],
-  ['book', 'Books'],
-  ['place', 'Places'],
-  ['note', 'Notes'],
-]
-
-const SORT_OPTIONS = [
-  { value: 'new', label: 'Newest' },
-  { value: 'old', label: 'Oldest' },
-  { value: 'alpha', label: 'A to Z' },
-  { value: 'recent', label: 'Last opened' },
+const SAVED_RANGES = [
+  { id: 'any', label: 'Any time' },
+  { id: 'today', label: 'Today' },
+  { id: '7d', label: '7 days' },
+  { id: '30d', label: '30 days' },
 ]
 
 const STATUS_OPTIONS = [
-  { value: 'all', label: 'All' },
-  { value: 'unstarted', label: 'Wishlist' },
-  { value: 'in_progress', label: 'In progress' },
-  { value: 'completed', label: 'Done' },
-  { value: 'favorites', label: 'Favorites' },
+  { id: 'wishlist', label: 'Wishlist' },
+  { id: 'playing', label: 'Playing' },
+  { id: 'played', label: 'Played' },
+  { id: 'watchlist', label: 'Watchlist' },
+  { id: 'favorites', label: 'Favorites' },
+]
+
+const SORT_OPTIONS = [
+  { id: 'newest', label: 'Newest' },
+  { id: 'oldest', label: 'Oldest' },
+  { id: 'a_to_z', label: 'A to Z' },
+  { id: 'last_opened', label: 'Last opened' },
 ]
 
 export default function FilterSortSheet({
   open,
   onClose,
-  activeType = 'all',
-  onTypeChange,
-  sortOrder = 'new',
-  onSortChange,
-  statusFilter = 'all',
-  onStatusChange,
-  allTags = [],
-  selectedTag = null,
-  onTagChange,
-  resultCount = 0,
-  onReset,
+  filters = {},
+  onApply,
 }) {
+  const [selectedTypes, setSelectedTypes] = useState(() => new Set(filters.types || []))
+  const [savedRange, setSavedRange] = useState(filters.savedRange || 'any')
+  const [status, setStatus] = useState(filters.status || '')
+  const [selectedTags, setSelectedTags] = useState(() => new Set(filters.tags || []))
+  const [sort, setSort] = useState(filters.sort || 'newest')
+  const [availableTags, setAvailableTags] = useState([])
+  const [resultCount, setResultCount] = useState(0)
+
+  // Load tags live
+  useEffect(() => {
+    if (!open) return
+    api
+      .libraryTags()
+      .then((res) => {
+        if (res?.tags) setAvailableTags(res.tags.slice(0, 12))
+      })
+      .catch(() => {})
+  }, [open])
+
+  // Compute live match count debounced
+  useEffect(() => {
+    if (!open) return
+    const timer = setTimeout(() => {
+      const typesStr = Array.from(selectedTypes).join(',')
+      const tagsStr = Array.from(selectedTags).join(',')
+      api
+        .library({
+          types: typesStr,
+          tags: tagsStr,
+          status: status,
+          sort: sort,
+          limit: 1,
+        })
+        .then((res) => {
+          setResultCount(res?.counts?.total ?? res?.items?.length ?? 0)
+        })
+        .catch(() => {})
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [open, selectedTypes, selectedTags, status, sort])
+
+  const toggleType = (typeId) => {
+    setSelectedTypes((prev) => {
+      const next = new Set(prev)
+      if (next.has(typeId)) next.delete(typeId)
+      else next.add(typeId)
+      return next
+    })
+  }
+
+  const toggleTag = (tagName) => {
+    setSelectedTags((prev) => {
+      const next = new Set(prev)
+      if (next.has(tagName)) next.delete(tagName)
+      else next.add(tagName)
+      return next
+    })
+  }
+
+  const handleReset = () => {
+    setSelectedTypes(new Set())
+    setSavedRange('any')
+    setStatus('')
+    setSelectedTags(new Set())
+    setSort('newest')
+  }
+
+  const handleApply = () => {
+    onApply?.({
+      types: Array.from(selectedTypes),
+      savedRange,
+      status,
+      tags: Array.from(selectedTags),
+      sort,
+    })
+    onClose()
+  }
+
   return (
-    <BottomSheet open={open} onClose={onClose} label="Filter and sort" headTitle="Filter and sort">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 8, maxHeight: '65vh', overflowY: 'auto' }}>
-        {/* Type section */}
+    <BottomSheet open={open} onClose={onClose} headTitle="Filter and sort">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 20 }}>
+        {/* Type Section (11 multi-select chips) */}
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#636366', marginBottom: 8 }}>
-            Type
-          </div>
+          <SectionLabel text="Type" style={{ margin: '10px 4px 10px' }} />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {TYPE_OPTIONS.map(([val, label]) => {
-              const selected = activeType === val
+            {ALL_11_TYPES.map((t) => {
+              const on = selectedTypes.has(t.id)
               return (
                 <button
-                  key={val}
+                  key={t.id}
                   type="button"
+                  onClick={() => toggleType(t.id)}
                   style={{
-                    height: 38,
-                    padding: '0 14px',
-                    borderRadius: 19,
-                    border: selected ? '0' : '1px solid #D8D8DE',
-                    background: selected ? '#151517' : '#fff',
-                    color: selected ? '#fff' : '#151517',
-                    fontSize: 14,
-                    fontWeight: selected ? 650 : 500,
+                    height: 40,
+                    padding: '0 16px',
+                    borderRadius: 20,
+                    border: on ? 'none' : '1px solid #D8D8DE',
+                    background: on ? BLUE : '#FFFFFF',
+                    color: on ? '#FFFFFF' : INK,
+                    fontSize: 15,
+                    fontWeight: on ? 650 : 500,
                     cursor: 'pointer',
                   }}
-                  onClick={() => onTypeChange?.(val)}
                 >
-                  {label}
+                  {t.label}
                 </button>
               )
             })}
           </div>
         </div>
 
-        {/* Status section */}
+        {/* Saved Date Section */}
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#636366', marginBottom: 8 }}>
-            Status
-          </div>
+          <SectionLabel text="Saved" style={{ margin: '14px 4px 10px' }} />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {STATUS_OPTIONS.map((opt) => {
-              const selected = statusFilter === opt.value
+            {SAVED_RANGES.map((r) => {
+              const on = savedRange === r.id
               return (
                 <button
-                  key={opt.value}
+                  key={r.id}
                   type="button"
+                  onClick={() => setSavedRange(r.id)}
                   style={{
-                    height: 38,
-                    padding: '0 14px',
-                    borderRadius: 19,
-                    border: selected ? '0' : '1px solid #D8D8DE',
-                    background: selected ? '#151517' : '#fff',
-                    color: selected ? '#fff' : '#151517',
-                    fontSize: 14,
-                    fontWeight: selected ? 650 : 500,
+                    height: 40,
+                    padding: '0 16px',
+                    borderRadius: 20,
+                    border: on ? 'none' : '1px solid #D8D8DE',
+                    background: on ? INK : '#FFFFFF',
+                    color: on ? '#FFFFFF' : INK,
+                    fontSize: 15,
+                    fontWeight: on ? 650 : 500,
                     cursor: 'pointer',
                   }}
-                  onClick={() => onStatusChange?.(opt.value)}
                 >
-                  {opt.label}
+                  {r.label}
                 </button>
               )
             })}
           </div>
         </div>
 
-        {/* Tags section */}
-        {allTags.length > 0 && (
+        {/* Status Section */}
+        <div>
+          <SectionLabel text="Status" style={{ margin: '14px 4px 10px' }} />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {STATUS_OPTIONS.map((s) => {
+              const on = status === s.id
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setStatus(on ? '' : s.id)}
+                  style={{
+                    height: 40,
+                    padding: '0 16px',
+                    borderRadius: 20,
+                    border: on ? 'none' : '1px solid #D8D8DE',
+                    background: on ? INK : '#FFFFFF',
+                    color: on ? '#FFFFFF' : INK,
+                    fontSize: 15,
+                    fontWeight: on ? 650 : 500,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {s.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Tags Section */}
+        {availableTags.length > 0 && (
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#636366', marginBottom: 8 }}>
-              Tags
-            </div>
+            <SectionLabel text="Tags" style={{ margin: '14px 4px 10px' }} />
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {allTags.map((tag) => {
-                const selected = selectedTag === tag
+              {availableTags.map((tg) => {
+                const on = selectedTags.has(tg.name)
                 return (
                   <button
-                    key={tag}
+                    key={tg.name}
                     type="button"
+                    onClick={() => toggleTag(tg.name)}
                     style={{
-                      height: 36,
-                      padding: '0 12px',
-                      borderRadius: 18,
-                      border: selected ? '0' : '1px solid #D8D8DE',
-                      background: selected ? '#0B5FD9' : '#fff',
-                      color: selected ? '#fff' : '#151517',
-                      fontSize: 13,
-                      fontWeight: selected ? 650 : 500,
+                      height: 40,
+                      padding: '0 16px',
+                      borderRadius: 20,
+                      border: on ? 'none' : '1px solid #D8D8DE',
+                      background: on ? BLUE : '#FFFFFF',
+                      color: on ? '#FFFFFF' : INK,
+                      fontSize: 15,
+                      fontWeight: on ? 650 : 500,
                       cursor: 'pointer',
                     }}
-                    onClick={() => onTagChange?.(selected ? null : tag)}
                   >
-                    #{tag}
+                    #{tg.name} {tg.count > 1 ? `(${tg.count})` : ''}
                   </button>
                 )
               })}
@@ -144,73 +234,71 @@ export default function FilterSortSheet({
           </div>
         )}
 
-        {/* Sort by section */}
+        {/* Sort By Section */}
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#636366', marginBottom: 8 }}>
-            Sort by
-          </div>
+          <SectionLabel text="Sort by" style={{ margin: '14px 4px 10px' }} />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {SORT_OPTIONS.map((opt) => {
-              const selected = sortOrder === opt.value
+            {SORT_OPTIONS.map((so) => {
+              const on = sort === so.id
               return (
                 <button
-                  key={opt.value}
+                  key={so.id}
                   type="button"
+                  onClick={() => setSort(so.id)}
                   style={{
-                    height: 38,
-                    padding: '0 14px',
-                    borderRadius: 19,
-                    border: selected ? '0' : '1px solid #D8D8DE',
-                    background: selected ? '#151517' : '#fff',
-                    color: selected ? '#fff' : '#151517',
-                    fontSize: 14,
-                    fontWeight: selected ? 650 : 500,
+                    height: 40,
+                    padding: '0 16px',
+                    borderRadius: 20,
+                    border: on ? 'none' : '1px solid #D8D8DE',
+                    background: on ? INK : '#FFFFFF',
+                    color: on ? '#FFFFFF' : INK,
+                    fontSize: 15,
+                    fontWeight: on ? 650 : 500,
                     cursor: 'pointer',
                   }}
-                  onClick={() => onSortChange?.(opt.value)}
                 >
-                  {opt.label}
+                  {so.label}
                 </button>
               )
             })}
           </div>
         </div>
 
-        {/* Footer buttons */}
-        <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+        {/* Action Buttons: Reset & Show N results */}
+        <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
           <button
             type="button"
-            style={{
-              height: 52,
-              padding: '0 20px',
-              borderRadius: 14,
-              border: 0,
-              background: 'rgba(118,118,128,.16)',
-              color: '#151517',
-              fontSize: 16,
-              fontWeight: 650,
-              cursor: 'pointer',
-            }}
-            onClick={onReset}
-          >
-            Reset
-          </button>
-          <button
-            type="button"
+            onClick={handleReset}
             style={{
               flex: 1,
               height: 52,
               borderRadius: 14,
               border: 0,
-              background: '#0B5FD9',
-              color: '#fff',
+              background: 'rgba(118,118,128,.16)',
+              color: INK,
+              fontSize: 17,
+              fontWeight: 650,
+              cursor: 'pointer',
+            }}
+          >
+            Reset
+          </button>
+          <button
+            type="button"
+            onClick={handleApply}
+            style={{
+              flex: 2,
+              height: 52,
+              borderRadius: 14,
+              border: 0,
+              background: BLUE,
+              color: '#FFFFFF',
               fontSize: 17,
               fontWeight: 700,
               cursor: 'pointer',
             }}
-            onClick={onClose}
           >
-            {resultCount ? `Show ${resultCount} results` : 'Done'}
+            {resultCount > 0 ? `Show ${resultCount} results` : 'Show results'}
           </button>
         </div>
       </div>

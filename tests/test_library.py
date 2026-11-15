@@ -1106,7 +1106,7 @@ async def test_savetolist_library_features():
     from starlette.testclient import TestClient
 
     svc = service()
-    item_id = svc.store.create(kind="book", title="Piranesi", author="Susanna Clarke")
+    item_id = svc.store.create(kind="book", title="Piranesi", author="Susanna Clarke", rating=4)
 
     client = TestClient(app)
 
@@ -1126,6 +1126,12 @@ async def test_savetolist_library_features():
     assert data["remind_at"] == "2026-11-01 10:00:00"
     assert data["remind_action"] == "read"
     assert data["private_notes"] == "Read chapters 1 to 3, marvelous setting."
+
+    # Explicit null clears nullable metadata; omitted fields remain untouched.
+    clear_rating = client.patch(f"/api/library/{item_id}", json={"rating": None})
+    assert clear_rating.status_code == 200
+    assert clear_rating.json()["rating"] is None
+    assert clear_rating.json()["progress"] == "in_progress"
 
     # 2. Verify sorting by is_pinned
     unpinned_id = svc.store.create(kind="article", title="Regular Article")
@@ -1176,3 +1182,95 @@ async def test_savetolist_library_features():
 
 
 
+
+
+# --------------------------------------------------------------------------
+# Kind auto-classification (infer_kind)
+# --------------------------------------------------------------------------
+
+
+def test_infer_kind_classifies_by_host():
+    from backend.library.enrich import infer_kind
+
+    assert infer_kind("https://www.allrecipes.com/recipe/23600/worlds-best-lasagna/") == "recipe"
+    assert infer_kind("https://cooking.nytimes.com/recipes/1017097") == "recipe"
+    assert infer_kind("https://www.imdb.com/title/tt0111161/") == "movie"
+    assert infer_kind("https://letterboxd.com/film/parasite-2019/") == "movie"
+    assert infer_kind("https://store.steampowered.com/app/1091500/Cyberpunk_2077/") == "game"
+    assert infer_kind("https://www.youtube.com/watch?v=dQw4w9WgXcQ") == "video"
+    assert infer_kind("https://vimeo.com/76979871") == "video"
+
+
+def test_infer_kind_social_hosts_are_posts_and_urls_classify_as_articles():
+    from backend.library.enrich import infer_kind
+
+    assert infer_kind("https://x.com/someone/status/12345") == "post"
+    assert infer_kind("https://twitter.com/someone/status/12345") == "post"
+    assert infer_kind("https://www.reddit.com/r/rust/comments/abc/hello/") == "post"
+
+    assert infer_kind("https://www.theguardian.com/technology/2026/nov/11/ai") == "article"
+    assert infer_kind("https://paulgraham.substack.com/p/essay") == "article"
+
+    # A path hint beats a generic host.
+    assert infer_kind("https://www.tasteofhome.com/recipes/lasagna/") == "recipe"
+    assert infer_kind("https://example.com/game/best-rpgs") == "game"
+
+    # No URL at all means the user's own words.
+    assert infer_kind(None, "Weekend trip ideas") == "note"
+    assert infer_kind("", "") == "note"
+
+
+# --------------------------------------------------------------------------
+# Checklist persistence through the API
+# --------------------------------------------------------------------------
+
+
+def test_checklist_survives_create_and_patch(client):
+    svc = service()
+    items = [
+        {"text": "Book the train", "done": False},
+        {"text": "Reserve a stay", "done": True},
+    ]
+    res = client.post("/api/library", json={"title": "Weekend trip", "kind": "note", "checklist": items})
+    assert res.status_code == 201
+    created = res.json()
+    item_id = created["id"]
+    assert created["kind"] == "note"
+    assert created["checklist"] == items
+
+    # Round trip through PATCH, including toggling an entry and adding one.
+    patched = client.patch(
+        f"/api/library/{item_id}",
+        json={"checklist": [{"text": "Book the train", "done": True}, {"text": "Plan Saturday", "done": False}]},
+    )
+    assert patched.status_code == 200
+    data = patched.json()
+    assert len(data["checklist"]) == 2
+    assert data["checklist"][0] == {"text": "Book the train", "done": True}
+    assert data["checklist"][1] == {"text": "Plan Saturday", "done": False}
+
+    # The detail route parses the same JSON column back out.
+    fetched = client.get(f"/api/library/{item_id}")
+    assert fetched.json()["checklist"][0]["done"] is True
+
+
+def test_checklist_lines_in_text_become_checklist_entries(client):
+    text = "Weekend plan\n- [ ] Pick the dates\n- [x] Check train times\n- [ ] Plan Saturday"
+    res = client.post("/api/library", json={"title": "Trip", "text": text})
+    assert res.status_code == 201
+    created = res.json()
+    assert created["kind"] == "note"
+    assert [entry["text"] for entry in created["checklist"]] == [
+        "Pick the dates",
+        "Check train times",
+        "Plan Saturday",
+    ]
+    assert created["checklist"][1]["done"] is True
+
+
+def test_new_kinds_are_accepted_by_the_api(client):
+    svc = service()
+    for kind, title in (("recipe", "Lasagna"), ("movie", "Parasite"), ("game", "Hollow Knight")):
+        res = client.post("/api/library", json={"title": title, "kind": kind})
+        assert res.status_code == 201
+        assert res.json()["kind"] == kind

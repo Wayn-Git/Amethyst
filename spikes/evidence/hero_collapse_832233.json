@@ -1,0 +1,29 @@
+{
+ "captured_at": "2026-11-11T20:00:00+05:30",
+ "device": "10BD6N042K000F3 (redacted in evidence label)",
+ "screen": "MobileLibraryItem 832233",
+ "hero": {
+  "present": true,
+  "style_aspect_ratio": "9 / 16",
+  "computed_rect": {
+   "x": 46,
+   "y": 66,
+   "w": 300,
+   "h": 0
+  },
+  "img_src": "blob:https://localhost/<redacted-uuid>",
+  "img_rect": {
+   "x": 46,
+   "y": 66,
+   "w": 300,
+   "h": 0
+  },
+  "play_button_rect": {
+   "x": 167,
+   "y": 37,
+   "w": 58,
+   "h": 58
+  },
+  "conclusion": "hero container rendered but collapsed to height 0; thumbnail blob loaded, play button overlaps header"
+ }
+}

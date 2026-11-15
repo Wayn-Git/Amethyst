@@ -76,7 +76,11 @@ disabled and search degrades to keywords; callers can observe the degradation.
   `cache_read_tokens`, `cache_write_tokens`, `tool_call_count`,
   `duration_ms`). Analytics reads them directly.
 - `library_items` indexes captured material; the text itself lives under
-  `~/.amethyst/library/`.
+  `~/.amethyst/library/`. Checklist entries for note captures are a JSON
+  `checklist` column (`[{"text": "...", "done": bool}]`); `kind` accepts
+  `recipe`, `movie`, and `game` alongside the article/book/etc. kinds, and
+  `backend/library/enrich.py` `infer_kind` guesses kind from host/path when a
+  capture does not state one.
 - `widget_cache` stores per-widget payloads and state; `layouts` stores per-mode
   widget order and sizes; `widget_settings` stores per-widget settings.
 

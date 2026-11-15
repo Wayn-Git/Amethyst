@@ -6,6 +6,7 @@ export const isNativeMobile = () => Capacitor.isNativePlatform()
 export const IDENTITY_KEY = 'amethyst.sync.identity.v1'
 let nativeIdentity = null
 let secureStore = null
+let initPromise = null
 
 export function _setSecureStoreForTest(store) {
   secureStore = store
@@ -31,25 +32,50 @@ export async function nativeVault() {
   return secureStore
 }
 
-export async function initializeCredentials() {
-  const vault = await nativeVault()
-  if (vault) {
-    nativeIdentity = await vault.get(IDENTITY_KEY)
-    if (typeof nativeIdentity === 'string') {
-      try { nativeIdentity = JSON.parse(nativeIdentity) } catch {}
-    }
-  }
-  if (!nativeIdentity) {
-    nativeIdentity = await secureGetItem(IDENTITY_KEY)
-  }
-  if (nativeIdentity && typeof nativeIdentity === 'object') {
+export function initializeCredentials() {
+  if (initPromise) return initPromise
+  initPromise = (async () => {
     try {
-      await secureStoreItem(IDENTITY_KEY, nativeIdentity)
-      if (nativeIdentity.hostUrl) {
-        safeStorage.setItem('amethyst.pc_host', nativeIdentity.hostUrl)
+      const vault = await nativeVault()
+      if (vault) {
+        nativeIdentity = await vault.get(IDENTITY_KEY)
+        if (typeof nativeIdentity === 'string') {
+          try { nativeIdentity = JSON.parse(nativeIdentity) } catch {}
+        }
       }
-    } catch {}
+      if (!nativeIdentity) {
+        nativeIdentity = await secureGetItem(IDENTITY_KEY)
+      }
+      if (nativeIdentity && typeof nativeIdentity === 'object') {
+        try {
+          await secureStoreItem(IDENTITY_KEY, nativeIdentity)
+          if (nativeIdentity.hostUrl) {
+            safeStorage.setItem('amethyst.pc_host', nativeIdentity.hostUrl)
+          }
+        } catch {}
+      }
+    } catch (err) {
+      console.warn('[credentials] initializeCredentials error:', err)
+    }
+    return nativeIdentity
+  })()
+  return initPromise
+}
+
+// Auto-start initialization at module import time
+if (typeof window !== 'undefined') {
+  initializeCredentials()
+}
+
+export async function getStoredIdentityAsync() {
+  if (!nativeIdentity) {
+    await initializeCredentials()
   }
+  return storedIdentity()
+}
+
+export function isCredentialsReady() {
+  return Boolean(nativeIdentity)
 }
 
 export function storedIdentity() {

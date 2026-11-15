@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
+import { GLASS_DARK_STYLE, INK } from './tokens.js'
 
 export default function MultiSelectBar({
   visible,
@@ -54,7 +55,7 @@ export default function MultiSelectBar({
             >
               Cancel
             </button>
-            <span style={{ fontSize: 17, fontWeight: 700, color: '#151517' }}>
+            <span style={{ fontSize: 17, fontWeight: 700, color: INK }}>
               {selectedCount} selected
             </span>
             <button
@@ -73,7 +74,7 @@ export default function MultiSelectBar({
             </button>
           </motion.div>
 
-          {/* Bottom actions dock */}
+          {/* Floating Dark Glass Bulk Bar (Page 34) */}
           <motion.div
             initial={{ y: 80, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -81,127 +82,124 @@ export default function MultiSelectBar({
             transition={{ type: 'spring', stiffness: 420, damping: 32 }}
             style={{
               position: 'fixed',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              height: 'calc(env(safe-area-inset-bottom, 0px) + 64px)',
-              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-              background: 'rgba(255,255,255,0.85)',
-              backdropFilter: 'blur(28px) saturate(200%)',
-              WebkitBackdropFilter: 'blur(28px) saturate(200%)',
-              borderTop: '1px solid #ECECF0',
+              bottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)',
+              left: 16,
+              right: 16,
+              borderRadius: 32,
+              padding: '4px 6px',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-around',
-              paddingLeft: 12,
-              paddingRight: 12,
               zIndex: 110,
+              ...GLASS_DARK_STYLE,
             }}
           >
-            {onCollect && (
-              <button
-                type="button"
-                disabled={selectedCount === 0}
-                style={{
-                  border: 0,
-                  background: 'transparent',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 3,
-                  color: selectedCount > 0 ? '#151517' : '#8E8E93',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: selectedCount > 0 ? 'pointer' : 'default',
-                  opacity: selectedCount > 0 ? 1 : 0.4,
-                }}
-                onClick={onCollect}
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                  <path d="M12 11v5M9.5 13.5h5" />
-                </svg>
-                Collect
-              </button>
-            )}
+            <button
+              type="button"
+              disabled={selectedCount === 0}
+              style={{
+                flex: 1,
+                height: 56,
+                border: 0,
+                background: 'transparent',
+                color: '#FFFFFF',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 3,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: selectedCount > 0 ? 'pointer' : 'default',
+                opacity: selectedCount > 0 ? 1 : 0.4,
+              }}
+              onClick={onCollect}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+              </svg>
+              Collect
+            </button>
 
-            {onTag && (
-              <button
-                type="button"
-                disabled={selectedCount === 0}
-                style={{
-                  border: 0,
-                  background: 'transparent',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 3,
-                  color: selectedCount > 0 ? '#151517' : '#8E8E93',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: selectedCount > 0 ? 'pointer' : 'default',
-                  opacity: selectedCount > 0 ? 1 : 0.4,
-                }}
-                onClick={onTag}
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 9h14M5 15h14M9 4L7.5 20M16.5 4L15 20" />
-                </svg>
-                Tag
-              </button>
-            )}
+            <button
+              type="button"
+              disabled={selectedCount === 0}
+              style={{
+                flex: 1,
+                height: 56,
+                border: 0,
+                background: 'transparent',
+                color: '#FFFFFF',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 3,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: selectedCount > 0 ? 'pointer' : 'default',
+                opacity: selectedCount > 0 ? 1 : 0.4,
+              }}
+              onClick={onTag}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M7 7h.01M3 12V4h8l10 10-8 8z" />
+              </svg>
+              Tag
+            </button>
 
-            {onShare && (
-              <button
-                type="button"
-                disabled={selectedCount === 0}
-                style={{
-                  border: 0,
-                  background: 'transparent',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 3,
-                  color: selectedCount > 0 ? '#151517' : '#8E8E93',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: selectedCount > 0 ? 'pointer' : 'default',
-                  opacity: selectedCount > 0 ? 1 : 0.4,
-                }}
-                onClick={onShare}
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
-                </svg>
-                Share
-              </button>
-            )}
+            <button
+              type="button"
+              disabled={selectedCount === 0}
+              style={{
+                flex: 1,
+                height: 56,
+                border: 0,
+                background: 'transparent',
+                color: '#FFFFFF',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 3,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: selectedCount > 0 ? 'pointer' : 'default',
+                opacity: selectedCount > 0 ? 1 : 0.4,
+              }}
+              onClick={onShare}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+              </svg>
+              Share
+            </button>
 
-            {onDelete && (
-              <button
-                type="button"
-                disabled={selectedCount === 0}
-                style={{
-                  border: 0,
-                  background: 'transparent',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 3,
-                  color: selectedCount > 0 ? '#B3261E' : '#8E8E93',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: selectedCount > 0 ? 'pointer' : 'default',
-                  opacity: selectedCount > 0 ? 1 : 0.4,
-                }}
-                onClick={onDelete}
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" />
-                </svg>
-                Delete
-              </button>
-            )}
+            <button
+              type="button"
+              disabled={selectedCount === 0}
+              style={{
+                flex: 1,
+                height: 56,
+                border: 0,
+                background: 'transparent',
+                color: '#FF8A80',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 3,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: selectedCount > 0 ? 'pointer' : 'default',
+                opacity: selectedCount > 0 ? 1 : 0.4,
+              }}
+              onClick={onDelete}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
+              </svg>
+              Delete
+            </button>
           </motion.div>
         </>
       )}

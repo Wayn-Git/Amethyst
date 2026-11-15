@@ -1,230 +1,379 @@
 import { useState, useEffect } from 'react'
+import { HeaderCircleButton, SectionLabel } from '../libraryUi.jsx'
+import { INK, MUTED, BLUE, DANGER_RED, CARD_SHADOW, LINE } from './tokens.js'
 import { api } from '../../../api.js'
-import { GlassIconButton } from '../libraryUi.jsx'
-import { INK, MUTED } from './tokens.js'
+import { storedIdentity } from '../../../lib/credentials.js'
+import { safeStorage } from '../../../lib/storage.js'
 
-export default function LibrarySettingsScreen({ onBack, showToast }) {
-  const [syncStatus, setSyncStatus] = useState(null)
-  const [syncing, setSyncing] = useState(false)
-  const [autoEnrich, setAutoEnrich] = useState(true)
-  const [videoTranscription, setVideoTranscription] = useState(true)
+export default function LibrarySettingsScreen({
+  open = true,
+  onClose,
+  onBack,
+  onOpenTags,
+  showToast,
+}) {
+  const handleClose = onBack || onClose
+  const [user, setUser] = useState(() => storedIdentity() || { name: 'User', email: 'user@amethyst.local' })
+  const [defaultView, setDefaultView] = useState(() => safeStorage.getItem('amethyst.default_view') || 'list')
+  const [autoSaveShare, setAutoSaveShare] = useState(() => safeStorage.getItem('amethyst.auto_save_share') === '1')
+  const [reminders, setReminders] = useState(() => safeStorage.getItem('amethyst.reminders') !== '0')
+  const [priceAlerts, setPriceAlerts] = useState(() => safeStorage.getItem('amethyst.price_alerts') === '1')
+  const [storageStats, setStorageStats] = useState({ items: 0, media_mb: 0 })
 
   useEffect(() => {
-    api.librarySyncStatus?.()
-      .then((res) => setSyncStatus(res))
+    if (!open) return
+    api
+      .libraryCounts()
+      .then((res) => {
+        setStorageStats((prev) => ({ ...prev, items: res?.saved || 0 }))
+      })
       .catch(() => {})
-  }, [])
+  }, [open])
 
-  const handleSyncNow = async () => {
-    setSyncing(true)
-    try {
-      await api.librarySyncStart?.()
-      showToast?.('Sync started in background')
-      const updated = await api.librarySyncStatus?.()
-      setSyncStatus(updated)
-    } catch (err) {
-      showToast?.(err?.message || 'Sync failed')
-    } finally {
-      setSyncing(false)
-    }
+  const toggleAutoSave = () => {
+    const next = !autoSaveShare
+    setAutoSaveShare(next)
+    safeStorage.setItem('amethyst.auto_save_share', next ? '1' : '0')
+    showToast?.(next ? 'Auto-save from share sheet enabled' : 'Auto-save disabled')
   }
 
-  const handlePurgeMedia = async () => {
-    try {
-      const res = await api.purgeMedia?.()
-      showToast?.(res?.message || 'Legacy media purged')
-    } catch {
-      showToast?.('Could not purge media')
-    }
+  const toggleReminders = () => {
+    const next = !reminders
+    setReminders(next)
+    safeStorage.setItem('amethyst.reminders', next ? '1' : '0')
+    showToast?.(next ? 'Reminders enabled' : 'Reminders disabled')
   }
+
+  const togglePriceAlerts = () => {
+    const next = !priceAlerts
+    setPriceAlerts(next)
+    safeStorage.setItem('amethyst.price_alerts', next ? '1' : '0')
+    showToast?.(next ? 'Price alerts enabled' : 'Price alerts disabled')
+  }
+
+  const handleSetDefaultView = (v) => {
+    setDefaultView(v)
+    safeStorage.setItem('amethyst.default_view', v)
+    showToast?.(`Default view set to ${v}`)
+  }
+
+  if (!open) return null
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F2F2F7', paddingBottom: 110 }}>
-      {/* Pinned Top Bar */}
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: '#F2F2F7',
+        zIndex: 120,
+        display: 'flex',
+        flexDirection: 'column',
+        boxSizing: 'border-box',
+      }}
+    >
+      {/* Top Header Bar */}
       <div
         style={{
-          position: 'sticky',
-          top: 0,
-          background: 'rgba(242,242,247,0.92)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
+          padding: 'max(52px, env(safe-area-inset-top, 0px)) 16px 12px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: 'calc(env(safe-area-inset-top, 0px) + 12px) 16px 12px',
-          zIndex: 50,
-          borderBottom: '1px solid #ECECF0',
         }}
       >
-        <GlassIconButton label="Back" width={44} onClick={onBack}>
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 5l-7 7 7 7" />
+        <HeaderCircleButton label="Back" size={44} onClick={handleClose}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
           </svg>
-        </GlassIconButton>
-
-        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: INK }}>
-          Library Settings
-        </h2>
-
+        </HeaderCircleButton>
+        <span style={{ fontSize: 17, fontWeight: 700, color: INK }}>Settings</span>
         <div style={{ width: 44 }} />
       </div>
 
-      <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-        {/* Sync & Cloud Section */}
-        <section>
-          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: MUTED, marginBottom: 8 }}>
-            Cloud Storage & Sync
+      {/* Settings Scrollable Content */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          padding: '0 16px 40px',
+        }}
+      >
+        {/* Profile Card */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            padding: 16,
+            borderRadius: 22,
+            background: '#FFFFFF',
+            boxShadow: CARD_SHADOW,
+            marginBottom: 24,
+          }}
+        >
+          <div
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: 26,
+              background: '#0B5FD9',
+              color: '#FFFFFF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 22,
+              fontWeight: 800,
+              flex: 'none',
+            }}
+          >
+            {(user?.name || user?.username || 'A').charAt(0).toUpperCase()}
           </div>
-          <div style={{ background: '#fff', borderRadius: 22, padding: '0 16px', boxShadow: '0 1px 2px rgba(0,0,0,.05), 0 4px 14px rgba(0,0,0,.05)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 56, borderBottom: '1px solid #ECECF0' }}>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: INK }}>Google Drive Sync</div>
-                <div style={{ fontSize: 13, color: MUTED }}>
-                  {syncStatus?.provider === 'google_drive' ? 'Connected' : 'Local SQLite Storage'}
-                </div>
-              </div>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#0A55C4' }}>Active</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: INK }}>
+              {user?.name || user?.username || 'Account'}
             </div>
+            <div style={{ fontSize: 14, color: MUTED }}>
+              {user?.email || 'Connected device'}
+            </div>
+          </div>
+        </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 56 }}>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: INK }}>Run Catalog Sync</div>
-                <div style={{ fontSize: 13, color: MUTED }}>
-                  {syncStatus?.last_sync ? `Last synced ${syncStatus.last_sync}` : 'Sync local files and database'}
-                </div>
-              </div>
+        {/* Group: Library */}
+        <SectionLabel text="Library" style={{ margin: '14px 4px 10px' }} />
+        <div style={{ borderRadius: 22, background: '#FFFFFF', boxShadow: CARD_SHADOW, overflow: 'hidden', marginBottom: 24 }}>
+          {/* Default view */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${LINE}` }}>
+            <span style={{ fontSize: 16, fontWeight: 550, color: INK }}>Default view</span>
+            <div style={{ display: 'flex', background: 'rgba(118,118,128,.12)', borderRadius: 14, padding: 2 }}>
               <button
                 type="button"
-                disabled={syncing}
-                onClick={handleSyncNow}
+                onClick={() => handleSetDefaultView('list')}
                 style={{
-                  height: 36,
-                  padding: '0 16px',
-                  borderRadius: 18,
-                  border: 0,
-                  background: '#E4EDFC',
-                  color: '#0A55C4',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: syncing ? 'default' : 'pointer',
-                  opacity: syncing ? 0.6 : 1,
-                }}
-              >
-                {syncing ? 'Syncing…' : 'Sync now'}
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* AI Processing Section */}
-        <section>
-          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: MUTED, marginBottom: 8 }}>
-            AI & Enrichment
-          </div>
-          <div style={{ background: '#fff', borderRadius: 22, padding: '0 16px', boxShadow: '0 1px 2px rgba(0,0,0,.05), 0 4px 14px rgba(0,0,0,.05)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 56, borderBottom: '1px solid #ECECF0' }}>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: INK }}>Auto-generate summaries</div>
-                <div style={{ fontSize: 13, color: MUTED }}>Synthesize key takeaways & tags on save</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAutoEnrich(!autoEnrich)}
-                style={{
-                  width: 52,
                   height: 32,
-                  borderRadius: 16,
+                  padding: '0 12px',
+                  borderRadius: 12,
                   border: 0,
-                  background: autoEnrich ? '#34C759' : '#D1D1D6',
-                  position: 'relative',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                }}
-              >
-                <div
-                  style={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: 13,
-                    background: '#fff',
-                    position: 'absolute',
-                    top: 3,
-                    left: autoEnrich ? 23 : 3,
-                    boxShadow: '0 2px 5px rgba(0,0,0,.25)',
-                    transition: 'left 0.2s',
-                  }}
-                />
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 56 }}>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: INK }}>Ephemeral Audio Transcription</div>
-                <div style={{ fontSize: 13, color: MUTED }}>Zero video download; transcribe audio stream</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setVideoTranscription(!videoTranscription)}
-                style={{
-                  width: 52,
-                  height: 32,
-                  borderRadius: 16,
-                  border: 0,
-                  background: videoTranscription ? '#34C759' : '#D1D1D6',
-                  position: 'relative',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                }}
-              >
-                <div
-                  style={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: 13,
-                    background: '#fff',
-                    position: 'absolute',
-                    top: 3,
-                    left: videoTranscription ? 23 : 3,
-                    boxShadow: '0 2px 5px rgba(0,0,0,.25)',
-                    transition: 'left 0.2s',
-                  }}
-                />
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* Media & Storage Section */}
-        <section>
-          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: MUTED, marginBottom: 8 }}>
-            Storage Maintenance
-          </div>
-          <div style={{ background: '#fff', borderRadius: 22, padding: '0 16px', boxShadow: '0 1px 2px rgba(0,0,0,.05), 0 4px 14px rgba(0,0,0,.05)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 56 }}>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: INK }}>Purge legacy video files</div>
-                <div style={{ fontSize: 13, color: MUTED }}>Free device storage from cached offline videos</div>
-              </div>
-              <button
-                type="button"
-                onClick={handlePurgeMedia}
-                style={{
-                  height: 36,
-                  padding: '0 14px',
-                  borderRadius: 18,
-                  border: 0,
-                  background: '#FDECEA',
-                  color: '#B3261E',
+                  background: defaultView === 'list' ? '#FFFFFF' : 'transparent',
+                  color: INK,
                   fontSize: 13,
-                  fontWeight: 700,
+                  fontWeight: defaultView === 'list' ? 700 : 500,
                   cursor: 'pointer',
+                  boxShadow: defaultView === 'list' ? '0 1px 3px rgba(0,0,0,.1)' : 'none',
                 }}
               >
-                Purge
+                List
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetDefaultView('grid')}
+                style={{
+                  height: 32,
+                  padding: '0 12px',
+                  borderRadius: 12,
+                  border: 0,
+                  background: defaultView === 'grid' ? '#FFFFFF' : 'transparent',
+                  color: INK,
+                  fontSize: 13,
+                  fontWeight: defaultView === 'grid' ? 700 : 500,
+                  cursor: 'pointer',
+                  boxShadow: defaultView === 'grid' ? '0 1px 3px rgba(0,0,0,.1)' : 'none',
+                }}
+              >
+                Grid
               </button>
             </div>
           </div>
-        </section>
+
+          {/* Manage tags */}
+          <button
+            type="button"
+            onClick={onOpenTags}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              minHeight: 52,
+              padding: '0 16px',
+              border: 0,
+              borderBottom: `1px solid ${LINE}`,
+              background: 'transparent',
+              fontSize: 16,
+              fontWeight: 550,
+              color: INK,
+              cursor: 'pointer',
+            }}
+          >
+            <span>Manage tags</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C7CC" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+
+          {/* Auto-save from share sheet toggle */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px' }}>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 550, color: INK }}>Auto-save from share</div>
+              <div style={{ fontSize: 13, color: MUTED }}>Skip confirmation sheet</div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoSaveShare}
+              onClick={toggleAutoSave}
+              style={{
+                width: 51,
+                height: 31,
+                borderRadius: 16,
+                background: autoSaveShare ? BLUE : '#E5E5EA',
+                border: 0,
+                padding: 2,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                transition: 'background 0.2s',
+              }}
+            >
+              <div
+                style={{
+                  width: 27,
+                  height: 27,
+                  borderRadius: 14,
+                  background: '#FFFFFF',
+                  boxShadow: '0 2px 4px rgba(0,0,0,.2)',
+                  transform: autoSaveShare ? 'translateX(20px)' : 'translateX(0)',
+                  transition: 'transform 0.2s',
+                }}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Group: Notifications */}
+        <SectionLabel text="Notifications" style={{ margin: '14px 4px 10px' }} />
+        <div style={{ borderRadius: 22, background: '#FFFFFF', boxShadow: CARD_SHADOW, overflow: 'hidden', marginBottom: 24 }}>
+          {/* Reminders toggle */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${LINE}` }}>
+            <span style={{ fontSize: 16, fontWeight: 550, color: INK }}>Reminders</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={reminders}
+              onClick={toggleReminders}
+              style={{
+                width: 51,
+                height: 31,
+                borderRadius: 16,
+                background: reminders ? BLUE : '#E5E5EA',
+                border: 0,
+                padding: 2,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                transition: 'background 0.2s',
+              }}
+            >
+              <div
+                style={{
+                  width: 27,
+                  height: 27,
+                  borderRadius: 14,
+                  background: '#FFFFFF',
+                  boxShadow: '0 2px 4px rgba(0,0,0,.2)',
+                  transform: reminders ? 'translateX(20px)' : 'translateX(0)',
+                  transition: 'transform 0.2s',
+                }}
+              />
+            </button>
+          </div>
+
+          {/* Price alerts toggle */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px' }}>
+            <span style={{ fontSize: 16, fontWeight: 550, color: INK }}>Price alerts</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={priceAlerts}
+              onClick={togglePriceAlerts}
+              style={{
+                width: 51,
+                height: 31,
+                borderRadius: 16,
+                background: priceAlerts ? BLUE : '#E5E5EA',
+                border: 0,
+                padding: 2,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                transition: 'background 0.2s',
+              }}
+            >
+              <div
+                style={{
+                  width: 27,
+                  height: 27,
+                  borderRadius: 14,
+                  background: '#FFFFFF',
+                  boxShadow: '0 2px 4px rgba(0,0,0,.2)',
+                  transform: priceAlerts ? 'translateX(20px)' : 'translateX(0)',
+                  transition: 'transform 0.2s',
+                }}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Group: Data */}
+        <SectionLabel text="Data" style={{ margin: '14px 4px 10px' }} />
+        <div style={{ borderRadius: 22, background: '#FFFFFF', boxShadow: CARD_SHADOW, overflow: 'hidden', marginBottom: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: `1px solid ${LINE}` }}>
+            <span style={{ fontSize: 16, fontWeight: 550, color: INK }}>Storage used</span>
+            <span style={{ fontSize: 15, color: MUTED }}>{storageStats.items} saves</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => showToast?.('Exporting library JSON…')}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              minHeight: 52,
+              padding: '0 16px',
+              border: 0,
+              background: 'transparent',
+              fontSize: 16,
+              fontWeight: 550,
+              color: INK,
+              cursor: 'pointer',
+            }}
+          >
+            <span>Export library</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C7CC" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Sign out button */}
+        <button
+          type="button"
+          onClick={() => showToast?.('Signed out')}
+          style={{
+            width: '100%',
+            height: 52,
+            borderRadius: 16,
+            border: 0,
+            background: '#FDECEA',
+            color: DANGER_RED,
+            fontSize: 17,
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          Sign out
+        </button>
       </div>
     </div>
   )

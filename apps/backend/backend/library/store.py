@@ -37,6 +37,10 @@ KINDS = (
     "paper",
     "post",
     "note",
+    "recipe",
+    "movie",
+    "game",
+    "product",
     "other",
 )
 
@@ -84,6 +88,8 @@ _UPDATABLE = frozenset(
         "remind_action",
         "reminded_at",
         "private_notes",
+        # Checklist items for note/checklist captures: JSON array of {text, done}.
+        "checklist",
         # Storage & migration fields
         "storage_provider",
         "external_id",
@@ -91,6 +97,11 @@ _UPDATABLE = frozenset(
         "sync_state",
         "checksum",
         "last_synced_at",
+        "deleted_at",
+        "latitude",
+        "longitude",
+        "extra_data",
+        "is_favorite",
     }
 )
 
@@ -233,12 +244,18 @@ class LibraryStore:
             ("remind_action", "TEXT DEFAULT 'revisit'"),
             ("reminded_at", "TEXT"),
             ("private_notes", "TEXT"),
+            ("checklist", "TEXT"),
             ("storage_provider", "TEXT DEFAULT 'local'"),
             ("external_id", "TEXT"),
             ("cached_locally", "INTEGER DEFAULT 1"),
             ("sync_state", "TEXT DEFAULT 'synced'"),
             ("checksum", "TEXT"),
             ("last_synced_at", "TEXT"),
+            ("deleted_at", "TEXT"),
+            ("latitude", "REAL"),
+            ("longitude", "REAL"),
+            ("extra_data", "TEXT"),
+            ("is_favorite", "INTEGER DEFAULT 0"),
         ):
             try:
                 self.conn.execute(f"ALTER TABLE library_items ADD COLUMN {col} {col_type}")
@@ -497,6 +514,9 @@ class LibraryStore:
         list_id: int | None = None,
         order: str = "desc",
         since: str | None = None,
+        status: str | None = None,
+        sort: str | None = None,
+        include_deleted: bool = False,
         limit: int = 50,
         offset: int = 0,
     ) -> list[sqlite3.Row]:
@@ -504,6 +524,11 @@ class LibraryStore:
         joins = []
         params: list = []
         where = []
+        if not include_deleted:
+            where.append("(library_items.deleted_at IS NULL OR library_items.deleted_at = '')")
+        if status:
+            where.append("(library_items.status = ? OR library_items.progress = ?)")
+            params.extend([status, status])
         if list_id is not None:
             joins.append("JOIN library_list_members ON library_items.id = library_list_members.item_id")
             where.append("library_list_members.list_id = ?")
@@ -525,13 +550,170 @@ class LibraryStore:
             sql += " " + " ".join(joins)
         if where:
             sql += " WHERE " + " AND ".join(where)
-        if str(order).lower() == "manual":
+
+        order_lower = str(sort or order).lower()
+        if order_lower == "manual":
             sql += " ORDER BY library_items.is_pinned DESC, library_items.position ASC, library_items.consumed_on DESC, library_items.id DESC LIMIT ? OFFSET ?"
+        elif order_lower == "newest":
+            sql += " ORDER BY library_items.is_pinned DESC, library_items.created_at DESC, library_items.id DESC LIMIT ? OFFSET ?"
+        elif order_lower == "oldest":
+            sql += " ORDER BY library_items.is_pinned DESC, library_items.created_at ASC, library_items.id ASC LIMIT ? OFFSET ?"
+        elif order_lower in ("a_to_z", "az", "title"):
+            sql += " ORDER BY library_items.title COLLATE NOCASE ASC, library_items.id DESC LIMIT ? OFFSET ?"
+        elif order_lower == "last_opened":
+            sql += " ORDER BY COALESCE(library_items.last_synced_at, library_items.consumed_on) DESC, library_items.id DESC LIMIT ? OFFSET ?"
         else:
-            order_dir = "ASC" if str(order).lower() == "asc" else "DESC"
+            order_dir = "ASC" if order_lower == "asc" else "DESC"
             sql += f" ORDER BY library_items.is_pinned DESC, library_items.consumed_on {order_dir}, library_items.id {order_dir} LIMIT ? OFFSET ?"
         params.extend([limit, offset])
         return self.conn.execute(sql, params).fetchall()
+
+    def soft_delete(self, item_id: int) -> bool:
+        cursor = self.conn.execute(
+            "UPDATE library_items SET deleted_at = ?, updated_at = ? WHERE id = ?",
+            (_now(), _now(), item_id),
+        )
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def restore(self, item_id: int) -> bool:
+        cursor = self.conn.execute(
+            "UPDATE library_items SET deleted_at = NULL, updated_at = ? WHERE id = ?",
+            (_now(), item_id),
+        )
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def bulk_soft_delete(self, item_ids: list[int]) -> int:
+        if not item_ids:
+            return 0
+        placeholders = ",".join("?" * len(item_ids))
+        cursor = self.conn.execute(
+            f"UPDATE library_items SET deleted_at = ?, updated_at = ? WHERE id IN ({placeholders})",
+            (_now(), _now(), *item_ids),
+        )
+        self.conn.commit()
+        return cursor.rowcount
+
+    def bulk_restore(self, item_ids: list[int]) -> int:
+        if not item_ids:
+            return 0
+        placeholders = ",".join("?" * len(item_ids))
+        cursor = self.conn.execute(
+            f"UPDATE library_items SET deleted_at = NULL, updated_at = ? WHERE id IN ({placeholders})",
+            (_now(), *item_ids),
+        )
+        self.conn.commit()
+        return cursor.rowcount
+
+    def bulk_add_to_list(self, list_id: int, item_ids: list[int]) -> int:
+        added = 0
+        for item_id in item_ids:
+            try:
+                self.conn.execute(
+                    "INSERT INTO library_list_members (list_id, item_id) VALUES (?, ?) "
+                    "ON CONFLICT(list_id, item_id) DO NOTHING",
+                    (list_id, item_id),
+                )
+                added += 1
+            except Exception:
+                pass
+        self.conn.commit()
+        return added
+
+    def bulk_tag(self, item_ids: list[int], tags: list[str]) -> int:
+        if not item_ids or not tags:
+            return 0
+        import json as _json
+        count = 0
+        for item_id in item_ids:
+            row = self.conn.execute("SELECT tags FROM library_items WHERE id = ?", (item_id,)).fetchone()
+            if row:
+                existing = []
+                if row["tags"]:
+                    try:
+                        existing = _json.loads(row["tags"])
+                        if not isinstance(existing, list):
+                            existing = []
+                    except Exception:
+                        existing = []
+                merged = list(dict.fromkeys(existing + tags))
+                self.conn.execute(
+                    "UPDATE library_items SET tags = ?, updated_at = ? WHERE id = ?",
+                    (_json.dumps(merged), _now(), item_id),
+                )
+                count += 1
+        self.conn.commit()
+        return count
+
+    def get_resume_items(self, limit: int = 2) -> list[sqlite3.Row]:
+        sql = (
+            "SELECT * FROM library_items WHERE (deleted_at IS NULL OR deleted_at = '') "
+            "AND (progress IN ('in_progress', 'watching', 'reading', 'cooking', 'listening', 'playing') "
+            "     OR (checklist IS NOT NULL AND checklist != '[]' AND checklist != '')) "
+            "ORDER BY updated_at DESC LIMIT ?"
+        )
+        return self.conn.execute(sql, (limit,)).fetchall()
+
+    def rename_tag(self, old_tag: str, new_tag: str) -> int:
+        import json as _json
+        rows = self.conn.execute("SELECT id, tags FROM library_items WHERE tags IS NOT NULL").fetchall()
+        updated = 0
+        for row in rows:
+            try:
+                tags = _json.loads(row["tags"])
+                if isinstance(tags, list) and old_tag in tags:
+                    new_tags = [new_tag if t == old_tag else t for t in tags]
+                    new_tags = list(dict.fromkeys(new_tags))
+                    self.conn.execute(
+                        "UPDATE library_items SET tags = ?, updated_at = ? WHERE id = ?",
+                        (_json.dumps(new_tags), _now(), row["id"]),
+                    )
+                    updated += 1
+            except Exception:
+                pass
+        self.conn.commit()
+        return updated
+
+    def merge_tags(self, source_tags: list[str], target_tag: str) -> int:
+        import json as _json
+        rows = self.conn.execute("SELECT id, tags FROM library_items WHERE tags IS NOT NULL").fetchall()
+        sources_set = set(source_tags)
+        updated = 0
+        for row in rows:
+            try:
+                tags = _json.loads(row["tags"])
+                if isinstance(tags, list) and any(t in sources_set for t in tags):
+                    new_tags = [target_tag if t in sources_set else t for t in tags]
+                    new_tags = list(dict.fromkeys(new_tags))
+                    self.conn.execute(
+                        "UPDATE library_items SET tags = ?, updated_at = ? WHERE id = ?",
+                        (_json.dumps(new_tags), _now(), row["id"]),
+                    )
+                    updated += 1
+            except Exception:
+                pass
+        self.conn.commit()
+        return updated
+
+    def delete_tag(self, tag: str) -> int:
+        import json as _json
+        rows = self.conn.execute("SELECT id, tags FROM library_items WHERE tags IS NOT NULL").fetchall()
+        updated = 0
+        for row in rows:
+            try:
+                tags = _json.loads(row["tags"])
+                if isinstance(tags, list) and tag in tags:
+                    new_tags = [t for t in tags if t != tag]
+                    self.conn.execute(
+                        "UPDATE library_items SET tags = ?, updated_at = ? WHERE id = ?",
+                        (_json.dumps(new_tags), _now(), row["id"]),
+                    )
+                    updated += 1
+            except Exception:
+                pass
+        self.conn.commit()
+        return updated
 
     def unsummarized(
         self, limit: int = 50, exclude_ids: tuple[int, ...] = ()

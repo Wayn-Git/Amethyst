@@ -1,0 +1,24 @@
+{
+  "queryParam": {
+    "url": "http://192.168.1.2:8000/api/library/832224/thumbnail?token=REDACTED",
+    "status": 200,
+    "statusText": "OK",
+    "ok": true,
+    "contentType": "image/jpeg",
+    "blobSize": 63942,
+    "blobType": "image/jpeg"
+  },
+  "authHeader": {
+    "url": "http://192.168.1.2:8000/api/library/832224/thumbnail",
+    "status": 200,
+    "statusText": "OK",
+    "ok": true,
+    "contentType": "image/jpeg",
+    "blobSize": 63942,
+    "blobType": "image/jpeg"
+  },
+  "imgElement": {
+    "loaded": false,
+    "error": "img onerror triggered"
+  }
+}

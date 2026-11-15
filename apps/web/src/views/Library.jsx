@@ -944,6 +944,9 @@ export default function Library() {
               counts={counts}
               categoryCounts={categoryCounts}
               tagCounts={tagCounts}
+              lists={lists}
+              selectedListId={selectedListId}
+              onSelectList={setSelectedListId}
               selectedKind={selectedKinds[0] || ''}
               selectedCategory={selectedCategories[0] || ''}
               selectedTag={selectedTags[0] || ''}

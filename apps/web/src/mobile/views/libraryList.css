@@ -1,0 +1,656 @@
+/* Library LIST screen additions.
+   Spec: docs/agent-context/sections/library-revamp-design.md (sections 2.2–2.4, 2.6, 3.2, 5.3, 6.2).
+   Existing lb-* styles live in companion.css; this file only adds new surfaces. */
+
+/* --- 2.2 Grid view ---------------------------------------------------------- */
+
+.ll-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 10px;
+}
+
+.ll-tile {
+  position: relative;
+  cursor: pointer;
+}
+
+.ll-tile.on {
+  box-shadow: 0 0 0 2px #0b5fd9;
+  border-radius: 18px;
+}
+
+.ll-tile-thumb {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #e5e5ea;
+}
+
+.ll-tile-thumb > *:first-child {
+  width: 100%;
+  height: 100%;
+}
+
+.ll-tile-title {
+  margin: 6px 2px 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 17px;
+  color: #151517;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ll-tile-meta {
+  margin: 1px 2px 0;
+  font-size: 11px;
+  color: #636366;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- 2.3 Multi-select -------------------------------------------------------- */
+
+.ll-selbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 46px;
+}
+
+.ll-sel-link {
+  border: 0;
+  background: transparent;
+  padding: 0 4px;
+  height: 44px;
+  color: #0a55c4;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ll-sel-count {
+  font-size: 17px;
+  font-weight: 700;
+  color: #151517;
+}
+
+.lb-card.ll-sel-card,
+.ll-tile {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.lb-card.ll-sel-card {
+  position: relative;
+}
+
+.lb-card.ll-selected {
+  box-shadow: 0 0 0 2px #0b5fd9, 0 4px 14px rgba(0, 0, 0, 0.05);
+}
+
+.ll-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  background: #fff;
+  border: 2px solid #b8b8c0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.ll-check.on {
+  background: #0b5fd9;
+  border-color: #0b5fd9;
+  color: #fff;
+}
+
+.ll-sel-bar {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  display: flex;
+  border-radius: 32px;
+  padding: 4px 6px;
+  background: rgba(28, 28, 30, 0.72);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.ll-sel-act {
+  flex: 1;
+  height: 56px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  cursor: pointer;
+}
+
+.ll-sel-act.danger {
+  color: #ff8a80;
+}
+
+/* --- 5.3 Saving and failed ---------------------------------------------------- */
+
+.ll-saving-badge {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  z-index: 4;
+  padding: 4px 9px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(11, 95, 217, 0.88);
+  animation: ll-blink 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes ll-blink {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.ll-progress {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: #e5e5ea;
+  overflow: hidden;
+}
+
+.ll-progress-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  border-radius: 3px;
+  background: #0b5fd9;
+  animation: ll-slide 1.6s ease-in-out infinite;
+}
+
+@keyframes ll-slide {
+  0% { left: -40%; }
+  100% { left: 100%; }
+}
+
+.ll-step {
+  font-size: 12px;
+  color: #636366;
+}
+
+.lb-card.ll-failed {
+  box-shadow: 0 0 0 1.5px #e8b4af;
+}
+
+.ll-failed-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 10px;
+  background: #fdecea;
+  color: #b3261e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ll-retry {
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 22px;
+  border: 0;
+  background: #0b5fd9;
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 2px;
+  align-self: flex-start;
+}
+
+/* --- 2.4 / 2.6 Empty states ---------------------------------------------------- */
+
+.ll-empty {
+  text-align: center;
+  padding-bottom: 8px;
+}
+
+.ll-empty-art {
+  position: relative;
+  width: 200px;
+  height: 150px;
+  margin: 34px auto 0;
+}
+
+.ll-art-card {
+  position: absolute;
+  border-radius: 22px;
+}
+
+.ll-art-a {
+  width: 120px;
+  height: 104px;
+  left: 14px;
+  top: 18px;
+  background: #d6e4fb;
+  transform: rotate(-8deg);
+}
+
+.ll-art-b {
+  width: 120px;
+  height: 104px;
+  right: 14px;
+  top: 18px;
+  background: #e5e5ea;
+  transform: rotate(7deg);
+}
+
+.ll-art-c {
+  width: 120px;
+  height: 120px;
+  left: 40px;
+  top: 15px;
+  background: #fff;
+  border-radius: 26px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ll-art-plus {
+  width: 52px;
+  height: 52px;
+  border-radius: 26px;
+  background: #0b5fd9;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ll-art-sm {
+  width: 180px;
+  height: 120px;
+  margin: 40px auto 0;
+}
+
+.ll-art-sm .ll-art-a,
+.ll-art-sm .ll-art-b {
+  width: 104px;
+  height: 92px;
+  top: 12px;
+  border-radius: 20px;
+}
+
+.ll-art-sm .ll-art-a {
+  left: 8px;
+  transform: rotate(-6deg);
+}
+
+.ll-art-sm .ll-art-b {
+  right: 8px;
+  transform: rotate(6deg);
+}
+
+.ll-art-sm .ll-art-c {
+  width: 104px;
+  height: 104px;
+  left: 38px;
+  top: 8px;
+  border-radius: 24px;
+}
+
+.ll-empty-h {
+  margin: 18px 0 0;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: #151517;
+}
+
+.ll-empty-p {
+  margin: 8px auto 0;
+  padding: 0 40px;
+  max-width: 340px;
+  font-size: 16px;
+  line-height: 23px;
+  color: #636366;
+}
+
+.ll-empty-status {
+  margin: 14px auto 0;
+  padding: 0 24px;
+  font-size: 14px;
+  color: #636366;
+}
+
+.ll-cta {
+  display: block;
+  margin: 20px 16px 0;
+  width: calc(100% - 32px);
+  height: 52px;
+  border-radius: 14px;
+  border: 0;
+  background: #0b5fd9;
+  color: #fff;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ll-ways-label {
+  margin: 24px 20px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #636366;
+  text-align: left;
+}
+
+.ll-empty-filter {
+  margin: 26px 16px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #636366;
+  font-size: 15px;
+}
+
+/* --- 3.2 No search results ------------------------------------------------------ */
+
+.ll-nores {
+  margin-top: 84px;
+  padding: 0 40px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ll-nores-icon {
+  width: 88px;
+  height: 88px;
+  border-radius: 28px;
+  background: #e5e5ea;
+  color: #636366;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ll-nores-h {
+  margin: 18px 0 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: #151517;
+}
+
+.ll-nores-p {
+  margin: 8px 0 0;
+  font-size: 16px;
+  line-height: 23px;
+  color: #636366;
+}
+
+.ll-suggest-label {
+  margin: 28px 20px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #636366;
+}
+
+.ll-suggest-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 16px;
+}
+
+/* --- 6.2 Tag manager ------------------------------------------------------------ */
+
+.ll-tmgr {
+  position: fixed;
+  inset: 0;
+  z-index: 620;
+  background: #f2f2f7;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: calc(48px + env(safe-area-inset-top, 0px)) 16px 40px;
+}
+
+.ll-tmgr-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+}
+
+.ll-tmgr-hint {
+  font-size: 15px;
+  color: #0a55c4;
+  font-weight: 700;
+}
+
+.ll-tmgr-merge {
+  height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.1);
+  color: #0a55c4;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ll-tmgr-merge.on {
+  background: #0a55c4;
+  color: #fff;
+}
+
+.ll-tmgr-h1 {
+  margin: 10px 4px 0;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  color: #151517;
+}
+
+.ll-tmgr-sub {
+  margin: 2px 4px 0;
+  font-size: 15px;
+  color: #636366;
+}
+
+.ll-tmgr-search {
+  margin-top: 12px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(118, 118, 128, 0.12);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+}
+
+.ll-tmgr-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 16px;
+  color: #151517;
+  outline: none;
+}
+
+.ll-tmgr-row {
+  cursor: pointer;
+}
+
+.ll-tmgr-row.on {
+  box-shadow: inset 0 0 0 2px #0b5fd9;
+}
+
+.ll-tmgr-hash {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: #e4edfc;
+  color: #0a55c4;
+  font-weight: 800;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.ll-tmgr-name {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ll-tmgr-edit {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: #636366;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: none;
+}
+
+.ll-tmgr-editor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 10px;
+}
+
+.ll-tmgr-editor input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px #e3e3e8;
+  background: #fff;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 16px;
+  color: #151517;
+  outline: none;
+}
+
+.ll-tmgr-danger {
+  height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 22px;
+  background: #fdecea;
+  color: #b3261e;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  flex: none;
+}
+
+.ll-tmgr-new {
+  width: 100%;
+  height: 56px;
+  border: 0;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.1);
+  color: #0a55c4;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 24px;
+}
+
+.ll-tmgr-newrow {
+  display: flex;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.ll-tmgr-newrow input {
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+  border: 0;
+  border-radius: 14px;
+  box-shadow: 0 0 0 1px #e3e3e8;
+  background: #fff;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 16px;
+  color: #151517;
+  outline: none;
+}
+
+.ll-tmgr-newgo {
+  height: 56px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 14px;
+  background: #0b5fd9;
+  color: #fff;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  flex: none;
+}

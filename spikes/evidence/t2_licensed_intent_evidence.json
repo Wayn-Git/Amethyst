@@ -1,0 +1,15 @@
+{
+  "testedAt": "2026-11-10T08:50:42.401Z",
+  "shortcode": "DdXGIh1JE4m",
+  "songName": "Runaway (feat. Pusha T)",
+  "artistName": "Kanye West",
+  "cardRendered": true,
+  "targetUrl": "https://www.instagram.com/reel/DdXGIh1JE4m/",
+  "intentDispatchedSuccessfully": true,
+  "focusedWindow": "mCurrentFocus=Window{d642add u0 com.android.settings/com.vivo.settings.secret.PasswordActivity type=1 }\n  mFocusedApp=ActivityRecord{65623cb u0 com.android.settings/com.vivo.settings.secret.PasswordActivity t39 d0}",
+  "activityStack": "topResumedActivity=ActivityRecord{65623cb u0 com.android.settings/com.vivo.settings.secret.PasswordActivity t39 d0}\n    * Hist  #0: ActivityRecord{65623cb u0 com.android.settings/com.vivo.settings.secret.PasswordActivity t39 d0}\n    mLastPausedActivity: ActivityRecord{6fa9b90 u0 app.amethyst.companion/.MainActivity t38 d0}\n    * Hist  #0: ActivityRecord{6fa9b90 u0 app.amethyst.companion/.MainActivity t38 d0}\n    Resumed: ActivityRecord{65623cb u0 com.android.settings/com.vivo.settings.secret.PasswordActivity t39 d0}\n  ResumedActivity: ActivityRecord{65623cb u0 com.android.settings/com.vivo.settings.secret.PasswordActivity t39 d0}\n  deepestLastOrientationSource=ActivityRecord{6fa9b90 u0 app.amethyst.companion/.MainActivity t38 d0}\n  mFocusedApp=ActivityRecord{65623cb u0 com.android.settings/com.vivo.settings.secret.PasswordActivity t39 d0}\n        * ActivityRecord{65623cb u0 com.android.settings/com.vivo.settings.secret.PasswordActivity t39 d0}\n        * ActivityRecord{6fa9b90 u0 app.amethyst.companion/.MainActivity t38 d0}",
+  "screenshots": [
+    "spikes/evidence/licensed_reel_card_rendered.png",
+    "spikes/evidence/licensed_reel_instagram_opened.png"
+  ]
+}

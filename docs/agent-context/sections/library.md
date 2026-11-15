@@ -149,6 +149,34 @@ Rules:
 - Do not search the filesystem per request; use the index.
 - Keep `capture_note` user-readable.
 
+## Mobile library
+
+The mobile Library lives in `apps/web/src/mobile/` and mirrors the desktop
+section with a liquid-glass iOS-style design (background `#F2F2F7`, ink
+`#151517`, blue `#0B5FD9`/`#0A55C4`, delete red `#B3261E`, card radius 22,
+sheet radius 28; see `docs/agent-context/FRONTEND.md` for token conventions).
+
+| Piece | Path |
+|---|---|
+| List view | `apps/web/src/mobile/views/MobileLibrary.jsx` |
+| Item detail | `apps/web/src/mobile/views/MobileLibraryItem.jsx` |
+| Per-kind detail cards | `apps/web/src/mobile/views/LibraryTypeDetails.jsx` |
+| Kind→screen mapping | `apps/web/src/mobile/views/libraryPresentation.js` |
+| Shared UI primitives | `apps/web/src/mobile/components/libraryUi.jsx` |
+| Styles | `apps/web/src/mobile/companion.css` (`lb-*` classes) |
+
+Shared primitives in `libraryUi.jsx`: `CARD_EASE`, `GlassIconButton`,
+`Segmented`, `ChipRow`, `SectionHead`, `BottomSheet`, `AddToCollectionSheet`.
+The add-to-collection sheet toggles membership immediately through
+`api.addLibraryListMember` / `api.removeLibraryListMember`
+(`POST/DELETE /api/library/lists/{id}/members`). Design markup boards for this
+revamp live in `docs/widget-playground/` reference material and follow the
+"preview is the visual contract" rule.
+
+The item menu sheet rows (`.lb-act`) and the delete confirm dialog follow the
+design boards; "Archive" is intentionally not wired — `LibraryPatch` has no
+`archived` field (only conversations do).
+
 ## Known issues
 
 - Enrichment and indexing are asynchronous. A new item may be searchable before
@@ -170,4 +198,4 @@ Rules:
 - [systems/storage.md](../systems/storage.md)
 - [AGENT-SYSTEM.md](../AGENT-SYSTEM.md)
 
-_Last verified: 2026-11-04 · Zero video download & Smart Lists pipeline._
+_Last verified: 2026-11-12 · Mobile liquid-glass revamp; shared primitives in `apps/web/src/mobile/components/libraryUi.jsx`._

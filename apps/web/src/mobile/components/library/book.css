@@ -1,0 +1,396 @@
+/* Book detail screen styles — library-revamp-design.md section 8.9.
+   All classes prefixed bk-. */
+
+.bk-root {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Cover panel — 210 tall, radius 32, paper */
+.bk-panel {
+  position: relative;
+  height: 210px;
+  border-radius: 32px;
+  overflow: hidden;
+  background: #e7dfd0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Centered book: 104x156, rounded right edge, spine strip */
+.bk-book {
+  position: relative;
+  width: 104px;
+  height: 156px;
+  border-radius: 6px 12px 12px 6px;
+  background: #2f4b5c;
+  padding: 14px 12px 0 14px;
+  box-sizing: border-box;
+  overflow: hidden;
+  color: #fff;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.25);
+}
+
+.bk-spine {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  border-radius: 6px 0 0 6px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.bk-book-title {
+  margin-left: 4px;
+  font-size: 15px;
+  line-height: 18px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  display: -webkit-box;
+  -webkit-line-clamp: 7;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bk-book-author {
+  position: absolute;
+  left: 16px;
+  bottom: 14px;
+  max-width: 78px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bk-book-img {
+  display: block;
+  width: 104px;
+  height: 156px;
+  border-radius: 6px 12px 12px 6px;
+  object-fit: cover;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.25);
+}
+
+/* Title block */
+.bk-head {
+  margin-top: 12px;
+  padding: 0 4px;
+}
+
+.bk-title {
+  margin: 0;
+  font-size: 26px;
+  line-height: 31px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #151517;
+}
+
+.bk-meta {
+  margin: 6px 0 0;
+  font-size: 15px;
+  color: #636366;
+}
+
+.bk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.bk-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  background: #e5e5ea;
+  color: #3a3a3c;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+/* Uppercase section label */
+.bk-label {
+  margin: 16px 4px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #636366;
+}
+
+.bk-h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #151517;
+}
+
+.bk-h2row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 16px 4px 8px;
+}
+
+/* Status trio — h48 r24 */
+.bk-status-row {
+  display: flex;
+  gap: 8px;
+}
+
+.bk-st {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  padding: 0;
+  border: 1px solid #d8d8de;
+  border-radius: 24px;
+  background: #fff;
+  color: #151517;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.bk-st.on {
+  border-color: transparent;
+  background: #151517;
+  color: #fff;
+  font-weight: 650;
+}
+
+.bk-st:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* White detail card */
+.bk-card {
+  background: #fff;
+  border-radius: 22px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 6px 18px rgba(0, 0, 0, 0.06);
+}
+
+/* Synopsis */
+.bk-synopsis-card {
+  padding: 14px 16px;
+}
+
+.bk-synopsis-card p {
+  margin: 0;
+  font-size: 16px;
+  line-height: 24px;
+  color: #2c2c2e;
+  white-space: pre-line;
+}
+
+/* Action rows (Where to get it) */
+.bk-rows-card {
+  padding: 4px 16px;
+}
+
+.bk-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid #ececf0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.bk-row:last-child {
+  border-bottom: 0;
+}
+
+.bk-row-ic {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: #e4edfc;
+  color: #0a55c4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bk-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bk-row-title {
+  font-size: 16px;
+  font-weight: 650;
+  color: #151517;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bk-row-sub {
+  font-size: 13px;
+  color: #636366;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bk-row-arrow {
+  flex: none;
+  display: flex;
+  color: #636366;
+}
+
+/* Key-value details */
+.bk-kv-card {
+  padding: 4px 20px;
+}
+
+.bk-kv {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 46px;
+  border-bottom: 1px solid #ececf0;
+  font-size: 16px;
+}
+
+.bk-kv:last-child {
+  border-bottom: 0;
+}
+
+.bk-kv-k {
+  flex: none;
+  color: #636366;
+}
+
+.bk-kv-v {
+  color: #151517;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* Saved from link card */
+.bk-source-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.bk-source-ic {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+  background: #e4f5ea;
+  color: #14703a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bk-source-title {
+  font-size: 16px;
+  font-weight: 650;
+  color: #151517;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bk-source-sub {
+  font-size: 14px;
+  color: #636366;
+}
+
+/* Notes editor */
+.bk-save {
+  flex: none;
+  height: 46px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 23px;
+  background: #0b5fd9;
+  color: #fff;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.5), 0 8px 18px rgba(11, 95, 217, 0.3);
+  transition: filter 0.15s ease;
+}
+
+.bk-save:disabled {
+  filter: saturate(0.5) brightness(0.95);
+  cursor: default;
+}
+
+.bk-notes-card {
+  overflow: hidden;
+}
+
+.bk-notes-input {
+  display: block;
+  width: 100%;
+  min-height: 132px;
+  padding: 18px 20px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  resize: vertical;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 17px;
+  line-height: 25px;
+  color: #151517;
+}
+
+.bk-notes-input::placeholder {
+  color: #8e8e93;
+}
+
+.bk-root button:focus-visible,
+.bk-root a:focus-visible,
+.bk-root textarea:focus-visible {
+  outline: 2px solid #0b5fd9;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bk-root *,
+  .bk-root *::before,
+  .bk-root *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

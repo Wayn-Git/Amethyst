@@ -45,17 +45,19 @@ export function recordSyncedHash(itemHash, fileId) {
 
 /**
  * Deterministic winner rule for duplicate Drive files.
- * Rule: Lowest (createdTime, fileId).
+ * Rule: Earliest createdTime when available; falls back to lexicographically lowest fileId.
  */
 export function pickDeterministicWinner(files) {
   if (!files || files.length === 0) return null
   return files.reduce((winner, current) => {
     if (!winner) return current
-    const timeWin = new Date(winner.createdTime || 0).getTime()
-    const timeCurr = new Date(current.createdTime || 0).getTime()
-    if (timeCurr < timeWin) return current
-    if (timeCurr > timeWin) return winner
-    // Tie-breaker: lowest fileId lexicographically
+    const timeWin = winner.createdTime ? new Date(winner.createdTime).getTime() : null
+    const timeCurr = current.createdTime ? new Date(current.createdTime).getTime() : null
+    if (timeWin !== null && timeCurr !== null && !isNaN(timeWin) && !isNaN(timeCurr)) {
+      if (timeCurr < timeWin) return current
+      if (timeCurr > timeWin) return winner
+    }
+    // Deterministic tie-breaker / fallback: lexicographically lowest fileId
     return (current.id || '').localeCompare(winner.id || '') < 0 ? current : winner
   }, null)
 }

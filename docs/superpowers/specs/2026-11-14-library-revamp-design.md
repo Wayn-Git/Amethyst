@@ -249,3 +249,4 @@ All components interact through standard client methods in `frontend/src/api.js`
    - Open detail modal for video, movie, recipe, book, and note items.
    - Test search, collections tab, create sheet, and kebab actions.
    - Capture device screenshots via `adb shell screencap` and inspect layout geometry.
+

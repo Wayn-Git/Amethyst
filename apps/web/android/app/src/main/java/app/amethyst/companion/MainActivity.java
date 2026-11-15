@@ -4,11 +4,15 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Window;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -31,6 +35,30 @@ public class MainActivity extends BridgeActivity {
         }
     };
 
+    private void setupEdgeToEdgeAndSystemBars() {
+        Window window = getWindow();
+        int screenBg = Color.parseColor("#F2F2F7");
+
+        window.getDecorView().setBackgroundColor(screenBg);
+        window.setStatusBarColor(screenBg);
+        window.setNavigationBarColor(screenBg);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.setNavigationBarContrastEnforced(false);
+            window.setStatusBarContrastEnforced(false);
+        }
+
+        WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(window, window.getDecorView());
+        if (controller != null) {
+            controller.setAppearanceLightStatusBars(true);
+            controller.setAppearanceLightNavigationBars(true);
+        }
+
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            getBridge().getWebView().setBackgroundColor(screenBg);
+        }
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(AppUpdatesPlugin.class);
@@ -39,11 +67,27 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         WebView.setWebContentsDebuggingEnabled(true);
 
+        setupEdgeToEdgeAndSystemBars();
+
         IntentFilter filter = new IntentFilter("app.amethyst.companion.RUN_SPIKE");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(spikeReceiver, filter, Context.RECEIVER_EXPORTED);
         } else {
             registerReceiver(spikeReceiver, filter);
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        setupEdgeToEdgeAndSystemBars();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            setupEdgeToEdgeAndSystemBars();
         }
     }
 

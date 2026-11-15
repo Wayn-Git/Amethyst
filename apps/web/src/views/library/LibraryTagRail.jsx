@@ -24,6 +24,9 @@ export default function LibraryTagRail({
   tagCounts = {},
   appCounts = {},
   ratingCounts = {},
+  lists = [],
+  selectedListId = null,
+  onSelectList,
   selectedKind = '',
   selectedCategory = '',
   selectedTag = '',
@@ -69,17 +72,21 @@ export default function LibraryTagRail({
     return allTagEntries.filter(([tag]) => tag.toLowerCase().includes(q))
   }, [allTagEntries, tagQuery, showAllTags])
 
-  const hasFilter = Boolean(selectedKind || selectedCategory || selectedTag || selectedRating || (selectedProgress && selectedProgress !== 'all'))
-  const activeKinds = useMemo(() => {
-    return Object.entries(counts).filter(([, count]) => count > 0)
-  }, [counts])
+  const hasFilter = Boolean(
+    selectedKind ||
+    selectedCategory ||
+    selectedTag ||
+    selectedRating ||
+    (selectedProgress && selectedProgress !== 'all') ||
+    selectedListId
+  )
 
   return (
-    <aside className="lib-rail" aria-label="Knowledge Sidebar">
-      {/* Knowledge Brand Header */}
+    <aside className="lib-rail" aria-label="Library Sidebar">
+      {/* Library Brand Header */}
       <div className="lib-rail-header" style={{ padding: '8px 12px 14px' }}>
         <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text)' }}>
-          Knowledge
+          Library
         </span>
         {hasFilter && (
           <button
@@ -129,6 +136,26 @@ export default function LibraryTagRail({
       {/* Collections section */}
       <div className="lib-rail-group" style={{ marginTop: 12 }}>
         <div className="lib-rail-section-label">Collections</div>
+        {lists.map((l) => {
+          const isActive = selectedListId === l.id
+          const count = (l.item_count || 0) + (l.link_count || 0)
+          return (
+            <button
+              type="button"
+              key={l.id}
+              className={`lib-rail-nav-btn ${isActive ? 'lib-rail-nav-btn--active' : ''}`}
+              onClick={() => onSelectList?.(isActive ? null : l.id)}
+            >
+              <Icon
+                name={l.is_smart ? 'spark' : 'folder'}
+                size={15}
+                className={l.is_smart ? 'text-amber-400' : ''}
+              />
+              <span className="truncate">{l.title}</span>
+              {count > 0 && <em className="lib-rail-nav-count">{count}</em>}
+            </button>
+          )
+        })}
         <button
           type="button"
           className="lib-rail-nav-btn"
@@ -139,32 +166,6 @@ export default function LibraryTagRail({
           <span>New collection</span>
         </button>
       </div>
-
-      {/* Formats / Kinds */}
-      {activeKinds.length > 0 && (
-        <div className="lib-rail-group">
-          <div className="lib-rail-heading" style={{ padding: '6px 4px 4px' }}>Formats</div>
-          {activeKinds.map(([kind, count]) => {
-            const isActive = selectedKind === kind
-            return (
-              <HouseButton
-                type="button"
-                key={kind}
-                className={`lib-rail-item ${isActive ? 'lib-rail-item--active' : ''}`}
-                onClick={() => onSelectKind?.(isActive ? '' : kind)}
-              >
-                <div className="lib-rail-item-left">
-                  <span className="lib-rail-item-icon">
-                    <Icon name={KIND_ICON[kind] || 'link'} size={14} />
-                  </span>
-                  <span style={{ textTransform: 'capitalize' }}>{kind}</span>
-                </div>
-                <span className="lib-rail-item-badge">{count}</span>
-              </HouseButton>
-            )
-          })}
-        </div>
-      )}
 
       {/* Connected Platforms */}
       {activeApps.length > 0 && (

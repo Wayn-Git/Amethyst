@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import httpx
-from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field, ValidationError
@@ -8624,6 +8624,12 @@ class LibraryBody(BaseModel):
     remind_at: str | None = None
     remind_action: str | None = None
     private_notes: str | None = None
+    checklist: list[dict] | None = None
+    is_favorite: int | bool | None = None
+    favorite: int | bool | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    extra_data: dict | None = None
 
 
 class LibraryPatch(BaseModel):
@@ -8640,11 +8646,46 @@ class LibraryPatch(BaseModel):
     resources: list[dict] | None = None
     progress: str | None = None
     is_pinned: int | bool | None = None
+    is_favorite: int | bool | None = None
+    favorite: int | bool | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    extra_data: dict | None = None
+    deleted_at: str | None = None
     position: int | None = None
     remind_at: str | None = None
     remind_action: str | None = None
     reminded_at: str | None = None
     private_notes: str | None = None
+    checklist: list[dict] | None = None
+
+
+class DetectBody(BaseModel):
+    url: str
+
+
+class BulkIdsBody(BaseModel):
+    item_ids: list[int]
+
+
+class BulkCollectBody(BaseModel):
+    item_ids: list[int]
+    list_id: int
+
+
+class BulkTagBody(BaseModel):
+    item_ids: list[int]
+    tags: list[str]
+
+
+class TagRenameBody(BaseModel):
+    old_tag: str
+    new_tag: str
+
+
+class TagMergeBody(BaseModel):
+    source_tags: list[str]
+    target_tag: str
 
 
 class ReorderLibraryBody(BaseModel):
@@ -8657,14 +8698,204 @@ class MergeListsBody(BaseModel):
     type: str = "tag"
 
 
+_webp_thumb_cache: dict[int, str] = {}
+
+def get_item_webp_thumb(item_id: int, thumb_path: str | None = None) -> str | None:
+    if item_id in _webp_thumb_cache:
+        return _webp_thumb_cache[item_id]
+    cand = None
+    if thumb_path and os.path.isfile(thumb_path):
+        cand = thumb_path
+    else:
+        try:
+            from backend.library.store import thumbnail_path, opt_thumbnail_path
+            opt = opt_thumbnail_path(item_id)
+            if opt.is_file():
+                cand = opt
+            else:
+                p = thumbnail_path(item_id)
+                if p.is_file():
+                    cand = p
+        except Exception:
+            pass
+    if not cand:
+        return None
+    try:
+        from PIL import Image
+        import io, base64
+        im = Image.open(cand)
+        im.thumbnail((240, 240))
+        buf = io.BytesIO()
+        im.save(buf, format="WEBP", quality=80, method=4)
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        data_url = f"data:image/webp;base64,{b64}"
+        _webp_thumb_cache[item_id] = data_url
+        return data_url
+    except Exception:
+        return None
+
+
+@app.get("/api/library/counts")
+def get_library_counts() -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    store = LibraryService().store
+    try:
+        item_count = store.conn.execute(
+            "SELECT COUNT(*) FROM library_items WHERE (deleted_at IS NULL OR deleted_at = '')"
+        ).fetchone()[0]
+    except Exception:
+        item_count = 0
+    try:
+        list_count = store.conn.execute("SELECT COUNT(*) FROM library_lists").fetchone()[0]
+    except Exception:
+        list_count = 0
+    return {"saved": item_count, "collections": list_count}
+
+
+@app.get("/api/library/resume")
+def get_library_resume() -> list[dict[str, Any]]:
+    from backend.library.service import LibraryService, as_dict
+
+    service = LibraryService()
+    rows = service.store.get_resume_items(limit=2)
+    return [as_dict(r, store=service.store) for r in rows]
+
+
+@app.post("/api/library/detect")
+async def detect_library_url(body: DetectBody) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+    from backend.library.enrich import infer_kind, normalize_url
+    from backend.mcp.ssrf import check_url_async, UnsafeURL
+    from backend.web.reader import fetch_readable
+
+    raw_url = str(body.url or "").strip()
+    norm = normalize_url(raw_url)
+    if not norm:
+        raise HTTPException(400, "Valid URL required")
+    try:
+        await check_url_async(norm)
+    except UnsafeURL as exc:
+        raise HTTPException(400, str(exc))
+
+    kind = infer_kind(norm)
+    title = ""
+    thumbnail = ""
+    creator = ""
+    source = ""
+    duration = None
+
+    try:
+        page = await fetch_readable(norm)
+        if page:
+            title = page.title or ""
+            source = page.site or ""
+            creator = page.author or ""
+            if getattr(page, "thumbnail", None):
+                thumbnail = page.thumbnail
+    except Exception:
+        pass
+
+    service = LibraryService()
+    existing = service.store.by_url(norm)
+    already_saved = existing is not None and not existing["deleted_at"]
+
+    lists = service.store.get_lists()
+    suggested_collection = lists[0]["title"] if lists else "General"
+
+    return {
+        "url": norm,
+        "canonical_url": norm,
+        "detected_kind": kind or "article",
+        "title": title or norm,
+        "thumbnail": thumbnail,
+        "duration_seconds": duration,
+        "creator": creator,
+        "source": source,
+        "suggested_collection": suggested_collection,
+        "already_saved": already_saved,
+    }
+
+
+@app.post("/api/library/bulk/delete")
+def bulk_delete_items(body: BulkIdsBody) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    count = LibraryService().store.bulk_soft_delete(body.item_ids)
+    return {"ok": True, "count": count}
+
+
+@app.post("/api/library/bulk/restore")
+def bulk_restore_items(body: BulkIdsBody) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    count = LibraryService().store.bulk_restore(body.item_ids)
+    return {"ok": True, "count": count}
+
+
+@app.post("/api/library/bulk/collect")
+def bulk_collect_items(body: BulkCollectBody) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    count = LibraryService().store.bulk_add_to_list(body.list_id, body.item_ids)
+    return {"ok": True, "count": count}
+
+
+@app.post("/api/library/bulk/tag")
+def bulk_tag_items(body: BulkTagBody) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    count = LibraryService().store.bulk_tag(body.item_ids, body.tags)
+    return {"ok": True, "count": count}
+
+
+@app.get("/api/library/tags")
+def get_library_tags() -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    tags_count = LibraryService().tag_counts()
+    items = [{"name": tag, "count": count} for tag, count in tags_count.items()]
+    return {"tags": items, "total": len(items)}
+
+
+@app.post("/api/library/tags/rename")
+def rename_library_tag(body: TagRenameBody) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    count = LibraryService().store.rename_tag(body.old_tag, body.new_tag)
+    return {"ok": True, "updated": count}
+
+
+@app.post("/api/library/tags/merge")
+def merge_library_tags(body: TagMergeBody) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    count = LibraryService().store.merge_tags(body.source_tags, body.target_tag)
+    return {"ok": True, "updated": count}
+
+
+@app.delete("/api/library/tags/{tag}")
+def delete_library_tag(tag: str) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    count = LibraryService().store.delete_tag(tag)
+    return {"ok": True, "deleted": count}
+
+
 @app.get("/api/library")
 async def list_library(
     q: str | None = None,
     kind: str | None = None,
+    types: str | None = None,
     category: str | None = None,
     tag: str | None = None,
+    tags_filter: str | None = Query(None, alias="tags"),
     list_id: int | None = None,
     order: str = "desc",
+    sort: str | None = None,
+    status: str | None = None,
+    from_date: str | None = Query(None, alias="from"),
+    include_deleted: bool = False,
     limit: int = 50,
     offset: int = 0,
 ) -> dict[str, Any]:
@@ -8672,15 +8903,18 @@ async def list_library(
 
     service = LibraryService()
     limit = max(1, min(limit, 500))
-    # Comma-delimited values are intentional: choices within one facet are OR,
-    # while different facets remain AND. This lets the library's facet desk
-    # combine, for example, Instagram + YouTube with a single category.
-    kinds = {value.strip() for value in (kind or "").split(",") if value.strip()}
+    resolved_kind = kind or types or ""
+    resolved_tag = tag or tags_filter or ""
+    kinds = {value.strip() for value in resolved_kind.split(",") if value.strip()}
     categories = {value.strip() for value in (category or "").split(",") if value.strip()}
-    tags = {value.strip() for value in (tag or "").split(",") if value.strip()}
+    tags = {value.strip() for value in resolved_tag.split(",") if value.strip()}
 
     if q and q.strip():
         items = await service.search(q, limit=max(limit, 200))
+        if not include_deleted:
+            items = [it for it in items if not it.get("deleted_at")]
+        if status:
+            items = [it for it in items if it.get("status") == status or it.get("progress") == status]
         if list_id is not None:
             items = [it for it in items if list_id in [c.get("id") for c in it.get("collection_details", [])]]
         if kinds:
@@ -8689,16 +8923,33 @@ async def list_library(
             items = [it for it in items if it.get("category") in categories]
         if tags:
             items = [it for it in items if tags.intersection((it.get("tags") or []) + ([it.get("app")] if it.get("app") else []))]
-        if str(order).lower() == "asc":
+        if str(sort or order).lower() in ("asc", "oldest"):
             items.reverse()
     else:
-        # The store's indexed path is still used for the ordinary one-value
-        # case. Multi-select needs an OR within a facet, so filter the bounded
-        # full library result after it has applied category inference.
         if len(kinds) <= 1 and len(categories) <= 1 and len(tags) <= 1:
-            items = service.recent(kind=next(iter(kinds), None), category=next(iter(categories), None), tag=next(iter(tags), None), list_id=list_id, order=order, limit=limit, offset=offset)
+            items = service.recent(
+                kind=next(iter(kinds), None),
+                category=next(iter(categories), None),
+                tag=next(iter(tags), None),
+                list_id=list_id,
+                order=order,
+                since=from_date,
+                status=status,
+                sort=sort,
+                include_deleted=include_deleted,
+                limit=limit,
+                offset=offset,
+            )
         else:
-            items = service.recent(list_id=list_id, order=order, limit=5000)
+            items = service.recent(
+                list_id=list_id,
+                order=order,
+                since=from_date,
+                status=status,
+                sort=sort,
+                include_deleted=include_deleted,
+                limit=5000,
+            )
             if kinds:
                 items = [it for it in items if it.get("kind") in kinds]
             if categories:
@@ -8708,7 +8959,10 @@ async def list_library(
             items = items[offset : offset + limit]
 
     for it in items:
-        if not it.get("thumbnail_url") and (it.get("thumbnail_path") or it.get("has_thumbnail")):
+        webp_data = get_item_webp_thumb(it["id"], it.get("thumbnail_path"))
+        if webp_data:
+            it["thumbnail_url"] = webp_data
+        elif not it.get("thumbnail_url") and (it.get("thumbnail_path") or it.get("has_thumbnail")):
             it["thumbnail_url"] = f"/api/library/{it['id']}/thumbnail"
 
     return {
@@ -8732,6 +8986,19 @@ async def add_library_item(body: LibraryBody) -> dict[str, Any]:
         "page": "article",
     }
     normalized_kind = KIND_ALIASES.get(body.kind, body.kind)
+    if not normalized_kind:
+        # Text the user wrote is a note unless it asks to be something else;
+        # URLs classify themselves inside capture_url.
+        normalized_kind = "note" if (body.text or "").strip() else None
+    if not body.checklist and body.text:
+        # "- [ ] buy milk" lines are a checklist even when the caller sent plain text.
+        parsed = []
+        for line in body.text.splitlines():
+            m = re.match(r"^\s*[-*•]\s*\[( |x|X)\]\s*(.+)$", line)
+            if m:
+                parsed.append({"text": m.group(2).strip(), "done": m.group(1).lower() == "x"})
+        if parsed:
+            body.checklist = parsed
     try:
         if body.text and body.text.strip():
             text_content = body.text.strip()
@@ -8783,6 +9050,28 @@ async def add_library_item(body: LibraryBody) -> dict[str, Any]:
     except Exception as exc:
         log.exception("failed to capture library item: %s", exc)
         raise HTTPException(500, f"Failed to capture item: {exc}") from exc
+    # Fields the capture flows don't take directly are applied right after the
+    # row exists; otherwise they are accepted and silently dropped.
+    follow_up = {
+        key: value
+        for key, value in {
+            "progress": body.progress,
+            "is_pinned": (1 if body.is_pinned else 0) if body.is_pinned is not None else None,
+            "position": body.position,
+            "remind_at": body.remind_at,
+            "remind_action": body.remind_action,
+            "private_notes": body.private_notes,
+            "checklist": json.dumps(body.checklist) if body.checklist else None,
+        }.items()
+        if value is not None
+    }
+    if follow_up and captured and captured.item and captured.item.get("id"):
+        try:
+            service.store.update(captured.item["id"], **follow_up)
+            from backend.library.service import as_dict as _as_dict
+            captured.item = _as_dict(service.store.get(captured.item["id"]))
+        except Exception as exc:
+            log.warning("library follow-up fields not applied: %s", exc)
     with contextlib.suppress(Exception):
         _library.nudge()
     if captured and captured.item and captured.item.get("id"):
@@ -8937,25 +9226,71 @@ def update_library_item(item_id: int, body: LibraryPatch) -> dict[str, Any]:
     store = LibraryStore()
     if store.get(item_id) is None:
         raise HTTPException(404, f"no library item {item_id}")
-    fields = body.model_dump(exclude_none=True)
+    fields = body.model_dump(exclude_unset=True)
     if "kind" in fields and fields["kind"] not in KINDS:
         raise HTTPException(400, f"unknown kind. One of: {', '.join(KINDS)}")
     if "is_pinned" in fields:
         fields["is_pinned"] = 1 if fields["is_pinned"] else 0
-    for column in ("tags", "resources"):
+    if "is_favorite" in fields or "favorite" in fields:
+        fav_val = fields.pop("favorite", None)
+        if fav_val is not None and "is_favorite" not in fields:
+            fields["is_favorite"] = 1 if fav_val else 0
+        elif "is_favorite" in fields:
+            fields["is_favorite"] = 1 if fields["is_favorite"] else 0
+    if "extra_data" in fields and isinstance(fields["extra_data"], dict):
+        fields["extra_data"] = json.dumps(fields["extra_data"])
+    for column in ("tags", "resources", "checklist"):
         if column in fields:
             fields[column] = json.dumps(fields[column])
     store.update(item_id, **fields)
     return as_dict(store.get(item_id))
 
 
+@app.get("/api/library/{item_id}/job-status")
+def get_library_job_status(item_id: int) -> dict[str, Any]:
+    from backend.library.store import LibraryStore
+
+    store = LibraryStore()
+    row = store.get(item_id)
+    if row is None:
+        raise HTTPException(404, f"no library item {item_id}")
+    status = row["status"] or "ready"
+    has_details = bool(row["thumbnail_path"] or (row["title"] and row["title"] != row["url"]))
+    has_summary = bool(row["summary"])
+    steps = [
+        {"name": "Saved and sorted", "done": True},
+        {"name": "Cover and details found", "done": has_details},
+        {"name": "Writing a summary and tags", "done": has_summary or status == "ready"},
+    ]
+    return {
+        "item_id": item_id,
+        "status": status,
+        "steps": steps,
+        "completed": status in ("ready", "failed"),
+    }
+
+
 @app.delete("/api/library/{item_id}")
-def delete_library_item(item_id: int) -> dict[str, Any]:
+def delete_library_item(item_id: int, soft: bool = False) -> dict[str, Any]:
     from backend.library.service import LibraryService
 
-    if not LibraryService().remove(item_id):
+    service = LibraryService()
+    if soft:
+        if not service.store.soft_delete(item_id):
+            raise HTTPException(404, f"no library item {item_id}")
+        return {"status": "soft_deleted", "id": item_id}
+    if not service.remove(item_id):
         raise HTTPException(404, f"no library item {item_id}")
     return {"status": "deleted", "id": item_id}
+
+
+@app.post("/api/library/{item_id}/restore")
+def restore_library_item(item_id: int) -> dict[str, Any]:
+    from backend.library.service import LibraryService
+
+    if not LibraryService().store.restore(item_id):
+        raise HTTPException(404, f"no library item {item_id}")
+    return {"status": "restored", "id": item_id}
 
 
 @app.get("/api/settings/library")

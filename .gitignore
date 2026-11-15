@@ -193,6 +193,8 @@ sketch
 .skills/
 .github/skills/
 .github/hooks/
+.github/agents/
+.aider-desk/
 .playwright-mcp/
 .agent/
 .agents/

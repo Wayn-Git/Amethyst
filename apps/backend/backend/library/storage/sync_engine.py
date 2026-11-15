@@ -607,11 +607,11 @@ class LibrarySyncEngine:
                         import io
                         from PIL import Image
                         im = Image.open(cand_path)
-                        im.thumbnail((320, 240))
+                        im.thumbnail((240, 240))
                         buf = io.BytesIO()
-                        im.convert("RGB").save(buf, format="JPEG", quality=75, optimize=True)
+                        im.save(buf, format="WEBP", quality=80, method=4)
                         b64 = base64.b64encode(buf.getvalue()).decode("ascii")
-                        thumb_url = f"data:image/jpeg;base64,{b64}"
+                        thumb_url = f"data:image/webp;base64,{b64}"
                     except Exception:
                         try:
                             if cand_path.stat().st_size <= 200 * 1024:
